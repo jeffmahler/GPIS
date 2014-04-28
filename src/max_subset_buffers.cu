@@ -11,6 +11,7 @@ extern "C" void construct_max_subset_buffers(MaxSubsetBuffers *buffers, float* i
   cudaSafeCall(cudaMalloc((void**)buffers->inputs, dim_input * num_pts * sizeof(float)));
   cudaSafeCall(cudaMalloc((void**)buffers->targets, dim_target * num_pts * sizeof(float)));
   cudaSafeCall(cudaMalloc((void**)buffers->active, num_pts * sizeof(unsigned char)));
+  cudaSafeCall(cudaMalloc((void**)buffers->scores, num_pts * sizeof(float)));
 
   // set buffs
   cudaSafeCall(cudaMemcpy((void**)(buffers->inputs), input_points, dim_input * num_pts * sizeof(float), cudaMemcpyHostToDevice));  
@@ -20,10 +21,15 @@ extern "C" void construct_max_subset_buffers(MaxSubsetBuffers *buffers, float* i
   cudaSafeCall(cudaMemset((void**)buffers->active, 0, num_pts * sizeof(unsigned char)));  
 }
 
+extern "C" void activate_max_subset_buffers(MaxSubsetBuffers* buffers, int index) {
+  cudaSafeCall(cudaMemset((void**)(buffers->active + index), 1, sizeof(unsigned char)));
+}
+
 extern "C" void free_max_subset_buffers(MaxSubsetBuffers *buffers) {
   // free everything
   cudaSafeCall(cudaFree(buffers->inputs));
   cudaSafeCall(cudaFree(buffers->targets));
   cudaSafeCall(cudaFree(buffers->active));
+  cudaSafeCall(cudaFree(buffers->scores));
 }
 

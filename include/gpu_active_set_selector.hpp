@@ -4,12 +4,9 @@
 
 #include <vector>
 
-typedef struct {
-  float beta;
-  std::vector<float> cov;
-} GaussianProcessHyperparams;
+#include "active_set_buffers.h"
 
-class ActiveSubsetSelector {
+class GpuActiveSetSelector {
 
   // possible criteria from which to select the active subset
   enum SubsetSelectionMode {
@@ -18,8 +15,8 @@ class ActiveSubsetSelector {
   };
 
  public:
-  ActiveSubsetSelector() {}
-  ~ActiveSubsetSelector() {}
+  GpuActiveSetSelector() {}
+  ~GpuActiveSetSelector() {}
 
  public:
   // Select an active subset from 
