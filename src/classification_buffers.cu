@@ -6,17 +6,17 @@ extern "C" void construct_classification_buffers(ClassificationBuffers *buffers,
   buffers->num_pts = num_pts;
   
   // allocate buffers
-  cudaSafeCall(cudaMalloc((void**)buffers->above, num_pts * sizeof(unsigned char)));
-  cudaSafeCall(cudaMalloc((void**)buffers->below, num_pts * sizeof(unsigned char)));
+  cudaSafeCall(cudaMalloc((void**)buffers->upper, num_pts * sizeof(unsigned char)));
+  cudaSafeCall(cudaMalloc((void**)buffers->lower, num_pts * sizeof(unsigned char)));
 
   // set all to 0 (all points are initially undetermined
-  cudaSafeCall(cudaMemset((void**)buffers->above, 0, num_pts * sizeof(unsigned char)));  
-  cudaSafeCall(cudaMemset((void**)buffers->below, 0, num_pts * sizeof(unsigned char)));  
+  cudaSafeCall(cudaMemset((void**)buffers->upper, 0, num_pts * sizeof(unsigned char)));  
+  cudaSafeCall(cudaMemset((void**)buffers->lower, 0, num_pts * sizeof(unsigned char)));  
 }
 
 extern "C" void free_classification_buffers(ClassificationBuffers *buffers) {
   // free everything
-  cudaSafeCall(cudaFree(buffers->above));
-  cudaSafeCall(cudaFree(buffers->below));
+  cudaSafeCall(cudaFree(buffers->upper));
+  cudaSafeCall(cudaFree(buffers->lower));
 }
 

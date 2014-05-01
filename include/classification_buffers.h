@@ -2,8 +2,8 @@
 #pragma once
 
 typedef struct {
-  unsigned char* above;
-  unsigned char* below;
+  unsigned char* upper;
+  unsigned char* lower;
   int num_pts;
 } ClassificationBuffers;
 

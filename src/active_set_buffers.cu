@@ -3,7 +3,6 @@
 
 #define BLOCK_DIM_X 32
 #define BLOCK_DIM_Y 32
-#define MAX_DIM_INPUT 10
 
 #define MAT_IJ_TO_LINEAR(i, j, dim) ((i) + (j)*(dim))
 
@@ -48,6 +47,58 @@ __device__ float exponential_kernel(float* x, float* y, int dim, int sigma)
   return __expf(-sum / (2 * sigma));
 }
 
+__global__ void compute_kernel_vector_kernel(float* active_inputs, float* input_point, float* kernel_vector, float sigma, int dim_input, int num_active, int max_active)
+{
+  __shared__ int s_dim_input;
+  __shared__ int s_num_active;
+  __shared__ int s_max_active;
+  __shared__ float s_sigma;
+
+  float local_input_point[MAX_DIM_INPUT];
+  float local_active_input[MAX_DIM_INPUT];
+
+  // read global variables into shared memory
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
+    s_dim_input = dim_input;
+    s_num_active = num_active;
+    s_max_active= max_active;
+    s_sigma = sigma;
+  }
+  __syncthreads();
+
+  int global_pos = threadIdx.x + blockDim.x * blockIdx.x;
+  float kernel_val = 0.0f;
+
+  if (global_pos >= s_max_active)
+    return;
+
+  if (global_pos < s_num_active) {
+    // read new input into local memory
+    for (int i = 0; i < s_dim_input; i++) {
+      local_input_point[i] = input_point[i];
+    } 
+    
+    // coalesced read of active input to compute kernel with
+    for (int i = 0; i < s_dim_input; i++) {
+      local_active_input[i] = active_inputs[i * s_dim_input + threadIdx.x];
+    }
+
+    kernel_val = exponential_kernel(local_input_point, local_active_input, s_dim_input, s_sigma);
+  }
+
+  // coalesced value write to vector
+  __syncthreads();
+  kernel_vector[global_pos] = kernel_val;
+}
+
+extern "C" void compute_kernel_vector(ActiveSetBuffers *buffers, float* input_point, float* kernel_vector, GaussianProcessHyperparams hypers)
+{
+  dim3 block_dim(BLOCK_DIM_X, 1, 1);
+  dim3 grid_dim(ceilf((float)(buffers->num_active)/(float)(block_dim.x)), 1, 1);
+
+  cudaSafeCall((compute_kernel_vector_kernel<<<grid_dim, block_dim>>>(buffers->active_inputs, input_point, kernel_vector, hypers.sigma, buffers->dim_input, buffers->num_active, buffers->max_active)));
+}
+
 __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_inputs, float* new_input, float beta, float sigma, int dim_input, int num_active, int max_active)
 {
   __shared__ int s_dim_input;
@@ -71,6 +122,9 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
 
   int global_pos = threadIdx.x + blockDim.x * blockIdx.x;
   float kernel_val = 0.0f;
+
+  if (global_pos >= s_max_active)
+    return;
 
   if (global_pos < num_active) {
     // read new input into local memory

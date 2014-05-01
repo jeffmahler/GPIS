@@ -9,6 +9,7 @@
     cudaError e = cudaGetLastError();                     \
     if (e != cudaSuccess) {                               \
       printf("Cuda Error: %s\n", cudaGetErrorString(e));  \
+      exit(0);						  \
     }                                                     \
 }
 
