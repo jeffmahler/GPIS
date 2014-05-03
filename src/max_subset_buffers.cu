@@ -93,8 +93,8 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
 
     // fetch point from global memory
     if (global_x < blockIdx.x * (segment_size + 1) && global_x < num_pts) {
-      for (int i = 0; i < dim_input; i++) {
-	point[i] = inputs[global_x + i * num_pts];
+      for (int j = 0; j < dim_input; j++) {
+	point[j] = inputs[global_x + j * num_pts];
       }
       pred_mean = mean[global_x];
       pred_var = variance[global_x];

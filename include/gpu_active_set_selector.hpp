@@ -31,6 +31,6 @@ class GpuActiveSetSelector {
   float SECovariance(float* x, float* y, int dim, int sigma);
 
  private:
-  bool GpPredict(float* inputPoint, ActiveSetBuffers* activeSetBuffers, GaussianProcessHyperparams hypers, float* d_kernelVector, float* d_p, float* d_q, float* d_r, float* d_alpha, float* d_gamma, float tolerance, cublasHandle_t* handle, float* d_mu, float* d_sigma);
+  bool GpPredict(MaxSubsetBuffers* subsetBuffers, ActiveSetBuffers* activeSetBuffers, int index, GaussianProcessHyperparams hypers, float* d_kernelVector, float* d_p, float* d_q, float* d_r, float* d_alpha, float* d_gamma, float tolerance, cublasHandle_t* handle, float* d_mu, float* d_sigma);
   bool SolveLinearSystem(ActiveSetBuffers* activeSetBuffers, float* target, float* d_p, float* d_q, float* d_r, float* d_alpha, float tolerance, cublasHandle_t* handle);
 };

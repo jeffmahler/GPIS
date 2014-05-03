@@ -56,17 +56,18 @@ bool GpuActiveSetSelector::Select(int maxSize, float* inputPoints, float* target
   // init random starting point and update the buffers
   int firstIndex = rand() % numPoints;
   activate_max_subset_buffers(&maxSubBuffers, firstIndex);
-  update_active_set_buffers_cpu(&activeSetBuffers, inputPoints, targetPoints, firstIndex, hypers);
+  update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, firstIndex, hypers);
  
   // beta is the scaling of the variance when classifying points
   float beta = 2 * log(numPoints * pow(M_PI,2) / (6 * tolerance));  
   float level = 0;
+  int nextIndex = 0;
 
   for (unsigned int k = 1; k < maxSize; k++) {
     // compute alpha vector
     SolveLinearSystem(&activeSetBuffers, activeSetBuffers.active_targets, d_p, d_q, d_r, d_alpha, tolerance, &handle); 
 
-    // get the current classification statuses
+    // get the current classification statuses from the GPU
     cudaSafeCall(cudaMemcpy(h_active, maxSubBuffers.active, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
     cudaSafeCall(cudaMemcpy(h_upper, classificationBuffers.upper, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
     cudaSafeCall(cudaMemcpy(h_lower, classificationBuffers.lower, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
@@ -74,17 +75,18 @@ bool GpuActiveSetSelector::Select(int maxSize, float* inputPoints, float* target
     // predict all active points
     for (unsigned int i = 0; i < numPoints; i++) {
       if (!h_active[i] && !h_upper[i] && !h_lower[i]) {
-	GpPredict(maxSubBuffers.inputs + POINT_INDEX(i, maxSubBuffers.dim_input),
-		  &activeSetBuffers, hypers, d_kernelVector, d_p, d_q, d_r, d_alpha, d_gamma,
-		  tolerance, &handle, d_mu + i, d_sigma + i); 
+	GpPredict(&maxSubBuffers, &activeSetBuffers, i, hypers,
+		  d_kernelVector, d_p, d_q, d_r, d_alpha, d_gamma,
+		  tolerance, &handle, d_mu, d_sigma); 
       }
     }
 
     // compute amibugity and max ambiguity reduction (and update of active set)
-
-    // update above, below classification
+    nextIndex = find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
+					       d_mu, d_sigma, level, beta, hypers);
 
     // update matrices
+    update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, nextIndex, hypers);
 
     // update beta according to formula in level set probing paper
     beta = 2 * log(numPoints * pow(M_PI,2) * pow((k+1),2) / (6 * tolerance));
@@ -124,19 +126,20 @@ float GpuActiveSetSelector::SECovariance(float* x, float* y, int dim, int sigma)
 
 }
 
-bool GpuActiveSetSelector::GpPredict(float* inputPoint, ActiveSetBuffers* activeSetBuffers, GaussianProcessHyperparams hypers, float* kernelVector, float* d_p, float* d_q, float* d_r, float* d_alpha, float* d_gamma, float tolerance, cublasHandle_t* handle, float* d_mu, float* d_sigma)
+bool GpuActiveSetSelector::GpPredict(MaxSubsetBuffers* subsetBuffers, ActiveSetBuffers* activeSetBuffers, int index, GaussianProcessHyperparams hypers, float* kernelVector, float* d_p, float* d_q, float* d_r, float* d_alpha, float* d_gamma, float tolerance, cublasHandle_t* handle, float* d_mu, float* d_sigma)
 {
   int numActive = activeSetBuffers->num_active;
   int maxActive = activeSetBuffers->max_active;
+  int numPts = subsetBuffers->num_pts;
 
-  compute_kernel_vector(activeSetBuffers, inputPoint, kernelVector, hypers);
+  compute_kernel_vector(activeSetBuffers, subsetBuffers, index, kernelVector, hypers);
   SolveLinearSystem(activeSetBuffers, kernelVector, d_p, d_q, d_r, d_gamma, tolerance, handle); 
 
   // store the predicitve mean in mu
-  cublasSdot(*handle, maxActive, d_alpha, 1, kernelVector, 1, d_mu);  
+  cublasSdot(*handle, maxActive, d_alpha, 1, kernelVector, 1, d_mu + index);  
 
   // store the variance REDUCTION in sigma, not the actual variance
-  cublasSdot(*handle, maxActive, d_gamma, 1, kernelVector, 1, d_sigma);  
+  cublasSdot(*handle, maxActive, d_gamma, 1, kernelVector, 1, d_sigma + index);  
 }
 
 bool GpuActiveSetSelector::SolveLinearSystem(ActiveSetBuffers* activeSetBuffers, float* target, float* d_p, float* d_q, float* d_r, float* d_alpha, float tolerance, cublasHandle_t* handle)

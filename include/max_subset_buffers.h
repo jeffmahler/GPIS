@@ -1,19 +1,7 @@
 // Buffers to hold subset maximizaton items
 #pragma once
 
-#include "active_set_buffers.h"
-#include "classification_buffers.h"
-
-typedef struct {
-  float* inputs;
-  float* targets;
-  unsigned char* active;
-  float* scores; // reduction buffer for scores
-  int* indices;  // reduction buffer for indices
-  int dim_input;
-  int dim_target;
-  int num_pts;
-} MaxSubsetBuffers;
+#include "active_set_selection_types.h"
 
 // constructor/destructor
 extern "C" void construct_max_subset_buffers(MaxSubsetBuffers *buffers, float* input_points, float* target_points, int dim_input, int dim_target, int num_pts);

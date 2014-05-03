@@ -1,11 +1,7 @@
 // Buffers to hold classification (for 3 class system)
 #pragma once
 
-typedef struct {
-  unsigned char* upper;
-  unsigned char* lower;
-  int num_pts;
-} ClassificationBuffers;
+#include "active_set_selection_types.h"
 
 // constructor/destructor
 extern "C" void construct_classification_buffers(ClassificationBuffers *buffers, int num_pts);
