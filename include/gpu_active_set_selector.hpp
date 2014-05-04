@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cublas_v2.h>
+#include <string>
 #include <vector>
 
 #include "active_set_buffers.h"
@@ -20,6 +21,8 @@ class GpuActiveSetSelector {
   ~GpuActiveSetSelector() {}
 
  public:
+  bool SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
+		      int width, int height, int depth, bool storeDepth = true);
   // Select an active subset from 
   bool Select(int maxSize, float* inputPoints, float* targetPoints,
 	      SubsetSelectionMode mode,
@@ -28,6 +31,8 @@ class GpuActiveSetSelector {
 	      float* activeInputs, float* activeTargets);
 
  private:
+  bool ReadCsv(const std::string& csvFilename, int width, int height, int depth, bool storeDepth,
+	       float* inputs, float* targets);
   float SECovariance(float* x, float* y, int dim, int sigma);
 
  private:

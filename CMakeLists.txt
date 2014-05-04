@@ -15,7 +15,7 @@ find_package (CUDA REQUIRED)
   include_directories (${CUDA_INCLUDE_DIRS})
   set (CUDA_NVCC_FLAGS "--gpu-architecture=sm_20;")
 
-set (DEPENDENCY_LIBS ${Boost_LIBRARIES})
+set (DEPENDENCY_LIBS ${Boost_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES})
 
 # Output flags
 set (EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin)

@@ -8,7 +8,92 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
+#include <fstream>
+#include <iostream>
 #include <math.h>
+#include <sstream>
+
+bool GpuActiveSetSelector::ReadCsv(const std::string& csvFilename, int width, int height, int depth, bool storeDepth,
+	     float* inputs, float* targets)
+{
+  std::ifstream csvFile(csvFilename.c_str());
+  int maxChars = 100;
+  char buffer[maxChars];
+
+  int j = 0;
+  int k = 0;
+  float val = 0.0f;
+  int numPts = width*height*depth;
+  char delim;
+
+  while(!csvFile.eof()) {
+    csvFile.getline(buffer, maxChars);
+
+    std::stringstream parser(buffer);
+    for (int i = 0; i < width; i++) {
+      parser >> val;
+      parser >> delim;
+      inputs[IJK_TO_LINEAR(i, j, k, width, height) + 0 * numPts] = i;
+      inputs[IJK_TO_LINEAR(i, j, k, width, height) + 1 * numPts] = j;
+      if (storeDepth) {
+	inputs[IJK_TO_LINEAR(i, j, k, width, height) + 2 * numPts] = k;
+      }
+      targets[IJK_TO_LINEAR(i, j, k, width, height) + 0 * numPts] = val;
+    }
+
+    // set the next index
+    j++;
+    if (j >= height) {
+      j = 0;
+      k++;
+    }
+  }
+  
+  csvFile.close();
+}
+
+float GpuActiveSetSelector::SECovariance(float* x, float* y, int dim, int sigma)
+{
+  float sum = 0;
+  for (int i = 0; i < dim; i++) {
+    sum += (x[i] - y[i]) * (x[i] - y[i]);
+  }
+  return exp(-sum / (2 * sigma));
+
+}
+
+bool GpuActiveSetSelector::SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
+					  int width, int height, int depth, bool storeDepth)
+{
+  // read in csv
+  int inputDim = 2;
+  int targetDim = 1;
+  if (storeDepth) {
+    inputDim = 3;
+  }
+
+  int numPts = width*height*depth;
+  float* inputs = new float[numPts * inputDim];
+  float* targets = new float[numPts * targetDim];
+
+  ReadCsv(csvFilename, width, height, depth, storeDepth, inputs, targets);
+
+  std::cout << "Inputs" << std::endl;
+  for (int i = 0; i < numPts; i++) {
+    std::cout << inputs[i + 0 * numPts] << " " << inputs[i + 1 * numPts] << " " << inputs[i + 2 * numPts] << std::endl;
+  }
+
+  std::cout << "Targets" << std::endl;
+  for (int i = 0; i < numPts; i++) {
+    std::cout << targets[i + 0 * numPts] << std::endl;
+  }
+
+  delete [] inputs;
+  delete [] targets;
+
+  return true;
+  }
+
 
 bool GpuActiveSetSelector::Select(int maxSize, float* inputPoints, float* targetPoints,
 				  GpuActiveSetSelector::SubsetSelectionMode mode,
@@ -114,16 +199,6 @@ bool GpuActiveSetSelector::Select(int maxSize, float* inputPoints, float* target
   cublasDestroy(handle);
 
   return true;
-}
-
-float GpuActiveSetSelector::SECovariance(float* x, float* y, int dim, int sigma)
-{
-  float sum = 0;
-  for (int i = 0; i < dim; i++) {
-    sum += (x[i] - y[i]) * (x[i] - y[i]);
-  }
-  return exp(-sum / (2 * sigma));
-
 }
 
 bool GpuActiveSetSelector::GpPredict(MaxSubsetBuffers* subsetBuffers, ActiveSetBuffers* activeSetBuffers, int index, GaussianProcessHyperparams hypers, float* kernelVector, float* d_p, float* d_q, float* d_r, float* d_alpha, float* d_gamma, float tolerance, cublasHandle_t* handle, float* d_mu, float* d_sigma)

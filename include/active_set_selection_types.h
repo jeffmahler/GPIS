@@ -2,6 +2,8 @@
 #pragma once
 
 #define POINT_INDEX(x, dim) ((dim)*(x))
+#define IJ_TO_LINEAR(i, j, width) ((i) + (width)*(j))
+#define IJK_TO_LINEAR(i, j, k, width, height) ((i) + (width)*(j) + (width)*(height)*(k))
 
 #define MAX_DIM_INPUT 10
 

@@ -8,3 +8,4 @@ cuda_add_library (${CMAKE_PROJECT_NAME}_Core ${GPIS_LIB_TYPE} ${SOURCES})
 target_link_libraries (${CMAKE_PROJECT_NAME}_Core ${DEPENDENCY_LIBS})
 
 add_executable(GPIS main.cpp)
+target_link_libraries(GPIS ${CMAKE_PROJECT_NAME}_Core)
