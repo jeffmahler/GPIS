@@ -4,6 +4,7 @@ project(GPIS)
 
 # Flags
 set (GPIS_LIB_TYPE "SHARED" CACHE STRING "Library type defaults to shared, options are: SHARED STATIC")
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} " -g ")
 
 # Dependencies
 # Boost
@@ -13,9 +14,15 @@ find_package (Boost COMPONENTS filesystem system thread REQUIRED)
 # CUDA
 find_package (CUDA REQUIRED)
   include_directories (${CUDA_INCLUDE_DIRS})
-  set (CUDA_NVCC_FLAGS "--gpu-architecture=sm_20;")
+  set (CUDA_NVCC_FLAGS "-g --gpu-architecture=sm_20;")
 
-set (DEPENDENCY_LIBS ${Boost_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES})
+# CULA (hardcoded)
+set(CULA_INCLUDE_DIRS "/usr/local/cula/include")
+set(CULA_LIBRARIES "/usr/local/cula/lib64/libcula_lapack.so")
+include_directories (${CULA_INCLUDE_DIRS})
+
+set (DEPENDENCY_LIBS ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CMAKE_DL_LIBS} ${CULA_LIBRARIES})
+#message(${DEPENDENCY_LIBS})
 
 # Output flags
 set (EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin)

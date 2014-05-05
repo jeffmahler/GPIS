@@ -18,6 +18,7 @@
 #define DEFAULT_WIDTH 100
 #define DEFAULT_HEIGHT 1
 #define DEFAULT_DEPTH 1
+#define DEFAULT_TOLERANCE 0.01
 
 // read in a configuration file
 bool readConfig(const std::string& configFilename, std::string& csvFilename, int& setSize, float& sigma, float& beta, int& width, int& height, int& depth)
@@ -70,7 +71,7 @@ void printHelp()
 
 int main(int argc, char* argv[])
 {
-  srand(time(NULL));
+  srand(1000);//time(NULL));
 
   if (argc < 2) {
     printHelp();
@@ -86,6 +87,7 @@ int main(int argc, char* argv[])
   int width = DEFAULT_WIDTH;
   int height = DEFAULT_HEIGHT;
   int depth = DEFAULT_DEPTH;
+  float tolerance = DEFAULT_TOLERANCE;
 
   readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth);
   std::cout << "Using the followig GPIS params:" << std::endl;
@@ -98,7 +100,7 @@ int main(int argc, char* argv[])
   std::cout << "depth:\t" << depth << std::endl;
 
   GpuActiveSetSelector gpuSetSelector;
-  gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth);
+  gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth, tolerance);
 
   return 0;
 }

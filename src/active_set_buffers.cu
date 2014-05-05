@@ -14,11 +14,12 @@ extern "C" void construct_active_set_buffers(ActiveSetBuffers *buffers, int dim_
   buffers->dim_target = dim_target;  
 
   // allocate buffers
-  cudaSafeCall(cudaMalloc((void**)buffers->active_inputs, dim_input * max_active * sizeof(float)));
-  cudaSafeCall(cudaMalloc((void**)buffers->active_targets, dim_target * max_active * sizeof(float)));
-  cudaSafeCall(cudaMalloc((void**)buffers->active_kernel_matrix, max_active * max_active * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->active_inputs), dim_input * max_active * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->active_targets), dim_target * max_active * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->active_kernel_matrix), max_active * max_active * sizeof(float)));
 
   // set kernel matrix to all zeros
+  cudaSafeCall(cudaMemset(buffers->active_targets, 0, max_active * sizeof(float)));
   cudaSafeCall(cudaMemset(buffers->active_kernel_matrix, 0, max_active * max_active * sizeof(float)));
 }
 
@@ -34,6 +35,7 @@ __device__ float exponential_kernel(float* x, float* y, int dim, int sigma)
   float sum = 0;
   for (int i = 0; i < dim; i++) {
     sum += __fmul_rn(__fadd_rn(x[i], -y[i]), __fadd_rn(x[i], -y[i]));
+    //    printf("sum %f\n", sum);
   }
   return __expf(-sum / (2 * sigma));
 }
@@ -49,19 +51,25 @@ __global__ void compute_kernel_vector_kernel(float* active_inputs, float* all_in
   if (global_x >= max_active)
     return;
 
+  // float test = all_inputs[1];
+  // if (threadIdx.x == 0 && blockIdx.x == 0)
+  //   printf("Test kernel %f\n", test);
+
   __syncthreads();
   if (global_x < num_active) {
     // read new input into local memory
     for (int i = 0; i < dim_input; i++) {
       local_new_input[i] = all_inputs[index + i*num_pts];
-    } 
-    
+      //      printf("KV New %d %d %f \n", i, index, local_new_input[i]);
+    }
     // coalesced read of active input to compute kernel with
     for (int i = 0; i < dim_input; i++) {
       local_active_input[i] = active_inputs[global_x + i*num_pts];
+      //      printf("Active %d %d %f \n", i, global_x, local_active_input[i]);
     }
 
     kernel_val = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
+    //    printf("Kernel val %d %f\n", index, kernel_val/*, local_new_input[0], local_new_input[1], local_active_input[0], local_active_input[1]*/);
   }
 
   // coalesced value write to vector
@@ -88,7 +96,7 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
 
   // read global variables into shared memory
   if (threadIdx.x == 0) {
-    segment_size = (int)ceilf((float)num_active/(float)GRID_DIM_X);
+    segment_size = max((int)ceilf((float)(num_active+1)/(float)GRID_DIM_X), 1);
   }
 
   int global_x = 0;
@@ -98,18 +106,18 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
   for (int i = 0; i * blockDim.x < segment_size; i++) {
     global_x = threadIdx.x + i * blockDim.x + segment_size * blockIdx.x;
 
-    // fetch points from global memory
-    if (global_x < blockIdx.x * (segment_size + 1) && global_x < num_active) {
-      for (int j = 0; j < dim_input; j++) {
-	local_new_input[j] = all_inputs[index + j*num_pts];
-      } 
-    
-      for (int j = 0; i < dim_input; j++) {
-	local_active_input[j] = active_inputs[global_x + j*num_pts];
-      }
+    // fetch new data from global menory
+    for (int j = 0; j < dim_input; j++) {
+      local_new_input[j] = all_inputs[index + j*num_pts];
+    } 
+    for (int j = 0; j < dim_target; j++) {
+      local_new_target[j] = all_targets[index + j*num_pts];
+    }
 
-      for (int j = 0; i < dim_target; j++) {
-	local_new_target[j] = active_targets[index + j*num_pts];
+    // fetch active points from global memory
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_active) {    
+      for (int j = 0; j < dim_input; j++) {
+  	local_active_input[j] = active_inputs[global_x + j*num_pts];
       }
       
       kernel = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
@@ -117,25 +125,31 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
 
     // coalesced write to new column and row
     __syncthreads();
-    kernel_matrix[MAT_IJ_TO_LINEAR(global_x, num_active, max_active)] = kernel;
-    kernel_matrix[MAT_IJ_TO_LINEAR(num_active, global_x, max_active)] = kernel;
-   
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_active+1) {
+      kernel_matrix[MAT_IJ_TO_LINEAR(global_x, num_active, max_active)] = kernel;
+      kernel_matrix[MAT_IJ_TO_LINEAR(num_active, global_x, max_active)] = kernel;   
+    }
 
     // coalesced write to active inputs
     __syncthreads();
-    if (i == 0 && global_x < dim_input) {
-      active_inputs[num_active + threadIdx.x*num_pts] = local_new_input[global_x];
+    if (i == 0 && global_x < dim_input && global_x < segment_size * (blockIdx.x + 1)) {
+      active_inputs[num_active + global_x*num_pts] = local_new_input[global_x];
+      //      printf("new input %d %f\n", global_x, local_new_input[global_x]);
     }
-
+      
     // coalesced write to active targets
-    if (i == 0 && global_x < dim_target) {
-      active_targets[num_active + threadIdx.x*num_pts] = local_new_target[global_x];
+    __syncthreads();
+    if (i == 0 && global_x < dim_target && global_x < segment_size * (blockIdx.x + 1)) {
+      active_targets[num_active + global_x*num_pts] = local_new_target[global_x];
+      //      printf("new target %d %f\n", global_x, local_new_target[global_x]);
     }
-
+      
     // write diagonal term
+    __syncthreads();
     if (i == 0 && global_x == 0) {
       float diag_val = exponential_kernel(local_new_input, local_new_input, dim_input, sigma);
       kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)] = diag_val + beta;
+      //      printf("new diag %d %f\n", global_x, kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)]);
     }
     __syncthreads();
   }

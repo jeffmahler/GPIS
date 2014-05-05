@@ -14,22 +14,22 @@ extern "C" void construct_max_subset_buffers(MaxSubsetBuffers *buffers, float* i
   buffers->num_pts = num_pts;
   
   // allocate buffers
-  cudaSafeCall(cudaMalloc((void**)buffers->inputs, dim_input * num_pts * sizeof(float)));
-  cudaSafeCall(cudaMalloc((void**)buffers->targets, dim_target * num_pts * sizeof(float)));
-  cudaSafeCall(cudaMalloc((void**)buffers->active, num_pts * sizeof(unsigned char)));
-  cudaSafeCall(cudaMalloc((void**)buffers->scores, GRID_DIM_X * sizeof(float)));
-  cudaSafeCall(cudaMalloc((void**)buffers->indices, GRID_DIM_X * sizeof(int)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->inputs), dim_input * num_pts * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->targets), dim_target * num_pts * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->active), num_pts * sizeof(unsigned char)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->scores), GRID_DIM_X * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&(buffers->indices), GRID_DIM_X * sizeof(int)));
 
   // set buffs
-  cudaSafeCall(cudaMemcpy((void**)(buffers->inputs), input_points, dim_input * num_pts * sizeof(float), cudaMemcpyHostToDevice));  
-  cudaSafeCall(cudaMemcpy((void**)(buffers->targets), target_points, dim_target * num_pts * sizeof(float), cudaMemcpyHostToDevice));  
+  cudaSafeCall(cudaMemcpy(buffers->inputs, input_points, dim_input * num_pts * sizeof(float), cudaMemcpyHostToDevice));  
+  cudaSafeCall(cudaMemcpy(buffers->targets, target_points, dim_target * num_pts * sizeof(float), cudaMemcpyHostToDevice));  
 
   // set all active to 0 initially
-  cudaSafeCall(cudaMemset((void**)buffers->active, 0, num_pts * sizeof(unsigned char)));  
+  cudaSafeCall(cudaMemset(buffers->active, 0, num_pts * sizeof(unsigned char)));  
 }
 
 extern "C" void activate_max_subset_buffers(MaxSubsetBuffers* buffers, int index) {
-  cudaSafeCall(cudaMemset((void**)(buffers->active + index), 1, sizeof(unsigned char)));
+  cudaSafeCall(cudaMemset(buffers->active + index, 1, sizeof(unsigned char)));
 }
 
 extern "C" void free_max_subset_buffers(MaxSubsetBuffers *buffers) {
@@ -92,7 +92,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
     global_x = threadIdx.x + i * BLOCK_DIM_X + segment_size * blockIdx.x;
 
     // fetch point from global memory
-    if (global_x < blockIdx.x * (segment_size + 1) && global_x < num_pts) {
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_pts) {
       for (int j = 0; j < dim_input; j++) {
 	point[j] = inputs[global_x + j * num_pts];
       }
@@ -103,30 +103,33 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
       lower_flag = lower[global_x];
     }
 
-    // compute things only if we do not know this point yet
-    if (!active_flag && !upper_flag && !lower_flag) { 
-      // compute the ambiguity (see Gotovos et al for more info)
-      kernel = subset_exponential_kernel(point, point, dim_input, sigma);
-      kernel += beta;
-      pred_var = kernel - pred_var;
-      var_scaling = var_scaling * pred_var;
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_pts) {
+      // compute things only if we do not know this point yet
+      if (!active_flag && !upper_flag && !lower_flag) { 
+	// compute the ambiguity (see Gotovos et al for more info)
+	kernel = subset_exponential_kernel(point, point, dim_input, sigma);
+	kernel += beta;
+	pred_var = kernel - pred_var;
+	var_scaling = var_scaling * pred_var;
 
-      // check upper, lower
-      ambiguity = pred_mean + var_scaling - level;
-      lower_flag = signbit(ambiguity);
+	// check upper, lower
+	ambiguity = pred_mean + var_scaling - level;
+	lower_flag = signbit(ambiguity);
 
-      ambiguity = var_scaling - pred_mean + level;
-      upper_flag = signbit(ambiguity);
+	ambiguity = var_scaling - pred_mean + level;
+	upper_flag = signbit(ambiguity);
 
-      // update local ambiguity score
-      ambiguity = var_scaling - abs(pred_mean - level);
+	// update local ambiguity score
+	ambiguity = var_scaling - fabs(pred_mean - level);
 
-      if (ambiguity > s_scores[threadIdx.x]) {
-	s_scores[threadIdx.x] = ambiguity;
-	s_indices[threadIdx.x] = global_x;
+	//printf("Index %d ambiguity: %f mean: %f std: %f\n", global_x, ambiguity, pred_mean, pred_var);
+
+	if (ambiguity > s_scores[threadIdx.x]) {
+	  s_scores[threadIdx.x] = ambiguity;
+	  s_indices[threadIdx.x] = global_x;
+	}
       }
     }
-
     // write upper / lower flags
     __syncthreads();
     lower[global_x] = lower_flag;
