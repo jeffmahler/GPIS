@@ -9,7 +9,7 @@
 #include "gpu_active_set_selector.hpp"
 #include "max_subset_buffers.h"
 
-#define CONFIG_SIZE 7
+#define CONFIG_SIZE 8
 
 #define DEFAULT_CSV "test.csv"
 #define DEFAULT_SET_SIZE 100
@@ -18,13 +18,14 @@
 #define DEFAULT_WIDTH 100
 #define DEFAULT_HEIGHT 1
 #define DEFAULT_DEPTH 1
+#define DEFAULT_BATCH 1
 #define DEFAULT_TOLERANCE 0.01
 
 // read in a configuration file
-bool readConfig(const std::string& configFilename, std::string& csvFilename, int& setSize, float& sigma, float& beta, int& width, int& height, int& depth)
+bool readConfig(const std::string& configFilename, std::string& csvFilename, int& setSize, float& sigma, float& beta, int& width, int& height, int& depth, int& batch)
 {
   std::ifstream configFile(configFilename.c_str());
-  int maxChars = 100;
+  int maxChars = 1000;
   char buffer[maxChars];
 
   int i;
@@ -49,6 +50,8 @@ bool readConfig(const std::string& configFilename, std::string& csvFilename, int
 	parser >> height;
        case 6:
 	parser >> depth;
+       case 7:
+	parser >> batch;
       }
       i++;
     }
@@ -87,9 +90,10 @@ int main(int argc, char* argv[])
   int width = DEFAULT_WIDTH;
   int height = DEFAULT_HEIGHT;
   int depth = DEFAULT_DEPTH;
+  int batchSize = DEFAULT_BATCH;
   float tolerance = DEFAULT_TOLERANCE;
 
-  readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth);
+  readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth, batchSize);
   std::cout << "Using the followig GPIS params:" << std::endl;
   std::cout << "csv:\t" << csvFilename << std::endl;
   std::cout << "K:\t" << setSize << std::endl;
@@ -98,9 +102,10 @@ int main(int argc, char* argv[])
   std::cout << "width:\t" << width << std::endl;
   std::cout << "height:\t" << height << std::endl;
   std::cout << "depth:\t" << depth << std::endl;
+  std::cout << "batch:\t" << batchSize << std::endl;
 
   GpuActiveSetSelector gpuSetSelector;
-  gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth, tolerance);
+  gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth, batchSize, tolerance);
 
   return 0;
 }

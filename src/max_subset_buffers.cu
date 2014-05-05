@@ -132,8 +132,10 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
     }
     // write upper / lower flags
     __syncthreads();
-    lower[global_x] = lower_flag;
-    upper[global_x] = upper_flag;
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_pts) {    
+      lower[global_x] = lower_flag;
+      upper[global_x] = upper_flag;
+    }
   }
 
   // max reduction

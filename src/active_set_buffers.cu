@@ -4,6 +4,12 @@
 #define BLOCK_DIM_X 128
 #define GRID_DIM_X 64
 
+#define BLOCK_DIM_BATCH_X 32
+#define BLOCK_DIM_BATCH_Y 32
+
+#define BLOCK_DIM_NORM_X 128
+#define BLOCK_DIM_NORM_Y 1
+
 #define MAT_IJ_TO_LINEAR(i, j, dim) ((i) + (j)*(dim))
 
 extern "C" void construct_active_set_buffers(ActiveSetBuffers *buffers, int dim_input, int dim_target, int max_active) {
@@ -85,6 +91,52 @@ extern "C" void compute_kernel_vector(ActiveSetBuffers *active_buffers, MaxSubse
   cudaSafeCall((compute_kernel_vector_kernel<<<grid_dim, block_dim>>>(active_buffers->active_inputs, subset_buffers->inputs, kernel_vector, index, hypers.sigma, active_buffers->dim_input, subset_buffers->num_pts, active_buffers->num_active, active_buffers->max_active)));
 }
 
+__global__ void compute_kernel_vector_batch_kernel(float* active_inputs, float* all_inputs, float* kernel_vectors, int index, int batch_size, float sigma, int dim_input, int num_pts, int num_active, int max_active)
+{
+  float local_new_input[MAX_DIM_INPUT];
+  float local_active_input[MAX_DIM_INPUT];
+
+  int global_x = threadIdx.x + blockDim.x * blockIdx.x; // active point to grab
+  int global_y = threadIdx.y + blockDim.y * blockIdx.y; // point to operate on (offset from index)
+  float kernel_val = 0.0f;
+
+  if (global_x >= max_active || global_y >= num_pts - index)
+    return;
+
+  __syncthreads();
+  if (global_x < num_active && global_y < batch_size) {
+    // read new input into local memory
+    for (int i = 0; i < dim_input; i++) {
+      local_new_input[i] = all_inputs[global_y + index + i*num_pts];
+      //      printf("KV New %d %d %f \n", i, index, local_new_input[i]);
+    }
+    // coalesced read of active input to compute kernel with
+    for (int i = 0; i < dim_input; i++) {
+      local_active_input[i] = active_inputs[global_x + i*num_pts];
+      //      printf("Active %d %d %f \n", i, global_x, local_active_input[i]);
+    }
+
+    kernel_val = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
+    //    printf("Kernel val %d %f\n", index, kernel_val/*, local_new_input[0], local_new_input[1], local_active_input[0], local_active_input[1]*/);
+  }
+
+  // coalesced value write to vector
+  __syncthreads();
+  kernel_vectors[global_x + global_y*max_active] = kernel_val;
+}
+
+extern "C" void compute_kernel_vector_batch(ActiveSetBuffers *active_buffers, MaxSubsetBuffers* subset_buffers, int index, int batch_size, float* kernel_vectors, GaussianProcessHyperparams hypers)
+{
+  // x corresponds to the active point to compute the kernel with
+  // y corresponds to the query point
+  dim3 block_dim(BLOCK_DIM_BATCH_X, BLOCK_DIM_BATCH_Y, 1);
+  dim3 grid_dim(ceilf((float)(active_buffers->num_active)/(float)(block_dim.x)),
+		ceilf((float)(batch_size)/(float)(block_dim.y)),
+		1);
+
+  cudaSafeCall((compute_kernel_vector_batch_kernel<<<grid_dim, block_dim>>>(active_buffers->active_inputs, subset_buffers->inputs, kernel_vectors, index, batch_size, hypers.sigma, active_buffers->dim_input, subset_buffers->num_pts, active_buffers->num_active, active_buffers->max_active)));
+}
+
 __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_inputs, float* active_targets, float* all_inputs, float* all_targets, float beta, float sigma, int index, int dim_input, int dim_target, int num_pts, int num_active, int max_active)
 {
   // parameters
@@ -133,14 +185,14 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
     // coalesced write to active inputs
     __syncthreads();
     if (i == 0 && global_x < dim_input && global_x < segment_size * (blockIdx.x + 1)) {
-      active_inputs[num_active + global_x*num_pts] = local_new_input[global_x];
+      active_inputs[num_active + global_x*max_active] = local_new_input[global_x];
       //      printf("new input %d %f\n", global_x, local_new_input[global_x]);
     }
       
     // coalesced write to active targets
     __syncthreads();
     if (i == 0 && global_x < dim_target && global_x < segment_size * (blockIdx.x + 1)) {
-      active_targets[num_active + global_x*num_pts] = local_new_target[global_x];
+      active_targets[num_active + global_x*max_active] = local_new_target[global_x];
       //      printf("new target %d %f\n", global_x, local_new_target[global_x]);
     }
       
@@ -149,7 +201,7 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
     if (i == 0 && global_x == 0) {
       float diag_val = exponential_kernel(local_new_input, local_new_input, dim_input, sigma);
       kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)] = diag_val + beta;
-      //      printf("new diag %d %f\n", global_x, kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)]);
+      printf("new diag %d %d %f\n", global_x, MAT_IJ_TO_LINEAR(num_active, num_active, max_active),  kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)]);
     }
     __syncthreads();
   }
@@ -184,3 +236,66 @@ extern "C" void update_active_set_buffers(ActiveSetBuffers *active_buffers, MaxS
   active_buffers->num_active++;
 }
 
+__global__ void norm_columns_kernel(float* A, float* x, int m, int n)
+{
+  // max score for each thread
+  __shared__ float s_sums[BLOCK_DIM_BATCH_X * BLOCK_DIM_BATCH_Y];
+
+  // parameters
+  __shared__ int segment_size;
+
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
+    segment_size = m;
+  }
+
+  // initialize scores and count
+  int local_x = threadIdx.x + blockDim.x*threadIdx.y;
+  s_sums[local_x] = 0;
+  __syncthreads();
+
+  int global_x = 0;
+  int global_y = threadIdx.y + blockIdx.y*blockDim.y;
+  float val = 0.0f;
+
+  // keep reading the values and squaring them
+  for (int i = 0; i * blockDim.x < segment_size; i++) {
+    global_x = threadIdx.x + i * blockDim.x;
+    
+    // read from global memory
+    __syncthreads();
+    if (global_x < segment_size && global_y < n) {
+      val = A[global_x + m * global_y];
+      //      printf("Read %f at %d, %d\n", val, global_x, global_y); 
+      s_sums[local_x] += val * val;
+    }
+  }
+
+  // reduce the squared sum
+  global_x = threadIdx.x;
+  for (unsigned int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+    __syncthreads();
+    if (global_x < stride && (global_x + stride) < blockDim.x) {
+      s_sums[global_x + blockDim.x * threadIdx.y] += s_sums[global_x + blockDim.x * threadIdx.y + stride];
+    }
+  }
+
+  // write result to global x vector
+  __syncthreads();
+  if (threadIdx.x == 0) {
+    //    printf("Sig at %d: %f\n", threadIdx.y, s_sums[blockDim.x * threadIdx.y]);
+    x[threadIdx.y] = s_sums[blockDim.x * threadIdx.y];
+  }
+}
+
+// square norm the columns of A, store in x
+extern "C" void norm_columns(float* A, float* x, int m, int n)
+{
+  // y for each column of the matrix
+  dim3 block_dim(BLOCK_DIM_NORM_X, BLOCK_DIM_NORM_Y, 1);
+  dim3 grid_dim(1,
+		ceilf((float)(n)/(float)(block_dim.y)),
+		1);
+
+  cudaSafeCall((norm_columns_kernel<<<grid_dim, block_dim>>>(A, x, m, n)));
+
+}

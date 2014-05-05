@@ -30,7 +30,8 @@ class GpuActiveSetSelector {
 
  public:
   bool SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
-		      int width, int height, int depth, float tolerance, bool storeDepth = false);
+		      int width, int height, int depth, int batchSize, float tolerance,
+		      bool storeDepth = false);
   // Select an active subset from 
   bool SelectCG(int maxSize, float* inputPoints, float* targetPoints,
 		SubsetSelectionMode mode,
@@ -68,6 +69,10 @@ class GpuActiveSetSelector {
 		     int index, GaussianProcessHyperparams hypers, float* d_kernelVector,
 		     float* d_L, float* d_alpha, float* d_gamma,
 		     cublasHandle_t* handle, float* d_mu, float* d_sigma);
+  bool GpPredictCholBatch(MaxSubsetBuffers* subsetBuffers, ActiveSetBuffers* activeSetBuffers,
+			  int index, int batchSize, GaussianProcessHyperparams hypers,
+			  float* d_kernelVectors, float* d_L, float* d_alpha, float* d_gamma,
+			  float* d_scalar1, float* d_scalar2, cublasHandle_t* handle, float* d_mu, float* d_sigma);
   bool SolveLinearSystemChol(ActiveSetBuffers* activeSetBuffers, float* target, float* d_L,
 			     float* d_alpha, cublasHandle_t* handle);
   

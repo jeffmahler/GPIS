@@ -12,6 +12,7 @@
 #include <cula_lapack.h>
 #include <cula_lapack_device.h>
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <math.h>
@@ -131,9 +132,9 @@ bool GpuActiveSetSelector::EvaluateErrors(float* d_mu, float* d_targets, unsigne
   float absError = 0.0f;
 
   for (int i = 0; i < numPts; i++) {
-    std::cout << "Point " << i << std::endl;
-    std::cout << "Pred " << predictions[i] << std::endl;
-    std::cout << "Target " << targets[i] << std::endl;
+    // std::cout << "Point " << i << std::endl;
+    // std::cout << "Pred " << predictions[i] << std::endl;
+    // std::cout << "Target " << targets[i] << std::endl;
     if (active[i] == 0) {
       absError = fabs(predictions[i] - targets[i]);
       //      std::cout << "Error " << absError << std::endl;
@@ -167,7 +168,8 @@ bool GpuActiveSetSelector::EvaluateErrors(float* d_mu, float* d_targets, unsigne
 }
 
 bool GpuActiveSetSelector::SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
-					  int width, int height, int depth, float tolerance, bool storeDepth)
+					  int width, int height, int depth, int batchSize, 
+					  float tolerance, bool storeDepth)
 {
   // read in csv
   int inputDim = 2;
@@ -181,13 +183,14 @@ bool GpuActiveSetSelector::SelectFromGrid(const std::string& csvFilename, int se
   float* targets = new float[numPts * targetDim];
   float* activeInputs = new float[numPts * inputDim];
   float* activeTargets = new float[numPts * targetDim];
-  int batchSize = 1;
   GaussianProcessHyperparams hypers;
   hypers.beta = beta;
   hypers.sigma = sigma;
 
   ReadCsv(csvFilename, width, height, depth, storeDepth, inputs, targets);
   SelectChol(setSize, inputs, targets, GpuActiveSetSelector::LEVEL_SET, hypers, inputDim, targetDim, numPts, tolerance, batchSize, activeInputs, activeTargets);
+
+  //SelectCG(setSize, inputs, targets, GpuActiveSetSelector::LEVEL_SET, hypers, inputDim, targetDim, numPts, tolerance, activeInputs, activeTargets);
 
   delete [] inputs;
   delete [] targets;
@@ -423,6 +426,8 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   float* d_L; // Cholesky factor
   float* d_alpha; // vector representing the solution to the mean equation of GPR
   float* d_gamma; // auxiliary vector to receive the kernel vector product
+  float* d_scalar1;
+  float* d_scalar2;
   float* d_mu;
   float* d_sigma;
 
@@ -432,13 +437,20 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   }
 
   std::cout << "Allocating device memory..." << std::endl;
-  cudaSafeCall(cudaMalloc((void**)&d_kernelVector, maxSize * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&d_kernelVector, maxSize * batchSize * sizeof(float)));
   cudaSafeCall(cudaMalloc((void**)&d_L, maxSize * maxSize * sizeof(float)));
   cudaSafeCall(cudaMalloc((void**)&d_alpha, maxSize * sizeof(float)));
-  cudaSafeCall(cudaMalloc((void**)&d_gamma, maxSize * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&d_gamma, maxSize * batchSize * sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&d_scalar1, sizeof(float)));
+  cudaSafeCall(cudaMalloc((void**)&d_scalar2, sizeof(float)));
 
   cudaSafeCall(cudaMalloc((void**)&d_mu, numPoints * sizeof(float)));
   cudaSafeCall(cudaMalloc((void**)&d_sigma, numPoints * sizeof(float)));
+
+  float scale = 1.0f;
+  float zero = 0.0f;
+  cudaSafeCall(cudaMemcpy(d_scalar1, &scale, sizeof(float), cudaMemcpyHostToDevice));
+  cudaSafeCall(cudaMemcpy(d_scalar2, &zero, sizeof(float), cudaMemcpyHostToDevice));
 
   // allocate auxiliary buffers
   std::cout << "Allocating device buffers..." << std::endl;
@@ -450,9 +462,9 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   construct_classification_buffers(&classificationBuffers, numPoints);
   
   // allocate host buffers for determining set to check
-  unsigned char* h_active = new unsigned char[numPoints];
-  unsigned char* h_upper = new unsigned char[numPoints];
-  unsigned char* h_lower = new unsigned char[numPoints];
+  // unsigned char* h_active = new unsigned char[numPoints];
+  // unsigned char* h_upper = new unsigned char[numPoints];
+  // unsigned char* h_lower = new unsigned char[numPoints];
 
   // init random starting point and update the buffers
   std::cout << "Setting first index..." << std::endl;
@@ -483,12 +495,12 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   std::cout << "Using beta  = " << beta << std::endl;
 
   for (unsigned int k = 1; k < maxSize && numLeft > 0; k++) {
-    std::cout << "Selecting point " << k+1 << "..." << std::endl;
+    std::cout << std::endl << "Selecting point " << k+1 << " of " << maxSize << "..." << std::endl;
     
     // get the current classification statuses from the GPU
-    cudaSafeCall(cudaMemcpy(h_active, maxSubBuffers.active, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
-    cudaSafeCall(cudaMemcpy(h_upper, classificationBuffers.upper, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
-    cudaSafeCall(cudaMemcpy(h_lower, classificationBuffers.lower, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+    // cudaSafeCall(cudaMemcpy(h_active, maxSubBuffers.active, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+    // cudaSafeCall(cudaMemcpy(h_upper, classificationBuffers.upper, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+    // cudaSafeCall(cudaMemcpy(h_lower, classificationBuffers.lower, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -496,19 +508,16 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
     std::cout << "Memcpy Time (sec):\t " << checkpoint_ << std::endl;
 
     // predict all active points
-    numLeft = 0;
-    for (unsigned int i = 0; i < numPoints; i++) {
-      if (!h_active[i] && !h_upper[i] && !h_lower[i]) {
-	numLeft++;
-	GpPredictChol(&maxSubBuffers, &activeSetBuffers, i, hypers,
-		      d_kernelVector, d_L, d_alpha, d_gamma,
-		      &handle, d_mu, d_sigma); 
-      }
+    numLeft = 1; // TODO revert;
+    for (int i = 0; i < numPoints; i += batchSize) {
+      GpPredictCholBatch(&maxSubBuffers, &activeSetBuffers, i, std::min(batchSize, numPoints - i),
+			 hypers, d_kernelVector, d_L, d_alpha, d_gamma, d_scalar1, d_scalar2,
+			 &handle, d_mu, d_sigma); 
     }
     if (numLeft == 0) {
       continue;
     }
-    std::cout << "Num left " << numLeft << std::endl;
+    //    std::cout << "Num left " << numLeft << std::endl;
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -528,6 +537,8 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
     // update matrices
     activate_max_subset_buffers(&maxSubBuffers, nextIndex);
     update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, nextIndex, hypers);
+
+    WriteCsv("M.csv", activeSetBuffers.active_kernel_matrix, activeSetBuffers.num_active, maxSize);
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -553,11 +564,10 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
 
   // predict all points and compute the error
   std::cout << "Computing errors..." << std::endl;
-  for (unsigned int i = 0; i < numPoints; i++) {
-    //    std::cout << "Predicting " << i << "..." << std::endl;
-    GpPredictChol(&maxSubBuffers, &activeSetBuffers, i, hypers,
-		  d_kernelVector, d_L, d_alpha, d_gamma,
-		  &handle, d_mu, d_sigma); 
+  for (int i = 0; i < numPoints; i += batchSize) {
+    GpPredictCholBatch(&maxSubBuffers, &activeSetBuffers, i, std::min(batchSize, numPoints - i),
+		       hypers, d_kernelVector, d_L, d_alpha, d_gamma, d_scalar1, d_scalar2,
+		       &handle, d_mu, d_sigma); 
   }
   std::cout << "All predicted..." << std::endl;
   PredictionError errors;
@@ -579,6 +589,8 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   cudaSafeCall(cudaFree(d_L));
   cudaSafeCall(cudaFree(d_alpha));
   cudaSafeCall(cudaFree(d_gamma));
+  cudaSafeCall(cudaFree(d_scalar1));
+  cudaSafeCall(cudaFree(d_scalar2));
 
   cudaSafeCall(cudaFree(d_mu));
   cudaSafeCall(cudaFree(d_sigma));
@@ -587,9 +599,9 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   free_max_subset_buffers(&maxSubBuffers);
   free_classification_buffers(&classificationBuffers);
 
-  delete [] h_active;
-  delete [] h_upper;
-  delete [] h_lower;
+  // delete [] h_active;
+  // delete [] h_upper;
+  // delete [] h_lower;
 
   cublasDestroy(handle);
   culaShutdown();
@@ -642,6 +654,10 @@ bool GpuActiveSetSelector::GpPredictCG(MaxSubsetBuffers* subsetBuffers, ActiveSe
 
   // store the variance REDUCTION in sigma, not the actual variance
   cublasSafeCall(cublasSdot(*handle, numActive, d_gamma, 1, kernelVector, 1, &(d_sigma[index])));
+
+  float hostSig;
+  cudaSafeCall(cudaMemcpy(&hostSig, &(d_sigma[index]), sizeof(float), cudaMemcpyDeviceToHost));
+  std::cout << "Sig at " << index << " : " << hostSig << std::endl;
 
   checkpoint_ = elapsed_;
   elapsed_ = ReadTimer();
@@ -816,6 +832,47 @@ bool GpuActiveSetSelector::GpPredictChol(MaxSubsetBuffers* subsetBuffers,
   // dot product to get the resulting mean and variance reduction
   cublasSafeCall(cublasSdot(*handle, numActive, d_alpha, 1, d_kernelVector, 1, &(d_mu[index])));
   cublasSafeCall(cublasSdot(*handle, numActive, d_gamma, 1, d_gamma, 1, &(d_sigma[index])));
+
+  float hostSig;
+  cudaSafeCall(cudaMemcpy(&hostSig, &(d_sigma[index]), sizeof(float), cudaMemcpyDeviceToHost));
+  std::cout << "Sig at " << index << " : " << hostSig << std::endl;
+
+  return true;
+}
+
+bool GpuActiveSetSelector::GpPredictCholBatch(MaxSubsetBuffers* subsetBuffers, ActiveSetBuffers* activeSetBuffers,
+					      int index, int batchSize, GaussianProcessHyperparams hypers,
+					      float* d_kernelVectors, float* d_L, float* d_alpha, float* d_gamma,
+					      float* d_scalar1, float* d_scalar2, cublasHandle_t* handle, float* d_mu, float* d_sigma)
+{
+  int numActive = activeSetBuffers->num_active;
+  int maxActive = activeSetBuffers->max_active;
+  int numPts = subsetBuffers->num_pts;
+
+  // compute the kernel vector
+  compute_kernel_vector_batch(activeSetBuffers, subsetBuffers, index, batchSize, d_kernelVectors, hypers);
+
+  // solve triangular system
+  cudaSafeCall(cudaMemcpy(d_gamma, d_kernelVectors, maxActive * batchSize * sizeof(float), cudaMemcpyDeviceToDevice));
+
+  // float hostKV;
+  // cudaSafeCall(cudaMemcpy(&hostKV, d_gamma, sizeof(float), cudaMemcpyDeviceToHost));
+  // std::cout << "KV: " << hostKV << std::endl;
+  cublasSafeCall(cublasStrsm(*handle, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+			     CUBLAS_DIAG_NON_UNIT, numActive, batchSize, d_scalar1, d_L,
+			     maxActive, d_gamma, maxActive));
+
+  // float hostG;
+  // cudaSafeCall(cudaMemcpy(&hostG, d_gamma, sizeof(float), cudaMemcpyDeviceToHost));
+  // std::cout << "G: " << hostG << std::endl;
+    
+  // dot product to get the resulting mean and variance reduction
+  //  std::cout << "Batch Mult" << std::endl;
+  cublasSafeCall(cublasSgemv(*handle, CUBLAS_OP_T, numActive, batchSize, d_scalar1, d_kernelVectors, maxActive, d_alpha, 1, d_scalar2, d_mu + index, 1));
+
+  // get the variance
+  //  std::cout << "Batch norm" << std::endl;
+  norm_columns(d_gamma, d_sigma + index, maxActive, batchSize);
 
   // float hostSig;
   // cudaSafeCall(cudaMemcpy(&hostSig, &(d_sigma[index]), sizeof(float), cudaMemcpyDeviceToHost));

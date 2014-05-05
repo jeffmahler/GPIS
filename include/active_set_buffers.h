@@ -9,5 +9,9 @@ extern "C" void free_active_set_buffers(ActiveSetBuffers *buffers);
 
 // helper functions
 extern "C" void compute_kernel_vector(ActiveSetBuffers *active_buffers, MaxSubsetBuffers* subset_buffers, int index, float* kernel_vector, GaussianProcessHyperparams hypers);
+extern "C" void compute_kernel_vector_batch(ActiveSetBuffers *active_buffers, MaxSubsetBuffers* subset_buffers, int index, int batch_size, float* kernel_vectors, GaussianProcessHyperparams hypers);
 extern "C" void update_active_set_buffers(ActiveSetBuffers *active_buffers, MaxSubsetBuffers *subset_buffers, int index, GaussianProcessHyperparams hypers);
+
+// random reduction function for solving the linear system fast
+extern "C" void norm_columns(float* A, float* x, int m, int n);
 
