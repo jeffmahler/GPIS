@@ -264,7 +264,7 @@ bool GpuActiveSetSelector::SelectCG(int maxSize, float* inputPoints, float* targ
   int firstIndex = rand() % numPoints;
   std::cout << "Chose " << firstIndex << " as first index " << std::endl;
   activate_max_subset_buffers(&maxSubBuffers, firstIndex);
-  update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, firstIndex, hypers);
+  update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, hypers);
 
   checkpoint_ = ReadTimer();
   elapsed_ = 0.0f;
@@ -280,7 +280,6 @@ bool GpuActiveSetSelector::SelectCG(int maxSize, float* inputPoints, float* targ
   // beta is the scaling of the variance when classifying points
   float beta = 2 * log(numPoints * pow(M_PI,2) / (6 * tolerance));  
   float level = 0;
-  int nextIndex = 0;
   int numLeft = numPoints - 1;
   
   std::cout << "Using beta  = " << beta << std::endl;
@@ -320,9 +319,8 @@ bool GpuActiveSetSelector::SelectCG(int maxSize, float* inputPoints, float* targ
     std::cout << "Prediction Time (sec):\t " << checkpoint_ << std::endl;
 
     // compute amibugity and max ambiguity reduction (and update of active set)
-    nextIndex = find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
-					       d_mu, d_sigma, level, beta, hypers);
-    std::cout << "Chose " << nextIndex << " as next active point" << std::endl;
+    find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
+				   d_mu, d_sigma, level, beta, hypers);
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -330,8 +328,8 @@ bool GpuActiveSetSelector::SelectCG(int maxSize, float* inputPoints, float* targ
     std::cout << "Reduction Time (sec):\t " << checkpoint_ << std::endl;
 
     // update matrices
-    activate_max_subset_buffers(&maxSubBuffers, nextIndex);
-    update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, nextIndex, hypers);
+    //    activate_max_subset_buffers(&maxSubBuffers, nextIndex);
+    update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, hypers);
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -436,6 +434,7 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
     maxSize = numPoints;
   }
 
+  std::cout << "Using max size " << maxSize << std::endl;
   std::cout << "Allocating device memory..." << std::endl;
   cudaSafeCall(cudaMalloc((void**)&d_kernelVector, maxSize * batchSize * sizeof(float)));
   cudaSafeCall(cudaMalloc((void**)&d_L, maxSize * maxSize * sizeof(float)));
@@ -471,7 +470,7 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   int firstIndex = rand() % numPoints;
   std::cout << "Chose " << firstIndex << " as first index " << std::endl;
   activate_max_subset_buffers(&maxSubBuffers, firstIndex);
-  update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, firstIndex, hypers);
+  update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, hypers);
 
   checkpoint_ = ReadTimer();
   elapsed_ = 0.0f;
@@ -480,6 +479,10 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   std::cout << "Solving initial linear system" << std::endl;
   SolveLinearSystemChol(&activeSetBuffers, activeSetBuffers.active_targets, d_L, d_alpha,
 			&handle); 
+  // float hostL;
+  // cudaSafeCall(cudaMemcpy(&hostL, d_L, sizeof(float), cudaMemcpyDeviceToHost));
+  // std::cout << "Received L " << hostL << std::endl;
+
 
   checkpoint_ = elapsed_;
   elapsed_ = ReadTimer();
@@ -489,7 +492,6 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   // beta is the scaling of the variance when classifying points
   float beta = 2 * log(numPoints * pow(M_PI,2) / (6 * tolerance));  
   float level = 0;
-  int nextIndex = 0;
   int numLeft = numPoints - 1;
   
   std::cout << "Using beta  = " << beta << std::endl;
@@ -525,9 +527,8 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
     std::cout << "Prediction Time (sec):\t " << checkpoint_ << std::endl;
 
     // compute amibugity and max ambiguity reduction (and update of active set)
-    nextIndex = find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
-					       d_mu, d_sigma, level, beta, hypers);
-    std::cout << "Chose " << nextIndex << " as next active point" << std::endl;
+    find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
+				   d_mu, d_sigma, level, beta, hypers);
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -535,8 +536,8 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
     std::cout << "Reduction Time (sec):\t " << checkpoint_ << std::endl;
 
     // update matrices
-    activate_max_subset_buffers(&maxSubBuffers, nextIndex);
-    update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, nextIndex, hypers);
+    //    activate_max_subset_buffers(&maxSubBuffers, nextIndex);
+    update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, hypers);
 
     WriteCsv("M.csv", activeSetBuffers.active_kernel_matrix, activeSetBuffers.num_active, maxSize);
 
@@ -849,6 +850,10 @@ bool GpuActiveSetSelector::GpPredictCholBatch(MaxSubsetBuffers* subsetBuffers, A
   int maxActive = activeSetBuffers->max_active;
   int numPts = subsetBuffers->num_pts;
 
+  // float hostL;
+  // cudaSafeCall(cudaMemcpy(&hostL, d_L, sizeof(float), cudaMemcpyDeviceToHost));
+  // std::cout << "Pred L before: " << hostL << std::endl;
+
   // compute the kernel vector
   compute_kernel_vector_batch(activeSetBuffers, subsetBuffers, index, batchSize, d_kernelVectors, hypers);
 
@@ -858,6 +863,9 @@ bool GpuActiveSetSelector::GpPredictCholBatch(MaxSubsetBuffers* subsetBuffers, A
   // float hostKV;
   // cudaSafeCall(cudaMemcpy(&hostKV, d_gamma, sizeof(float), cudaMemcpyDeviceToHost));
   // std::cout << "KV: " << hostKV << std::endl;
+  // cudaSafeCall(cudaMemcpy(&hostL, d_L, sizeof(float), cudaMemcpyDeviceToHost));
+  // std::cout << "Pred L after: " << hostL << std::endl;
+
   cublasSafeCall(cublasStrsm(*handle, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
 			     CUBLAS_DIAG_NON_UNIT, numActive, batchSize, d_scalar1, d_L,
 			     maxActive, d_gamma, maxActive));
@@ -893,10 +901,10 @@ bool GpuActiveSetSelector::SolveLinearSystemChol(ActiveSetBuffers* activeSetBuff
   cudaSafeCall(cudaMemcpy(d_L, activeSetBuffers->active_kernel_matrix, maxActive * maxActive * sizeof(float), cudaMemcpyDeviceToDevice));
   cudaSafeCall(cudaMemcpy(d_alpha, target, maxActive * sizeof(float), cudaMemcpyDeviceToDevice));
 
-  //  std::cout << "Before chol" << std::endl;
+  std::cout << "Before chol" << std::endl;
   culaSafeCall(culaDeviceSpotrf('U', numActive, d_L, maxActive));
-  //  std::cout << "After chol" << std::endl;
-  culaSafeCall(culaDeviceSpotrs('U', numActive, 1, d_L, maxActive, d_alpha, numActive));
+  std::cout << "After chol " << numActive << std::endl;
+  culaSafeCall(culaDeviceSpotrs('U', numActive, 1, d_L, maxActive, d_alpha, maxActive));
 
   // float hostA;
   // cudaSafeCall(cudaMemcpy(&hostA, d_alpha, sizeof(float), cudaMemcpyDeviceToHost));

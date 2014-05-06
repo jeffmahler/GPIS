@@ -31,6 +31,7 @@ typedef struct {
   int dim_input;
   int dim_target;
   int num_pts;
+  int* d_next_index;
 } MaxSubsetBuffers;
 
 typedef struct {
