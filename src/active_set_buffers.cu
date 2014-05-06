@@ -158,52 +158,52 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
 
   __syncthreads();
   for (int i = 0; i * blockDim.x < segment_size; i++) {
-    // global_x = threadIdx.x + i * blockDim.x + segment_size * blockIdx.x;
+    global_x = threadIdx.x + i * blockDim.x + segment_size * blockIdx.x;
 
-    // // fetch new data from global menory
-    // for (int j = 0; j < dim_input; j++) {
-    //   local_new_input[j] = all_inputs[index + j*num_pts];
-    // } 
-    // for (int j = 0; j < dim_target; j++) {
-    //   local_new_target[j] = all_targets[index + j*num_pts];
-    // }
+    // fetch new data from global menory
+    for (int j = 0; j < dim_input; j++) {
+      local_new_input[j] = all_inputs[index + j*num_pts];
+    } 
+    for (int j = 0; j < dim_target; j++) {
+      local_new_target[j] = all_targets[index + j*num_pts];
+    }
 
-    // // fetch active points from global memory
-    // if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_active) {    
-    //   for (int j = 0; j < dim_input; j++) {
-    // 	local_active_input[j] = active_inputs[global_x + j*max_active];
-    //   }
+    // fetch active points from global memory
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_active) {    
+      for (int j = 0; j < dim_input; j++) {
+    	local_active_input[j] = active_inputs[global_x + j*max_active];
+      }
       
-    //   kernel = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
-    // }
+      kernel = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
+    }
 
-    // // coalesced write to new column and row
-    // __syncthreads();
-    // if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_active) {
-    //   kernel_matrix[MAT_IJ_TO_LINEAR(global_x, num_active, max_active)] = kernel;
-    //   kernel_matrix[MAT_IJ_TO_LINEAR(num_active, global_x, max_active)] = kernel;   
-    // }
+    // coalesced write to new column and row
+    __syncthreads();
+    if (global_x < segment_size * (blockIdx.x + 1) && global_x < num_active) {
+      kernel_matrix[MAT_IJ_TO_LINEAR(global_x, num_active, max_active)] = kernel;
+      kernel_matrix[MAT_IJ_TO_LINEAR(num_active, global_x, max_active)] = kernel;   
+    }
 
-    // // coalesced write to active inputs
-    // __syncthreads();
-    // if (i == 0 && global_x < dim_input && global_x < segment_size * (blockIdx.x + 1)) {
-    //   active_inputs[num_active + global_x*max_active] = local_new_input[global_x];
-    //   //      printf("new input %d %d %f\n", num_active, global_x, local_new_input[global_x]);
-    // }
+    // coalesced write to active inputs
+    __syncthreads();
+    if (i == 0 && global_x < dim_input && global_x < segment_size * (blockIdx.x + 1)) {
+      active_inputs[num_active + global_x*max_active] = local_new_input[global_x];
+      //      printf("new input %d %d %f\n", num_active, global_x, local_new_input[global_x]);
+    }
       
-    // // coalesced write to active targets
-    // __syncthreads();
-    // if (i == 0 && global_x < dim_target && global_x < segment_size * (blockIdx.x + 1)) {
-    //   active_targets[num_active + global_x*max_active] = local_new_target[global_x];
-    //   //      printf("new target %d %f\n", global_x, local_new_target[global_x]);
-    // }
+    // coalesced write to active targets
+    __syncthreads();
+    if (i == 0 && global_x < dim_target && global_x < segment_size * (blockIdx.x + 1)) {
+      active_targets[num_active + global_x*max_active] = local_new_target[global_x];
+      //      printf("new target %d %f\n", global_x, local_new_target[global_x]);
+    }
       
     // write diagonal term
     __syncthreads();
     if (i == 0 && global_x == 0) {
-      // float diag_val = exponential_kernel(local_new_input, local_new_input, dim_input, sigma);
-      kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)] = 1.1f;//diag_val + beta;
-      // printf("new diag %d %d %f\n", global_x, MAT_IJ_TO_LINEAR(num_active, num_active, max_active),  kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)]);
+      float diag_val = exponential_kernel(local_new_input, local_new_input, dim_input, sigma);
+      kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)] = diag_val + beta;
+      //      printf("new diag %d %d %f\n", global_x, MAT_IJ_TO_LINEAR(num_active, num_active, max_active),  kernel_matrix[MAT_IJ_TO_LINEAR(num_active, num_active, max_active)]);
     }
     __syncthreads();
   }

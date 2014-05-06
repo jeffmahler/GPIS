@@ -539,7 +539,7 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
     //    activate_max_subset_buffers(&maxSubBuffers, nextIndex);
     update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, hypers);
 
-    WriteCsv("M.csv", activeSetBuffers.active_kernel_matrix, activeSetBuffers.num_active, maxSize);
+    //    WriteCsv("M.csv", activeSetBuffers.active_kernel_matrix, activeSetBuffers.num_active, maxSize);
 
     checkpoint_ = elapsed_;
     elapsed_ = ReadTimer();
@@ -901,9 +901,9 @@ bool GpuActiveSetSelector::SolveLinearSystemChol(ActiveSetBuffers* activeSetBuff
   cudaSafeCall(cudaMemcpy(d_L, activeSetBuffers->active_kernel_matrix, maxActive * maxActive * sizeof(float), cudaMemcpyDeviceToDevice));
   cudaSafeCall(cudaMemcpy(d_alpha, target, maxActive * sizeof(float), cudaMemcpyDeviceToDevice));
 
-  std::cout << "Before chol" << std::endl;
+  //  std::cout << "Before chol " << numActive << " " << maxActive << std::endl;
   culaSafeCall(culaDeviceSpotrf('U', numActive, d_L, maxActive));
-  std::cout << "After chol " << numActive << std::endl;
+  //  std::cout << "After chol " << numActive << std::endl;
   culaSafeCall(culaDeviceSpotrs('U', numActive, 1, d_L, maxActive, d_alpha, maxActive));
 
   // float hostA;

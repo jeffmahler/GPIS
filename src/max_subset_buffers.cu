@@ -31,7 +31,7 @@ extern "C" void construct_max_subset_buffers(MaxSubsetBuffers *buffers, float* i
 
 extern "C" void activate_max_subset_buffers(MaxSubsetBuffers* buffers, int index) {
   cudaSafeCall(cudaMemset(buffers->active + index, 1, sizeof(unsigned char)));
-  cudaSafeCall(cudaMemcpy(buffers->d_next_index, &index, sizeof(unsigned char), cudaMemcpyHostToDevice));
+  cudaSafeCall(cudaMemcpy(buffers->d_next_index, &index, sizeof(int), cudaMemcpyHostToDevice));
 }
 
 extern "C" void free_max_subset_buffers(MaxSubsetBuffers *buffers) {
@@ -125,7 +125,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
   	// update local ambiguity score
   	ambiguity = var_scaling - fabs(pred_mean - level);
 
-  	//	printf("Index %d ambiguity: %f mean: %f std: %f\n", global_x, ambiguity, pred_mean, pred_var);
+	//  	printf("Index %d ambiguity: %f mean: %f std: %f\n", global_x, ambiguity, pred_mean, pred_var);
 
   	if (ambiguity > s_scores[threadIdx.x]) {
   	  s_scores[threadIdx.x] = ambiguity;
