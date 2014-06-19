@@ -41,6 +41,7 @@ cfg.g_use_numerical = true;
 cfg.h_use_numerical = true;
 cfg.full_hessian = true;
 cfg.surfaceImage = zeros(1,1);
+cfg.scale = 1;
 cfg.callback = [];
 
 cfg = load_user_cfg(cfg, user_cfg);

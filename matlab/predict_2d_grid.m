@@ -1,12 +1,17 @@
-function [allPoints, allTsdf, allVars, surfacePoints, surfaceTsdf, surfaceVars] ...
+function [allPoints, allTsdf, allNorms, allVars, surfacePoints, surfaceTsdf, surfaceVars] ...
     = predict_2d_grid( gpModel, gridDim, thresh)
 % Predict tsdf values for 2d grid and display the result
 
 [X, Y] = meshgrid(1:gridDim, 1:gridDim);
 testPoints = [X(:), Y(:)];
+numTest = size(testPoints,1);
 
-[allTsdf, allVars] = gp(gpModel.hyp, @infExact, gpModel.meanFunc, ...
-    gpModel.covFunc, gpModel.likFunc, gpModel.training_x, gpModel.training_y, testPoints);
+allTsdf = gp_mean(gpModel, testPoints, true);
+allNorms = allTsdf(numTest+1:size(allTsdf,1));
+allTsdf = allTsdf(1:numTest);
+allVars = gp_cov(gpModel, testPoints, true);
+allVars = diag(allVars);
+allVars = allVars(1:numTest,:);
 allPoints = testPoints;
 
 % reconstruct the surface, color by variances

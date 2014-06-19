@@ -15,6 +15,7 @@ end
 fprintf('x: %s\n',mat2str(x));
 
 d = size(x,1) / 2;
+scale = info.cfg.scale;
 [m,n] = size(info.cfg.surfaceImage);
 xs1 = [xs1, x(1:d,1)];
 xs2 = [xs2, x(d+1:2*d,:)];

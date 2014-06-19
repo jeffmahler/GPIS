@@ -1,4 +1,4 @@
-function [points, tsdf, J] = auto_tsdf(shape, dim)
+function [points, tsdf, J] = auto_tsdf(shape, dim, name)
 % Displays a random item of the specified shape and automatically extracs
 % ALL points on the surface, inside the surface, and outside the surface
 % using simple image processing ops.
@@ -10,6 +10,9 @@ function [points, tsdf, J] = auto_tsdf(shape, dim)
 
 if nargin < 2
     dim = 100;
+end
+if nargin < 3
+   name = 'shape.csv';
 end
 
 I = 255*ones(dim, dim);
@@ -37,7 +40,7 @@ elseif strcmp(shape, 'Lines') == 1
     y2 = uint16(dim*rand());
     pts = [x1, y1, x2, y2];
 elseif strcmp(shape, 'Polygons') == 1
-    randomPoly = false;
+    randomPoly = true;
     if randomPoly
         minVertices = 3;
         maxVertices = 8;
@@ -129,6 +132,9 @@ tsdf(outsideMask) = 1;
 
 [X, Y] = meshgrid(1:dim, 1:dim);
 points = [X(:), Y(:)];
+
+csvwrite(name, tsdf);
+
 tsdf = tsdf(:);
     
 
