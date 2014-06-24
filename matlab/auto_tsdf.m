@@ -45,7 +45,7 @@ elseif strcmp(shape, 'Polygons') == 1
         minVertices = 3;
         maxVertices = 8;
         numVertices = uint16((maxVertices - minVertices) * rand() + minVertices);
-        fprintf('Generating random polygon with %d vertices', numVertices);
+        fprintf('Generating random polygon with %d vertices\n', numVertices);
 
         % generate points for top half of image
         xTop = [];
@@ -73,11 +73,14 @@ elseif strcmp(shape, 'Polygons') == 1
         pts = [xTop, xBottom; yTop, yBottom];
         pts = pts(:)';
     else
+        % RECTANGLE THING
+        pts = [5, 5, 20, 5, 10, 20, 5, 20];
         %pts = [10, 30, 80, 30, 50, 70, 10, 70];
         %pts = [10, 30, 80, 100, 10, 170, 100, 120, ...
          %  190, 170, 120, 100, 190, 30, 100, 80];
-        pts = [100, 10, 120, 80, 190, 100, 120, 120, ...
-            100, 190, 80, 120, 10, 100, 80, 80];
+        % STAR
+        %pts = [100, 10, 120, 80, 190, 100, 120, 120, ...
+        %    100, 190, 80, 120, 10, 100, 80, 80];
     end
 elseif strcmp(shape, 'Circles') == 1
     disp('Generating random circle');

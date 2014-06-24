@@ -41,17 +41,21 @@ gpModel.likFunc = likfunc;
 
 % minimize the hyperparams on a random subset of the data to get a prior
 hyperIndices = randperm(numTraining);
-hyperIndices = hyperIndices(1:K);
+maxInd = min(5*K, numTraining);
+hyperIndices = hyperIndices(1:maxInd);
 training_x = points(hyperIndices,:);
 training_y = tsdf(hyperIndices,:);
 training_dy = normals(hyperIndices,:);
 numIters = 1000;
-hyp.cov = [0, 0]; hyp.mean = zeros(nMeanHyp, 1); hyp.lik = log(0.1);
+hyp.cov = [2, 0]; hyp.mean = zeros(nMeanHyp, 1); hyp.lik = log(0.1);
 gpModel = create_gpis(training_x, training_y, training_dy, true, gpModel.hyp, ...
     numIters, hyp.cov, hyp.mean, hyp.lik);
 
 % choose the active set
+chosenPoints = zeros(0,2);
 for i = 2:K
+    %varScale = 2 * log(size(tsdf,1) * 3.14^2 * i^2 / (6 * eps));
+    
     %if mod(i, 25) == 0
         fprintf('Choosing element %d\n', i);
     %end
@@ -75,9 +79,9 @@ for i = 2:K
         false, gpModel.hyp);
 
     % predict tsdf and variance on the remaining set
-    testTsdf = gp_mean(gpModel, testPoints, true);
+    [testTsdf, Mx, Kxxp] = gp_mean(gpModel, testPoints, true);
     testTsdf = testTsdf(1:numTest,:);
-    testVars = gp_cov(gpModel, testPoints, true);
+    testVars = gp_cov(gpModel, testPoints, Kxxp, true);
     testVars = diag(testVars(1:numTest,1:numTest)); % diagonal approx
     
     % choose next point according to straddle rule
@@ -87,6 +91,14 @@ for i = 2:K
     maxAmbiguity = find(ambiguity == max(ambiguity));
     randIndices = randperm(1:size(maxAmbiguity,1));
     bestIndex = maxAmbiguity(randIndices(1)); % just choose first element
+ 
+    if i == 51
+       stop = 1; 
+    end
+    
+    chosenPoint = testPoints(ambiguity == max(ambiguity), :);
+    chosenPoints = [chosenPoints; chosenPoint];
+    fprintf('Chose point %d %d\n', chosenPoint(1), chosenPoint(2));
     
     % update sets
     active(testIndices(bestIndex)) = 1;
@@ -105,10 +117,10 @@ testIndices = find(active == 0);
 testPoints = points(testIndices,:);
 numTest = size(testPoints,1);
 
-testTsdf = gp_mean(gpModel, testPoints, true);
+[testTsdf, Mx, Kxxp] = gp_mean(gpModel, testPoints, true);
 testNorms = testTsdf(numTest+1:size(testTsdf,1));
 testTsdf = testTsdf(1:numTest);
-testVars = gp_cov(gpModel, testPoints, true);
+testVars = gp_cov(gpModel, testPoints, Kxxp, true);
     
 activePoints = [points(firstIndex,:); activePoints];
 

@@ -6,10 +6,10 @@ function [allPoints, allTsdf, allNorms, allVars, surfacePoints, surfaceTsdf, sur
 testPoints = [X(:), Y(:)];
 numTest = size(testPoints,1);
 
-allTsdf = gp_mean(gpModel, testPoints, true);
+[allTsdf, Mx, Kxxp] = gp_mean(gpModel, testPoints, true);
 allNorms = allTsdf(numTest+1:size(allTsdf,1));
 allTsdf = allTsdf(1:numTest);
-allVars = gp_cov(gpModel, testPoints, true);
+allVars = gp_cov(gpModel, testPoints, Kxxp, true);
 allVars = diag(allVars);
 allVars = allVars(1:numTest,:);
 allPoints = testPoints;

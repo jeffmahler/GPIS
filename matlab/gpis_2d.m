@@ -19,12 +19,12 @@ fill = true;
 % active set params
 numIters = 5;
 thresh = 0.25;
-beta = 50;
+beta = 500;
 h = 0;
 eps = 1e-2;
 
 % experiment params
-activeSetSizes = [50];%, 250, 500, 1000];
+activeSetSizes = [75];%, 250, 500, 1000];
 numSizes = size(activeSetSizes, 2);
 methods = {'LevelSet'}; %, 'Subsample', 'LevelSet'};
 numMethods = size(methods,2);
@@ -116,11 +116,14 @@ for i = 1:size(methods,2)
         testImageDarkened = max(0, testImage - 0.3*ones(scale*gridDim, scale*gridDim)); % darken
 
         figure;
+        subplot(1,2,1);
         imshow(testImageDarkened);
         hold on;
         scatter(scale*activePoints(1,1), scale*activePoints(1,2), 150.0, 'x', 'LineWidth', 1.5);
         scatter(scale*activePoints(:,1), scale*activePoints(:,2), 50.0, 'x', 'LineWidth', 1.5);
         hold off;
+        subplot(1,2,2);
+        imshow(trueTsdfGrid);
         title(sprintf('Predicted Absolute TSDF for %d Active Elements Selected Using %s Method (White = Surface)', K, M));
 
         % Write to file
@@ -133,12 +136,19 @@ end
 subplot(1,3,1);
 imshow(trueTsdfGrid);
 subplot(1,3,2);
-imshow(Gxp);
+imshow(abs(Gx));
 subplot(1,3,3);
-imshow(Gyp);
+imshow(abs(Gy));
 
 %% get grasp points
-x_init = round(gridDim * rand(4,1));
+surf_thresh = 0.1;
+[x_surface_i, x_surface_j] = ...
+    find(abs(reshape(allTsdf, gridDim, gridDim)) < surf_thresh);
+n_surf = size(x_surface_i, 1);
+ind1 = uint16(rand * n_surf);
+ind2 = uint16(rand * n_surf);
+x_init = [x_surface_j(ind1); x_surface_i(ind1);...
+          x_surface_j(ind2); x_surface_i(ind2)];
 %%
 x_grasp = find_antipodal_grasp_points(x_init, gpModel, testImageDarkened, ...
     gridDim, scale);

@@ -1,8 +1,10 @@
 function K = se_cov_derivative(covfunc, hyp, beta, x, y)
 %SE_COV_DERIVATIVE Squared exponential covariance function derivatives
 
+add_diagonal_noise = false;
 if nargin < 5
     y = x;
+    add_diagonal_noise = true;
 end
 
 % get sizes of arrays, initialize kernel matrix
@@ -13,9 +15,15 @@ P = M + D*M;
 Q = N + D*N;
 K = zeros(P, Q);
 
-% regular ol covariance
+% find equal elements
+[C, ia, ib] = intersect(x, y, 'rows');
+
+% regular ol covariance (assume equal 
 tic;
-K(1:M, 1:N) = feval(covfunc{:}, hyp, x, y) + beta * eye(M,N);
+K(1:M, 1:N) = feval(covfunc{:}, hyp, x, y);
+if add_diagonal_noise
+    K(1:M, 1:N) = K(1:M, 1:N) + beta * eye(M,N);
+end
 
 % disp('Cov done');
 % toc
@@ -38,14 +46,16 @@ end
 % toc
 
 % dervative wrt second arg
-start_I = N+1;
-end_I = 2*N;
+start_I_M = M+1;
+end_I_M = 2*M;
+start_I_N = N+1;
+end_I_N = 2*N;
 for d = 1:D
-    joint_mesh = meshgrid(joint(:,d));
-    diff = (joint_mesh - joint_mesh')';
-    K(1:M, start_I:end_I) = diff(1:M,M+1:M+N) .* K(1:M, 1:N) / (exp(hyp(1))^2);
-    start_I = end_I + 1;
-    end_I = end_I + N;
+    K(1:M, start_I_N:end_I_N) = -K(start_I_M:end_I_M, 1:N);
+    start_I_M = end_I_M + 1;
+    end_I_M = end_I_M + M;
+    start_I_N = end_I_N + 1;
+    end_I_N = end_I_N + N;
 end
 
 % disp('Grad 2 done');

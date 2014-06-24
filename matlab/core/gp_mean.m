@@ -1,4 +1,4 @@
-function mu = gp_mean(gpModel, x, use_derivative)
+function [mu, Mx, Kxxp] = gp_mean(gpModel, x, use_derivative)
 %GP_MEAN predicts the mean value of the function at points x conditioned on
 %   the data specified in the model |gpModel|
     if use_derivative
