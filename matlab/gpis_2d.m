@@ -23,18 +23,18 @@ h = 0;
 eps = 1e-2;
 
 % experiment params
-activeSetSizes = [10];%, 250, 500, 1000];
+activeSetSizes = [250];%, 250, 500, 1000];
 numSizes = size(activeSetSizes, 2);
-methods = {'Random'}; %, 'Subsample', 'LevelSet'};
+methods = {'LevelSet'}; %, 'Subsample', 'LevelSet'};
 numMethods = size(methods,2);
 selectionTimes = {zeros(numSizes,1), zeros(numSizes,1), zeros(numSizes,1), zeros(numSizes,1)};
 testErrors = {[], [], [], []};
 surfaceTestErrors = {[], [], [], []};
 
-[truePoints, trueTsdf, trueShapeImage] = manual_tsdf(shape, gridDim);
+[truePoints, trueTsdf, trueShapeImage] = auto_tsdf(shape, gridDim);
 
 %temp
-activeSetSizes = [size(truePoints,1)];
+%activeSetSizes = [size(truePoints,1)];
 
 %% Test all methodologies and set sizes
 for i = 1:size(methods,2)
