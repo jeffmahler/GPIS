@@ -1,14 +1,19 @@
 function [gpModel, activePoints, testIndices, testTsdf, testNorms, testVars] = ...
-    select_active_set_straddle( points, tsdf, normals, K, numIters, h, varScale, eps)
+    select_active_set_straddle( points, tsdf, normals, noise, K, numIters, h, varScale, eps)
 
-if nargin < 5
+if nargin < 6
    h = 0; % select 0 by default 
 end
-if nargin < 6
+if nargin < 7
    varScale = 1.96; % choose standard 1-d 95% confidence by default 
 end
-if nargin < 7
+if nargin < 8
    eps = 1e-2; % choose accuracy param to 0.01 by default 
+end
+
+use_beta_lik = false;
+if size(noise, 1) == 0
+    use_beta_lik = true;
 end
 
 % init uncertain, high, and low sets (which store indices)
@@ -46,10 +51,13 @@ hyperIndices = hyperIndices(1:maxInd);
 training_x = points(hyperIndices,:);
 training_y = tsdf(hyperIndices,:);
 training_dy = normals(hyperIndices,:);
-numIters = 1000;
-hyp.cov = [2, 0]; hyp.mean = zeros(nMeanHyp, 1); hyp.lik = log(0.1);
-gpModel = create_gpis(training_x, training_y, training_dy, true, gpModel.hyp, ...
-    numIters, hyp.cov, hyp.mean, hyp.lik);
+training_beta = [];
+if ~use_beta_lik
+    training_beta = noise(hyperIndices,:);
+end
+hyp.cov = [0.5, 0]; hyp.mean = zeros(nMeanHyp, 1); hyp.lik = log(0.1);
+gpModel = create_gpis(training_x, training_y, training_dy, training_beta, ...
+    true, gpModel.hyp, numIters, hyp.cov, hyp.mean, hyp.lik);
 
 % choose the active set
 chosenPoints = zeros(0,2);
@@ -63,6 +71,9 @@ for i = 2:K
     training_x = points(active==1,:);
     training_y = tsdf(active==1,:);
     training_dy = normals(active==1,:);
+    if ~use_beta_lik
+        training_beta = noise(active==1,:);
+    end
     
     % only use uncertain points as test indices
     uncertain = (active == 0 & high == 0 & low == 0);
@@ -75,7 +86,7 @@ for i = 2:K
     end
   
     % compute alpha from the data
-    gpModel = create_gpis(training_x, training_y, training_dy, ...
+    gpModel = create_gpis(training_x, training_y, training_dy, training_beta, ...
         false, gpModel.hyp);
 
     % predict tsdf and variance on the remaining set
@@ -83,6 +94,13 @@ for i = 2:K
     testTsdf = testTsdf(1:numTest,:);
     testVars = gp_cov(gpModel, testPoints, Kxxp, true);
     testVars = diag(testVars(1:numTest,1:numTest)); % diagonal approx
+    
+    allVars = gp_cov(gpModel, points, [], true);
+    allVars = diag(allVars(1:numPoints,1:numPoints)); % diagonal approx
+    allVarsGrid = reshape(allVars, uint16(sqrt(numPoints)),  uint16(sqrt(numPoints)));
+    allVarsIm = imresize(allVarsGrid, 5);
+    figure(1);
+    imshow(allVarsIm);
     
     % choose next point according to straddle rule
     maxConfidenceRegion = testTsdf + sqrt(varScale)*testVars;
@@ -109,7 +127,7 @@ for i = 2:K
 end
 
 disp('Done selecting active set');
-gpModel = create_gpis(training_x, training_y, training_dy, true, gpModel.hyp, ...
+gpModel = create_gpis(training_x, training_y, training_dy, training_beta, true, gpModel.hyp, ...
     numIters, hyp.cov, hyp.mean, hyp.lik);
 activePoints = training_x;
 

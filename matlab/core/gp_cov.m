@@ -3,7 +3,7 @@ function Sigma = gp_cov(gpModel, x, Kxxp, use_derivative)
 %   the data specified in the model |gpModel|
 
     if use_derivative
-        Kxx = se_cov_derivative(gpModel.covFunc, gpModel.hyp.cov, gpModel.beta, x);    
+        Kxx = se_cov_derivative(gpModel.covFunc, gpModel.hyp.cov, 0, x);    
         if size(Kxxp,1) == 0
             Kxxp = se_cov_derivative(gpModel.covFunc, gpModel.hyp.cov, gpModel.beta, gpModel.training_x, x);
         end

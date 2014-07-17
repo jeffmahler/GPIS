@@ -1,4 +1,4 @@
-function [x,success] = penalty_sqp(x0, Q, q, f, A_ineq, b_ineq, A_eq, b_eq, g, h, user_cfg)
+function [x, x_all_iters, success] = penalty_sqp(x0, Q, q, f, A_ineq, b_ineq, A_eq, b_eq, g, h, user_cfg)
 %PENALTY_SQP    solves constrained optimization problem
 %
 %   minimize (1/2) x'*Q*x + x'*q + f(x)
@@ -85,11 +85,14 @@ if ~isempty(cfg.callback), cfg.callback(); end;
 % which is used in the termination condition for the inner loop.
 % - If all constraints are satisfied (which in code means if they are satisfied up to tolerance cfg.cnt_tolerance), we're done.
 %
+x_all_iters = x;
 while penalty_iter <= cfg.max_penalty_iter    
     
     [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
     f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg, penalty_coeff, trust_box_size);
 	
+    x_all_iters = [x_all_iters, x];
+
     % reset trust box if necessary
     if trust_box_size < cfg.min_trust_box_size
         trust_box_size = cfg.initial_trust_box_size;

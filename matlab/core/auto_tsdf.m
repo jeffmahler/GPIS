@@ -1,4 +1,4 @@
-function [points, tsdf, J] = auto_tsdf(shape, dim, name)
+function [points, tsdf, normals, noise, allTsdf, J] = auto_tsdf(shape, dim, name, pts)
 % Displays a random item of the specified shape and automatically extracs
 % ALL points on the surface, inside the surface, and outside the surface
 % using simple image processing ops.
@@ -13,6 +13,9 @@ if nargin < 2
 end
 if nargin < 3
    name = 'shape.csv';
+end
+if nargin < 4
+   pts = [];
 end
 
 I = 255*ones(dim, dim);
@@ -40,7 +43,7 @@ elseif strcmp(shape, 'Lines') == 1
     y2 = uint16(dim*rand());
     pts = [x1, y1, x2, y2];
 elseif strcmp(shape, 'Polygons') == 1
-    randomPoly = true;
+    randomPoly = false;
     if randomPoly
         minVertices = 3;
         maxVertices = 8;
@@ -73,14 +76,32 @@ elseif strcmp(shape, 'Polygons') == 1
         pts = [xTop, xBottom; yTop, yBottom];
         pts = pts(:)';
     else
-        % RECTANGLE THING
-        pts = [5, 5, 20, 5, 10, 20, 5, 20];
-        %pts = [10, 30, 80, 30, 50, 70, 10, 70];
-        %pts = [10, 30, 80, 100, 10, 170, 100, 120, ...
-         %  190, 170, 120, 100, 190, 30, 100, 80];
-        % STAR
-        %pts = [100, 10, 120, 80, 190, 100, 120, 120, ...
-        %    100, 190, 80, 120, 10, 100, 80, 80];
+        if size(pts,1) == 0
+        % Tape Container
+            pts = [2, 10, ...
+                5, 10, ...
+                5, 12, ...
+                6, 13, ...
+                7, 12, ...
+                7, 10, ...
+                10, 8, ...
+                12, 5, ...
+                16, 5, ...
+                22, 8, ...
+                23, 10, ...
+                23, 15,...
+                20, 20, ...
+                5, 20, ...
+                2, 18];
+            % RECTANGLE THING
+            %pts = [5, 5, 20, 5, 10, 20, 5, 20];
+            %pts = [10, 30, 80, 30, 50, 70, 10, 70];
+            %pts = [10, 30, 80, 100, 10, 170, 100, 120, ...
+             %  190, 170, 120, 100, 190, 30, 100, 80];
+            % STAR
+            %pts = [100, 10, 120, 80, 190, 100, 120, 120, ...
+            %    100, 190, 80, 120, 10, 100, 80, 80];
+        end
     end
 elseif strcmp(shape, 'Circles') == 1
     disp('Generating random circle');
@@ -133,12 +154,36 @@ tsdf(surfaceMaskOut) = 0.5;
 tsdf(insideMask) = -1;
 tsdf(outsideMask) = 1;
 
+noise = ones(dim, dim);
+noise_scale = 0.01;
+for i = 1:dim
+    for j = 1:dim
+        noise(i,j) = noise_scale * (i) * 2;
+    end
+end
+noise = noise(:);
+%noise = [];
+
+[Gx, Gy] = imgradientxy(tsdf, 'CentralDifference');
 [X, Y] = meshgrid(1:dim, 1:dim);
-points = [X(:), Y(:)];
+
+allTsdf = tsdf(:);
+
+% subsample both points and tsdf
+[M, N] = size(tsdf);
+%M = 0.75 * M;
+%N = 0.5 * N;
+X = X(1:M,1:N);
+Y = Y(1:M,1:N);
+tsdf = tsdf(1:M,1:N);
 
 csvwrite(name, tsdf);
 
+points = [X(:), Y(:)];
 tsdf = tsdf(:);
+normals = [Gx(:) Gy(:)];
+
+
     
 
 
