@@ -1,15 +1,16 @@
-function [gpModel, activePoints, testIndices, testTsdf, testNorms, testVars] = ...
-    select_active_set_straddle( points, tsdf, normals, noise, K, numIters, h, varScale, eps)
+function [gpModel, predShape, testIndices] = ...
+    select_active_set_straddle(shapeParams, trainingParams)
 
-if nargin < 6
-   h = 0; % select 0 by default 
-end
-if nargin < 7
-   varScale = 1.96; % choose standard 1-d 95% confidence by default 
-end
-if nargin < 8
-   eps = 1e-2; % choose accuracy param to 0.01 by default 
-end
+points = shapeParams.points;
+tsdf = shapeParams.tsdf;
+normals = shapeParams.normals;
+noise = shapeParams.noise;
+
+h = trainingParams.levelSet;
+varScale = trainingParams.beta;
+eps = trainingParams.eps;
+K = trainingParams.activeSetSize;
+numIters = trainingParams.numIters;
 
 use_beta_lik = false;
 if size(noise, 1) == 0
@@ -19,7 +20,6 @@ end
 % init uncertain, high, and low sets (which store indices)
 numPoints = size(points,1);
 active = zeros(numPoints,1); % the points in the active set
-uncertain = ones(numPoints,1);
 high = zeros(numPoints,1);
 low = zeros(numPoints,1);
 
@@ -55,7 +55,7 @@ training_beta = [];
 if ~use_beta_lik
     training_beta = noise(hyperIndices,:);
 end
-hyp.cov = [0.5, 0]; hyp.mean = zeros(nMeanHyp, 1); hyp.lik = log(0.1);
+hyp.cov = [0.6, 0]; hyp.mean = zeros(nMeanHyp, 1); hyp.lik = log(0.1);
 gpModel = create_gpis(training_x, training_y, training_dy, training_beta, ...
     true, gpModel.hyp, numIters, hyp.cov, hyp.mean, hyp.lik);
 
@@ -95,27 +95,26 @@ for i = 2:K
     testVars = gp_cov(gpModel, testPoints, Kxxp, true);
     testVars = diag(testVars(1:numTest,1:numTest)); % diagonal approx
     
-    allVars = gp_cov(gpModel, points, [], true);
-    allVars = diag(allVars(1:numPoints,1:numPoints)); % diagonal approx
-    allVarsGrid = reshape(allVars, uint16(sqrt(numPoints)),  uint16(sqrt(numPoints)));
-    allVarsIm = imresize(allVarsGrid, 5);
-    figure(1);
-    imshow(allVarsIm);
+%    allVars = gp_cov(gpModel, points, [], true);
+%    allVars = diag(allVars(1:numPoints,1:numPoints)); % diagonal approx
+%     allVarsGrid = reshape(allVars, uint16(sqrt(numPoints)),  uint16(sqrt(numPoints)));
+%     allVarsIm = imresize(allVarsGrid, 5);
+%     figure(1);
+%     imshow(allVarsIm);
     
     % choose next point according to straddle rule
     maxConfidenceRegion = testTsdf + sqrt(varScale)*testVars;
     minConfidenceRegion = testTsdf - sqrt(varScale)*testVars;
     ambiguity = min([(maxConfidenceRegion-h) (h-minConfidenceRegion)], [], 2);
     maxAmbiguity = find(ambiguity == max(ambiguity));
-    randIndices = randperm(1:size(maxAmbiguity,1));
+    randIndices = randperm(size(maxAmbiguity,1));
     bestIndex = maxAmbiguity(randIndices(1)); % just choose first element
  
     if i == 51
        stop = 1; 
     end
     
-    chosenPoint = testPoints(ambiguity == max(ambiguity), :);
-    chosenPoints = [chosenPoints; chosenPoint];
+    chosenPoint = testPoints(bestIndex, :);
     fprintf('Chose point %d %d\n', chosenPoint(1), chosenPoint(2));
     
     % update sets
@@ -129,18 +128,21 @@ end
 disp('Done selecting active set');
 gpModel = create_gpis(training_x, training_y, training_dy, training_beta, true, gpModel.hyp, ...
     numIters, hyp.cov, hyp.mean, hyp.lik);
-activePoints = training_x;
 
 testIndices = find(active == 0);
 testPoints = points(testIndices,:);
 numTest = size(testPoints,1);
 
 [testTsdf, Mx, Kxxp] = gp_mean(gpModel, testPoints, true);
-testNorms = testTsdf(numTest+1:size(testTsdf,1));
-testTsdf = testTsdf(1:numTest);
-testVars = gp_cov(gpModel, testPoints, Kxxp, true);
-    
-activePoints = [points(firstIndex,:); activePoints];
+predShape = struct();
+predShape.gridDim = shapeParams.gridDim;
+predShape.vertices= shapeParams.vertices;
+predShape.com = shapeParams.com;
+predShape.tsdf = testTsdf(1:numTest);
+predShape.normals = reshape(testTsdf(numTest+1:size(testTsdf,1)), numTest,2);
+predShape.noise = gp_cov(gpModel, testPoints, Kxxp, true);
+predShape.noise = diag(predShape.noise(1:numTest, 1:numTest));
+predShape.points = points(testIndices,:);
 
 end
 

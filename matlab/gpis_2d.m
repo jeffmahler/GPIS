@@ -12,10 +12,12 @@ clear; clc; close all;
 % param specification
 shape = 'Polygons';
 gridDim = 25;
-shapeName = 'shape.csv';
-pointsName = 'points.csv';
 scale = 2;
 fill = true;
+name = 'water';
+shapeName = sprintf('data/google_objects/%s.mat', name);
+tsdfName = sprintf('data/google_objects/%s_tsdf.csv', name);
+pointsName = sprintf('data/google_objects/%s_points.csv', name);
 
 % active set params
 numIters = 1;%000;
@@ -26,7 +28,7 @@ beta = 10;
 eps = 1e-2;
 
 % experiment params
-activeSetSizes = [40];%, 250, 500, 1000];
+activeSetSizes = [50];%, 250, 500, 1000];
 numSizes = size(activeSetSizes, 2);
 methods = {'LevelSet'}; %, 'Subsample', 'LevelSet'};
 numMethods = size(methods,2);
@@ -35,11 +37,14 @@ testErrors = {[], [], [], []};
 surfaceTestErrors = {[], [], [], []};
 
 pts = create_shape(gridDim);
-[truePoints, trueTsdf, trueNormals, trueNoise, allTsdf, trueShapeImage] = ...
-    auto_tsdf(shape, gridDim, shapeName, pts);
-trueTsdfGrid = reshape(allTsdf, gridDim, gridDim);
 
+%%
+[truePoints, trueTsdf, trueNormals, trueNoise, trueShape, trueShapeImage] = ...
+    auto_tsdf(shape, gridDim, tsdfName, pts);
+trueTsdfGrid = reshape(allTsdf, gridDim, gridDim);
+ 
 % write points to a file for later
+save(shapeName, 'trueShape'); 
 csvwrite(pointsName, reshape(pts, 2, size(pts,2)/2)');
 
 %% Test all methodologies and set sizes
@@ -148,20 +153,6 @@ for i = 1:size(methods,2)
     end
 end
 
-%%
-figure;
-surfaceInd = find(allTsdf < 0.1);
-surfaceTsdf = allTsdf(surfaceInd);
-surfacePoints = allTsdf(surfaceInd);
-imshow(abs(allTsdfGrid) < 0.1);
-
-%%
-subplot(1,3,1);
-imshow(trueTsdfGrid);
-subplot(1,3,2);
-imshow(abs(Gx));
-subplot(1,3,3);
-imshow(abs(Gy));
 
 %% get grasp points
 surf_thresh = 0.1;
@@ -177,7 +168,6 @@ x_init = [x_surface_j(ind1); x_surface_i(ind1);...
 [x_grasp, x_all_iters] = find_antipodal_grasp_points(x_init, gpModel, combImageBig, ...
     gridDim, scale);
 
-
 %% Plot the grasp points
 figure(2);
 d = 2;
@@ -186,7 +176,7 @@ xs2 = x_init(d+1:2*d,:);
 
 subplot(1,2,1);
 imshow(combImageBig); 
-%title('Initial Grasp', 'FontSize', 15);
+title('Initial Grasp', 'FontSize', 15);
 hold on;
 plot(scale*xs1(1,:), scale*xs1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
 plot(scale*xs2(1,:), scale*xs2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
@@ -197,11 +187,13 @@ xs2 = x_grasp(d+1:2*d,:);
 
 subplot(1,2,2);
 imshow(combImageBig);
-%title('Final Grasp', 'FontSize', 15);
+title('Final Grasp', 'FontSize', 15);
 hold on;
 plot(scale*xs1(1,:), scale*xs1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
 plot(scale*xs2(1,:), scale*xs2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
 hold off;
+
+
 
 %% Aggregate data (or do this manually)
 plotMethod = 2;
@@ -256,33 +248,4 @@ xlabel('# Elements');
 ylabel('Error (signed distance)');
 legend(methods{1}, methods{2}, methods{3}, methods{4}, 'Location', 'Best');
 
-%% Plot K vs times
-figure(20);
-plot(activeSetSizes, selectionTimes{1}, '-bo', activeSetSizes, selectionTimes{2}, '-gx', 'MarkerSize', 15, 'LineWidth', 2);
-title('Computation Time Versus Set Size for 40,000 Data Points', 'FontSize', 15);
-xlabel('Active Set Size', 'FontSize', 15);
-ylabel('Time (sec)', 'FontSize', 15);
-legend('Serial', 'GPU (Chol)', 'Location', 'Best');
-
-%% Plot N vs times
-selectionTimesSerial = [0.2078, 0.4642, 1.9013, 15.3608, 64.0320, 251.9920]';
-selectionTimesGpu = [0.0887, 0.2583, 1.0540, 4.0220, 15.5049, 60.1130]';
-numPoints = [25^2, 50^2, 100^2, 200^2, 400^2, 800^2]';
-
-figure(21);
-plot(numPoints, selectionTimesSerial, '-bo', numPoints, selectionTimesGpu, '-gx', 'MarkerSize', 15, 'LineWidth', 2);
-title('Computation Time Versus Number of Candidate Points for 100 Active Points', 'FontSize', 15);
-xlabel('Number of Candidate Points', 'FontSize', 15);
-ylabel('Time (sec)', 'FontSize', 15);
-legend('Serial', 'GPU (Chol)', 'Location', 'Best');
-
-%% Plot B vs times
-batchSelectionTimesGpu = [155.5570, 25.3074, 18.5861, 8.4950, 4.8721, 4.1361, 4.0337, 4.0087, 3.9083]';
-batchSizes = [1, 8, 16, 64, 128, 256, 512, 1024, 2048]';
-
-figure(22);
-loglog(batchSizes, batchSelectionTimesGpu, '-bo', 'MarkerSize', 15, 'LineWidth', 2);
-title('Computation Time Versus Batch Size for 40,000 Data Points', 'FontSize', 15);
-xlabel('Batch Size', 'FontSize', 15);
-ylabel('Time (sec)', 'FontSize', 15);
 

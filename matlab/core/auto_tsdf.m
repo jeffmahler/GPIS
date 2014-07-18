@@ -1,4 +1,4 @@
-function [points, tsdf, normals, noise, allTsdf, J] = auto_tsdf(shape, dim, name, pts)
+function [shapeParams, shapeIm] = auto_tsdf(shape, dim, pts, com, varParams)
 % Displays a random item of the specified shape and automatically extracs
 % ALL points on the surface, inside the surface, and outside the surface
 % using simple image processing ops.
@@ -12,9 +12,6 @@ if nargin < 2
     dim = 100;
 end
 if nargin < 3
-   name = 'shape.csv';
-end
-if nargin < 4
    pts = [];
 end
 
@@ -119,20 +116,19 @@ else
     disp('\t Circles');
 end
 
-disp('Displaying shape');
-J = uint8(step(S, I, pts));
-imshow(J);
+% create shape and display
+shapeIm = uint8(step(S, I, pts));
+imshow(shapeIm);
 
+% dilate / erode to get borders
 SE = strel('square', 3);
-J_d = imdilate(J, SE);
-%imshow(J_d);
-J_e = imerode(J, SE);
-%imshow(J_e);
+J_d = imdilate(shapeIm, SE);
+J_e = imerode(shapeIm, SE);
 J_2d = imdilate(J_d, SE);
-%imshow(J_2d);
 
-outsideMaskOrig = (J == 255);
-insideMaskOrig = (J == 102);
+% create border masks
+outsideMaskOrig = (shapeIm == 255);
+insideMaskOrig = (shapeIm == 102);
 outsideMaskEr = (J_e == 255);
 insideMaskEr = (J_e == 102);
 outsideMaskDi = (J_d == 255);
@@ -154,34 +150,82 @@ tsdf(surfaceMaskOut) = 0.5;
 tsdf(insideMask) = -1;
 tsdf(outsideMask) = 1;
 
+% create noise with user-specified parameters
 noise = ones(dim, dim);
-noise_scale = 0.01;
 for i = 1:dim
     for j = 1:dim
-        noise(i,j) = noise_scale * (i) * 2;
+        % add in occlusions
+        if (i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high) || ...
+                (i > varParams.y_thresh2_low && i <= varParams.y_thresh2_high) || ...
+                (j > varParams.x_thresh1_low && j <= varParams.x_thresh1_high) || ...
+                (j > varParams.x_thresh2_low && j <= varParams.x_thresh2_high)
+            noise(i,j) = varParams.occlusionScale;
+        else
+            noiseVal = 1; % scaling for noise
+            if varParams.specularNoise
+                noiseVal = rand();
+                
+                if rand() > (1-varParams.sparsityRate)
+                    noiseVal = noiseVal * varParams.sparseScaling;
+                end
+            end
+            
+            % scale the noise by the location in the image
+            if strcmp(varParams.noiseGradMode, 'TLBR')
+                noise(i,j) = noiseVal * ...
+                    (varParams.noiseScale * varParams.horizScale * j + ...
+                    varParams.noiseScale * varParams.vertScale * i);
+            elseif strcmp(varParams.noiseGradMode, 'TRBL')
+                noise(i,j) = noiseVal * ...
+                    (varParams.noiseScale * varParams.horizScale * (dim-j+1) + ...
+                    varParams.noiseScale * varParams.vertScale * i);
+            elseif strcmp(varParams.noiseGradMode, 'BLTR')
+                noise(i,j) = noiseVal * ...
+                    (varParams.noiseScale * varParams.horizScale * j + ...
+                    varParams.noiseScale * varParams.vertScale * (dim-i+1));
+            elseif strcmp(varParams.noiseGradMode, 'BRTL')
+                noise(i,j) = noiseVal * ...
+                    (varParams.noiseScale * varParams.horizScale * (dim-j+1) + ...
+                    varParams.noiseScale * varParams.vertScale * (dim-i+1));
+            else
+                noise(i,j) = noiseVal * varParams.noiseScale; 
+            end
+        end
     end
 end
-noise = noise(:);
-%noise = [];
 
+% get gradients and points
 [Gx, Gy] = imgradientxy(tsdf, 'CentralDifference');
 [X, Y] = meshgrid(1:dim, 1:dim);
-
-allTsdf = tsdf(:);
+[Xall, Yall] = meshgrid(1:dim, 1:dim);
 
 % subsample both points and tsdf
-[M, N] = size(tsdf);
-%M = 0.75 * M;
-%N = 0.5 * N;
-X = X(1:M,1:N);
-Y = Y(1:M,1:N);
-tsdf = tsdf(1:M,1:N);
+validIndices = find(noise < varParams.occlusionScale);
+X = X(validIndices);
+Y = Y(validIndices);
+tsdf = tsdf(validIndices);
+Gx = Gx(validIndices);
+Gy = Gy(validIndices);
+noise = noise(validIndices);
 
-csvwrite(name, tsdf);
+% convert back to grid form
+X = reshape(X, dim, dim);
+Y = reshape(Y, dim, dim);
+tsdf = reshape(tsdf, dim, dim);
+Gx = reshape(Gx, dim, dim);
+Gy = reshape(Gy, dim, dim);
+noise = reshape(noise, dim, dim);
 
-points = [X(:), Y(:)];
-tsdf = tsdf(:);
-normals = [Gx(:) Gy(:)];
+% store shape in struct
+shapeParams = struct();
+shapeParams.gridDim = dim;
+shapeParams.vertices = pts;
+shapeParams.com = com;
+shapeParams.tsdf = tsdf(:);
+shapeParams.noise = noise(:);
+shapeParams.normals = [Gx(:), Gy(:)];
+shapeParams.points = [X(:), Y(:)];
+shapeParams.all_points = [Xall(:), Yall(:)];
 
 
     

@@ -1,32 +1,15 @@
 function [x_grasp, x_all_iters] = find_antipodal_grasp_points(x_init, gpModel, ...
-    surfaceImage, gridDim, scale, nu, lambda)
+    cfg, gridDim, nu, lambda)
 %FIND_ANTIPODAL_GRASP_POINTS Finds an antipodal set of grasp points
 
 if nargin < 5
-   scale = 1; 
-end
-if nargin < 6
    nu = 1; 
 end
-if nargin < 7
+if nargin < 6
    lambda = 0.05; 
 end
 
-% Set parameters of the optimizer
-cfg = struct();
-cfg.max_merit_coeff_increases = 5;
-cfg.merit_coeff_increase_ratio = 10;
-cfg.initial_penalty_coeff = 0.5;
-cfg.initial_trust_box_size = 5;
-cfg.trust_shrink_ratio = .75;
-cfg.trust_expand_ratio = 2.0;
-cfg.min_approx_improve = 1e-8;
-cfg.min_trust_box_size = 1e-5;
-cfg.callback = @plot_surface_grasp_points;
-cfg.full_hessian = true;
-cfg.surfaceImage = surfaceImage;
-cfg.scale = scale;
-
+% get dim
 d = size(x_init,1) / 2;
 
 % set up zeros functions (since we don't need them)
