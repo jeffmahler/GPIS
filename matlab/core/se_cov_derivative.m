@@ -7,6 +7,11 @@ if nargin < 5
     add_diagonal_noise = true;
 end
 
+use_noise = false;
+if size(beta,1) > 1
+    use_noise = true;
+end
+
 % get sizes of arrays, initialize kernel matrix
 M = size(x, 1);
 N = size(y, 1);
@@ -22,7 +27,11 @@ K = zeros(P, Q);
 tic;
 K(1:M, 1:N) = feval(covfunc{:}, hyp, x, y);
 if add_diagonal_noise
-    K(1:M, 1:N) = K(1:M, 1:N) + beta * eye(M,N);
+    if use_noise
+        K(1:M, 1:N) = K(1:M, 1:N) + diag(beta) .* eye(M,N);
+    else
+        K(1:M, 1:N) = K(1:M, 1:N) + beta * eye(M,N);
+    end
 end
 
 % disp('Cov done');

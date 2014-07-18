@@ -7,7 +7,7 @@ xp = [x(1:d,1)'; x(d+1:2*d,1)'];
 
 % lies on surface
 [mu, Mx, Kxxp] = gp_mean(gpModel, xp, true);    
-val(1:2) = mu(1:2);
+val(1:2) = 2*mu(1:2);
 
 % antipodality
 % opposite normals
