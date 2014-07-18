@@ -1,4 +1,9 @@
 function [ Q ] = mc_sample( gpModel,allPoints,cone_angle,cp,num_contacts,cm)
+%Takes a line not a single contact, add points in the order of [first1;
+%last1; first2; last2]; 
+
+%look at Run_Comp.m for a more detail of how to input everything 
+
 %Parameters for Sampling
 num_sample = 100; 
 thresh = 0.01; 
