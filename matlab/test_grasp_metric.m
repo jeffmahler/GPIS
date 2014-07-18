@@ -1,24 +1,24 @@
-function [points, tsdf, J] = auto_tsdf(shape, dim, name)
-% Displays a random item of the specified shape and automatically extracs
-% ALL points on the surface, inside the surface, and outside the surface
-% using simple image processing ops.
+function [Q] = test_grasp_metric(shape, dim ,fill)
+% Displays a random item of the specified shape and allows the user to
+% select grasp points. Returns Q the evaluated grasp quality at the points. 
 % Available shapes are:
 %   'Rectangles'
 %   'Lines'
 %   'Polygons'
 %   'Circles'
 
+fric_coef = 0.1; 
 if nargin < 2
     dim = 100;
 end
 if nargin < 3
-   name = 'shape.csv';
+    fill = false;
 end
 
 I = 255*ones(dim, dim);
 S = vision.ShapeInserter;
 S.Shape = shape;
-S.Fill = true;
+S.Fill = fill;
 S.FillColor = 'Black';
 
 % generate random shape properties for display
@@ -45,7 +45,7 @@ elseif strcmp(shape, 'Polygons') == 1
         minVertices = 3;
         maxVertices = 8;
         numVertices = uint16((maxVertices - minVertices) * rand() + minVertices);
-        fprintf('Generating random polygon with %d vertices\n', numVertices);
+        fprintf('Generating random polygon with %d vertices', numVertices);
 
         % generate points for top half of image
         xTop = [];
@@ -73,14 +73,7 @@ elseif strcmp(shape, 'Polygons') == 1
         pts = [xTop, xBottom; yTop, yBottom];
         pts = pts(:)';
     else
-        % RECTANGLE THING
-        pts = [5, 5, 20, 5, 10, 20, 5, 20];
-        %pts = [10, 30, 80, 30, 50, 70, 10, 70];
-        %pts = [10, 30, 80, 100, 10, 170, 100, 120, ...
-         %  190, 170, 120, 100, 190, 30, 100, 80];
-        % STAR
-        %pts = [100, 10, 120, 80, 190, 100, 120, 120, ...
-        %    100, 190, 80, 120, 10, 100, 80, 80];
+        pts = [10, 30, 80, 30, 50, 70, 10, 70]; 
     end
 elseif strcmp(shape, 'Circles') == 1
     disp('Generating random circle');
@@ -100,45 +93,48 @@ end
 
 disp('Displaying shape');
 J = uint8(step(S, I, pts));
-imshow(J);
+f = imshow(J);
 
-SE = strel('square', 3);
-J_d = imdilate(J, SE);
-%imshow(J_d);
-J_e = imerode(J, SE);
-%imshow(J_e);
-J_2d = imdilate(J_d, SE);
-%imshow(J_2d);
+% disp('Click points that represent Contact Points. Press ENTER when finished');
+% contactPts = ginput;
+% 
+% disp('Click the Center of Mass. Press ENTER when finished');
+% center_of_mass = ginput;
 
-outsideMaskOrig = (J == 255);
-insideMaskOrig = (J == 102);
-outsideMaskEr = (J_e == 255);
-insideMaskEr = (J_e == 102);
-outsideMaskDi = (J_d == 255);
-insideMaskDi = (J_d == 102);
-outsideMaskDi2 = (J_2d == 255);
-insideMaskDi2 = (J_2d == 102);
+%temp 
+center_of_mass = [30; 30; 0]; 
+h = double(height); 
+w = double(width); 
+contactPts = [30 30; 30+h/2 30-h/2; 0 0];
 
-surfaceMask = outsideMaskDi & insideMaskOrig;
-surfaceMaskOut = outsideMaskOrig & insideMaskEr;
-surfaceMaskIn = outsideMaskDi2 & insideMaskDi;
-insideMask = insideMaskDi2;
-outsideMask = outsideMaskEr; 
-
-% generate tsdf values
-tsdf = zeros(dim, dim);
-tsdf(surfaceMask) = 0;
-tsdf(surfaceMaskIn) = -0.5;
-tsdf(surfaceMaskOut) = 0.5;
-tsdf(insideMask) = -1;
-tsdf(outsideMask) = 1;
-
-[X, Y] = meshgrid(1:dim, 1:dim);
-points = [X(:), Y(:)];
-
-csvwrite(name, tsdf);
-
-tsdf = tsdf(:);
+%Caculate Friction Cone 
+cone_angle = atan(fric_coef);
+index = 1; 
+for i=1:size(contactPts,2)
+    %Find the normalized direction of the normal force 
+    f = contactPts(:,i) - center_of_mass;
+%     [cd,i_max] = max(f);
+%     [c,i_min] = min(f); 
+%     f(i_max,1) = cd;
+%     f(i_min,1) = 0; 
+    f = f/norm(f,1)
+    %Compute the extrema of the friction cone 
+    y_d = norm(f,1)*tan(cone_angle);
+    x_d = norm(f,1)/sin(cone_angle);
     
-
-
+    f_r = [f(1,1) + x_d; f(2,1)+y_d; 0]; 
+    f_l = [f(1,1) - x_d; f(2,1)+y_d; 0]; 
+    
+    %Normalize friction 
+    f_r = f_r/norm(f_r,1); 
+    f_l = f_l/norm(f_l,1); 
+   
+    forces(:,index) = f_r; 
+    index = index+1;
+    forces(:,index) = f_l; 
+    index = index+1;
+end
+ size(forces)
+ Q = ferrari_canny(center_of_mass,contactPts,forces); 
+    
+end
