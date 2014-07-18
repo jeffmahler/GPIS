@@ -24,6 +24,7 @@ numIters = 1;%000;
 thresh = 0.25;
 
 h = 0;
+
 beta = 10;
 eps = 1e-2;
 
@@ -118,10 +119,10 @@ for i = 1:size(methods,2)
             abs(allVars) / max(abs(allVars)) .* ones(numTest,1), 1, 3);
 
         testImage = reshape(testColors(:,1), gridDim, gridDim); 
-        testImage = imresize(testImage, scale*size(testImage));
+        testImage2 = imresize(testImage, scale*size(testImage));
         testVarImage = reshape(testVarColors(:,1), gridDim, gridDim); 
         testVarImage = imresize(testVarImage, scale*size(testVarImage));
-        testImageDarkened = max(0, testImage - 0.3*ones(scale*gridDim, scale*gridDim)); % darken
+        testImageDarkened = max(0, testImage2 - 0.3*ones(scale*gridDim, scale*gridDim)); % darken
 
         colorImage = 255*ones(gridDim, gridDim, 'uint8');
         tsdfImage = imresize(testImageDarkened, 0.5);
@@ -137,17 +138,21 @@ for i = 1:size(methods,2)
         combImageBig = imresize(combImage, scale);
         
         figure;
-        %subplot(1,2,1);
-        imshow(combImageBig);
-        hold on;
-        scatter(scale*activePoints(1,1), scale*activePoints(1,2), 150.0, 'x', 'LineWidth', 1.5);
-        scatter(scale*activePoints(:,1), scale*activePoints(:,2), 50.0, 'x', 'LineWidth', 1.5);
-        hold off;
-        %subplot(1,2,2);
-        %imshow(trueTsdfGrid);
-        %title(sprintf('Predicted Absolute TSDF for %d Active Elements Selected Using %s Method (White = Surface)', K, M));
+        subplot(1,2,1);
+        imshow(trueTsdfGrid);
+        title(sprintf('True TSDF Grid'));
+       % hold on;
+       % scatter(scale*activePoints(1,1), scale*activePoints(1,2), 150.0, 'x', 'LineWidth', 1.5);
+       % scatter(scale*activePoints(:,1), scale*activePoints(:,2), 50.0, 'x', 'LineWidth', 1.5);
+       % hold off;
+        subplot(1,2,2);
+        
+        imshow(testImageDarkened);
+        title(sprintf('Predicted TSDF Grid'));
+        figure; 
+        imshow(testImageDarkened);
 
-        % Write to file
+       % Write to file
         imwrite(testImageDarkened, sprintf('results/active_set/tsdf%s%d.jpg', M, K));
 
     end
@@ -247,5 +252,4 @@ title('Active set size versus surface reconstruction error');
 xlabel('# Elements');
 ylabel('Error (signed distance)');
 legend(methods{1}, methods{2}, methods{3}, methods{4}, 'Location', 'Best');
-
 
