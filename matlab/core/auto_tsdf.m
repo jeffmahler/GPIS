@@ -1,4 +1,4 @@
-function [shapeParams, shapeIm] = auto_tsdf(shape, dim, pts, com, varParams)
+function [shapeParams, shapeIm] = auto_tsdf(shape, dim, pts, varParams, com)
 % Displays a random item of the specified shape and automatically extracs
 % ALL points on the surface, inside the surface, and outside the surface
 % using simple image processing ops.
@@ -13,6 +13,12 @@ if nargin < 2
 end
 if nargin < 3
    pts = [];
+end
+
+useCom = true;
+if nargin < 5
+   useCom = false;
+    com = [];
 end
 
 I = 255*ones(dim, dim);
@@ -162,7 +168,9 @@ for i = 1:dim
             noise(i,j) = varParams.occlusionScale;
         else
             noiseVal = 1; % scaling for noise
-            if varParams.specularNoise
+
+            % add specularity to surface
+            if varParams.specularNoise && abs(tsdf(i,j)) < 0.1 
                 noiseVal = rand();
                 
                 if rand() > (1-varParams.sparsityRate)
@@ -209,23 +217,28 @@ Gy = Gy(validIndices);
 noise = noise(validIndices);
 
 % convert back to grid form
-X = reshape(X, dim, dim);
-Y = reshape(Y, dim, dim);
-tsdf = reshape(tsdf, dim, dim);
-Gx = reshape(Gx, dim, dim);
-Gy = reshape(Gy, dim, dim);
-noise = reshape(noise, dim, dim);
+% X = reshape(X, dim, dim);
+% Y = reshape(Y, dim, dim);
+% tsdf = reshape(tsdf, dim, dim);
+% Gx = reshape(Gx, dim, dim);
+% Gy = reshape(Gy, dim, dim);
+% noise = reshape(noise, dim, dim);
 
 % store shape in struct
 shapeParams = struct();
 shapeParams.gridDim = dim;
 shapeParams.vertices = pts;
-shapeParams.com = com;
 shapeParams.tsdf = tsdf(:);
 shapeParams.noise = noise(:);
 shapeParams.normals = [Gx(:), Gy(:)];
 shapeParams.points = [X(:), Y(:)];
 shapeParams.all_points = [Xall(:), Yall(:)];
+
+if ~useCom
+    shapeParams.com = mean(shapeParams.points(shapeParams.tsdf < 0,:));
+else
+    shapeParams.com = com;
+end
 
 
     

@@ -31,6 +31,8 @@ cfg.max_iter = 50;
 cfg.trust_shrink_ratio = .1;
 cfg.trust_expand_ratio = 1.5;
 cfg.cnt_tolerance = 1e-4;
+cfg.ineq_tolerance = 1e-4;
+cfg.eq_tolerance = 1e-4;
 cfg.max_merit_coeff_increases = 5;
 cfg.merit_coeff_increase_ratio = 8;
 cfg.initial_trust_box_size = 1;
@@ -42,6 +44,11 @@ cfg.h_use_numerical = true;
 cfg.full_hessian = true;
 cfg.surfaceImage = zeros(1,1);
 cfg.scale = 1;
+cfg.lambda = 1;
+cfg.nu = 1;
+cfg.fric_coef = 0;
+cfg.min_init_dist = 3;
+cfg.com_tol = 0;
 cfg.callback = [];
 
 cfg = load_user_cfg(cfg, user_cfg);
@@ -100,8 +107,8 @@ while penalty_iter <= cfg.max_penalty_iter
     
     if (max(A_ineq*x - b_ineq) > cfg.cnt_tolerance) ...
             || (max(abs(A_eq*x - b_eq)) > cfg.cnt_tolerance) ...
-            || (max(g(x)) > cfg.cnt_tolerance) ...
-            || (max(abs(h(x))) > cfg.cnt_tolerance)
+            || (sum(g(x) > cfg.ineq_tolerance) > 0) ...
+            || (sum(abs(h(x)) > cfg.eq_tolerance) > 0) % there's at least 1 bad constraint
         fprintf('Penalty: %f\n', penalty_coeff);
         penalty_coeff = cfg.merit_coeff_increase_ratio * penalty_coeff;
     else
@@ -197,7 +204,7 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
         else
             [hval, hjac] = h(x);
         end
-        
+        fval
         gradquadlin = numeric_gradient(fquadlin, x);
         merit = fval + fquadlin(x) + penalty_coeff * ( hinge(gval) + abssum(hval) );
         

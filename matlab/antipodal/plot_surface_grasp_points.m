@@ -19,6 +19,7 @@ scale = info.cfg.scale;
 [m,n] = size(info.cfg.surfaceImage);
 xs1 = [xs1, x(1:d,1)];
 xs2 = [xs2, x(d+1:2*d,:)];
+figure(11);
 imshow(info.cfg.surfaceImage);
 hold on;
 plot(2*xs1(1,:),2*xs1(2,:),'rx-');

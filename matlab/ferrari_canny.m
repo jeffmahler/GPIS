@@ -2,7 +2,8 @@ function [ Q ] = ferrari_canny( center_of_mass,p,f )
 %FERRARI_CANNY Summary of this function goes here
 %   Detailed explanation goes here
 
-num_contacts = size(p,2); 
+num_contacts = size(p,2);
+eps = 1e-5;
 
 %Get radius from center of mass to contacts 
 for i=1:num_contacts
@@ -16,7 +17,7 @@ end
 for i=1:num_contacts
     %Compute r x f via Skew Symmetric Matrix
    
-    R(1,1) = 0;       R(1,2) = -r(3,i); R(1,3) = -r(2,i); 
+    R(1,1) = 0;       R(1,2) = -r(3,i); R(1,3) = r(2,i); 
     R(2,1) = r(3,i);  R(2,2) = 0;       R(2,3) = -r(1,i); 
     R(3,1) = -r(2,i); R(3,2) = r(1,i);  R(3,3) = 0; 
     
@@ -37,7 +38,7 @@ W(3,:) = t(3,:);
 %TODO look up plane from triangle calculation 
 %TODO a*x=b has to have ||a||=1
 
-[K, v] = convhulln(W');
+[K, v] = convhulln(W', {'Qt', 'Pp'});
 
 %trisurf(K,X(:,1),X(:,2),X(:,3))
 
@@ -56,19 +57,44 @@ end
 
 Q = min_b;
 
+in = check_zero_inside(W, eps);
+if ~in
+    Q = -Q;
+end
+
 end
 
 function [b] = find_b(X)
 
-AB = X(1,:) - X(2,:); 
-BC = X(2,:) - X(3,:); 
+AB = X(2,:) - X(1,:); 
+BC = X(3,:) - X(1,:); 
 
-AB = AB/norm(AB,2); 
-BC = BC/norm(BC,2); 
+AB = AB/norm(AB); 
+BC = BC/norm(BC); 
 
 N = cross(AB,BC); 
 
-b = N*X(1,:)'; 
+b = abs(N*X(1,:)'); 
+
+end
+
+function [in] = check_zero_inside(W, eps)
+n = size(W,2);
+
+% LP to check whether 0 is in the convex hull of the wrenches
+cvx_begin quiet
+    variable z(n);
+    minimize( z' * (W' * W) * z )
+    subject to
+        z >= 0;
+        sum(z) == 1;
+cvx_end
+
+in = false;
+%cvx_optval
+if cvx_optval < eps
+    in = true;
+end
 
 end
 
