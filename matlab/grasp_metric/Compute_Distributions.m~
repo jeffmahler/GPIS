@@ -18,12 +18,12 @@ function [ p_c,p_n,p_nc] = Compute_Distributions(  gpModel,shapeParams,grip_poin
     
     
     %Compute Center of Mass and Plot 
-%     p_com = center_of_mass(mean,cov,shapeParams.gridDim);
-%     plot_com(p_com,shapeParams.com,shapeParams.gridDim,img.mean)
+    p_com = center_of_mass(mean,cov,shapeParams.gridDim);
+    plot_com(p_com,shapeParams.com,shapeParams.gridDim,img.mean)
     
     %Compute Contact Distribution and Plot 
-    p_c = contact_distribution(loa,cov_loa,mean_loa);
-    plot_contact(p_c,grip_point,loa,img.mean);
+%     p_c = contact_distribution(loa,cov_loa,mean_loa);
+%     plot_contact(p_c,grip_point,loa,img.mean);
     
     %Compute Normals Distribution and Plot 
    % [p_n, x] = normal_distribution(loa,cov_loa,mean_loa,p_c);
