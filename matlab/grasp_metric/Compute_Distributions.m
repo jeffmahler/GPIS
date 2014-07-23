@@ -17,7 +17,7 @@ function [ p_c,p_n,p_nc] = Compute_Distributions(  gpModel,shapeParams,grip_poin
     mean_wksp = mean(1:shapeParams.gridDim); 
     
     
-    %Compute Center of Mass and Plot 
+%     %Compute Center of Mass and Plot 
 %     p_com = center_of_mass(mean,cov,shapeParams.gridDim);
 %     plot_com(p_com,shapeParams.com,shapeParams.gridDim,img.mean)
     
@@ -26,8 +26,8 @@ function [ p_c,p_n,p_nc] = Compute_Distributions(  gpModel,shapeParams,grip_poin
     plot_contact(p_c,grip_point,loa,img.mean);
     
     %Compute Normals Distribution and Plot 
-   % [p_n, x] = normal_distribution(loa,cov_loa,mean_loa,p_c);
-   % plot_normal(p_n,grip_point,x,img.mean)
+   [p_n, x,y] = normal_distribution(loa,cov_loa,mean_loa,p_c);
+   plot_normal(p_n,grip_point,x,y,img.mean,loa)
     %plot(loa(:,1),mean_loa(1:size(loa,1)));
 
 end
@@ -55,19 +55,20 @@ end
 function [p] = plot_com(dist,com,gridDim,testImage)
     
     figure; 
-    subplot(1,2,1)
+   
     imshow(testImage);
- 
+    axis on;
+    
     hold on     
     plot(2*com(:,1),2*com(:,2),'x','MarkerSize',10)
     title('Mean Function of GPIS'); 
     hold off
-    
-    subplot(1,2,2)
+    figure;
     h = surfc([1:gridDim],[1:gridDim],dist,dist); 
     %set(h,'edgecolor','interp')
     
-    title('Distribution on Center of Mass'); 
+    title('Distribution on Density'); 
+    colorbar
     xlabel('x-axis'); 
     ylabel('y-axis'); 
     zlabel('pdf');
@@ -78,15 +79,20 @@ end
 function [p] = plot_contact(dist,point,loa,testImage)
     
     figure; 
-    subplot(1,2,1)
+   
     imshow(testImage);
- 
+    axis on;
     hold on     
-    plot(2*loa(:,1),2*loa(:,2))
+    plot(2*loa(:,1),2*loa(:,2));
+    plot(2*loa(1,1),2*loa(1,2),'<g','MarkerSize',10);
+    plot(2*loa(end,1),2*loa(end,2),'<r','MarkerSize',10);
+    
     title('Mean Function of GPIS'); 
+    xlabel('x-axis (2X)'); 
+    ylabel('y-axis (2X)'); 
     hold off
     
-    subplot(1,2,2)
+    figure;
     plot(loa(:,1),dist); 
     title('Distribution on Contact Points'); 
     xlabel('x-axis'); 
@@ -95,25 +101,31 @@ function [p] = plot_contact(dist,point,loa,testImage)
     
 end
 
-function [p] = plot_normal(dist,point,x,testImage)
+function [p] = plot_normal(dist,point,x,y,testImage,loa)
     
     figure; 
-    subplot(1,2,1)
+   
     imshow(testImage);
- 
+    axis on
     hold on     
-    plot(point(:,1),point(:,2))
-    title('Mean Function of GPIS'); 
-    axis([1,25,1,25])
+    plot(2*loa(:,1),2*loa(:,2));
+    plot(2*loa(1,1),2*loa(1,2),'<g','MarkerSize',10);
+    plot(2*loa(end,1),2*loa(end,2),'<r','MarkerSize',10);
+    title('Mean Function of GPIS');
+    xlabel('x-axis (2X)'); 
+    ylabel('y-axis (2X)'); 
     hold off
     
-    subplot(1,2,2)
-    h = surf(x,x,dist); 
-    set(h,'edgecolor','interp')
-    colormap
+    figure;
+    %h = surf(x,y,dist); 
+    %set(h,'edgecolor','flat')
+    scatter(x,y,10,dist);
+    axis([-1 1 -1 1]); 
+    axis equal
+    colorbar
     title('Distribution on Surface Normals'); 
-    xlabel('x-axis'); 
-    ylabel('y-axis'); 
+    xlabel('x-direction'); 
+    ylabel('y-direction'); 
     zlabel('pdf');
     
     

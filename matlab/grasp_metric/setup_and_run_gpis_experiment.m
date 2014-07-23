@@ -7,7 +7,7 @@ outputDir = 'results/google_objects/test';
 newShape = false;
 scale = 2;
 
-grip_point = [1 1; 25 25]; 
+grip_point = [1 12.5; 25 12.5]; 
 
 
 %% experiment config
@@ -27,7 +27,7 @@ varParams.x_thresh1_high = 0;
 varParams.x_thresh2_high = 0;
 
 varParams.occlusionScale = 1000;
-varParams.noiseScale = 0.05;
+varParams.noiseScale = 0.5;
 varParams.specularNoise = false;
 varParams.sparsityRate = 0.0;
 varParams.sparseScaling = 1000;
@@ -79,9 +79,9 @@ cfg.nu = 0.00;
 cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solutions within the friction cone
 
 % % run experiment
-% [ gpModel, shapeParams,img] = ...
-%     run_gpis_2D_experiment(dim, filename, dataDir, ...
-%                              outputDir, newShape, ...
-%                              varParams, trainingParams);
-%                          
+[ gpModel, shapeParams,img] = ...
+    run_gpis_2D_experiment(dim, filename, dataDir, ...
+                             outputDir, newShape, ...
+                             varParams, trainingParams);
+                         
 Compute_Distributions(  gpModel,shapeParams,grip_point,img)
