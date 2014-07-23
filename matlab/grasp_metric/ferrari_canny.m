@@ -59,14 +59,14 @@ end
 %trisurf(K,X(:,1),X(:,2),X(:,3))
 
 %Find closest facet to origin
-min_b = -1000; 
+min_b = 1000; 
 
 for i=1:size(K,1)
      for k = 1:3
          X(k,:) = W(:,K(i,k))';
      end
      b = find_b(X);
-     if(min_b < b)
+     if(b < min_b)
          min_b = b; 
      end
 end
@@ -117,9 +117,9 @@ if numPositive == size(nullVec,1) || numPositive == 0
 end
     
 %cvx_optval
-% in = false;
+% in_alt = false;
 % if cvx_optval < eps
-%     in = true;
+%     in_alt = true;
 % end
 % 
 % if in_alt ~= in
