@@ -29,7 +29,7 @@ beta = 10;
 eps = 1e-2;
 
 % experiment params
-activeSetSizes = [50];%, 250, 500, 1000];
+activeSetSizes = [250];%, 250, 500, 1000];
 numSizes = size(activeSetSizes, 2);
 methods = {'LevelSet'}; %, 'Subsample', 'LevelSet'};
 numMethods = size(methods,2);
