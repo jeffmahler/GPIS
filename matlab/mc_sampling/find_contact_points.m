@@ -1,6 +1,13 @@
-function [ contacts,norm, bad ] = find_contact_points(contact_points,nc,allPoints,allTsdf,allNorm,COM,thresh )
+function [ contacts,norm, bad ] = ...
+    find_contact_points(contact_points, nc, allPoints, allTsdf, allNorm, ...
+        COM, thresh, vis)
 %Given sampled Tsdf finds the contact points, which are the intersection of
 %lines of actions with the 0-level crossing
+
+if nargin < 8
+    vis = true;
+end
+
 gridDM = max(allPoints(:,1)); 
 contacts = zeros(2, nc);
 norm = zeros(2, nc);
@@ -19,12 +26,13 @@ for i=1:nc
         if loa(t,1) > 0 && loa(t,2) > 0 && loa(t,1) <= dim && loa(t,2) <= dim
             tsdfVal = allTsdf(gridDM*(loa(t,1)-1)+loa(t,2));
         end
-        figure(10);
-        scale = 5;
-        scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
-        hold on;
-        scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
-
+        if vis
+            figure(10);
+            scale = 5;
+            scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
+            hold on;
+            scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
+        end
         if(abs(tsdfVal) < thresh || (sign(prevTsdfVal) ~= sign(tsdfVal)) )
             contacts(:,i) = loa(t,:)';
             norm(:,i) = allNorm(gridDM*(loa(t,1)-1)+loa(t,2), :)'; 

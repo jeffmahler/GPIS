@@ -35,8 +35,24 @@ W = zeros(3,2*num_contacts);
 W(1:2,:) = f(1:2,:); 
 W(3,:) = t(3,:); 
 
+% check unique wrenches
+all_unique = true;
+for i = 1:2*num_contacts
+    for j = 1:2*num_contacts
+        if i ~= j && abs(norm(W(:,i) - W(:,j))) < 1e-2
+           all_unique = false;
+           break;
+        end
+    end
+end
+
 %TODO look up plane from triangle calculation 
 %TODO a*x=b has to have ||a||=1
+
+if ~all_unique
+    Q = -1.0;
+    return;
+end
 
 [K, v] = convhulln(W', {'Qt', 'Pp'});
 
@@ -82,19 +98,33 @@ function [in] = check_zero_inside(W, eps)
 n = size(W,2);
 
 % LP to check whether 0 is in the convex hull of the wrenches
-cvx_begin quiet
-    variable z(n);
-    minimize( z' * (W' * W) * z )
-    subject to
-        z >= 0;
-        sum(z) == 1;
-cvx_end
+% cvx_begin quiet
+%     variable z(n);
+%     minimize( z' * (W' * W) * z )
+%     subject to
+%         z >= 0;
+%         sum(z) == 1;
+% cvx_end
 
+% alternative solution method (see if null vector of W^T W can have all
+% positive or negative weights)
+[U, S, V] = svd(W'*W);
+nullVec = U(:,n);
+numPositive = sum(nullVec > 0);
 in = false;
-%cvx_optval
-if cvx_optval < eps
+if numPositive == size(nullVec,1) || numPositive == 0
     in = true;
 end
+    
+%cvx_optval
+% in = false;
+% if cvx_optval < eps
+%     in = true;
+% end
+% 
+% if in_alt ~= in
+%    wrong = 1; 
+% end
 
 end
 

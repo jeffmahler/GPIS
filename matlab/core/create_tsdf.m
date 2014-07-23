@@ -1,5 +1,5 @@
 function [shapeParams, shapeImage, points, com] = ...
-    create_tsdf(filename, dataDir, gridDim, varParams, useCom) 
+    create_tsdf(filename, dataDir, gridDim, varParams, surfaceThresh, useCom) 
 % Function for running construction experiments with GPIS
 % INSTRUCTIONS:
 %   1. Specify a type of shape
@@ -10,7 +10,7 @@ function [shapeParams, shapeImage, points, com] = ...
 
 
 % Collect manually specified tsdf
-if nargin < 5
+if nargin < 6
     useCom = false;
 end
 
@@ -35,6 +35,7 @@ if useCom
 end
 [shapeParams, shapeImage] = ...
     auto_tsdf(shape, gridDim, points, varParams);
+shapeParams.surfaceThresh = surfaceThresh;
 save(shapeName, 'shapeParams');
 
 if useCom

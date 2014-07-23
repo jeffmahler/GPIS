@@ -1,6 +1,6 @@
-function [ mn_Q, v_Q, success] = mc_sample(gpModel, allPoints, cone_angle, cp, ...
-                                    num_contacts, cm, num_sample, surf_thresh, ...
-                                    bad_contact_thresh)
+function [ mn_Q, v_Q, success] = mc_sample_fast(allPoints, cone_angle, cp, ...
+                                    num_contacts, samples, gridDim, surf_thresh, ...
+                                    bad_contact_thresh, vis)
 %Takes a line not a single contact, add points in the order of [first1;
 %last1; first2; last2]; 
 
@@ -8,13 +8,13 @@ function [ mn_Q, v_Q, success] = mc_sample(gpModel, allPoints, cone_angle, cp, .
 
 %Parameters for Sampling
 if nargin < 7
-    num_sample = 100;
-end
-if nargin < 8
     surf_thresh = 0.05;
 end
-if nargin < 9
+if nargin < 8
     bad_contact_thresh = 10;
+end
+if nargin < 9
+    vis = true;
 end
 
 success = true;
@@ -29,21 +29,27 @@ sum_Q_sq = sum_Q;
 
 k = 1;
 num_bad = 0;
-gridDim = uint16(sqrt(size(allPoints,1)));
+num_sample = size(samples,2);
 
 while k <= num_sample
     
-    [Tsdf, Norm] = sample_shape(gpModel, allPoints);
+    shapeSample = samples{k};
+    Tsdf = shapeSample.tsdf;
+    Norm = shapeSample.normals;
     sampleCom = mean(allPoints(Tsdf < 0, :), 1);
 
-    tsdfGrid = reshape(Tsdf, 25, 25);
-    scale = 5;
-    figure(10);
-    tsdfGridBig = imresize(tsdfGrid, scale);
-    imshow(tsdfGridBig);
-    hold on;
+    tsdfGrid = reshape(Tsdf, gridDim, gridDim);
+    
+    if vis
+        scale = 5;
+        figure(10);
+        tsdfGridBig = imresize(tsdfGrid, scale);
+        imshow(tsdfGridBig);
+        hold on;
+    end
     [contactPts, norms, badContact] = ...
-        find_contact_points(cp,num_contacts,allPoints,Tsdf,Norm,sampleCom,surf_thresh);
+        find_contact_points(cp, num_contacts, allPoints, Tsdf, Norm, ...
+            sampleCom, surf_thresh, vis);
 
     if badContact
         num_bad = num_bad+1;
@@ -115,3 +121,4 @@ xlabel('Grasp Quality');
 ylabel('Count'); 
     
 end
+

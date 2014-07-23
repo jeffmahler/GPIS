@@ -1,4 +1,10 @@
-function val = antipodality_penalty(x, gpModel, nu, lambda, com)
+function val = antipodality_penalty(x, gpModel, nu, lambda, com, gamma)
+   
+    % full covariance penaty if not specified
+    if nargin < 6
+       gamma = 1.0 
+    end
+
     d = size(x,1) / 2;
     Sig = gp_cov(gpModel, [x(1:d,1)'; x(d+1:2*d,1)'], [], true);
     
@@ -8,6 +14,6 @@ function val = antipodality_penalty(x, gpModel, nu, lambda, com)
     v = xp(2,:)' - com';
     com_dist = norm(v - (v'*n) * n);
     
-    val = 0*sum(diag(Sig)) + nu*com_dist + lambda*norm(diff);
+    val = gamma * sum(diag(Sig)) + nu*com_dist + lambda*norm(diff);
 end
 
