@@ -8,10 +8,13 @@ if nargin < 8
     vis = true;
 end
 
-gridDM = max(allPoints(:,1)); 
+gridDim = max(allPoints(:,1)); 
 contacts = zeros(2, nc);
 norm = zeros(2, nc);
 dim = uint16(sqrt(size(allPoints,1)));
+tsdfGrid = reshape(allTsdf, gridDim, gridDim);
+xNormGrid = reshape(allNorm(:,1), gridDim, gridDim);
+yNormGrid = reshape(allNorm(:,2), gridDim, gridDim);
 
 for i=1:nc
     index = 2*(i-1) + 1;
@@ -19,12 +22,12 @@ for i=1:nc
    
     tsdfVal = 10;
     if loa(1,1) > 0 && loa(1,2) > 0 && loa(1,1) <= dim && loa(1,2) <= dim
-        tsdfVal = allTsdf(gridDM*(loa(1,1)-1)+loa(1,2)); 
+        tsdfVal = tsdfGrid(loa(1,2), loa(1,1)); 
     end
     for t =1:size(loa,1)
         prevTsdfVal = tsdfVal;
         if loa(t,1) > 0 && loa(t,2) > 0 && loa(t,1) <= dim && loa(t,2) <= dim
-            tsdfVal = allTsdf(gridDM*(loa(t,1)-1)+loa(t,2));
+            tsdfVal = tsdfGrid(loa(t,2), loa(t,1));
         end
         if vis
             figure(10);
@@ -35,7 +38,8 @@ for i=1:nc
         end
         if(abs(tsdfVal) < thresh || (sign(prevTsdfVal) ~= sign(tsdfVal)) )
             contacts(:,i) = loa(t,:)';
-            norm(:,i) = allNorm(gridDM*(loa(t,1)-1)+loa(t,2), :)'; 
+            norm(:,i) = [xNormGrid(loa(t,2), loa(t,1));...
+                         yNormGrid(loa(t,2), loa(t,1))]; 
             break;
         end
         
