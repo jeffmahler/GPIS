@@ -19,11 +19,11 @@ for i=1:nc
         if loa(t,1) > 0 && loa(t,2) > 0 && loa(t,1) <= dim && loa(t,2) <= dim
             tsdfVal = allTsdf(gridDM*(loa(t,1)-1)+loa(t,2));
         end
-        figure(10);
-        scale = 5;
-        scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
-        hold on;
-        scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
+%         figure(10);
+%         scale = 5;
+%         scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
+%         hold on;
+%         scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
 
         if(abs(tsdfVal) < thresh || (sign(prevTsdfVal) ~= sign(tsdfVal)) )
             contacts(:,i) = loa(t,:)';

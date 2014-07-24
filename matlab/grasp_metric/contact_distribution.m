@@ -12,7 +12,7 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
             ll = zeros(size(mean_con));
             ul = zeros(size(mean_con))+10000; 
             
-            P = mvncdf(ll,ul,mean_con,cov_con)
+            P = mvncdf(ll,ul,mean_con,cov_con);
             p_c(i) = p0*P;
         else
             p_c(i) = p0; 

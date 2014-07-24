@@ -81,6 +81,7 @@ function [p] = plot_contact(dist,point,loa,testImage)
     figure; 
    
     imshow(testImage);
+    set(gca,'YDir','normal');
     axis on;
     hold on     
     plot(2*loa(:,1),2*loa(:,2));
@@ -104,13 +105,14 @@ end
 function [p] = plot_normal(dist,point,x,y,testImage,loa)
     
     figure; 
-   
+
     imshow(testImage);
+    set(gca,'YDir','normal');
     axis on
     hold on     
     plot(2*loa(:,1),2*loa(:,2));
-    plot(2*loa(1,1),2*loa(1,2),'<g','MarkerSize',10);
-    plot(2*loa(end,1),2*loa(end,2),'<r','MarkerSize',10);
+    plot(2*loa(1,1),2*loa(1,2),'>g','MarkerSize',10);
+    plot(2*loa(end,1),2*loa(end,2),'>r','MarkerSize',10);
     title('Mean Function of GPIS');
     xlabel('x-axis (2X)'); 
     ylabel('y-axis (2X)'); 
@@ -119,7 +121,7 @@ function [p] = plot_normal(dist,point,x,y,testImage,loa)
     figure;
     %h = surf(x,y,dist); 
     %set(h,'edgecolor','flat')
-    scatter(x,y,10,dist);
+    scatter(-x,-y,10,dist);
     axis([-1 1 -1 1]); 
     axis equal
     colorbar
