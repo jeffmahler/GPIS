@@ -1,10 +1,20 @@
-function [ contacts,norm, bad ] = find_contact_points(contact_points,nc,allPoints,allTsdf,allNorm,COM,thresh )
+function [ contacts,norm, bad ] = ...
+    find_contact_points(contact_points, nc, allPoints, allTsdf, allNorm, ...
+        COM, thresh, vis)
 %Given sampled Tsdf finds the contact points, which are the intersection of
 %lines of actions with the 0-level crossing
-gridDM = max(allPoints(:,1)); 
+
+if nargin < 8
+    vis = true;
+end
+
+gridDim = max(allPoints(:,1)); 
 contacts = zeros(2, nc);
 norm = zeros(2, nc);
 dim = uint16(sqrt(size(allPoints,1)));
+tsdfGrid = reshape(allTsdf, gridDim, gridDim);
+xNormGrid = reshape(allNorm(:,1), gridDim, gridDim);
+yNormGrid = reshape(allNorm(:,2), gridDim, gridDim);
 
 for i=1:nc
     index = 2*(i-1) + 1;
@@ -12,22 +22,25 @@ for i=1:nc
    
     tsdfVal = 10;
     if loa(1,1) > 0 && loa(1,2) > 0 && loa(1,1) <= dim && loa(1,2) <= dim
-        tsdfVal = allTsdf(gridDM*(loa(1,1)-1)+loa(1,2)); 
+        tsdfVal = tsdfGrid(loa(1,2), loa(1,1)); 
     end
     for t =1:size(loa,1)
         prevTsdfVal = tsdfVal;
         if loa(t,1) > 0 && loa(t,2) > 0 && loa(t,1) <= dim && loa(t,2) <= dim
-            tsdfVal = allTsdf(gridDM*(loa(t,1)-1)+loa(t,2));
+            tsdfVal = tsdfGrid(loa(t,2), loa(t,1));
         end
-%         figure(10);
-%         scale = 5;
-%         scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
-%         hold on;
-%         scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
+        if vis
+            figure(10);
+            scale = 5;
+            scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
+            hold on;
+            scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
+        end
 
         if(abs(tsdfVal) < thresh || (sign(prevTsdfVal) ~= sign(tsdfVal)) )
             contacts(:,i) = loa(t,:)';
-            norm(:,i) = allNorm(gridDM*(loa(t,1)-1)+loa(t,2), :)'; 
+            norm(:,i) = [xNormGrid(loa(t,2), loa(t,1));...
+                         yNormGrid(loa(t,2), loa(t,1))]; 
             break;
         end
         

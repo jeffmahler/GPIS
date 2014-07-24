@@ -42,7 +42,7 @@ fprintf('Normals: Mean error: %f, std error %f\n', ...
 [testImageDarkened, combImageBig] = create_tsdf_image(predGrid, scale);
 surfaceImage = combImageBig;
 
-figure;
+figure(2);
 imshow(combImageBig);
 hold on;
 scatter(scale*gpModel.training_x(1,1), scale*gpModel.training_x(1,2), 150.0, 'x', 'LineWidth', 1.5);

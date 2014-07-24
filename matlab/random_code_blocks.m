@@ -1,6 +1,117 @@
 % Random things I like to do at the end of gpid_2d but they're not
 % necessary
 
+%%
+noise = experimentResults.constructionResults.predGrid.noise;
+noiseGrid = reshape(noise, 25, 25);
+noiseGrid = 255 * noiseGrid;
+figure(8);
+colormap('Jet');
+surf(noiseGrid);
+
+%% compare different visualizations
+[shapeImageSampled, shapeSurfaceImage] = ...
+    create_tsdf_image_sampled(shapeParams, shapeSamples, scale);
+
+%%
+[shapeImage, surfaceImage] = ...
+    create_tsdf_image_blurred(experimentResults.constructionResults.predGrid, scale);
+
+%%
+tsdfGrid = reshape(experimentResults.constructionResults.predGrid.tsdf, 25, 25);
+tsdfGrid = imresize(tsdfGrid, 2);
+meanSurface = zeros(50, 50, 3);
+surface = zeros(50,50);
+alphaMask = abs(tsdfGrid) < shapeParams.surfaceThresh;
+surface(abs(tsdfGrid) < shapeParams.surfaceThresh) = 1;
+meanSurface(:,:,3) = surface;
+%meanSurface(abs(tsdfGrid) < 0.2, 1) = 0;
+
+figure(4);
+subplot(1,3,1);
+imshow(experimentResults.constructionResults.surfaceImage);
+title('Old version', 'FontSize', 15);
+% subplot(1,5,2);
+% imshow(shapeImageSampled);
+% title('Alpha Blended Tsdf Samples');
+subplot(1,3,2);
+imshow(shapeSurfaceImage);
+hold on;
+ms = image(meanSurface);
+set(ms,'AlphaData',alphaMask);
+hold off;
+title('Blended Surface Samples', 'FontSize', 15);
+% subplot(1,5,4);
+% imshow(shapeImage);
+% title('Blurred Tsdf');
+subplot(1,3,3);
+imshow(surfaceImage);
+hold on;
+ms = image(meanSurface);
+set(ms,'AlphaData',alphaMask);
+hold off;
+title('Variance-Weighted Gaussian Blurring', 'FontSize', 15);
+
+%%
+x1 = [6; 12];
+x2 = [16; 12];
+grad1 = [1; 0];
+grad2 = [-1; 0];
+figure(20);
+subplot(1,4,1);
+plot_grasp_points(shapeSurfaceImage, x1, x2, grad1, grad2, scale, 3);
+hold on;
+ms = image(meanSurface);
+set(ms,'AlphaData',alphaMask);
+hold off;
+title('Grasp Points', 'FontSize', 20);
+subplot(1,4,2);
+plot_grasp_arrows(shapeSurfaceImage, x1, x2, grad1, grad2, scale, 4);
+hold on;
+ms = image(meanSurface);
+set(ms,'AlphaData',alphaMask);
+hold off;
+title('Grasp Arrows', 'FontSize', 20);
+subplot(1,4,3);
+plot_grasp_lines(shapeSurfaceImage, x1, x2, grad1, grad2, scale, 4);
+hold on;
+ms = image(meanSurface);
+set(ms,'AlphaData',alphaMask);
+hold off;
+title('Grasp Lines', 'FontSize', 20);
+subplot(1,4,4);
+plot_grasp_parallel_plate(shapeSurfaceImage, x1, x2, grad1, grad2, scale, 4);
+hold on;
+ms = image(meanSurface);
+set(ms,'AlphaData',alphaMask);
+hold off;
+title('Grasp Parallel Plates', 'FontSize', 20);
+
+%% grasp plots (quiver version)
+x1 = [10; 12];
+x2 = [15; 12];
+x_grasp = [x1; x2];
+
+figure(40);
+imshow(shapeImageSampled);
+hold on;
+grad1 = [2; 0];
+grad2 = [-2; 0];
+start1 = x1 - grad1;
+start2 = x2 - grad2;
+
+% quiver(scale*start1(1,:), scale*start1(2,:), scale*grad1(1,:), scale*grad1(2,:), 'r', 'LineWidth', 2);
+% quiver(scale*start2(1,:), scale*start2(2,:), scale*grad2(1,:), scale*grad2(2,:), 'r', 'LineWidth', 2);
+
+arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 1, 'Width', 1, 'TipAngle', 60);
+arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 1, 'Width', 1, 'TipAngle', 60);
+
+%annotation('arrow', [x1(1,:), 1] / (25), [x1(2,:), 1] / (25));
+% 
+% plot(scale*x1(1,:), scale*x1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+% plot(scale*x2(1,:), scale*x2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+hold off;
+
 %% Create a new shape
 dim = 25;
 dataDir = 'data/google_objects';

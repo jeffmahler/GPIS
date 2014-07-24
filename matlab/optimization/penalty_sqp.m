@@ -119,6 +119,7 @@ end
 
 if penalty_iter > cfg.max_penalty_iter
     fprintf('Failed to find a solution that satisfies all of the constraints\n');
+    success = false;
 end
 end
 

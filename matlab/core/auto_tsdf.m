@@ -160,21 +160,35 @@ tsdf(outsideMask) = 1;
 noise = ones(dim, dim);
 for i = 1:dim
     for j = 1:dim
+        i_low = max(1,i-varParams.edgeWin);
+        i_high = min(dim,i+varParams.edgeWin);
+        j_low = max(1,j-varParams.edgeWin);
+        j_high = min(dim,j+varParams.edgeWin);
+        tsdfWin = tsdf(i_low:i_high, j_low:j_high);
+        
         % add in occlusions
-        if (i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high) || ...
+        if tsdf(i,j) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high) || ...
                 (i > varParams.y_thresh2_low && i <= varParams.y_thresh2_high) || ...
                 (j > varParams.x_thresh1_low && j <= varParams.x_thresh1_high) || ...
-                (j > varParams.x_thresh2_low && j <= varParams.x_thresh2_high)
+                (j > varParams.x_thresh2_low && j <= varParams.x_thresh2_high))
+            
             noise(i,j) = varParams.occlusionScale;
+        elseif tsdf(i,j) < 0.0 % only use a few interior points (since realistically we wouldn't measure them)
+            if rand() > (1-varParams.interiorRate)
+               noise(i,j) = varParams.noiseScale;
+            else
+               noise(i,j) = varParams.occlusionScale; 
+            end
         else
             noiseVal = 1; % scaling for noise
 
             % add specularity to surface
-            if varParams.specularNoise && abs(tsdf(i,j)) < 0.1 
+            if varParams.specularNoise && min(min(abs(tsdfWin))) < 0.6
                 noiseVal = rand();
                 
                 if rand() > (1-varParams.sparsityRate)
-                    noiseVal = noiseVal * varParams.sparseScaling;
+                    noiseVal = varParams.occlusionScale / varParams.noiseScale; % missing data not super noisy data
+                    %noiseVal = noiseVal * varParams.sparseScaling;
                 end
             end
             
@@ -206,6 +220,8 @@ end
 [Gx, Gy] = imgradientxy(tsdf, 'CentralDifference');
 [X, Y] = meshgrid(1:dim, 1:dim);
 [Xall, Yall] = meshgrid(1:dim, 1:dim);
+fullTsdf = tsdf(:);
+fullNormals = [Gx(:), Gy(:)];
 
 % subsample both points and tsdf
 validIndices = find(noise < varParams.occlusionScale);
@@ -233,6 +249,8 @@ shapeParams.noise = noise(:);
 shapeParams.normals = [Gx(:), Gy(:)];
 shapeParams.points = [X(:), Y(:)];
 shapeParams.all_points = [Xall(:), Yall(:)];
+shapeParams.fullTsdf = fullTsdf;
+shapeParams.fullNormals = fullNormals;
 
 if ~useCom
     shapeParams.com = mean(shapeParams.points(shapeParams.tsdf < 0,:));
