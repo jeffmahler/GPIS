@@ -1,5 +1,5 @@
 function [gpModel, shapeParams,img] = ...
-    run_gpis_2D_experiment(dim, filename, dataDir, outputDir, newShape,varParams, trainingParams)
+    run_gpis_2D_experiment(dim, filename, dataDir, outputDir, newShape,varParams, trainingParams,experimentConfig)
 %RUN_ANTIPODAL_EXPERIMENT Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -10,7 +10,7 @@ end
 
 % create the tsdf
 [shapeParams, shapeImage, points, com] =...
-    create_tsdf(filename, dataDir, dim, varParams);
+    create_tsdf(filename, dataDir, dim, varParams, experimentConfig.surfaceThresh);
 
 % construct a gpis either from the full matrix or otherwise
 if strcmp(trainingParams.activeSetMethod, 'Full') == 1

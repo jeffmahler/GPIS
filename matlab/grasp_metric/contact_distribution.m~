@@ -3,9 +3,9 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
     %Calculate Contact Point Distribution 
     %TODO: VISUALIZE AGAINST OBJECT
     p_c = zeros(size(loa(:,1))); 
-    trail = 1; 
-    options = optimset('TolFun',1e-2); 
-    for i = 1:size(loa,1)/2
+    trail = 5; 
+
+    for i = 1:size(loa,1)
         
         p0 = mvnpdf(0,mean_loa(i),cov_loa(i,i)); 
         if(i ~= 1)
@@ -13,20 +13,18 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
             
             if(i >=trail+1)
                 ll = zeros(trail,1);
-                ul = zeros(trail,1)+5;
-                dim = size(mean_con,1);
-                
-                P(i) = mvncdf(ll,ul,mean_con(i-trail:end,:),cov_con(i-trail:end,i-trail:end),options);
+                ul = zeros(trail,1)+10000;
+                mean_con(i-trail:end,:)
+                cov_con(i-trail:end,i-trail:end)
+                P(i) = mvncdf(ll,ul,mean_con(i-trail:end,:),cov_con(i-trail:end,i-trail:end))
             else
                 ll = zeros(size(mean_con));
-                ul = zeros(size(mean_con))+5; 
-               
-                P(i) = mvncdf(ll,ul,mean_con,cov_con,options);
-                if(isnan(P(i)))
-                    P(i) =1;
-                end
+                ul = zeros(size(mean_con))+10000; 
+                mean_con
+                cov_con
+                P(i) = mvncdf(ll,ul,mean_con,cov_con)
             end
-            p_c(i) = p0;%prod(P(i));
+            p_c(i) = p0*P(i);
         else
             p_c(i) = p0; 
         end

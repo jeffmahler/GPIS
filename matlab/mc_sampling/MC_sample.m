@@ -74,7 +74,7 @@ while k <= num_sample
        
         % get extrema of friction cone, negative to point into object
         opp_len = tan(cone_angle) * norm(f);
-        opp_dir = [-1 / f(1,1); 1 / f(2,1)];
+        opp_dir = [-f(2,1); f(1,1)];
         opp = opp_len * opp_dir / norm(opp_dir);
         f_r = -(f + opp);
         f_l = -(f - opp);

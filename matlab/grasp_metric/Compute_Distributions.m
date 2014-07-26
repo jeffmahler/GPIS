@@ -1,4 +1,4 @@
-function [ p_c,p_n,p_nc] = Compute_Distributions(  gpModel,shapeParams,grip_point,img)
+function [loa,norms,p_c,p_n] = Compute_Distributions(  gpModel,shapeParams,grip_point,img)
 %COMPUTE_DISTRIBUTIONS Summary of this function goes here
 %   Detailed explanation goes here
     
@@ -17,17 +17,18 @@ function [ p_c,p_n,p_nc] = Compute_Distributions(  gpModel,shapeParams,grip_poin
     mean_wksp = mean(1:shapeParams.gridDim); 
     
     
-%     %Compute Center of Mass and Plot 
-%     p_com = center_of_mass(mean,cov,shapeParams.gridDim);
-%     plot_com(p_com,shapeParams.com,shapeParams.gridDim,img.mean)
+%   %Compute Center of Mass and Plot 
+%   p_com = center_of_mass(mean,cov,shapeParams.gridDim);
+%   plot_com(p_com,shapeParams.com,shapeParams.gridDim,img.mean)
     
     %Compute Contact Distribution and Plot 
     p_c = contact_distribution(loa,cov_loa,mean_loa);
     plot_contact(p_c,grip_point,loa,img.mean);
     
     %Compute Normals Distribution and Plot 
-   [p_n, x,y] = normal_distribution(loa,cov_loa,mean_loa,p_c);
-   plot_normal(p_n,grip_point,x,y,img.mean,loa)
+    [p_n, x,y] = normal_distribution(loa,cov_loa,mean_loa,p_c);
+    norms = [x' y']; 
+    plot_normal(p_n,grip_point,x,y,img.mean,loa)
     %plot(loa(:,1),mean_loa(1:size(loa,1)));
 
 end
@@ -94,9 +95,9 @@ function [p] = plot_contact(dist,point,loa,testImage)
     hold off
     
     figure;
-    plot(loa(:,1),dist); 
+    plot(dist); 
     title('Distribution on Contact Points'); 
-    xlabel('x-axis'); 
+    xlabel('t'); 
     ylabel('pdf'); 
     
     
@@ -136,7 +137,7 @@ end
 function [loa] = compute_loa(grip_point)
 %Calculate Line of Action given start and end point
 
-    step_size = 2; 
+    step_size = 0.5; 
 
     start_point = grip_point(1,:); 
     end_p = grip_point(2,:); 

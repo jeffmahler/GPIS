@@ -14,7 +14,7 @@ if nargin < 8
     bad_contact_thresh = 10;
 end
 if nargin < 9
-    vis = true;
+    vis = false;
 end
 
 success = true;
