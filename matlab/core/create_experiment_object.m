@@ -1,6 +1,6 @@
 function [gpModel, shapeParams, shapeSamples, constructionResults] = ...
     create_experiment_object(dim, filename, dataDir, newShape, ...
-                             experimentConfig, varParams, trainingParams)
+                             experimentConfig, varParams, trainingParams, scale)
 % create a new shape
 if newShape
     [points, com] = new_shape(filename, dataDir, dim);
@@ -51,6 +51,9 @@ save(samplesName, 'shapeSamples');
 save(constructName, 'constructionResults');
 save(varName, 'varParams');
 
+constructionResults.newSurfaceImage = ...
+    create_tsdf_image_sampled(constructionResults.predGrid, ...
+        shapeSamples, scale, 1.0);
 
 end
 

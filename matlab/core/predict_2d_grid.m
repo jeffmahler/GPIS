@@ -16,6 +16,7 @@ predShape.noise = gp_cov(gpModel, testPoints, Kxxp, true);
 predShape.noise = diag(predShape.noise(1:numTest, 1:numTest));
 predShape.points = testPoints;
 predShape.surfaceThresh = thresh;
+predShape.com = mean(predShape.points(predShape.tsdf < 0,:));
 
 % reconstruct the surface, color by variances
 surfaceIndices = find(abs(predShape.tsdf) < thresh);

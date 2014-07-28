@@ -1,5 +1,5 @@
 function [gpModel, shapeParams, shapeSamples, constructionResults] = ...
-    load_experiment_object(filename, dataDir)
+    load_experiment_object(filename, dataDir, scale)
 
 % load GPIS and shape
 shapeName = sprintf('%s/%s.mat', dataDir, filename);
@@ -13,5 +13,13 @@ load(gpisName, 'gpModel');
 load(samplesName, 'shapeSamples');
 load(constructName, 'constructionResults');
 load(varName, 'varParams');
+
+% hack to fix bug earlier
+constructionResults.predGrid.com = ...
+    mean(constructionResults.predGrid.points(constructionResults.predGrid.tsdf < 0,:));
+
+constructionResults.newSurfaceImage = ...
+    create_tsdf_image_sampled(constructionResults.predGrid, ...
+        shapeSamples, scale, 1.0);
 end
 
