@@ -8,7 +8,7 @@ function [ mn_Q, v_Q, success] = mc_sample(gpModel, allPoints, cone_angle, cp, .
 
 %Parameters for Sampling
 if nargin < 7
-    num_sample = 100;
+    num_sample = 50;
 end
 if nargin < 8
     surf_thresh = 0.05;
@@ -59,6 +59,7 @@ while k <= num_sample
 
     %%fprintf('Mean Contact Points\n')
     sum = sum + contactPts; 
+    cp_empire(k) = contactPts(1,1);
     mn_cp = sum/k;
     
     %fprintf('Variance of Contact Points\n')
@@ -73,7 +74,7 @@ while k <= num_sample
        
         % get extrema of friction cone, negative to point into object
         opp_len = tan(cone_angle) * norm(f);
-        opp_dir = [-1 / f(1,1); 1 / f(2,1)];
+        opp_dir = [-f(2,1); f(1,1)];
         opp = opp_len * opp_dir / norm(opp_dir);
         f_r = -(f + opp);
         f_l = -(f - opp);
@@ -106,12 +107,12 @@ while k <= num_sample
 end
 figure;
 nbins = 100;
-[hst,centers] = hist(data);
-hist(data, nbins);
+[hst,centers] = hist(cp_empire);
+
 %figure;
-%plot(centers,hst)
-title('Histogram of Grasp Quality'); 
-xlabel('Grasp Quality'); 
+plot(centers,hst)
+title('Empirical Distribution of Contact Point'); 
+xlabel('x-axis'); 
 ylabel('Count'); 
     
 end

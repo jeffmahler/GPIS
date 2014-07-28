@@ -1,18 +1,23 @@
-function [ cp1,cp2 ] = get_random_grasp(grid_size )
+function [ cp] = get_random_grasp(grid_dim)
 %Returns a random grasp specified by a line of action with start and end
 %points 
 
 %TODO: Support more than 2 contact points
  
- j = randi(grid_size); 
- k = randi(grid_size); 
- cp1(1,:) = [j 25]; 
- cp1(2,:) = [k 1]; 
+theta1 = rand()*pi; 
 
- j = randi(grid_size); 
- k = randi(grid_size); 
- cp2(1,:) = [j 1]; 
- cp2(2,:) = [k 25]; 
+theta2 = rand()*pi+pi;
+
+trans = grid_dim/2;
+
+grid_dim = grid_dim/2;
+
+ cp(1,:) = [grid_dim*cos(theta1) grid_dim*sin(theta1)]+trans; 
+ cp(2,:) = [-grid_dim*cos(theta1) -grid_dim*sin(theta1)]+trans; 
+
+
+ cp(3,:) = [grid_dim*cos(theta2) grid_dim*sin(theta2)]+trans; 
+ cp(4,:) = [-grid_dim*cos(theta2) -grid_dim*sin(theta2)]+trans;
  
  
 end

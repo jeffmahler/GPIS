@@ -36,6 +36,7 @@ for i=1:nc
             hold on;
             scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
         end
+
         if(abs(tsdfVal) < thresh || (sign(prevTsdfVal) ~= sign(tsdfVal)) )
             contacts(:,i) = loa(t,:)';
             norm(:,i) = [xNormGrid(loa(t,2), loa(t,1));...

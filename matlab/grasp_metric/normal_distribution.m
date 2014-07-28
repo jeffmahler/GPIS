@@ -1,24 +1,21 @@
-function [p_n,X_circ,Y_circ] = normal_distribution(loa,cov_loa,mean_loa,p_c)
+function [p_n,X_circ,Y_circ] = normal_distribution(loa,cov_loa,mean_loa,p_c,first,last)
 
     step_size = 0.002; 
     
-        
-    x = [-0.4:0.002:0.4-step_size]'; 
-    X = [zeros(size(x))+x(1) x]; 
-    for i=2:size(x,1)
-        X = [X;[zeros(size(x))+x(i) x]];
+    if nargin < 5
+        first = 1; 
+        last = size(loa,1); 
     end
-
-    p_n = zeros(size(X,1),1); 
-
-    for t = 1:size(loa,1)
+        
+   
+    for t = first:last
         [marg_cov,marg_mean] = marg_normals(cov_loa,mean_loa,t);
         
         
         [dist,X_circ,Y_circ] = project_to_sphere(marg_cov,marg_mean);
       
         
-        if (t == 1)
+        if (t == first)
             p_n = dist*p_c(t); 
         end
         
@@ -44,9 +41,9 @@ end
 
 function [dist,X,Y] = project_to_sphere(cov,mean)
 
-dt = 0.01; 
+dt = 0.04; 
 
-gridDM = 2*pi/dt; 
+gridDM = ceil(2*pi/dt); 
 
 dist = zeros(gridDM,1); 
 index =1; 
