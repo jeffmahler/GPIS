@@ -3,8 +3,10 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
     %Calculate Contact Point Distribution 
     %TODO: VISUALIZE AGAINST OBJECT
     p_c = zeros(size(loa(:,1))); 
-    trail = 1; 
+    trail = 19; 
     options = optimset('TolFun',1e-2); 
+    P(1) = 1; 
+
     for i = 1:size(loa,1)/2
         
         p0 = mvnpdf(0,mean_loa(i),cov_loa(i,i)); 
@@ -15,18 +17,22 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
                 ll = zeros(trail,1);
                 ul = zeros(trail,1)+5;
                 dim = size(mean_con,1);
-                
-                P(i) = mvncdf(ll,ul,mean_con(i-trail:end,:),cov_con(i-trail:end,i-trail:end),options);
+              
+                A = make_psd(cov_con(i-trail:end,i-trail:end)); 
+                P(i) = mvncdf(ll,ul,mean_con(i-trail:end,:),A,options);
             else
                 ll = zeros(size(mean_con));
                 ul = zeros(size(mean_con))+5; 
+                cov_con = make_psd(cov_con); 
                
                 P(i) = mvncdf(ll,ul,mean_con,cov_con,options);
                 if(isnan(P(i)))
                     P(i) =1;
                 end
             end
-            p_c(i) = p0;%prod(P(i));
+           
+            
+            p_c(i) = p0*P(i);
         else
             p_c(i) = p0; 
         end
@@ -37,6 +43,20 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
   
     p_c = p_c/norm(p_c,1);
    
+end
+
+function [Apsd] = make_psd(A)
+
+Apsd = A + eye(size(A))*1e-4; 
+
+% 
+% [V,D] = eig(A);
+% 
+% D(D < 0) = 1e-5; 
+% D
+% Apsd = V*D*V';
+% 
+% eig(A)
 end
 
 function [nu_mean,nu_cov] = gauss_condition(mean,cov)

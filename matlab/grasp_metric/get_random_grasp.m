@@ -16,8 +16,8 @@ grid_dim = grid_dim/2;
  cp(2,:) = [-grid_dim*cos(theta1) -grid_dim*sin(theta1)]+trans; 
 
 
- cp(3,:) = [grid_dim*cos(theta2) grid_dim*sin(theta2)]+trans; 
- cp(4,:) = [-grid_dim*cos(theta2) -grid_dim*sin(theta2)]+trans;
+ cp(3,:) = cp(2,:);  
+ cp(4,:) = cp(1,:); 
  
  
 end

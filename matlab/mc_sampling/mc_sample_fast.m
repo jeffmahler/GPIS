@@ -1,4 +1,4 @@
-function [ mn_Q, v_Q, success] = mc_sample_fast(allPoints, cone_angle, cp, ...
+function [ mn_Q, v_Q, hst,success] = mc_sample_fast(allPoints, cone_angle, cp, ...
                                     num_contacts, samples, gridDim, surf_thresh, ...
                                     bad_contact_thresh, vis)
 %Takes a line not a single contact, add points in the order of [first1;
@@ -21,7 +21,6 @@ success = true;
 mn_cp = zeros(2,num_contacts); 
 sum = mn_cp; 
 sum_sq = sum; 
-
 mn_Q = 0;
 v_Q = 0;
 sum_Q = mn_Q; 
@@ -114,6 +113,9 @@ figure;
 nbins = 100;
 [hst,centers] = hist(data);
 hist(data, nbins);
+
+hst = [centers' hst']; 
+
 %figure;
 %plot(centers,hst)
 title('Histogram of Grasp Quality'); 

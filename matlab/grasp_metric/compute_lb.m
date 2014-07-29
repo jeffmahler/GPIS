@@ -47,28 +47,31 @@ function [d_n] = integrate_normal(p_n,sn,zeta,Norms)
     i=sn; 
     j=sn;
     sum = 0; 
+    f_norm = 0; 
+    l_norm = 0; 
     while(sum <= zeta)
         if(i ~= 1)
             sum = p_n(i)+sum; 
+            f_norm = f_norm+norm(Norms(i,:)-Norms(sn,:),2)*p_n(i);
             i = i-1; 
         elseif(i == 1)
             sum = p_n(i)+sum; 
             i = size(p_n(i),1); 
+            f_norm = f_norm+norm(Norms(i,:)-Norms(sn,:),2)*p_n(i);
         end
         
         if(j ~= size(p_n,1))
             sum = p_n(j)+sum;
             j = j+1; 
+            l_norm = l_norm+ norm(Norms(j,:)-Norms(sn,:),2)*p_n(j);
         elseif(j == size(p_n,1))
             sum = p_n(j)+sum; 
             j = 1; 
+            l_norm = l_norm+ norm(Norms(j,:)-Norms(sn,:),2)*p_n(j);
         end
     end
        
-    dn_f = norm(Norms(i,:)-Norms(sn,:),2); 
-    dn_l = norm(Norms(j,:)-Norms(sn,:),2); 
-    
-    d_n = max(dn_f,dn_l);
+    d_n = max(f_norm,l_norm);
 
 end
 
@@ -77,25 +80,37 @@ function [d_c,first,last] = integrate_contact(pc,sc,zeta,loa)
     i = sc; 
     j = sc; 
     sum = 0;
+    f_norm = 0; 
+    l_norm = 0;
     while(sum <= zeta)
-        if(i ~= 1)
+        if(i >= 1)
             sum = pc(i)+sum; 
+            f_norm = f_norm+norm(loa(i,:)-loa(sc,:),2)*pc(i);
             i = i-1; 
         end
+            
         
-        if(j ~= size(pc,1))
+        if(j <= size(pc,1))
             sum = pc(j)+sum;
+            l_norm = l_norm+norm(loa(j,:)-loa(sc,:),2)*pc(j);
             j = j+1; 
         end
     end
-       
+    
+    if(i < 1)
+        i = 1; 
+    end
+    
+    if(j > size(pc,1))
+        j = size(pc,1); 
+    end
+    
+    
     first = i; 
     last = j; 
+     
     
-    dc_f = norm(loa(i,:)-loa(sc,:),2); 
-    dc_l = norm(loa(j,:) - loa(sc,:),2); 
-    
-    d_c = max(dc_f,dc_l);
+    d_c = max(f_norm,l_norm);
 
 end
 

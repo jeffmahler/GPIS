@@ -40,7 +40,6 @@ end
 
 
 function [dist,X,Y] = project_to_sphere(cov,mean)
-
 dt = 0.04; 
 
 gridDM = ceil(2*pi/dt); 

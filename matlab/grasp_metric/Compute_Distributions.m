@@ -85,9 +85,11 @@ function [p] = plot_contact(dist,point,loa,testImage)
     set(gca,'YDir','normal');
     axis on;
     hold on     
-    plot(2*loa(:,1),2*loa(:,2));
-    plot(2*loa(1,1),2*loa(1,2),'<g','MarkerSize',10);
-    plot(2*loa(end,1),2*loa(end,2),'<r','MarkerSize',10);
+  
+    scatter(2*loa(:,1),2*loa(:,2),10,dist);
+   
+    plot(2*loa(1,1),2*loa(1,2),'xg','MarkerSize',10);
+  
     
     title('Mean Function of GPIS'); 
     xlabel('x-axis (2X)'); 
@@ -95,29 +97,33 @@ function [p] = plot_contact(dist,point,loa,testImage)
     hold off
     
     figure;
-    plot(dist); 
+    scatter(1:size(dist,1),dist);
+    plot(dist);
     title('Distribution on Contact Points'); 
     xlabel('t'); 
     ylabel('pdf'); 
+    
+ 
+    
     
     
 end
 
 function [p] = plot_normal(dist,point,x,y,testImage,loa)
     
-    figure; 
+ 
 
-    imshow(testImage);
-    set(gca,'YDir','normal');
-    axis on
-    hold on     
-    plot(2*loa(:,1),2*loa(:,2));
-    plot(2*loa(1,1),2*loa(1,2),'>g','MarkerSize',10);
-    plot(2*loa(end,1),2*loa(end,2),'>r','MarkerSize',10);
-    title('Mean Function of GPIS');
-    xlabel('x-axis (2X)'); 
-    ylabel('y-axis (2X)'); 
-    hold off
+%     imshow(testImage);
+%     set(gca,'YDir','normal');
+%     axis on
+%     hold on     
+%     plot(2*loa(:,1),2*loa(:,2));
+%     plot(2*loa(1,1),2*loa(1,2),'xg','MarkerSize',10);
+%     
+%     title('Mean Function of GPIS');
+%     xlabel('x-axis (2X)'); 
+%     ylabel('y-axis (2X)'); 
+%     hold off
     
     figure;
     %h = surf(x,y,dist); 
@@ -137,8 +143,9 @@ end
 function [loa] = compute_loa(grip_point)
 %Calculate Line of Action given start and end point
 
-    step_size = 0.5; 
-
+    %step_size = 0.5; 
+    step_size = 0.3; 
+    
     start_point = grip_point(1,:); 
     end_p = grip_point(2,:); 
 

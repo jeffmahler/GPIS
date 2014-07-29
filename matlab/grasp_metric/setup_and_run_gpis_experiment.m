@@ -2,7 +2,7 @@
 close all;
 dim = 25;
 dataDir = 'data/google_objects';
-filename = 'marker';
+filename = 'deodorant';
 outputDir = 'results/google_objects/test';
 newShape = false;
 scale = 2;
@@ -14,22 +14,31 @@ grip_point2 = [12.5 25; 12.5 1];
 %% experiment config
 experimentConfig = struct();
 experimentConfig.graspIters = 5;
-experimentConfig.frictionCoef = 0.5;
+experimentConfig.frictionCoef = 0.1;
 experimentConfig.surfaceThresh = 0.15;
 
 %% variance parameters
 varParams = struct();
-varParams.y_thresh1_low = dim;
+varParams.y_thresh1_low = 12.5;
 varParams.y_thresh2_low = dim;
-varParams.y_thresh1_high = 0;
+varParams.y_thresh1_high = 30;
 varParams.y_thresh2_high = 0;
-varParams.x_thresh1_low = dim;
+varParams.x_thresh1_low = 15;
 varParams.x_thresh2_low = dim;
-varParams.x_thresh1_high = 0;
+varParams.x_thresh1_high = 25;
 varParams.x_thresh2_high = 0;
 
+% varParams.y_thresh1_low = dim;
+% varParams.y_thresh2_low = dim;
+% varParams.y_thresh1_high = 0;
+% varParams.y_thresh2_high = 0;
+% varParams.x_thresh1_low = dim;
+% varParams.x_thresh2_low = dim;
+% varParams.x_thresh1_high = 0;
+% varParams.x_thresh2_high = 0;
+
 varParams.occlusionScale = 1000;
-varParams.noiseScale = 0.005;
+varParams.noiseScale = 0.05;
 varParams.interiorRate = 0.4;
 varParams.specularNoise = false;
 varParams.sparsityRate = 0.0;
@@ -42,7 +51,7 @@ varParams.vertScale = 1;
 %% training parameters
 trainingParams = struct();
 trainingParams.activeSetMethod = 'LevelSet';
-trainingParams.activeSetSize = 100;
+trainingParams.activeSetSize = 150;
 trainingParams.beta = 10;
 trainingParams.numIters = 1;
 trainingParams.eps = 1e-2;
@@ -89,7 +98,7 @@ cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solu
 
 
 
-T_Q = Run_Comp(experimentConfig,gpModel,shapeParams,img)
+[T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img);
 % [loa_1,Norms,pc_1,pn_1] = Compute_Distributions(gpModel,shapeParams,grip_point1,img);
 % 
 % [loa_2,Norms,pc_2,pn_2] = Compute_Distributions(gpModel,shapeParams,grip_point2,img);
