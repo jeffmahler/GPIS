@@ -36,7 +36,7 @@ sum_Q_sq = sum_Q;
 k = 1;
 num_bad = 0;
 num_sample = size(samples,2);
-q_vals = zeros(1,num_sample);
+q_vals = [];
 
 while k <= num_sample
     
@@ -124,13 +124,9 @@ while k <= num_sample
         continue;
     end
 
-    q_vals(k) = Q;
-
-    sum_Q = sum_Q + Q; 
-    mn_Q = sum_Q/k;
-    
-    sum_Q_sq = sum_Q_sq + Q.*Q; 
-    v_Q = (sum_Q_sq-(sum_Q.*sum_Q)/k)/k;
+    q_vals = [q_vals; Q];
+    mn_Q = mean(q_vals);
+    v_Q = std(q_vals);
     
     if vis
         fprintf('Assessing grasp sample %d\n', k);
