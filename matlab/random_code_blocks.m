@@ -2,16 +2,75 @@
 % necessary
 
 %%
-noise = experimentResults.constructionResults.predGrid.noise;
-noiseGrid = reshape(noise, 25, 25);
-noiseGrid = 255 * noiseGrid;
-figure(8);
-colormap('Jet');
-surf(noiseGrid);
+figure(1);
+bar([experimentResults.initialGraspResults.meanQ, ...
+     experimentResults.randomFcGraspResults.meanQ, ...
+     experimentResults.randomSampleFcGraspResults.meanQ, ... 
+     experimentResults.antipodalGraspResults.meanQ, ...
+     experimentResults.ucMeanGraspResults.meanQ  
+    ]);
+xlabel('Trial');
+ylabel('Expected FC');
+title('Comparison of FC Quality');
+legend('Initial', 'Sampling (Mean Eval)', 'Sampling (Sample Eval)', 'Antipodal', 'FC Opt', ...
+    'Location', 'Best');
+% bar(experimentResults.randomSampleFcGraspResults.meanQ);
+% bar(experimentResults.antipodalGraspResults.meanQ);
+% bar(experimentResults.ucMeanGraspResults.meanQ);
+
+%%
+figure(13);
+disp('New grasp');
+imshow(experimentResults.constructionResults.surfaceImage);
+hold on;
+initGrasps(:,1) = ...
+    get_initial_antipodal_grasp(experimentResults.constructionResults.predGrid, false);
+hold off;
+
+%%
+rng(100);
+%%
+figure;
+imshow(shapeSurfaceImage);
+hold on;
+init_grasp = get_initial_antipodal_grasp(experimentResults.constructionResults.predGrid, false);
+
+x1 = init_grasp(1:2);
+x2 = init_grasp(3:4);
+
+plot(scale*x1(1,:), scale*x1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+plot(scale*x2(1,:), scale*x2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+hold off;
+
+%%
+best_max_mn_q = 0;
+best_mean_mn_q = 0;
+best_max_mn_i = 0;
+best_mean_mn_i = 0;
+means = zeros(144,1);
+maxs = zeros(144,1);
+for i = 1:144
+    max_mn_q = hyperResults{1,i}.max_mn_q;
+    mean_mn_q = hyperResults{1,i}.mean_mn_q;
+    means(i) = mean_mn_q;
+    maxs(i) = max_mn_q;
+    %fprintf('Mean: %f\n', mean_mn_q);
+    if max_mn_q > best_max_mn_q
+        best_max_mn_q = max_mn_q;
+        best_max_mn_i = i;
+    end
+    if mean_mn_q > best_mean_mn_q
+        best_mean_mn_q = mean_mn_q;
+        best_mean_mn_i = i;
+    end
+end
+
+%%
+ [bestGrasp, bestQ, bestV] = find_grasp_sampling( experimentResults.constructionResults.predGrid, experimentConfig, shapeParams, shapeSamples, experimentResults.constructionResults.surfaceImage, 2, 100);
 
 %% compare different visualizations
-[shapeImageSampled, shapeSurfaceImage] = ...
-    create_tsdf_image_sampled(shapeParams, shapeSamples, scale);
+shapeSurfaceImage = ...
+    create_tsdf_image_sampled(shapeParams, shapeSamples, scale, 1.0);
 
 %%
 [shapeImage, surfaceImage] = ...
@@ -286,3 +345,179 @@ loglog(batchSizes, batchSelectionTimesGpu, '-bo', 'MarkerSize', 15, 'LineWidth',
 title('Computation Time Versus Batch Size for 40,000 Data Points', 'FontSize', 15);
 xlabel('Batch Size', 'FontSize', 15);
 ylabel('Time (sec)', 'FontSize', 15);
+
+%% old experiment code
+
+
+    % get initial grasp point
+    [x_surface_i, x_surface_j] = ...
+        find(abs(reshape(predGrid.tsdf, predGrid.gridDim, predGrid.gridDim)) < trainingParams.surfaceThresh);
+    n_surf = size(x_surface_i, 1);
+    
+    ind1 = uint16(rand * n_surf + 1);
+    x1 = [x_surface_j(ind1); x_surface_i(ind1)];
+    found_ind2 = false;
+    while ~found_ind2
+        ind2 = uint16(rand * n_surf + 1);
+        x2 = [x_surface_j(ind2); x_surface_i(ind2)];
+        if norm(x1 - x2) > optimizationParams.min_init_dist
+            found_ind2 = true;
+        end
+    end
+    x_init = [x1; x2];
+    x_start_1 = com' + 2.0*(x1 - com');
+    x_start_2 = com' + 2.0*(x2 - com');
+    
+    % evaluate initial grasp
+    cp1 = [x_start_1'; com];
+    cp2 = [x_start_2'; com];
+    cp = [cp1; cp2];
+    
+    startTime = tic;
+    [mn_q, v_q, success] = mc_sample_fast(predGrid.points, ...
+       cone_angle, cp, num_contacts, shapeSamples, dim, ...
+       trainingParams.surfaceThresh, 10, false);
+    evalTime = toc(startTime);
+    fprintf('Evalutated quality on %d samples in %f sec\n', ...
+        experimentConfig.numSamples, evalTime);
+    
+    initialLOA{i} = cp;
+    initialMeanQ(i,1) = mn_q;
+    initialVarQ(i,1) = v_q;
+    
+    optimizationParams.surfaceImage = surfaceImage;
+    
+    % optimize grasp points w/o uncertainty
+    disp('Optimizing grasp points w/o uncertainty...');
+    startTime = tic;
+    [x_grasp, x_all_iters, opt_success] = find_antipodal_grasp_points(x_init, gpModel, ...
+        optimizationParams, predGrid.gridDim, com, 0);
+    ucTimes(i,:) = toc(startTime);
+    ucGrasps(i,:) = x_grasp';
+    ucSuccesses(i,:) = opt_success;
+
+    % plot the grasp points
+    h = figure(2);
+    xs1 = x_init(1:d,1);
+    xs2 = x_init(d+1:2*d,:);
+
+    subplot(1,2,1);
+    imshow(surfaceImage); 
+    title('Initial Grasp', 'FontSize', 15);
+    hold on;
+    plot(scale*xs1(1,:), scale*xs1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    plot(scale*xs2(1,:), scale*xs2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    hold off;
+
+    xs1 = x_grasp(1:d,1);
+    xs2 = x_grasp(d+1:2*d,:);
+
+    subplot(1,2,2);
+    imshow(surfaceImage);
+    title('Final Grasp', 'FontSize', 15);
+    hold on;
+    plot(scale*xs1(1,:), scale*xs1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    plot(scale*xs2(1,:), scale*xs2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    hold off;
+
+    figureName = sprintf('%s\%s_uc_%d.eps', outputDir, filename, i);
+    print(h,'-deps', figureName);
+    
+    % evaluate grasp quality
+    disp('Evaluating unconstrained grasp quality');
+    x_start_1 = xs2 + 1.4*(xs1 - xs2);
+    x_start_2 = xs1 + 1.4*(xs2 - xs1);
+
+    cp1 = [x_start_1'; xs2'];
+    cp2 = [x_start_2'; xs1'];
+    cp = [cp1; cp2];
+    [mn_q, v_q, success] = MC_sample(gpModel, predGrid.points, cone_angle, ...
+        cp, num_contacts, com, trainingParams.numSamples, ...
+        trainingParams.surfaceThresh);
+    ucMeanQ(i,1) = mn_q;
+    ucVarQ(i,1) = v_q;
+    
+    % optimize grasp points with uncertainty
+    disp('Optimizing grasp points with uncertainty...');
+    startTime = tic;
+    [x_grasp, x_all_iters, opt_success] = find_antipodal_grasp_points(x_init, gpModel, ...
+        optimizationParams, predGrid.gridDim, com);
+    antipodalTimes(i,:) = toc(startTime);
+    antipodalGrasps(i,:) = x_grasp';
+    antipodalSuccesses(i,:) = opt_success;
+
+    % plot the grasp points
+    h = figure(2);
+    xs1 = x_init(1:d,1);
+    xs2 = x_init(d+1:2*d,:);
+
+    subplot(1,2,1);
+    imshow(surfaceImage); 
+    title('Initial Grasp', 'FontSize', 15);
+    hold on;
+    plot(scale*xs1(1,:), scale*xs1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    plot(scale*xs2(1,:), scale*xs2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    hold off;
+
+    xs1 = x_grasp(1:d,1);
+    xs2 = x_grasp(d+1:2*d,:);
+
+    subplot(1,2,2);
+    imshow(surfaceImage);
+    title('Final Grasp', 'FontSize', 15);
+    hold on;
+    plot(scale*xs1(1,:), scale*xs1(2,:), 'rx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    plot(scale*xs2(1,:), scale*xs2(2,:), 'gx-', 'MarkerSize', 20, 'LineWidth', 1.5);
+    hold off;
+
+    figureName = sprintf('%s\%s_antipodal_%d.eps', outputDir, filename, i);
+    print(h,'-deps', figureName)
+
+    % evaluate the quality of the antipodal grasp with uncertainty
+    disp('Evaluating grasp quality');
+    x_start_1 = xs2 + 1.4*(xs1 - xs2);
+    x_start_2 = xs1 + 1.4*(xs2 - xs1);
+
+    cp1 = [x_start_1'; xs2'];
+    cp2 = [x_start_2'; xs1'];
+    cp = [cp1; cp2];
+    [mn_q, v_q, success] = MC_sample(gpModel, predGrid.points, cone_angle, ...
+        cp, num_contacts, com, trainingParams.numSamples, ...
+        trainingParams.surfaceThresh);
+    
+    if ~success
+        disp('Bad contacts. Retrying...');
+        continue;
+    end
+
+    antipodalMeanQ(i,1) = mn_q;
+    antipodalVarQ(i,1) = v_q;
+    i = i+1;
+end
+
+% evaluate random grasps
+randomLOA  = cell(experimentConfig.graspIters, 1);
+randomMeanQ = zeros(experimentConfig.graspIters, 1);
+randomVarQ = zeros(experimentConfig.graspIters, 1);
+
+% i = 1;
+% while i <= experimentConfig.graspIters
+%     fprintf('Selecting random pair %d\n', i);
+% 
+%     [cp1,cp2] = get_random_grasp(predGrid.gridDim);
+%     cp = [cp1; cp2];
+%     randomLOA{i} = [cp1, cp2];
+% 
+%     [mn_q, v_q, success] = MC_sample(gpModel, predGrid.points, cone_angle, ...
+%         cp, num_contacts, com, trainingParams.numSamples, ...
+%         trainingParams.surfaceThresh);
+%     
+%     if ~success
+%         disp('Bad contacts. Retrying...');
+%         continue;
+%     end
+% 
+%     randomMeanQ(i,1) = mn_q;
+%     randomVarQ(i,1) = v_q;
+%     i = i+1;
+% end

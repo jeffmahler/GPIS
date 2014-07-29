@@ -7,9 +7,9 @@ function [ E_Q,lb ] = compute_lb( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2,cm,cone_
     
     [E_C,E_N,sc,sn ] = expected_grasp( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2);
       
-    forces = forces_on_friction_cone(E_N,cone_angle);
+    forces = forces_on_friction_cone(E_N,cone_angle)
     
-    E_C = [E_C; zeros(1,nc)];
+    E_C = [E_C; zeros(1,nc)]
     
     E_Q = ferrari_canny( [cm 0]',E_C,forces);
     
@@ -155,14 +155,14 @@ end
 function [ forces ] = forces_on_friction_cone(nrm,cone_angle)
         index = 1;
         for i=1:size(nrm,2); 
-            f = nrm(:,i);
+            f = nrm(:,i)
             f = f/norm(f,1)*(1/2);
 
 
             %get extrema of friction cone, negative to point into object
-            opp_len = tan(cone_angle) * norm(f);
-            opp_dir = [-f(2,1); f(1,1)];
-            opp = opp_len * opp_dir / norm(opp_dir);
+            opp_len = tan(cone_angle) * norm(f)
+            opp_dir = [-f(2,1); f(1,1)]
+            opp = opp_len * opp_dir / norm(opp_dir)
             f_r = -(f + opp);
             f_l = -(f - opp);
 

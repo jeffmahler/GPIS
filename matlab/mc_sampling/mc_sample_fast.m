@@ -1,6 +1,6 @@
 function [ mn_Q, v_Q, hst,success] = mc_sample_fast(allPoints, cone_angle, cp, ...
                                     num_contacts, samples, gridDim, surf_thresh, ...
-                                    bad_contact_thresh, vis)
+                                    bad_contact_thresh, vis, showHist)
 %Takes a line not a single contact, add points in the order of [first1;
 %last1; first2; last2]; 
 
@@ -11,10 +11,13 @@ if nargin < 7
     surf_thresh = 0.05;
 end
 if nargin < 8
-    bad_contact_thresh = 10;
+    bad_contact_thresh = 100000;
 end
 if nargin < 9
     vis = false;
+end
+if nargin < 10
+    showHist = false;
 end
 
 success = true;
@@ -59,6 +62,7 @@ while k <= num_sample
             success = false;
             return;
         end
+        k = k+1;
         continue;
     end
 
@@ -78,7 +82,7 @@ while k <= num_sample
        
         % get extrema of friction cone, negative to point into object
         opp_len = tan(cone_angle) * norm(f);
-        opp_dir = [-1 / f(1,1); 1 / f(2,1)];
+        opp_dir = [-f(2,1); f(1,1)];
         opp = opp_len * opp_dir / norm(opp_dir);
         f_r = -(f + opp);
         f_l = -(f - opp);
@@ -93,34 +97,51 @@ while k <= num_sample
         index = index+1;
     end
     
-    fprintf('Assessing grasp sample %d\n', k);
+    
     CP = [contactPts; zeros(1,num_contacts)]; 
     CM = [sampleCom'; 0];
     Q = ferrari_canny(CM,CP,forces);
     data(k) = Q; 
     sum_Q = sum_Q + Q; 
     mn_Q = sum_Q/k;
-    fprintf('Mean of Grasp Quality: %f\n', mn_Q);
     
     sum_Q_sq = sum_Q_sq + Q.*Q; 
     v_Q = (sum_Q_sq-(sum_Q.*sum_Q)/k)/k;
-    fprintf('Variance of Grasp Quality: %f\n', v_Q);
-
-
+    
+    if vis
+        fprintf('Assessing grasp sample %d\n', k);
+        fprintf('Mean of Grasp Quality: %f\n', mn_Q);
+        fprintf('Variance of Grasp Quality: %f\n', v_Q);
+    end
+    
     k = k+1; % increment loop counter 
 end
+
 figure;
 nbins = 100;
 [hst,centers] = hist(data);
 hist(data, nbins);
 
-hst = [centers' hst']; 
+
 
 %figure;
 %plot(centers,hst)
 title('Histogram of Grasp Quality'); 
 xlabel('Grasp Quality'); 
 ylabel('Count'); 
+
+if showHist
+    figure;
+    nbins = 100;
+    [hst,centers] = hist(data);
+    hist(data, nbins);
+    %figure;
+    %plot(centers,hst)
+    title('Histogram of Grasp Quality'); 
+    xlabel('Grasp Quality'); 
+    ylabel('Count');
+end
+hst = [centers' hst']; 
     
 end
 

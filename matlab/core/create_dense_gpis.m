@@ -12,11 +12,11 @@ constructionTime = toc(startTime);
 [predGrid, predSurface] = predict_2d_grid(gpModel, shapeParams.gridDim,...
     trainingParams.surfaceThresh);
 
-noiseGrid = reshape(predGrid.noise, 25 ,25);
-a = prctile(noiseGrid(:), 80);
-noiseGrid(noiseGrid > a) = a;
-figure;
-surf(noiseGrid);
+% noiseGrid = reshape(predGrid.noise, 25 ,25);
+% a = prctile(noiseGrid(:), 80);
+% noiseGrid(noiseGrid > a) = a;
+% figure;
+% surf(noiseGrid);
 
 tsdfReconError = ...
     evaluate_errors(predGrid.tsdf, shapeParams.fullTsdf, numPoints);

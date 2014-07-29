@@ -17,7 +17,7 @@ sample_pdf = 0;
 % evaluate to inf)
 while ~isinf(sample_pdf) && sample_pdf < pdf_thresh
     sample = mvnrnd(MEAN,COV);
-    sample_pdf = mvnpdf(sample, MEAN', COV + 1e-14*eye(size(COV,1)));
+    sample_pdf = mvnpdf(sample, MEAN', COV + 1e-12*eye(size(COV,1)));
 end
 
 allTsdf = sample(1,1:num_points)'; 

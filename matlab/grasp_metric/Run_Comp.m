@@ -1,26 +1,23 @@
 
-function [T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img)
+function [T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img,constructionResults)
     cone_angle = atan(experimentConfig.frictionCoef);
     num_contacts = 2; 
 
-    num_grasps = 150;
+    num_grasps = 10;
     grid_size = sqrt(size(shapeParams.all_points,1)); 
     numSamples = 1000; 
     contacts = {};
+    useNormal = true; 
     [shape_samples,pdfs] = sample_shapes(gpModel, shapeParams.gridDim, numSamples);
     
     for i =1:num_grasps
         close all; 
         
-        cp = get_random_grasp(grid_size);
-%         cp1 = [14.05 24.9; 10.9 0.09];
-%         cp2 = [24.47 8.91; 0.52 16.08];
-% 
-%         cp = [cp1; cp2];
-        
+        cp = get_random_grasp(shapeParams.gridDim);
+
         tic 
         [mn_Q,v_Q,hst,success] = mc_sample_fast(shapeParams.all_points, cone_angle, cp, ...
-                                        num_contacts, shape_samples, shapeParams.gridDim);
+                                        num_contacts, shape_samples, shapeParams.gridDim)
         toc
         T_Q(i,1) = mn_Q;
         T_Q(i,2) = v_Q;

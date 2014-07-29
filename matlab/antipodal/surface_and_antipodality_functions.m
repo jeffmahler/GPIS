@@ -37,8 +37,8 @@ if use_com
 %    val(5) = norm(v - (v'*n) * n); % abs(n'*com' + n'*xp(1,:)') / norm(n);
 end
 
-xp
-val
+% xp
+% val
 % n
 % com
 

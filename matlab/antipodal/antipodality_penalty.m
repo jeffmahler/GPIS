@@ -2,7 +2,7 @@ function val = antipodality_penalty(x, gpModel, nu, lambda, com, gamma)
    
     % full covariance penaty if not specified
     if nargin < 6
-       gamma = 1.0 
+       gamma = 1.0;
     end
 
     d = size(x,1) / 2;

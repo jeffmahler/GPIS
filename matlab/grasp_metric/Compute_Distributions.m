@@ -143,8 +143,8 @@ end
 function [loa] = compute_loa(grip_point)
 %Calculate Line of Action given start and end point
 
-    %step_size = 0.5; 
-    step_size = 0.3; 
+    step_size = 0.5; 
+    %step_size = 0.3; 
     
     start_point = grip_point(1,:); 
     end_p = grip_point(2,:); 

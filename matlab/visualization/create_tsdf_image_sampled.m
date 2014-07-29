@@ -1,19 +1,22 @@
-function [shapeImageScaled, shapeSurfaceImage] = ...
-    create_tsdf_image_sampled(shapeParams, shapeSamples, scale, black)
+function shapeSurfaceImage = ...
+    create_tsdf_image_sampled(shapeParams, shapeSamples, scale, contrastRatio, black, vis)
 
 if nargin < 4
+    contrastRatio = 0.7;
+end
+if nargin < 5
     black = false;
+end
+if nargin < 6
+    vis = false;
 end
 
 % Alpha blend all samples
 numSamples = size(shapeSamples,2);
 dim = scale*shapeParams.gridDim;
-shapeImage = zeros(dim, dim);
 shapeSurfaceImage = zeros(dim, dim);
-alpha = 1.0 / double(numSamples);
-w = 0;
-w_total = 0;
-j = 1;
+alpha = contrastRatio / double(numSamples);
+
 for i = 1:numSamples
     tsdf = shapeSamples{i}.tsdf;
     tsdfGrid = reshape(tsdf, shapeParams.gridDim, shapeParams.gridDim);
@@ -23,62 +26,71 @@ for i = 1:numSamples
     shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
     tsdfSurface = ones(dim, dim);
     tsdfSurface(shapeSurfaceIndices) = 0;
-%     if mod(i,51) == 0
-% %         figure(111);
-% %         subplot(1,4,j);
-% %         imshow(abs(tsdfBig));
-%         w = alpha;
-%         j = j+1;
-%     else
-%         w = 0;
-%     end
-    w = alpha;
-    shapeImage = shapeImage + w * tsdfBig;
-    shapeSurfaceImage = shapeSurfaceImage + w * tsdfSurface;
-    w_total = w_total + w;
+    
+    if vis
+        figure(1);
+        imshow(tsdfSurface);
+        pause(0.5);
+    end
+    
+    shapeSurfaceImage = shapeSurfaceImage + alpha * tsdfSurface;
 end
-shapeImage = shapeImage ./ w_total;
-shapeSurfaceImage = shapeSurfaceImage ./ w_total;
+shapeSurfaceImage = shapeSurfaceImage + (1.0 - contrastRatio) * zeros(dim, dim);
 
-% display many different scaling versions to check best visualization
-% beta = 0.1;
-% max_beta = 2.0;
-% beta_inc = 0.25;
-% num_beta = round((max_beta - beta) / beta_inc);
-% k = 1;
+% figure;
+% subplot(1,4,1);
+% w = shapeSurfaceImage.^3;
+% imshow(w);
 % 
-% figure(5);
-% while beta < max_beta
-%     subplot(1, num_beta, k);
-%     shapeImageScaled = abs(shapeImage).^beta;
-%     shapeImageScaled = (shapeImageScaled - min(min(shapeImageScaled))) / ...
-%         (max(max(shapeImageScaled)) - min(min(shapeImageScaled)));
+% subplot(1,4,2);
+% f = histeq(shapeSurfaceImage, 100);
+% x = f;
+% x(x == 0) = 5e-3; % remove 0 values
+% G = fspecial('gaussian',[5 5], 0.5);
+% y = imfilter(x, G, 'same');
+% a = y.^0.15;
+% imshow(a);
 % 
-%     imshow(shapeImageScaled);
-%     title(sprintf('BETA = %f', beta));
-%     k = k+1;
-%     beta = beta + beta_inc;
-% end
+% subplot(1,4,3);
+% G = fspecial('gaussian',[5 5], 0.5);
+% Ig = imfilter(shapeSurfaceImage, G, 'same');
+% fp = histeq(Ig,100);
+% imshow(fp);
+% 
+% subplot(1,4,4);
+% q = 0.6*w + 0.4*a;
+% imshow(q);
 
-% rescale shapeImage so that the zero crossing appears black
-beta = 0.35;
-shapeImageScaled = abs(shapeImage).^beta;
+gamma = 3;
+beta = 0.15;
+sig = 0.5;
+nbins = 100;
+blend = 0.6;
+siContrastEnhanced = shapeSurfaceImage.^gamma;
+siEqualized = histeq(shapeSurfaceImage, nbins);
+siEqualized(siEqualized == 0) = 5e-3; % remove 0 values
+G = fspecial('gaussian',[5 5], sig);
+siEqualizedFilt = imfilter(siEqualized, G, 'same');
+siEqFlat = siEqualizedFilt.^beta;
 
-% normalize
-shapeImageScaled = (shapeImageScaled - min(min(shapeImageScaled))) / ...
-    (max(max(shapeImageScaled)) - min(min(shapeImageScaled)));
-shapeSurfaceImage = (shapeSurfaceImage - min(min(shapeSurfaceImage))) / ...
-    (max(max(shapeSurfaceImage)) - min(min(shapeSurfaceImage)));
+shapeSurfaceImage = blend * siContrastEnhanced + (1 - blend) * siEqFlat;
+% figure;
+% imshow(shapeSurfaceImage);
+
+% normalize the values to 0 and 1
+% shapeSurfaceImage =apeSurfaceImage - min(min(shapeSurfaceImage))) / ...
+%     (max(max(sha (shpeSurfaceImage)) - min(min(shapeSurfaceImage)));
 
 if black
-    shapeImageScaled = max(max(shapeImageScaled))*ones(dim, dim) - shapeImageScaled;
     shapeSurfaceImage = max(max(shapeSurfaceImage))*ones(dim, dim) - shapeSurfaceImage;
 end
 
-figure(4);
-subplot(1,2,1);
-imshow(shapeImageScaled);
-title('Avg Scaled Tsdfs');
-subplot(1,2,2);
-imshow(shapeSurfaceImage);
-title('Avg Tsdf Zero Crossings');
+if false
+    figure(4);
+    % subplot(1,2,1);
+    % imshow(shapeImageScaled);
+    % title('Avg Scaled Tsdfs');
+    % subplot(1,2,2);
+    imshow(shapeSurfaceImage);
+    %title('Avg Tsdf Zero Crossings');
+end

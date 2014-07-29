@@ -46,6 +46,7 @@ cfg.surfaceImage = zeros(1,1);
 cfg.scale = 1;
 cfg.lambda = 1;
 cfg.nu = 1;
+cfg.beta = 1;
 cfg.fric_coef = 0;
 cfg.min_init_dist = 3;
 cfg.com_tol = 0;

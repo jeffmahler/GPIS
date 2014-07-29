@@ -1,8 +1,8 @@
 % script for setting up and running an antipodal experiment
 close all;
 dim = 25;
-dataDir = 'data/google_objects';
-filename = 'deodorant';
+dataDir = 'data/google_update_versions';
+filename = 'marker';
 outputDir = 'results/google_objects/test';
 newShape = false;
 scale = 2;
@@ -14,20 +14,26 @@ grip_point2 = [12.5 25; 12.5 1];
 %% experiment config
 experimentConfig = struct();
 experimentConfig.graspIters = 5;
-experimentConfig.frictionCoef = 0.1;
+experimentConfig.frictionCoef = 0.5;
 experimentConfig.surfaceThresh = 0.15;
 
 %% variance parameters
 varParams = struct();
 varParams.y_thresh1_low = 12.5;
 varParams.y_thresh2_low = dim;
+varParams.y_thresh3_low = dim;
+
 varParams.y_thresh1_high = 30;
 varParams.y_thresh2_high = 0;
+varParams.y_thresh3_high = 0;
+
 varParams.x_thresh1_low = 15;
 varParams.x_thresh2_low = dim;
+varParams.x_thresh3_low = dim;
+
 varParams.x_thresh1_high = 25;
 varParams.x_thresh2_high = 0;
-
+varParams.x_thresh3_high = 0;
 % varParams.y_thresh1_low = dim;
 % varParams.y_thresh2_low = dim;
 % varParams.y_thresh1_high = 0;
@@ -91,14 +97,14 @@ cfg.nu = 0.00;
 cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solutions within the friction cone
 
 % % run experiment
-[ gpModel, shapeParams,img] = ...
-    run_gpis_2D_experiment(dim, filename, dataDir, ...
-                             outputDir, newShape, ...
-                             varParams, trainingParams,experimentConfig);
+% [ gpModel, shapeParams,img] = ...
+%     run_gpis_2D_experiment(dim, filename, dataDir, ...
+%                              outputDir, newShape, ...
+%                              varParams, trainingParams,experimentConfig);
+[gpModel, shapeParams, shapeSamples, constructionResults] = load_experiment_object(filename, dataDir, scale);
+img.mean = constructionResults.newSurfaceImage;
 
-
-
-[T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img);
+[T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img,constructionResults);
 % [loa_1,Norms,pc_1,pn_1] = Compute_Distributions(gpModel,shapeParams,grip_point1,img);
 % 
 % [loa_2,Norms,pc_2,pn_2] = Compute_Distributions(gpModel,shapeParams,grip_point2,img);
