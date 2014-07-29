@@ -1,6 +1,6 @@
-function [ mn_Q, v_Q, success] = mc_sample_fast(allPoints, cone_angle, cp, ...
+function [ mn_Q, v_Q, success, varargout] = mc_sample_fast(allPoints, cone_angle, cp, ...
                                     num_contacts, samples, gridDim, surf_thresh, ...
-                                    bad_contact_thresh, vis, showHist)
+                                    bad_contact_thresh, vis, showHist, qScale)
 %Takes a line not a single contact, add points in the order of [first1;
 %last1; first2; last2]; 
 
@@ -19,11 +19,14 @@ end
 if nargin < 10
     showHist = false;
 end
+if nargin < 11
+    qScale = 1;
+end
 
 success = true;
 mn_cp = zeros(2,num_contacts); 
-sum = mn_cp; 
-sum_sq = sum; 
+sum_contact = mn_cp; 
+sum_sq = sum_contact; 
 
 mn_Q = 0;
 v_Q = 0;
@@ -33,6 +36,7 @@ sum_Q_sq = sum_Q;
 k = 1;
 num_bad = 0;
 num_sample = size(samples,2);
+q_vals = zeros(1,num_sample);
 
 while k <= num_sample
     
@@ -61,6 +65,8 @@ while k <= num_sample
         if num_bad > bad_contact_thresh
             disp('Too many failed contacts. Aborting...');
             success = false;
+            p_fc = 0;
+            varargout{1} = p_fc;
             return;
         end
         k = k+1;
@@ -68,12 +74,12 @@ while k <= num_sample
     end
 
     %%fprintf('Mean Contact Points\n')
-    sum = sum + contactPts; 
-    mn_cp = sum/k;
+    sum_contact = sum_contact + contactPts; 
+    mn_cp = sum_contact/k;
     
     %fprintf('Variance of Contact Points\n')
     sum_sq = sum_sq + contactPts.*contactPts; 
-    v_cp = (sum_sq-(sum.*sum)/k)/k;
+    v_cp = (sum_sq-(sum_contact.*sum_contact)/k)/k;
     
     index = 1; 
     for i=1:num_contacts
@@ -101,8 +107,25 @@ while k <= num_sample
     
     CP = [contactPts; zeros(1,num_contacts)]; 
     CM = [sampleCom'; 0];
-    Q = ferrari_canny(CM,CP,forces);
-    data(k) = Q; 
+    [Q, qValid] = ferrari_canny(CM,CP,forces);
+
+    if ~qValid
+        num_bad = num_bad+1;
+        
+        % check if we've had enough failed contacts to give up
+        if num_bad > bad_contact_thresh
+            disp('Too many failed contacts. Aborting...');
+            success = false;
+            p_fc = 0;
+            varargout{1} = p_fc;
+            return;
+        end
+        k = k+1;
+        continue;
+    end
+
+    q_vals(k) = Q;
+
     sum_Q = sum_Q + Q; 
     mn_Q = sum_Q/k;
     
@@ -120,14 +143,18 @@ end
 if showHist
     figure;
     nbins = 100;
-    [hst,centers] = hist(data);
-    hist(data, nbins);
+    [hst,centers] = hist(qScale*q_vals);
+    hist(qScale*q_vals, qScale*(-0.1:0.0025:0.1));
     %figure;
     %plot(centers,hst)
     title('Histogram of Grasp Quality'); 
+    xlim(qScale*[-0.1, 0.1]);
     xlabel('Grasp Quality'); 
     ylabel('Count');
 end
-    
+
+prob_fc = sum(q_vals > 0) / num_sample;
+varargout{1} = prob_fc;
+   
 end
 

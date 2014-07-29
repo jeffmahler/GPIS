@@ -1,4 +1,4 @@
-function [ Q ] = ferrari_canny( center_of_mass,p,f )
+function [Q, varargout] = ferrari_canny( center_of_mass,p,f )
 %FERRARI_CANNY Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -51,6 +51,7 @@ end
 
 if ~all_unique
     Q = -1.0;
+    varargout{1} = false;
     return;
 end
 
@@ -77,6 +78,7 @@ in = check_zero_inside(W, eps);
 if ~in
     Q = -Q;
 end
+varargout{1} = true;
 
 end
 
