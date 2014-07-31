@@ -7,7 +7,7 @@ function [p_c] = contact_distribution(loa,cov_loa,mean_loa)
     options = optimset('TolFun',1e-2); 
     P(1) = 1; 
 
-    for i = 1:size(loa,1)/2
+    for i = 1:size(loa,1)
         
         p0 = mvnpdf(0,mean_loa(i),cov_loa(i,i)); 
         if(i ~= 1)

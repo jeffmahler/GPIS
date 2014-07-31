@@ -1,9 +1,9 @@
 
-function [T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img,constructionResults)
+function [T_Q,contacts,HIST,varargout] = Run_Comp(experimentConfig,gpModel,shapeParams,img,constructionResults)
     cone_angle = atan(experimentConfig.frictionCoef);
     num_contacts = 2; 
 
-    num_grasps = 10;
+    num_grasps = 1;
     grid_size = sqrt(size(shapeParams.all_points,1)); 
     numSamples = 1000; 
     contacts = {};
@@ -16,13 +16,20 @@ function [T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img
         cp = get_random_grasp(shapeParams.gridDim);
 
         tic 
-        [mn_Q,v_Q,hst,success] = mc_sample_fast(shapeParams.all_points, cone_angle, cp, ...
-                                        num_contacts, shape_samples, shapeParams.gridDim)
+        [mn_Q,v_Q,success,p_fc,hst] = mc_sample_fast(shapeParams.all_points, cone_angle, cp, ...
+                                        num_contacts, shape_samples, shapeParams.gridDim);
+        
         toc
         T_Q(i,1) = mn_Q;
         T_Q(i,2) = v_Q;
         [loa_1,Norms,pc_1,pn_1] = Compute_Distributions(gpModel,shapeParams,cp(1:2,:),img);
-
+        
+        [contact_emps,norm_emps] = sample_loas(gpModel, loa_1, numSamples,cp(1:2,:));
+        
+        divg_contact = plot_mc_contact( loa_1,contact_emps,pc_1 )
+        
+        divg_normals = plot_mc_normals( loa_1,Norms,norm_emps,pn_1)
+        
         [loa_2,Norms,pc_2,pn_2] = Compute_Distributions(gpModel,shapeParams,cp(3:4,:),img);
 
         ca  = atan(experimentConfig.frictionCoef);
