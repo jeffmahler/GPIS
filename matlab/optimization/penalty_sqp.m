@@ -50,6 +50,7 @@ cfg.beta = 1;
 cfg.fric_coef = 0;
 cfg.min_init_dist = 3;
 cfg.com_tol = 0;
+cfg.grip_width = intmax;
 cfg.callback = [];
 
 cfg = load_user_cfg(cfg, user_cfg);

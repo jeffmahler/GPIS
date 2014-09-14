@@ -4,6 +4,9 @@ use_com = true;
 if nargin < 4
     use_com = false;
 end
+if nargin < 5
+    comTol = 1;
+end
 
 % right now just the surface values
 d = size(x,1) / 2;
@@ -24,7 +27,7 @@ val(1) = cos(atan(frictionCoef)) - diff' * grad_1 / (norm(diff) * norm(grad_1));
 val(2) = cos(atan(frictionCoef)) - (-diff)' * grad_2 / (norm(diff) * norm(grad_2));
 
 % soft center of mass constraint (since the hard constraint is very hard to
-% satisfy)
+% satisfy) but only use when flagged
 if use_com
     n = diff / norm(diff);
     v = xp(2,:)' - com';

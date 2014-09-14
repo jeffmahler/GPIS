@@ -1,14 +1,14 @@
-% script for setting up and running an antipodal experiment
+% script for setting up and running athe experiment to compare the best
+% grasp on the mean shape through exhaustive sampling
 
-dim = 25;
-% CHANGE BELOW WHEN CREATION IS OVER!
-dataDir = 'data/google_object/google_update_versions';
-shapeNames = {'alka_seltzer'};%, 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};%{'marker'};
-outputDir = 'results/google_objects/test';
-newShape = false;
+
+dataDir = 'data/google_objects/google_update_versions';
+shapeNames = {'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
+outputDir = 'results/mean_vs_predicted_exp';
 scale = 2;
-createGpis = false;
-
+maxIters = 500;
+dim = 25;
 %% experiment config
 experimentConfig = struct();
 experimentConfig.graspIters = 0;
@@ -17,15 +17,18 @@ experimentConfig.numSamples = 1000;
 experimentConfig.surfaceThresh = 0.15;
 experimentConfig.arrowLength = 4;
 experimentConfig.loaScale = 1.75;
-experimentConfig.plateWidth = 2;
-experimentConfig.gripWidth = 20;
-experimentConfig.graspSigma = 0.5;
+experimentConfig.graspSigma = 0.25;
 experimentConfig.numBadContacts = 10;
-experimentConfig.visSampling = true;
+experimentConfig.visSampling = false;
 experimentConfig.visOptimization = true;
 experimentConfig.visGrasps = true;
 experimentConfig.rejectUnsuccessfulGrasps = false;
 
+experimentConfig.fcTol = 0.001;
+
+experimentConfig.gripWidth = dim; % dimension of grasp when scale = 1.0
+experimentConfig.plateScale = 0.05;
+experimentConfig.objScale = 0.95;
 experimentConfig.qScale = 100;
 
 experimentConfig.evalUcGrasps = true;
@@ -121,32 +124,12 @@ cfg.beta = 2.0;
 cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solutions within the friction cone
 cfg.grip_width = experimentConfig.gripWidth; % max distance between grasp points in pixels
 
-% cfgArray = load('results/google_objects/hyp_results_3444.mat');
-% cfg = cfgArray.hyperResults{1,55}.cfg;
-% cfg.scale = scale;
-% cfg.nu = 1.0;
 %% run experiment
-rng(300);
+%rng(300);
 
-allShapeResults = cell(1,size(shapeNames,2));
+[bestPredGrasps, bestMeanGrasps, bestNomGrasps] = ...
+        run_mean_sampling_experiment(shapeNames, gripScales, dataDir, ...
+                                    outputDir, maxIters, ...
+                                    experimentConfig, cfg);
 
-for i = 1:size(shapeNames,2)
-    filename = shapeNames{i};
-    fprintf('Running experiment for shape %s\n', filename);
-    
-    % Run experiment on next shape
-    [experimentResults, gpModel, shapeParams, shapeSamples] = ...
-        run_antipodal_experiment(dim, filename, dataDir, ...
-                                 outputDir, newShape, ...
-                                 experimentConfig, varParams, ...
-                                 trainingParams, cfg, createGpis);
-                             
-    % Store results
-    shapeResult = struct();
-    shapeResult.experimentResults = experimentResults;
-    shapeResult.gpModel = gpModel;
-    shapeResult.shapeParams = shapeParams;
-    shapeResult.shapeSamples = shapeSamples;
-    allShapeResults{i} = shapeResult;
-end
                          

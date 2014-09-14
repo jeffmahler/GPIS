@@ -1,10 +1,5 @@
 function val = uc_mean_q_penalty(x, gpModel, nu, ...
-    coneAngle, shapeParams, badContactThresh, gamma)
-   
-    if nargin < 7
-       gamma = 1.0;
-    end
-
+    coneAngle, shapeParams, badContactThresh, plateWidth)
 
     % full covariance penaty if not specified
     d = size(x,1) / 2;
@@ -16,15 +11,19 @@ function val = uc_mean_q_penalty(x, gpModel, nu, ...
     loaScale = 1.75;
     
     loa = create_ap_loa(x, loaScale);
+%     tangentDir = [-loa(2,1); loa(1,1)];
+%     tangentDir = tangentDir / norm(tangentDir);
+
     
     meanSample = {shapeParams};
+    graspSample = {loa};
     [mn_q, v_q, success] = mc_sample_fast(shapeParams.points, ...
-                                    coneAngle, loa, numContacts, ...
+                                    coneAngle, graspSample, numContacts, ...
                                     meanSample, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
-                                    badContactThresh, ...
+                                    badContactThresh, plateWidth, ...
                                     visSampling, visHistogram);
 
-    val = gamma*sum(diag(Sig)) - nu*mn_q;
+    val = nu*sum(diag(Sig)) - mn_q;
 end
 

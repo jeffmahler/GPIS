@@ -1,4 +1,4 @@
-function [x_grasp, x_all_iters, success] = find_antipodal_grasp_points(x_init, gpModel, ...
+function [x_grasp, opt_val, x_all_iters, success] = find_antipodal_grasp_points(x_init, gpModel, ...
     cfg, gridDim, com, gamma)
 %FIND_ANTIPODAL_GRASP_POINTS Finds an antipodal set of grasp points
 
@@ -35,6 +35,7 @@ else
 end
 
 [x_grasp, x_all_iters, success] = penalty_sqp(x_init, Q, q, f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg);    
+opt_val = f(x_grasp);
 
 end
 

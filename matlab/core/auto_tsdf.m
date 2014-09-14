@@ -165,7 +165,7 @@ for i = 1:dim
         j_low = max(1,j-varParams.edgeWin);
         j_high = min(dim,j+varParams.edgeWin);
         tsdfWin = tsdf(i_low:i_high, j_low:j_high);
-        
+
         % add in occlusions
         if tsdf(i,j) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high && ...
                 j > varParams.x_thresh1_low && j <= varParams.x_thresh1_high) || ...

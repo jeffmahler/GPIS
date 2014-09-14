@@ -1,5 +1,5 @@
 function results = create_grasp_results_struct(grasps, meanQ, varQ, ...
-    successes, satisfied, times, numGrasps)
+    successes, satisfied, times, numGrasps, opts, estQ, pFc)
 %CREATE_GRASP_RESULTS_STRUCT just throw these things into a struct to save
 %retyping
 
@@ -11,6 +11,9 @@ results.successes = successes;
 results.satisfied = satisfied;
 results.times = times;
 results.numGrasps = numGrasps;
+results.optVals = opts;
+results.estQ = estQ;
+results.pFc = pFc;
 
 end
 

@@ -1,15 +1,18 @@
-function [x_grasp, x_all_iters, success] = ...
+function [x_grasp, opt_val, x_all_iters, success] = ...
     find_uc_mean_q_grasp_points(x_init, gpModel, ...
     cfg, gridDim, com, shapeParams, ...
-    coneAngle, badContactThresh, gamma)
+    coneAngle, badContactThresh, plateWidth, gamma, forceAntipodal)
 %FIND_ANTIPODAL_GRASP_POINTS Finds an antipodal set of grasp points
 
 use_com = true;
 if nargin < 5
     use_com = false;
 end
-if nargin < 9
+if nargin < 10
     gamma = 1;
+end
+if nargin < 11
+    forceAntipodal = true;
 end
 
 nu = cfg.beta;
@@ -24,17 +27,32 @@ b_ineq = [zeros(2*d,1); gridDim*ones(2*d,1)];
 Q = zeros(2*d, 2*d);
 q = zeros(1, 2*d);
 
-f = @(x) (uc_mean_q_penalty(x, gpModel, nu, coneAngle, shapeParams, badContactThresh, gamma));
+f = @(x) (uc_mean_q_penalty(x, gpModel, nu, coneAngle, shapeParams, badContactThresh, plateWidth));
 
-if use_com
-    g = @(x) (friction_cone_constraint(x, gpModel, cfg.fric_coef, com, cfg.com_tol));
-    h = @(x) (surface_and_antipodality_functions(x, gpModel));%, com));
+if forceAntipodal
+    if use_com
+        g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef, com, cfg.com_tol); ...
+                   gripper_width_constraint(x, gpModel, cfg.grip_width) ]);
+        h = @(x) (surface_and_antipodality_functions(x, gpModel));%, com));
+    else
+        g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef) ; ...
+                   gripper_width_constraint(x, gpModel, cfg.grip_width) ]);
+        h = @(x) (surface_and_antipodality_functions(x, gpModel));
+    end
 else
-    g = @(x) (friction_cone_constraint(x, gpModel, cfg.fric_coef));
-    h = @(x) (surface_and_antipodality_functions(x, gpModel));
+    % unconstrained
+    g = @(x) (0);
+    surfaceOnly = true;
+    zeroCom = [0,0];
+    if use_com
+        h = @(x) (surface_and_antipodality_functions(x, gpModel, com, surfaceOnly));
+    else
+        h = @(x) (surface_and_antipodality_functions(x, gpModel, zeroCom, surfaceOnly));
+    end
 end
 
 [x_grasp, x_all_iters, success] = penalty_sqp(x_init, Q, q, f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg);    
+opt_val = f(x_grasp);
 
 end
 

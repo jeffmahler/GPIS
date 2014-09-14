@@ -1,6 +1,6 @@
 function hyperResults = ...
-    run_hyperparam_search(shapeNames, dataDir, experimentConfig, ...
-    optimizationParams)
+    run_hyperparam_search(shapeNames, gripScales, dataDir, outputDir,...
+        experimentConfig, optimizationParams)
 % RUN_HYPERPARAM_SEARCH Runs a grid search for the locally hyperparameters
 % of the the antipodal grasp optimization.
 % Hardcoded to take min, max, and increments for:
@@ -11,7 +11,6 @@ function hyperResults = ...
 %   trust_expand_ratio - the rate at which to shrexpandink the trust region
 %   nu - the penalty on distance to the center of mass
 
-d = 2; % dimension of input
 numShapes = size(shapeNames, 2);
 numContacts = 2;
 coneAngle = atan(experimentConfig.frictionCoef);
@@ -30,10 +29,24 @@ hyperResults = cell(numShapes,0);
 for i = 1:numShapes
     filename = shapeNames{i};
     [gpModel, shapeParams, shapeSamples, constructionResults] = ...
-        load_experiment_object(filename, dataDir);
+        load_experiment_object(filename, dataDir, optimizationParams.scale);
+   
+    % compute the width and scale
+    dim = shapeParams.gridDim;
+    gripScale = gripScales{i};
+    gripWidth = gripScale * experimentConfig.objScale * dim;
+    plateWidth = gripWidth * experimentConfig.plateScale;
+    plateWidth = uint16(round(plateWidth));
     
-    [X, Y] = meshgrid(1:shapeParams.gridDim, 1:shapeParams.gridDim);
-    points = [X(:), Y(:)];
+    optimizationParams.grip_width = gripWidth;
+    
+    predGrid = constructionResults.predGrid;
+    surfaceImage = constructionResults.newSurfaceImage;
+    numSamples = size(shapeSamples, 2);
+    
+    if experimentConfig.visOptimization
+        optimizationParams.surfaceImage = surfaceImage;
+    end
     
     % get initial grasps using com
     initGrasps = zeros(4, experimentConfig.numGrasps);
@@ -41,9 +54,13 @@ for i = 1:numShapes
 %        figure;
 %        imshow(constructionResults.surfaceImage);
 %         hold on;
-         initGrasps(:,j) = ...
-             get_initial_antipodal_grasp(constructionResults.predGrid, false);
-%         hold off;
+        useNormalDirection = true;
+        if rand(1) < 0.5
+            useNormalDirection = false;
+        end
+        initGrasps(:,j) = ...
+                get_initial_antipodal_grasp(constructionResults.predGrid, ...
+                    useNormalDirection);
     end
     
     index = 1;
@@ -74,6 +91,8 @@ for i = 1:numShapes
                             
                             mn_q_vec = zeros(1, experimentConfig.numGrasps);
                             v_q_vec = zeros(1, experimentConfig.numGrasps);
+                            p_fc_vec = zeros(1, experimentConfig.numGrasps);
+                            opt_val_vec = zeros(1, experimentConfig.numGrasps);
                             opt_time_vec = zeros(1, experimentConfig.numGrasps);
                             x_grasp_vec = zeros(4, experimentConfig.numGrasps);
                             satisfied_vec = zeros(1, experimentConfig.numGrasps);
@@ -81,39 +100,39 @@ for i = 1:numShapes
                             %optimizationParams.surfaceImage = constructionResults.surfaceImage;
                             
                             for g = 1:experimentConfig.numGrasps
-                                x_init = initGrasps(:,g);
+                                initGrasp = initGrasps(:,g);
                                 
                                 startTime = tic;
-                                [x_grasp, x_all_iters, opt_success] = ...
-                                    find_antipodal_grasp_points(x_init, gpModel, ...
-                                        optimizationParams, shapeParams.gridDim, shapeParams.com);
+                                [optGrasp, optVal, allIters, constSatisfaction] = ...
+                                    find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
+                                        optimizationParams, shapeParams.gridDim, shapeParams.com, ...
+                                        predGrid, coneAngle, experimentConfig.numBadContacts, ...
+                                        plateWidth);
                                 optimizationTime = toc(startTime);
                                 %opt_success = true;
                                 %x_grasp = x_init;
-                                x_grasp_vec(:,g) = x_grasp;
+                                x_grasp_vec(:,g) = optGrasp;
                                 opt_time_vec(g) = optimizationTime;
-                                satisfied_vec(g) = opt_success;
+                                satisfied_vec(g) = constSatisfaction;
+                                opt_val_vec(g) = optVal;
                                 
-                                x1 = x_grasp(1:d,1);
-                                x2 = x_grasp(d+1:2*d,:);
-
-                                x_start_1 = x2 + 1.75*(x1 - x2);
-                                x_start_2 = x1 + 1.75*(x2 - x1);
-
-                                cp1 = [x_start_1'; x2'];
-                                cp2 = [x_start_2'; x1'];
-                                cp = [cp1; cp2];
-                                [mn_q, v_q, success] = mc_sample_fast(points, ...
-                                    coneAngle, cp, numContacts, ...
-                                    shapeSamples, shapeParams.gridDim, ...
-                                    shapeParams.surfaceThresh, 10, false);
-                                fprintf('Grasp %d mean q: %f var q: %f\n', g, mn_q, v_q);
+                                bestLoa = create_ap_loa(initGrasp, experimentConfig.gripWidth);
+                                bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
+                                [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
+                                                                coneAngle, bestGraspSamples, numContacts, ...
+                                                                shapeSamples, shapeParams.gridDim, ...
+                                                                shapeParams.surfaceThresh, ...
+                                                                experimentConfig.numBadContacts, ...
+                                                                plateWidth, ...
+                                                                experimentConfig.visSampling);
+                                fprintf('Grasp %d mean q: %f var q: %f prob fc %f\n', g, mn_q, v_q, p_fc);
 %                                 [mn_q2, v_q2, success] = MC_sample(gpModel, points, ...
 %                                     coneAngle, cp, numContacts, shapeParams.com, ...
 %                                     20, ...
 %                                     shapeParams.surfaceThresh, 10);
                                 mn_q_vec(g) = mn_q;
                                 v_q_vec(g) = v_q;
+                                p_fc_vec(g) = p_fc;
                                 success_vec(g) = success;
                             end
             
@@ -124,17 +143,20 @@ for i = 1:numShapes
                             paramResults.max_mn_q = max(mn_q_vec);
                             paramResults.mean_mn_q = mean(mn_q_vec);
                             paramResults.v_q = v_q_vec;
+                            paramResults.p_fc = p_fc_vec;
+                            paramResults.opt_vals = opt_val_vec;
                             paramResults.opt_times = opt_time_vec;
                             paramResults.satisfied= satisfied_vec;
                             paramResults.opt_times = opt_time_vec;
                             paramResults.success = success_vec;
                             
+                            % results are organized as shape, iteration
                             hyperResults{i, index} = paramResults;
                             
-                            save('results/google_objects/temp_hyp_results.mat', 'hyperResults');
+                            save(sprintf('%s/temp_hyp_results.mat', outputDir), 'hyperResults');
 
                             index = index+1;
-                            optimizationParams.nu = optimizationParams.nu + experimentConfig.inc_nu;
+                            optimizationParams.nu = optimizationParams.nu * experimentConfig.scale_nu;
                         end
                         optimizationParams.trust_expand_ratio = optimizationParams.trust_expand_ratio + experimentConfig.inc_ter;
                     end

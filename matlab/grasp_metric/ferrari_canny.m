@@ -36,26 +36,39 @@ W(1:2,:) = f(1:2,:);
 W(3,:) = t(3,:); 
 
 % check unique wrenches
-all_unique = true;
+wrenches_invalid = false;
 for i = 1:2*num_contacts
     for j = 1:2*num_contacts
         if i ~= j && abs(norm(W(:,i) - W(:,j))) < 1e-2
-           all_unique = false;
+           wrenches_invalid = true;
            break;
         end
     end
 end
 
+% check NaNs
+if sum(sum(isnan(W))) > 0
+    wrenches_invalid = true;
+end
+
+% check rank
+[U, S, V] = svd(W);
+if S(3,3) < 1e-2
+    wrenches_invalid = true;
+end
+
+
+
 %TODO look up plane from triangle calculation 
 %TODO a*x=b has to have ||a||=1
 
-if ~all_unique
+if wrenches_invalid
     Q = -1.0;
     varargout{1} = false;
     return;
 end
 
-[K, v] = convhulln(W', {'Qt', 'Pp'});
+[K, v] = convhulln(W', {'Qt', 'Pp', 'QJ'});
 
 %trisurf(K,X(:,1),X(:,2),X(:,3))
 
