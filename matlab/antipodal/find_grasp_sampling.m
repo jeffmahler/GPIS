@@ -20,6 +20,8 @@ attemptedGrasps = [];
 fcQ = [];
 fcV = [];
 fcP = [];
+maxQ = [];
+maxP = [];
 gs = [];
 k = 0;
 
@@ -41,6 +43,7 @@ while k < maxIters
     
     % get random grasp
     randGrasp = get_initial_antipodal_grasp(predGrid, useNormsForInit);
+    %randGrasp = [12; 12; 24; 12];
     
     % make sure our sample satisfies the width constraint
     if norm(randGrasp(1:d,1) - randGrasp(d+1:2*d,1)) > gripWidth
@@ -73,6 +76,10 @@ while k < maxIters
         fcQ = [fcQ; mn_q];
         fcV = [fcV; v_q];
         fcP = [fcP; p_fc];
+        
+        maxQ = [maxQ; max(fcQ)];
+        maxP = [maxP; max(fcP)];
+        
         gs = [gs; randGraspSamples];
         
         avgSampleTime = avgSampleTime + duration;
@@ -80,11 +87,24 @@ while k < maxIters
         k = k+1;
         
         figure(23);
-        visualize_grasp(randGrasp, predGrid, surfaceImage, scale, length);
+        visualize_grasp(randGrasp, predGrid, surfaceImage, scale, length, ...
+            plateWidth, gripWidth);
         title('Best Grasp', 'FontSize', 15);
         fprintf('Q = %.03f\n', fcP);
     end
 end
+
+figure(24);
+plot(maxQ, 'LineWidth', 2);
+title('Best E[Q] vs Samples');
+xlabel('# Samples');
+ylabel('E[Q]');
+
+figure(25);
+plot(maxP, 'LineWidth', 2);
+title('Best P(FC) vs Samples');
+xlabel('# Samples');
+ylabel('P(FC)');
 
 % choose the grasp with maximum expected FC quality
 bestQGraspIndices = find(fcQ == max(fcQ));

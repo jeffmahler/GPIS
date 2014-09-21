@@ -37,6 +37,7 @@ for i = 1:numShapes
     gripWidth = gripScale * experimentConfig.objScale * dim;
     plateWidth = gripWidth * experimentConfig.plateScale;
     plateWidth = uint16(round(plateWidth));
+    graspSigma = experimentConfig.graspSigma;
     
     optimizationParams.grip_width = gripWidth;
     
@@ -107,7 +108,7 @@ for i = 1:numShapes
                                     find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
                                         optimizationParams, shapeParams.gridDim, shapeParams.com, ...
                                         predGrid, coneAngle, experimentConfig.numBadContacts, ...
-                                        plateWidth);
+                                        plateWidth, gripWidth, graspSigma);
                                 optimizationTime = toc(startTime);
                                 %opt_success = true;
                                 %x_grasp = x_init;

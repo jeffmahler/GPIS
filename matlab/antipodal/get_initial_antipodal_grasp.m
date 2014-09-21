@@ -13,11 +13,11 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
     x1 = [x_surface_j(ind1) + (0.5 - rand); x_surface_i(ind1) + (0.5 - rand)];
     
     % get direction
-    n1 = [xNormGrid(round(x1(2)),round(x1(1))) + (0.5 - rand) / 10; ...
-          yNormGrid(round(x1(2)),round(x1(1))) + (0.5 - rand) / 10];
+    n1 = [xNormGrid(round(x1(2)),round(x1(1))) + 20*(rand - 0.5); ...
+          yNormGrid(round(x1(2)),round(x1(1))) + 20*(rand - 0.5)];
     v = -n1 / norm(n1); % go in normal opposite direction
     if ~useNormalDirection
-        v = predShape.com' - x1;
+        v = predShape.com' + 4*[rand - 0.5; rand - 0.5] - x1;
         v = v / norm(v);
     end
     

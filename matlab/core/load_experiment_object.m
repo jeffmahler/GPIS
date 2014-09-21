@@ -20,6 +20,9 @@ constructionResults.predGrid.com = ...
 
 constructionResults.newSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
-        shapeSamples, scale, 1.0);
+        shapeSamples, scale, 1.0, false, false);
+    
+figure;
+imshow(constructionResults.newSurfaceImage);
 end
 

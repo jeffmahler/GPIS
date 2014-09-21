@@ -7,7 +7,7 @@ eps = 1e-5;
 
 %Get radius from center of mass to contacts 
 for i=1:num_contacts
-    r(:,i) = p(:,i) - center_of_mass; 
+    r(:,i) = (p(:,i) - center_of_mass); 
 end
 
 

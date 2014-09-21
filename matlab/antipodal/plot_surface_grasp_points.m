@@ -23,8 +23,8 @@ if m >  1
     figure(11);
     imshow(info.cfg.surfaceImage);
     hold on;
-    plot(2*xs1(1,:),2*xs1(2,:),'rx-');
-    plot(2*xs2(1,:),2*xs2(2,:),'gx-');
+    plot(scale*xs1(1,:),scale*xs1(2,:),'rx-', 'LineWidth', 3, 'MarkerSize', 10);
+    plot(scale*xs2(1,:),scale*xs2(2,:),'rx-', 'LineWidth', 3, 'MarkerSize', 10);
     hold off;
     pause(.01);
 end

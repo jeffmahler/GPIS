@@ -38,7 +38,7 @@ diff = x2 - x1;
 grad1 = diff;
 grad2 = -diff;
 
-plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length, shapeParams.com);
+plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length, shapeParams.com, plateWidth);
 
 end
 

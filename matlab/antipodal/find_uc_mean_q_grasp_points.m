@@ -1,21 +1,27 @@
 function [x_grasp, opt_val, x_all_iters, success] = ...
     find_uc_mean_q_grasp_points(x_init, gpModel, ...
     cfg, gridDim, com, shapeParams, ...
-    coneAngle, badContactThresh, plateWidth, gamma, forceAntipodal)
+    coneAngle, badContactThresh, plateWidth, ...
+    gripWidth, graspSigma, ...
+    useUncertainty, forceAntipodal)
 %FIND_ANTIPODAL_GRASP_POINTS Finds an antipodal set of grasp points
 
 use_com = true;
 if nargin < 5
     use_com = false;
 end
-if nargin < 10
-    gamma = 1;
+if nargin < 12
+    useUncertainty = true;
 end
-if nargin < 11
+if nargin < 13
     forceAntipodal = true;
 end
 
-nu = cfg.beta;
+nu = cfg.nu;
+if ~useUncertainty
+   nu = 0; 
+end
+
 % get dim
 d = size(x_init,1) / 2;
 
@@ -27,7 +33,8 @@ b_ineq = [zeros(2*d,1); gridDim*ones(2*d,1)];
 Q = zeros(2*d, 2*d);
 q = zeros(1, 2*d);
 
-f = @(x) (uc_mean_q_penalty(x, gpModel, nu, coneAngle, shapeParams, badContactThresh, plateWidth));
+f = @(x) (uc_mean_q_penalty(x, gpModel, nu, coneAngle, shapeParams, ...
+    badContactThresh, plateWidth, gripWidth, graspSigma));
 
 if forceAntipodal
     if use_com

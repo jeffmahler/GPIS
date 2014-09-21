@@ -28,28 +28,28 @@ experimentConfig.plateScale = 0.05;
 experimentConfig.objScale = 0.95;
 experimentConfig.qScale = 100;
 
-experimentConfig.min_mcir = 1.1;
+experimentConfig.min_mcir = 1.6;
 experimentConfig.max_mcir = 1.6;
 experimentConfig.inc_mcir = 0.5;
 
 experimentConfig.min_ipc = 0.5;
-experimentConfig.max_ipc = 1.0;
+experimentConfig.max_ipc = 0.5;
 experimentConfig.inc_ipc = 0.5;
 
-experimentConfig.min_itbs = 1;
+experimentConfig.min_itbs = 11;
 experimentConfig.max_itbs = 11;
 experimentConfig.inc_itbs = 5;
 
 experimentConfig.min_tsr = 0.4;
-experimentConfig.max_tsr = 0.8;
+experimentConfig.max_tsr = 0.4;
 experimentConfig.inc_tsr = 0.2;
 
 experimentConfig.min_ter = 1.25;
-experimentConfig.max_ter = 2.25;
+experimentConfig.max_ter = 1.25;
 experimentConfig.inc_ter = 0.5;
 
-experimentConfig.min_nu = 0.5;
-experimentConfig.max_nu = 2.0;
+experimentConfig.min_nu = 0.25;
+experimentConfig.max_nu = 4.0;
 experimentConfig.scale_nu = 2.0;
 
 %% optimization parameters

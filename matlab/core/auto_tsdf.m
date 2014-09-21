@@ -124,6 +124,10 @@ end
 
 % create shape and display
 shapeIm = uint8(step(S, I, pts));
+nomIm = imresize(shapeIm, 8.0);
+G = fspecial('gaussian', [20,20], 8.0);
+nomIm = imfilter(nomIm, G);
+nomIm = imsharpen(nomIm, 'Amount', 10);
 imshow(shapeIm);
 
 % dilate / erode to get borders
@@ -156,6 +160,8 @@ tsdf(surfaceMaskOut) = 0.5;
 tsdf(insideMask) = -1;
 tsdf(outsideMask) = 1;
 
+measuredTsdf = tsdf;
+
 % create noise with user-specified parameters
 noise = ones(dim, dim);
 for i = 1:dim
@@ -166,8 +172,14 @@ for i = 1:dim
         j_high = min(dim,j+varParams.edgeWin);
         tsdfWin = tsdf(i_low:i_high, j_low:j_high);
 
-        % add in occlusions
-        if tsdf(i,j) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high && ...
+        % add in transparency, occlusions
+        if ((i > varParams.transp_y_thresh1_low && i <= varParams.transp_y_thresh1_high && ...
+                j > varParams.transp_x_thresh1_low && j <= varParams.transp_x_thresh1_high) )
+            % occluded regions
+            measuredTsdf(i,j) = 1.0; % set outside shape
+            noise(i,j) = varParams.transpScale;
+        
+        elseif tsdf(i,j) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high && ...
                 j > varParams.x_thresh1_low && j <= varParams.x_thresh1_high) || ...
                 (i > varParams.y_thresh2_low && i <= varParams.y_thresh2_high && ... 
                 j > varParams.x_thresh2_low && j <= varParams.x_thresh2_high) || ...
@@ -175,6 +187,13 @@ for i = 1:dim
                 j > varParams.x_thresh3_low && j <= varParams.x_thresh3_high))
             
             noise(i,j) = varParams.occlusionScale;
+        elseif ((i > varParams.occ_y_thresh1_low && i <= varParams.occ_y_thresh1_high && ...
+                j > varParams.occ_x_thresh1_low && j <= varParams.occ_x_thresh1_high) || ... 
+                (i > varParams.occ_y_thresh2_low && i <= varParams.occ_y_thresh2_high && ...
+                j > varParams.occ_x_thresh2_low && j <= varParams.occ_x_thresh2_high) )
+            % occluded regions
+            noise(i,j) = varParams.occlusionScale;
+        
         elseif tsdf(i,j) < -0.5 % only use a few interior points (since realistically we wouldn't measure them)
             if rand() > (1-varParams.interiorRate)
                noise(i,j) = varParams.noiseScale;
@@ -219,7 +238,7 @@ for i = 1:dim
 end
 
 % get gradients and points
-[Gx, Gy] = imgradientxy(tsdf, 'CentralDifference');
+[Gx, Gy] = imgradientxy(measuredTsdf, 'CentralDifference');
 [X, Y] = meshgrid(1:dim, 1:dim);
 [Xall, Yall] = meshgrid(1:dim, 1:dim);
 fullTsdf = tsdf(:);
@@ -229,7 +248,7 @@ fullNormals = [Gx(:), Gy(:)];
 validIndices = find(noise < varParams.occlusionScale);
 X = X(validIndices);
 Y = Y(validIndices);
-tsdf = tsdf(validIndices);
+measuredTsdf = measuredTsdf(validIndices);
 Gx = Gx(validIndices);
 Gy = Gy(validIndices);
 noise = noise(validIndices);
@@ -246,13 +265,14 @@ noise = noise(validIndices);
 shapeParams = struct();
 shapeParams.gridDim = dim;
 shapeParams.vertices = pts;
-shapeParams.tsdf = tsdf(:);
+shapeParams.tsdf = measuredTsdf(:);
 shapeParams.noise = noise(:);
 shapeParams.normals = [Gx(:), Gy(:)];
 shapeParams.points = [X(:), Y(:)];
 shapeParams.all_points = [Xall(:), Yall(:)];
 shapeParams.fullTsdf = fullTsdf;
 shapeParams.fullNormals = fullNormals;
+shapeParams.nominalImage = nomIm;
 
 if ~useCom
     shapeParams.com = mean(shapeParams.points(shapeParams.tsdf < 0,:));

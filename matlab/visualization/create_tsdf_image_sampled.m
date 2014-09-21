@@ -13,14 +13,15 @@ end
 
 % Alpha blend all samples
 numSamples = size(shapeSamples,2);
-dim = scale*shapeParams.gridDim;
+dim = 2 * shapeParams.gridDim;
+hd_dim = scale / 2 * dim;
 shapeSurfaceImage = zeros(dim, dim);
 alpha = contrastRatio / double(numSamples);
 
 for i = 1:numSamples
     tsdf = shapeSamples{i}.tsdf;
     tsdfGrid = reshape(tsdf, shapeParams.gridDim, shapeParams.gridDim);
-    tsdfBig = imresize(tsdfGrid, scale);
+    tsdfBig = imresize(tsdfGrid, 2);
     
     
     shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
@@ -28,8 +29,9 @@ for i = 1:numSamples
     tsdfSurface(shapeSurfaceIndices) = 0;
     
     if vis
-        figure(1);
-        imshow(tsdfSurface);
+        figure;
+        H = high_res_surface(tsdfSurface, scale / 2);
+        imshow(H);
         pause(0.5);
     end
     
@@ -74,6 +76,7 @@ siEqualizedFilt = imfilter(siEqualized, G, 'same');
 siEqFlat = siEqualizedFilt.^beta;
 
 shapeSurfaceImage = blend * siContrastEnhanced + (1 - blend) * siEqFlat;
+shapeSurfaceImage = high_res_gpis(shapeSurfaceImage, scale / 2);
 % figure;
 % imshow(shapeSurfaceImage);
 
@@ -82,7 +85,7 @@ shapeSurfaceImage = blend * siContrastEnhanced + (1 - blend) * siEqFlat;
 %     (max(max(sha (shpeSurfaceImage)) - min(min(shapeSurfaceImage)));
 
 if black
-    shapeSurfaceImage = max(max(shapeSurfaceImage))*ones(dim, dim) - shapeSurfaceImage;
+    shapeSurfaceImage = max(max(shapeSurfaceImage))*ones(hd_dim, hd_dim) - shapeSurfaceImage;
 end
 
 if false

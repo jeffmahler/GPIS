@@ -12,7 +12,7 @@ testImageDarkened = max(0, testImage - ...
 tsdfAbsImage = testImageDarkened;
 
 colorImage = 255*ones(shapeParams.gridDim, shapeParams.gridDim, 'uint8');
-tsdfImage = imresize(testImageDarkened, 0.5);
+tsdfImage = imresize(testImageDarkened, 1.0 / scale);
 allVarsGrid = reshape(shapeParams.noise, shapeParams.gridDim, shapeParams.gridDim);
 
 % take percentiles for coloring to prevent outliers from messing up vis 

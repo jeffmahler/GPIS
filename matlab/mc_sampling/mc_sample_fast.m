@@ -28,6 +28,7 @@ if nargin < 12
 end
 
 success = true;
+debug = false;
 mn_cp = zeros(2,numContacts); 
 sum_contact = mn_cp; 
 sum_sq = sum_contact; 
@@ -88,6 +89,15 @@ while k <= num_sample
     sum_sq = sum_sq + contactPts.*contactPts; 
     v_cp = (sum_sq-(sum_contact.*sum_contact)/k)/k;
     
+    if debug
+        figure(97);
+        imshow(tsdfGridBig);
+        hold on;
+        scatter(scale*contactPts(1,:)', scale*contactPts(2,:)', 50.0, 'g+', 'LineWidth', 2);
+        normPts = contactPts + 3*norms;
+        scatter(scale*normPts(1,:)', scale*normPts(2,:)', 50.0, 'b+', 'LineWidth', 2);
+    end  
+    
     norms_degenerate = false;
     for i = 1:numContacts
         for j = i+1:numContacts
@@ -115,7 +125,7 @@ while k <= num_sample
             forces_failed = true;
             break;
         end
-        f = f/norm(f,1)*(1/numContacts);
+        f = f/norm(f);
         
         % get extrema of friction cone, negative to point into object
         opp_len = tan(coneAngle) * norm(f);
@@ -123,10 +133,18 @@ while k <= num_sample
         opp = opp_len * opp_dir / norm(opp_dir);
         f_r = -(f + opp);
         f_l = -(f - opp);
-
+        
+        if debug
+            figure(97);
+            conePtsR = contactPts(:,i) + 3*f_r;
+            scatter(scale*conePtsR(1), scale*conePtsR(2), 50.0, 'r+', 'LineWidth', 2);
+            conePtsL = contactPts(:,i) + 3*f_l;
+            scatter(scale*conePtsL(1), scale*conePtsL(2), 50.0, 'r+', 'LineWidth', 2);
+        end
+        
         % normalize (can only provide as much force as the normal force)
-        f_r =  f_r * norm(f) / norm(f_r);
-        f_l =  f_l * norm(f) / norm(f_l);
+%         f_r =  f_r * norm(f) / norm(f_r);
+%         f_l =  f_l * norm(f) / norm(f_l);
 
         forces(:,index) = [f_r; 0]; 
         index = index+1;
@@ -181,11 +199,11 @@ end
 if showHist
     figure(99);
     [hst,centers] = hist(qScale*q_vals);
-    hist(qScale*q_vals, qScale*(-0.2:0.005:0.2));
+    hist(qScale*q_vals, qScale*(-0.3:0.005:0.3));
     %figure;
     %plot(centers,hst)
     title('Histogram of Grasp Quality', 'FontSize', 10); 
-    xlim(qScale*[-0.2, 0.2]);
+    xlim(qScale*[-0.3, 0.3]);
     xlabel('Grasp Quality', 'FontSize', 10); 
     ylabel('Count', 'FontSize', 10);
 end

@@ -1,6 +1,6 @@
 function [experimentResults, gpModel, shapeParams, shapeSamples] = ...
-    run_antipodal_experiment(dim, filename, dataDir, outputDir, newShape, ...
-                             experimentConfig, varParams, trainingParams, ...
+    run_antipodal_experiment(dim, filename, gripScale, dataDir, outputDir, meanCompDir, ...
+                             newShape, experimentConfig, varParams, trainingParams, ...
                              optimizationParams, createGpis)
 %RUN_ANTIPODAL_EXPERIMENT runs experiments for antipodal grasping with GPIS
 
@@ -24,88 +24,101 @@ initialMeanQ = zeros(experimentConfig.graspIters, 1);
 initialVarQ = zeros(experimentConfig.graspIters, 1);
 initialSuccesses = zeros(experimentConfig.graspIters, 1);
 initialPfc = zeros(experimentConfig.graspIters, 1);
+initialNomQ = zeros(experimentConfig.graspIters, 1);
+initialNomP = zeros(experimentConfig.graspIters, 1);
 
-ucGrasps = zeros(experimentConfig.graspIters, 4);
-ucOpt = zeros(experimentConfig.graspIters, 1);
-ucMeanQ = zeros(experimentConfig.graspIters, 1);
-ucVarQ = zeros(experimentConfig.graspIters, 1);
-ucTimes = zeros(experimentConfig.graspIters, 1);
-ucSatisfy = zeros(experimentConfig.graspIters, 1);
-ucSuccesses = zeros(experimentConfig.graspIters, 1);
-ucPfc = zeros(experimentConfig.graspIters, 1);
+detFcOptGrasps = zeros(experimentConfig.graspIters, 4);
+detFcOptVals = zeros(experimentConfig.graspIters, 1);
+detFcOptMeanQ = zeros(experimentConfig.graspIters, 1);
+detFcOptVarQ = zeros(experimentConfig.graspIters, 1);
+detFcOptTimes = zeros(experimentConfig.graspIters, 1);
+detFcOptSatisfy= zeros(experimentConfig.graspIters, 1);
+detFcOptSuccesses = zeros(experimentConfig.graspIters, 1);
+detFcOptPfc = zeros(experimentConfig.graspIters, 1);
+detFcOptNomQ = zeros(experimentConfig.graspIters, 1);
+detFcOptNomP = zeros(experimentConfig.graspIters, 1);
 
-antipodalGrasps = zeros(experimentConfig.graspIters, 4);
-antipodalOpt = zeros(experimentConfig.graspIters, 1);
-antipodalMeanQ = zeros(experimentConfig.graspIters, 1);
-antipodalVarQ = zeros(experimentConfig.graspIters, 1);
-antipodalTimes = zeros(experimentConfig.graspIters, 1);
-antipodalSatisfy= zeros(experimentConfig.graspIters, 1);
-antipodalSuccesses = zeros(experimentConfig.graspIters, 1);
-antipodalPfc = zeros(experimentConfig.graspIters, 1);
+ucFcOptGrasps = zeros(experimentConfig.graspIters, 4);
+ucFcOptVals = zeros(experimentConfig.graspIters, 1);
+ucFcOptMeanQ = zeros(experimentConfig.graspIters, 1);
+ucFcOptVarQ = zeros(experimentConfig.graspIters, 1);
+ucFcOptTimes = zeros(experimentConfig.graspIters, 1);
+ucFcOptSatisfy= zeros(experimentConfig.graspIters, 1);
+ucFcOptSuccesses = zeros(experimentConfig.graspIters, 1);
+ucFcOptPfc = zeros(experimentConfig.graspIters, 1);
+ucFcOptNomQ = zeros(experimentConfig.graspIters, 1);
+ucFcOptNomP = zeros(experimentConfig.graspIters, 1);
 
-detMeanGrasps = zeros(experimentConfig.graspIters, 4);
-detMeanOpt = zeros(experimentConfig.graspIters, 1);
-detMeanMeanQ = zeros(experimentConfig.graspIters, 1);
-detMeanVarQ = zeros(experimentConfig.graspIters, 1);
-detMeanTimes = zeros(experimentConfig.graspIters, 1);
-detMeanSatisfy= zeros(experimentConfig.graspIters, 1);
-detMeanSuccesses = zeros(experimentConfig.graspIters, 1);
-detMeanPfc = zeros(experimentConfig.graspIters, 1);
+% cf = constraint free
+cfDetFcOptGrasps = zeros(experimentConfig.graspIters, 4);
+cfDetFcOptVals = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptMeanQ = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptVarQ = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptTimes = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptSatisfy= zeros(experimentConfig.graspIters, 1);
+cfDetFcOptSuccesses = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptPfc = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptNomQ = zeros(experimentConfig.graspIters, 1);
+cfDetFcOptNomP = zeros(experimentConfig.graspIters, 1);
 
-ucMeanGrasps = zeros(experimentConfig.graspIters, 4);
-ucMeanOpt = zeros(experimentConfig.graspIters, 1);
-ucMeanMeanQ = zeros(experimentConfig.graspIters, 1);
-ucMeanVarQ = zeros(experimentConfig.graspIters, 1);
-ucMeanTimes = zeros(experimentConfig.graspIters, 1);
-ucMeanSatisfy= zeros(experimentConfig.graspIters, 1);
-ucMeanSuccesses = zeros(experimentConfig.graspIters, 1);
-ucMeanPfc = zeros(experimentConfig.graspIters, 1);
-
-detMeanUcGrasps = zeros(experimentConfig.graspIters, 4);
-detMeanUcOpt = zeros(experimentConfig.graspIters, 1);
-detMeanUcMeanQ = zeros(experimentConfig.graspIters, 1);
-detMeanUcVarQ = zeros(experimentConfig.graspIters, 1);
-detMeanUcTimes = zeros(experimentConfig.graspIters, 1);
-detMeanUcSatisfy= zeros(experimentConfig.graspIters, 1);
-detMeanUcSuccesses = zeros(experimentConfig.graspIters, 1);
-detMeanUcPfc = zeros(experimentConfig.graspIters, 1);
-
-ucMeanUcGrasps = zeros(experimentConfig.graspIters, 4);
-ucMeanUcOpt = zeros(experimentConfig.graspIters, 1);
-ucMeanUcMeanQ = zeros(experimentConfig.graspIters, 1);
-ucMeanUcVarQ = zeros(experimentConfig.graspIters, 1);
-ucMeanUcTimes = zeros(experimentConfig.graspIters, 1);
-ucMeanUcSatisfy= zeros(experimentConfig.graspIters, 1);
-ucMeanUcSuccesses = zeros(experimentConfig.graspIters, 1);
-ucMeanUcPfc = zeros(experimentConfig.graspIters, 1);
-
-randomFcGrasps = zeros(experimentConfig.graspIters, 4);
-randomFcMeanQ = zeros(experimentConfig.graspIters, 1);
-randomFcVarQ = zeros(experimentConfig.graspIters, 1);
-randomFcSuccesses = zeros(experimentConfig.graspIters, 1);
-randomFcEstQ = zeros(experimentConfig.graspIters, 1);
-randomFcNumAttempts = zeros(experimentConfig.graspIters, 1);
-randomFcPfc = zeros(experimentConfig.graspIters, 1);
-
-randomSampleFcGrasps = zeros(experimentConfig.graspIters, 4);
-randomSampleFcMeanQ = zeros(experimentConfig.graspIters, 1);
-randomSampleFcVarQ = zeros(experimentConfig.graspIters, 1);
-randomSampleFcSuccesses = zeros(experimentConfig.graspIters, 1);
-randomSampleFcNumAttempts = zeros(experimentConfig.graspIters, 1);
-randomSampleFcPfc = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptGrasps = zeros(experimentConfig.graspIters, 4);
+cfUcFcOptVals = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptMeanQ = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptVarQ = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptTimes = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptSatisfy= zeros(experimentConfig.graspIters, 1);
+cfUcFcOptSuccesses = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptPfc = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptNomQ = zeros(experimentConfig.graspIters, 1);
+cfUcFcOptNomP = zeros(experimentConfig.graspIters, 1);
 
 numContacts = 2;
 coneAngle = atan(experimentConfig.frictionCoef);
 length = experimentConfig.arrowLength;
 surfaceImage = constructionResults.newSurfaceImage;
-scale = optimizationParams.scale;  
+scale = optimizationParams.scale;
+win = experimentConfig.smoothWin;
+sig = experimentConfig.smoothSig;
 predGrid = constructionResults.predGrid;
 useNormsForInit = false;
 numSamples = size(shapeSamples, 2);
 com = shapeParams.com;
 
+% create struct for nominal shape
+nominalShape = struct();
+nominalShape.tsdf = shapeParams.fullTsdf;
+nominalShape.normals = shapeParams.fullNormals;
+nominalShape.points = shapeParams.all_points;
+nominalShape.noise = zeros(size(nominalShape.tsdf,1), 1);
+nominalShape.gridDim = shapeParams.gridDim;
+nominalShape.surfaceThresh = shapeParams.surfaceThresh;
+nominalShape.com = shapeParams.com;
+
+tsdfGrid = reshape(nominalShape.tsdf, [nominalShape.gridDim, nominalShape.gridDim,]);
+nominalShape.shapeImage = high_res_tsdf(tsdfGrid, scale, win, sig);
+
+% figure;
+% imshow(nominalShape.shapeImage);
+
+graspSigma = experimentConfig.graspSigma;
+gripWidth = gripScale * experimentConfig.objScale * dim;
+plateWidth = gripWidth * experimentConfig.plateScale;
+plateWidth = uint16(round(plateWidth));
+optimizationParams.grip_width = gripWidth;
+
+nomShapeSamples = cell(1, numSamples);
+for k = 1:numSamples
+    nomShapeSamples{k} = nominalShape;
+end
+
 if experimentConfig.visOptimization
     optimizationParams.surfaceImage = surfaceImage;
+end
+
+if experimentConfig.graspIters < 1
+    experimentResults = struct();
+    experimentResults.constructionResults = constructionResults;
+    return;
 end
 
 i = 1;
@@ -114,16 +127,16 @@ while i <= experimentConfig.graspIters
 
     disp('Evaluating initial grasp without uncertainty');
     initGrasp = get_initial_antipodal_grasp(predGrid, useNormsForInit);
-    loa = create_ap_loa(initGrasp, experimentConfig.gripWidth);
-    graspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);
     
     % evaluate success of initial grasp for reference
+    loa = create_ap_loa(initGrasp, experimentConfig.gripWidth);
+    graspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
                                     coneAngle, graspSamples, numContacts, ...
                                     shapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
     initialGrasps(i,:) = initGrasp';
     initialMeanQ(i) = mn_q;
@@ -131,99 +144,63 @@ while i <= experimentConfig.graspIters
     initialSuccesses(i) = success;
     initialPfc(i) = p_fc;
 
-    % evaluate unconstrained grasp (if specified)
-    % this means it will solve an antipodal feasibility optimization
-    % problem without a measure of uncertainty
-    if experimentConfig.evalUcGrasps
-        disp('Evaluating antipodal grasp without uncertainty');
-        % optimization times
-        startTime = tic;
-        useUncertainty = 0;
-        [optGrasp, optVal, allIters, constSatisfaction] = ...
-            find_antipodal_grasp_points(initGrasp, gpModel, ...
-                optimizationParams, shapeParams.gridDim, shapeParams.com, ...
-                useUncertainty);
-        optimizationTime = toc(startTime);
-
-        ucTimes(i) = optimizationTime;
-        ucSatisfy(i) = constSatisfaction;
-        ucOpt(i) = optVal;
-
-        % evaluate quality with MC sampling
-        [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSamples, numContacts, ...
-                                    shapeSamples, shapeParams.gridDim, ...
-                                    shapeParams.surfaceThresh, ...
-                                    experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
-                                    experimentConfig.visSampling);
-        ucGrasps(i,:) = optGrasp';
-        ucMeanQ(i) = mn_q;
-        ucVarQ(i) = v_q;
-        ucSuccesses(i) = success;
-        ucPfc(i) = p_fc;
-    end
-
-    % evaluate antipodal optimization w/ uncertainty
-    % optimize the antipodal grasps
-    disp('Evaluating antipodal optimized grasp w/ uncertainty');
-    startTime = tic;
-    [optGrasp, optVal,  allIters, constSatisfaction] = ...
-        find_antipodal_grasp_points(initGrasp, gpModel, ...
-            optimizationParams, shapeParams.gridDim, shapeParams.com);
-    optimizationTime = toc(startTime);
-
-    antipodalTimes(i) = optimizationTime;
-    antipodalSatisfy(i) = constSatisfaction;
-    antipodalOpt(i) = optVal;
-
-    % evaluate quality with MC sampling
+    % evaluate quality on nominal shape
+    nomGraspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSamples, numContacts, ...
-                                    shapeSamples, shapeParams.gridDim, ...
+                                    coneAngle, nomGraspSamples, numContacts, ...
+                                    nomShapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
-    if ~success && experimentConfig.rejectUnsuccessfulGrasps
-        disp('Bad contacts on antipodal grasps. Retrying...');
-        continue;
-    end
 
-    antipodalGrasps(i,:) = optGrasp';
-    antipodalMeanQ(i) = mn_q;
-    antipodalVarQ(i) = v_q;
-    antipodalSuccesses(i) = success;
-    antipodalPfc(i) = p_fc;
+    initialNomQ(i) = mn_q';
+    initialNomP(i) = p_fc;
     
     % evaluate antipodal optimization of just the FC metric
     disp('Evaluating FC optimized grasp');
-    useUncertainty = 0;
+    useUncertainty = false;
     startTime = tic;
     [optGrasp, optVal, allIters, constSatisfaction] = ...
         find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
             optimizationParams, shapeParams.gridDim, shapeParams.com, ...
-            predGrid, coneAngle, experimentConfig.numBadContacts, useUncertainty);
+            predGrid, coneAngle, experimentConfig.numBadContacts, ...
+            plateWidth, gripWidth, graspSigma, useUncertainty);
     optimizationTime = toc(startTime);
 
-    detMeanTimes(i) = optimizationTime;
-    detMeanSatisfy(i) = constSatisfaction;
-    detMeanOpt(i) = optVal;
+    detFcOptTimes(i) = optimizationTime;
+    detFcOptSatisfy(i) = constSatisfaction;
+    detFcOptVals(i) = optVal;
 
     % evaluate quality with MC sampling
+    bestLoa = create_ap_loa(optGrasp, experimentConfig.gripWidth);
+    bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSamples, numContacts, ...
+                                    coneAngle, bestGraspSamples, numContacts, ...
                                     shapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
 
-    detMeanGrasps(i,:) = optGrasp';
-    detMeanMeanQ(i) = mn_q;
-    detMeanVarQ(i) = v_q;
-    detMeanSuccesses(i) = success;
-    detMeanPfc(i) = p_fc;
+    detFcOptGrasps(i,:) = optGrasp';
+    detFcOptMeanQ(i) = mn_q;
+    detFcOptVarQ(i) = v_q;
+    detFcOptSuccesses(i) = success;
+    detFcOptPfc(i) = p_fc;
+    
+    % evaluate quality on nominal shape
+    nomGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
+    [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, nomGraspSamples, numContacts, ...
+                                    nomShapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, ...
+                                    plateWidth, ...
+                                    experimentConfig.visSampling);
+
+    detFcOptNomQ(i) = mn_q';
+    detFcOptNomP(i) = p_fc;
     
     % evaluate antipodal optimization w/ uncertainty and FC metric
     disp('Evaluating FC optimized grasp w/ uncertainty');
@@ -231,296 +208,348 @@ while i <= experimentConfig.graspIters
     [optGrasp, optVal, allIters, constSatisfaction] = ...
         find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
             optimizationParams, shapeParams.gridDim, shapeParams.com, ...
-            predGrid, coneAngle, experimentConfig.numBadContacts);
-    optimizationTime = toc(startTime);
-
-    ucMeanTimes(i) = optimizationTime;
-    ucMeanSatisfy(i) = constSatisfaction;
-    ucMeanOpt(i) = optVal;
+            predGrid, coneAngle, experimentConfig.numBadContacts, ...
+            plateWidth, gripWidth, graspSigma);
+    ucFcOptTimes(i) = optimizationTime;
+    ucFcOptSatisfy(i) = constSatisfaction;
+    ucFcOptVals(i) = optVal;
 
     % evaluate quality with MC sampling
-    bestLoa = create_ap_loa(initGrasp, experimentConfig.gripWidth);
+    bestLoa = create_ap_loa(optGrasp, experimentConfig.gripWidth);
     bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
                                     coneAngle, bestGraspSamples, numContacts, ...
                                     shapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
 
-    ucMeanGrasps(i,:) = optGrasp';
-    ucMeanMeanQ(i) = mn_q;
-    ucMeanVarQ(i) = v_q;
-    ucMeanSuccesses(i) = success;
-    ucMeanPfc(i) = p_fc;
+    ucFcOptGrasps(i,:) = optGrasp';
+    ucFcOptMeanQ(i) = mn_q;
+    ucFcOptVarQ(i) = v_q;
+    ucFcOptSuccesses(i) = success;
+    ucFcOptPfc(i) = p_fc;
+    
+    % evaluate quality on nominal shape
+    nomGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
+    [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, nomGraspSamples, numContacts, ...
+                                    nomShapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, ...
+                                    plateWidth, ...
+                                    experimentConfig.visSampling);
+
+    ucFcOptNomQ(i) = mn_q';
+    ucFcOptNomP(i) = p_fc;
     
     % evaluate antipodal optimization of just the FC metric
     disp('Evaluating FC optimized grasp without antipodal constraint');
-    useUncertainty = 0;
+    useUncertainty = false;
     forceAp = false;
     startTime = tic;
     [optGrasp, optVal, allIters, constSatisfaction] = ...
         find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
             optimizationParams, shapeParams.gridDim, shapeParams.com, ...
-            predGrid, coneAngle, experimentConfig.numBadContacts, useUncertainty, forceAp);
+            predGrid, coneAngle, experimentConfig.numBadContacts, ...
+            plateWidth, gripWidth, graspSigma, ...
+            useUncertainty, forceAp);
     optimizationTime = toc(startTime);
 
-    detMeanUcTimes(i) = optimizationTime;
-    detMeanUcSatisfy(i) = constSatisfaction;
-    detMeanUcOpt(i) = optVal;
+    cfDetFcOptTimes(i) = optimizationTime;
+    cfDetFcOptSatisfy(i) = constSatisfaction;
+    cfDetFcOptVals(i) = optVal;
 
     % evaluate quality with MC sampling
+    bestLoa = create_ap_loa(optGrasp, experimentConfig.gripWidth);
+    bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSamples, numContacts, ...
+                                    coneAngle, bestGraspSamples, numContacts, ...
                                     shapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
 
-    detMeanUcGrasps(i,:) = optGrasp';
-    detMeanUcMeanQ(i) = mn_q;
-    detMeanUcVarQ(i) = v_q;
-    detMeanUcSuccesses(i) = success;
-    detMeanUcPfc(i) = p_fc;
+    cfDetFcOptGrasps(i,:) = optGrasp';
+    cfDetFcOptMeanQ(i) = mn_q;
+    cfDetFcOptVarQ(i) = v_q;
+    cfDetFcOptSuccesses(i) = success;
+    cfDetFcOptPfc(i) = p_fc;
 
-    % evaluate antipodal optimization of just the FC metric
-    disp('Evaluating FC optimized grasp with uncertainty without antipodal constraint');
-    useUncertainty = 1;
-    forceAp = false;
-    startTime = tic;
-    [optGrasp, optVal, allIters, constSatisfaction] = ...
-        find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
-            optimizationParams, shapeParams.gridDim, shapeParams.com, ...
-            predGrid, coneAngle, experimentConfig.numBadContacts, useUncertainty, forceAp);
-    optimizationTime = toc(startTime);
-
-    ucMeanUcTimes(i) = optimizationTime;
-    ucMeanUcSatisfy(i) = constSatisfaction;
-    ucMeanUcOpt(i) = optVal;
-
-    % evaluate quality with MC sampling
+    % evaluate quality on nominal shape
+    nomGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSamples, numContacts, ...
-                                    shapeSamples, shapeParams.gridDim, ...
+                                    coneAngle, nomGraspSamples, numContacts, ...
+                                    nomShapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
 
-    ucMeanUcGrasps(i,:) = optGrasp';
-    ucMeanUcMeanQ(i) = mn_q;
-    ucMeanUcVarQ(i) = v_q;
-    ucMeanUcSuccesses(i) = success;
-    ucMeanUcPfc(i) = p_fc;
+    cfDetFcOptNomQ(i) = mn_q';
+    cfDetFcOptNomP(i) = p_fc;
     
-    % evaluate the quality of randomly selected grasps on the mean shape 
-    disp('Evaluating random grasps on FC for mean shape');
-    attemptedGrasps = [];
-    fcQ = [];
-    k = 0;
+    % evaluate antipodal optimization of the FC metric with uncertainty
+    % penalty
+    disp('Evaluating FC optimized grasp with uncertainty without antipodal constraint');
+    useUncertainty = true;
+    forceAp = false;
     startTime = tic;
-    duration = 0;
+    [optGrasp, optVal, allIters, constSatisfaction] = ...
+        find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
+            optimizationParams, shapeParams.gridDim, shapeParams.com, ...
+            predGrid, coneAngle, experimentConfig.numBadContacts, ...
+            plateWidth, gripWidth, graspSigma, ...
+            useUncertainty, forceAp);
+    optimizationTime = toc(startTime);
 
-    while duration < ucMeanTimes(i) || k < 1
-        % get random grasp
-        randGrasp = get_initial_antipodal_grasp(predGrid, useNormsForInit);
-        randLoa = create_ap_loa(randGrasp, experimentConfig.gripWidth);
-            
-        % evaluate FC on mean shape
-        meanSample = {predGrid};
-        graspSample = {randLoa};
-        [mn_q, v_q, success, p_fc] = ...
-            mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSample, numContacts, ...
-                                    meanSample, shapeParams.gridDim, ...
-                                    shapeParams.surfaceThresh, ...
-                                    experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
-                                    experimentConfig.visSampling);
+    cfUcFcOptTimes(i) = optimizationTime;
+    cfUcFcOptSatisfy(i) = constSatisfaction;
+    cfUcFcOptVals(i) = optVal;
 
-        % add quality to running count
-        if success
-            attemptedGrasps = [attemptedGrasps; randGrasp'];
-            fcQ = [fcQ; mn_q];
-            k = k+1;
-        end
-
-        duration = toc(startTime);
-    end
-
-    % choose the grasp with maximum FC quality and evaluate
-    bestGraspIndices = find(fcQ == max(fcQ));
-    randomFcGrasps(i,:) = attemptedGrasps(bestGraspIndices(1), :);
-    randomFcEstQ(i) = fcQ(bestGraspIndices(1));
-    randomFcNumAttempts(i) = k;
-
+    % evaluate quality with MC sampling
+    bestLoa = create_ap_loa(optGrasp, experimentConfig.gripWidth);
+    bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, graspSamples, numContacts, ...
+                                    coneAngle, bestGraspSamples, numContacts, ...
                                     shapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
-    randomFcMeanQ(i) = mn_q;
-    randomFcVarQ(i) = v_q;
-    randomFcSuccesses(i) = success;
-    randomFcPfc(i) = p_fc;
 
-    % evaluate the quality of randomly selected grasps on the samples
-    if experimentConfig.evalRandSampleFcGrasps
-        disp('Evaluating random grasps on sampled FC');
-        startTime = tic;
-        duration = 0;
-        attemptedGrasps = [];
-        fcQ = [];
-        fcVarQ = [];
-        fcP = [];
-        k = 0;
-
-        while duration < ucMeanTimes(i) || k < 1
-            % get random grasp
-            randGrasp = get_initial_antipodal_grasp(predGrid, useNormsForInit);
-            randLoa = create_ap_loa(randGrasp, experimentConfig.gripWidth);
-            randGraspSamples = sample_grasps(randLoa, experimentConfig.graspSigma, numSamples);
-            
-            % evaluate FC on mean shape
-            [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                    coneAngle, randGraspSamples, numContacts, ...
-                                    shapeSamples, shapeParams.gridDim, ...
+    cfUcFcOptGrasps(i,:) = optGrasp';
+    cfUcFcOptMeanQ(i) = mn_q;
+    cfUcFcOptVarQ(i) = v_q;
+    cfUcFcOptSuccesses(i) = success;
+    cfUcFcOptPfc(i) = p_fc;
+    
+    % evaluate quality on nominal shape
+    nomGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
+    [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, nomGraspSamples, numContacts, ...
+                                    nomShapeSamples, shapeParams.gridDim, ...
                                     shapeParams.surfaceThresh, ...
                                     experimentConfig.numBadContacts, ...
-                                    experimentConfig.plateWidth, ...
+                                    plateWidth, ...
                                     experimentConfig.visSampling);
 
-            % add quality to running count
-            if success
-                attemptedGrasps = [attemptedGrasps; randGrasp'];
-                fcQ = [fcQ; mn_q];
-                fcVarQ = [fcVarQ; v_q];
-                fcP = [fcP; p_fc];
-                k = k+1;
-            end
-
-            duration = toc(startTime);
-        end
-        
-        % choose the grasp with maximum FC quality and evaluate
-        bestGraspIndices = find(fcQ == max(fcQ));
-        randomSampleFcGrasps(i,:) = attemptedGrasps(bestGraspIndices(1), :);
-        randomSampleFcMeanQ(i) = fcQ(bestGraspIndices(1));
-        randomSampleFcVarQ(i) = fcVarQ(bestGraspIndices(1));
-        randomSampleFcPfc(i) = fcP(bestGraspIndices(1));
-        randomSampleFcSuccesses(i) = true; % technically they're successful if saved
-        randomSampleFcNumAttempts(i) = k;
-
-        % TODO: remove this (its for vis only)
-        loa = create_ap_loa(randomSampleFcGrasps(i,:)', experimentConfig.loaScale);
-        [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-                                        coneAngle, loa, numContacts, ...
-                                        shapeSamples, shapeParams.gridDim, ...
-                                        shapeParams.surfaceThresh, ...
-                                        experimentConfig.numBadContacts, ...
-                                        experimentConfig.visSampling);
-    end
-
-    % alternate visualization of all grasps
-    if experimentConfig.visGrasps && experimentConfig.evalRandSampleFcGrasps && ...
-            experimentConfig.evalUcGrasps && false % don't run this anymore...
-        figure(31);
-        subplot(1,5,1);
-        visualize_grasp(initGrasp, predGrid, surfaceImage, scale, length);
-        title('Initial Grasp', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', initialMeanQ(i)), 'FontSize', 15);
-        subplot(1,5,2);
-        visualize_grasp(randomFcGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('Sampled Best Grasp on Mean Shape', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', randomFcMeanQ(i)), 'FontSize', 15);
-        subplot(1,5,3);
-        visualize_grasp(randomSampleFcGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('Sampled Best Grasp on Samples', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', randomSampleFcMeanQ(i)), 'FontSize', 15);
-        subplot(1,5,4);
-        visualize_grasp(ucGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('Antipodal Feasible Grasp', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', ucMeanQ(i)), 'FontSize', 15);
-        subplot(1,5,5);
-        visualize_grasp(antipodalGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('Optimized Grasp', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', antipodalMeanQ(i)), 'FontSize', 15);
-    elseif experimentConfig.visGrasps
-        % visualize base config
-        figure(31);
-        subplot(1,4,1);
-        visualize_grasp(initGrasp, predGrid, surfaceImage, scale, length);
-        title('Initial Grasp', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', initialMeanQ(i)), 'FontSize', 15);
-        subplot(1,4,2);
-        visualize_grasp(randomFcGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('Sampled Best Grasp on Mean Shape', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', randomFcMeanQ(i)), 'FontSize', 15);
-        subplot(1,4,3);
-        visualize_grasp(antipodalGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('Antipodal Optimized Grasp', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', antipodalMeanQ(i)), 'FontSize', 15);
-        subplot(1,4,4);
-        visualize_grasp(ucMeanGrasps(i,:)', predGrid, surfaceImage, scale, length);
-        title('FC Mean Optimized Grasp', 'FontSize', 15);
-        xlabel(sprintf('Q = %f', ucMeanMeanQ(i)), 'FontSize', 15);
-    end
-
+    cfUcFcOptNomQ(i) = mn_q';
+    cfUcFcOptNomP(i) = p_fc;
+    
+    % go on to the next initialization
     i = i+1;
 end
 
+% choose the best grasp from all initializations from each optimization
+initialQIndex = find(initialMeanQ == max(initialMeanQ));
+initialPIndex = find(initialPfc == max(initialPfc));
+detFcOptIndex = find(detFcOptVals == min(detFcOptVals));
+ucFcOptIndex = find(ucFcOptVals == min(ucFcOptVals));
+cfDetFcOptIndex = find(cfDetFcOptVals == min(cfDetFcOptVals));
+cfUcFcOptIndex = find(cfUcFcOptVals == min(cfUcFcOptVals));
+
+% only take the first index for each
+initialQIndex = initialQIndex(1);
+initialPIndex = initialPIndex(1);
+detFcOptIndex = detFcOptIndex(1);
+ucFcOptIndex = ucFcOptIndex(1);
+cfDetFcOptIndex = cfDetFcOptIndex(1);
+cfUcFcOptIndex = cfUcFcOptIndex(1);
+
+
+% compute the histograms for each of the best grasps
+dispHist = true;
+loa = create_ap_loa(detFcOptGrasps(detFcOptIndex,:)', experimentConfig.gripWidth);
+graspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);    
+[exp_mn_q, exp_v_q, exp_success, exp_p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, graspSamples, numContacts, ...
+                                    shapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, plateWidth, ...
+                                    experimentConfig.visSampling, dispHist, ...
+                                    experimentConfig.qScale);
+h = figure(99);
+title('Histogram of Quality for Det AP Constrained Opt', 'FontSize', 10);
+print(h, '-depsc', sprintf('%s/%s_hist_det_ap.eps', outputDir, filename));
+
+loa = create_ap_loa(ucFcOptGrasps(ucFcOptIndex,:)', experimentConfig.gripWidth);
+graspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);    
+[exp_mn_q, exp_v_q, exp_success, exp_p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, graspSamples, numContacts, ...
+                                    shapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, plateWidth, ...
+                                    experimentConfig.visSampling, dispHist, ...
+                                    experimentConfig.qScale);
+h = figure(99);
+title('Histogram of Quality for Uc AP Constrained Opt', 'FontSize', 10);
+print(h, '-depsc', sprintf('%s/%s_hist_uc_ap.eps', outputDir, filename));
+
+loa = create_ap_loa(cfDetFcOptGrasps(cfDetFcOptIndex,:)', experimentConfig.gripWidth);
+graspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);    
+[exp_mn_q, exp_v_q, exp_success, exp_p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, graspSamples, numContacts, ...
+                                    shapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, plateWidth, ...
+                                    experimentConfig.visSampling, dispHist, ...
+                                    experimentConfig.qScale);
+h = figure(99);
+title('Histogram of Quality for Det Opt', 'FontSize', 10);
+print(h, '-depsc', sprintf('%s/%s_hist_det.eps', outputDir, filename));
+
+loa = create_ap_loa(cfUcFcOptGrasps(cfUcFcOptIndex,:)', experimentConfig.gripWidth);
+graspSamples = sample_grasps(loa, experimentConfig.graspSigma, numSamples);    
+[exp_mn_q, exp_v_q, exp_success, exp_p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, graspSamples, numContacts, ...
+                                    shapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, plateWidth, ...
+                                    experimentConfig.visSampling, dispHist, ...
+                                    experimentConfig.qScale);
+h = figure(99);
+title('Histogram of Quality for Uc Opt', 'FontSize', 10);
+print(h, '-depsc', sprintf('%s/%s_hist_uc.eps', outputDir, filename));
+
+% load the best grasps on the nominal, mean, and GPIS shapes
+nomGraspFilename = sprintf('%s/%s_best_grasp_nom.mat', meanCompDir, filename);
+meanGraspFilename = sprintf('%s/%s_best_grasp_mean.mat', meanCompDir, filename);
+ucGraspFilename = sprintf('%s/%s_best_grasp_uncertainty.mat', meanCompDir, filename);
+
+load(nomGraspFilename);  % named bestNom
+load(meanGraspFilename); % named bestMean
+load(ucGraspFilename);   % named bestSampling
+
+% compare the best grasps with one another
+h = figure(31);
+% subplot(1,5,1);
+% visualize_grasp(initGrasp, predGrid, surfaceImage, scale, length);
+% title('Initial Grasp', 'FontSize', 15);
+% xlabel(sprintf('Q = %f', initialMeanQ(i)), 'FontSize', 15);
+subplot(1,4,1);
+visualize_grasp(cfDetFcOptGrasps(cfDetFcOptIndex,:)', predGrid, surfaceImage, scale, length);
+title('Quality Only', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*cfDetFcOptNomQ(cfDetFcOptIndex), cfDetFcOptPfc(cfDetFcOptIndex)), ...
+    'FontSize', 6);  
+
+subplot(1,4,2);
+visualize_grasp(cfUcFcOptGrasps(cfUcFcOptIndex,:)', predGrid, surfaceImage, scale, length);
+title('Uncertainty Penalty Only', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*cfUcFcOptNomQ(cfUcFcOptIndex), cfUcFcOptPfc(cfUcFcOptIndex)), ...
+    'FontSize', 6);  
+
+subplot(1,4,3);
+visualize_grasp(detFcOptGrasps(detFcOptIndex,:)', predGrid, surfaceImage, scale, length);
+title('Deterministic Quality w/ AP Constraint', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*detFcOptNomQ(detFcOptIndex), detFcOptPfc(detFcOptIndex)), ...
+    'FontSize', 6);
+
+subplot(1,4,4);
+visualize_grasp(ucFcOptGrasps(ucFcOptIndex,:)', predGrid, surfaceImage, scale, length);
+title('Uncertainty Penalty w/ AP Constraint', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*ucFcOptNomQ(ucFcOptIndex), ucFcOptPfc(ucFcOptIndex)), ...
+    'FontSize', 6);  
+
+print(h, '-depsc', sprintf('%s/%s_comp_opt.eps', outputDir, filename));
+
+% compare opt grasp with best initial grasp
+h = figure(33);
+subplot(1,3,1);
+visualize_grasp(initialGrasps(initialQIndex,:)', predGrid, surfaceImage, scale, length);
+title('Best E[Q] Initial Grasp', 'FontSize', 8);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*initialNomQ(initialQIndex), initialPfc(initialQIndex)), ...
+    'FontSize', 8);  
+
+subplot(1,3,2);
+visualize_grasp(initialGrasps(initialPIndex,:)', predGrid, surfaceImage, scale, length);
+title('Best P(FC) Initial Grasp', 'FontSize', 8);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*initialNomQ(initialPIndex), initialPfc(initialPIndex)), ...
+    'FontSize', 8);    
+
+subplot(1,3,3);
+visualize_grasp(ucFcOptGrasps(ucFcOptIndex,:)', predGrid, surfaceImage, scale, length);
+title('Uncertainty Penalty w/ AP Constraint', 'FontSize', 8);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*ucFcOptNomQ(ucFcOptIndex), ucFcOptPfc(ucFcOptIndex)), ...
+    'FontSize', 8); 
+
+print(h, '-depsc', sprintf('%s/%s_comp_init.eps', outputDir, filename));
+
+% compare the det and uc optimizations with the best experimental
+h = figure(34);
+subplot(1,4,1);
+visualize_grasp(bestNom.nomQGrasp.bestGrasp', nominalShape, nominalShape.shapeImage, scale, length);
+title('Best Grasp for Nominal Shape', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f', ...
+    experimentConfig.qScale*bestNom.nomQGrasp.Q), ...
+    'FontSize', 6);
+
+subplot(1,4,2);
+visualize_grasp(bestMean.bestGrasp', nominalShape, nominalShape.shapeImage, scale, length);
+title('Best Grasp for Mean Shape', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*bestMean.nomQ, bestMean.expP), ...
+    'FontSize', 6);
+
+subplot(1,4,3);
+visualize_grasp(bestSampling.expPGrasp.bestGrasp', nominalShape, nominalShape.shapeImage, scale, length);
+title('Best Grasp for GPIS Using P(FC)', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*bestSampling.expPGrasp.nomQ, ...
+    bestSampling.expPGrasp.P), ...
+    'FontSize', 6);
+
+subplot(1,4,4);
+visualize_grasp(ucFcOptGrasps(ucFcOptIndex,:)', nominalShape, nominalShape.shapeImage, scale, length);
+title('Best Grasp Using Optimization', 'FontSize', 6);
+xlabel(sprintf('Q = %.03f\n P(FC) = %.03f', ...
+    experimentConfig.qScale*ucFcOptNomQ(ucFcOptIndex), ucFcOptPfc(ucFcOptIndex)), ...
+    'FontSize', 6); 
+
+print(h, '-depsc', sprintf('%s/%s_comp4.eps', outputDir, filename));
+
 % create results structure
 experimentResults = struct();
-
 experimentResults.constructionResults = constructionResults;
 
 experimentResults.initialGraspResults = ...
     create_grasp_results_struct(initialGrasps, initialMeanQ, initialVarQ, ...
                                 initialSuccesses, [], [], [], [], [], initialPfc);
-experimentResults.ucGraspResults = ...
-    create_grasp_results_struct(ucGrasps, ucMeanQ, ucVarQ, ...
-                                ucSuccesses, ucSatisfy, ucTimes, [], ...
-                                ucOpt, [], ucPfc);
+experimentResults.initialGraspResults.bestQIndex = initialQIndex;
+experimentResults.initialGraspResults.bestPIndex = initialPIndex;
 
-experimentResults.antipodalGraspResults = ...
-    create_grasp_results_struct(antipodalGrasps, antipodalMeanQ, antipodalVarQ, ...
-                                antipodalSuccesses, antipodalSatisfy, antipodalTimes, ...
-                                [], antipodalOpt, [], antipodalPfc);
+experimentResults.detFcOptGraspResults = ...
+    create_grasp_results_struct(detFcOptGrasps, detFcOptMeanQ, detFcOptVarQ, ...
+                                detFcOptSuccesses, detFcOptSatisfy, detFcOptTimes, ...
+                                [], detFcOptVals, [], detFcOptPfc);
+experimentResults.detFcOptGraspResults.bestIndex = detFcOptIndex;
 
+experimentResults.ucFcOptGraspResults = ...
+    create_grasp_results_struct(ucFcOptGrasps, ucFcOptMeanQ, ucFcOptVarQ, ...
+                                ucFcOptSuccesses, ucFcOptSatisfy, ucFcOptTimes, ...
+                                [], ucFcOptVals, [], ucFcOptPfc);
+experimentResults.ucFcOptGraspResults.bestIndex = ucFcOptIndex;
 
-experimentResults.detMeanGraspResults = ...
-    create_grasp_results_struct(detMeanGrasps, detMeanMeanQ, detMeanVarQ, ...
-                                detMeanSuccesses, detMeanSatisfy, detMeanTimes, ...
-                                [], detMeanOpt, [], detMeanPfc);
+experimentResults.cfDetFcOptGraspResults = ...
+    create_grasp_results_struct(cfDetFcOptGrasps, cfDetFcOptMeanQ, cfDetFcOptVarQ, ...
+                                cfDetFcOptSuccesses, cfDetFcOptSatisfy, cfDetFcOptTimes, ...
+                                [], cfDetFcOptVals, [], detFcOptPfc);
+experimentResults.cfDetFcOptGraspResults.bestIndex = cfDetFcOptIndex;
 
-experimentResults.ucMeanGraspResults = ...
-    create_grasp_results_struct(ucMeanGrasps, ucMeanMeanQ, ucMeanVarQ, ...
-                                ucMeanSuccesses, ucMeanSatisfy, ucMeanTimes, ...
-                                [], ucMeanOpt, [], ucMeanPfc);
-
-experimentResults.detMeanUcGraspResults = ...
-    create_grasp_results_struct(detMeanUcGrasps, detMeanUcMeanQ, detMeanUcVarQ, ...
-                                detMeanUcSuccesses, detMeanUcSatisfy, detMeanUcTimes, ...
-                                [], detMeanUcOpt, [], detMeanPfc);
-
-experimentResults.ucMeanUcGraspResults = ...
-    create_grasp_results_struct(ucMeanUcGrasps, ucMeanUcMeanQ, ucMeanUcVarQ, ...
-                                ucMeanUcSuccesses, ucMeanUcSatisfy, ucMeanUcTimes, ...
-                                [], ucMeanUcOpt, [], ucMeanPfc);                        
-                            
-experimentResults.randomFcGraspResults = ...
-    create_grasp_results_struct(randomFcGrasps, randomFcMeanQ, randomFcVarQ, ...
-                                randomFcSuccesses, [], [], randomFcNumAttempts, ...
-                                [], randomFcEstQ, randomFcPfc);
-
-experimentResults.randomSampleFcGraspResults = ...
-    create_grasp_results_struct(randomSampleFcGrasps, randomSampleFcMeanQ, randomSampleFcVarQ, ...
-                                randomSampleFcSuccesses, [], [], randomSampleFcNumAttempts, ...
-                                [], [], randomSampleFcPfc);
+experimentResults.cfUcFcOptGraspResults = ...
+    create_grasp_results_struct(cfUcFcOptGrasps, cfUcFcOptMeanQ, cfUcFcOptVarQ, ...
+                                cfUcFcOptSuccesses, cfUcFcOptSatisfy, cfUcFcOptTimes, ...
+                                [], cfUcFcOptVals, [], ucFcOptPfc);                        
+experimentResults.cfUcFcOptGraspResults.bestIndex = cfUcFcOptIndex;
 
 % save with hash
 experimentHash = uint32(1e6 * rand());

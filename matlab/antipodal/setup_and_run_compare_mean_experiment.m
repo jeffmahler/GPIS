@@ -2,13 +2,14 @@
 % grasp on the mean shape through exhaustive sampling
 
 
-dataDir = 'data/google_objects/google_update_versions';
-shapeNames = {'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
-gripScales = {0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
+dataDir = 'data/google_objects/scratch';
+shapeNames = {'tape'};%{'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {0.75}; %{0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
 outputDir = 'results/mean_vs_predicted_exp';
-scale = 2;
-maxIters = 500;
+scale = 4;
+maxIters = 600;
 dim = 25;
+
 %% experiment config
 experimentConfig = struct();
 experimentConfig.graspIters = 0;
@@ -24,12 +25,15 @@ experimentConfig.visOptimization = true;
 experimentConfig.visGrasps = true;
 experimentConfig.rejectUnsuccessfulGrasps = false;
 
+experimentConfig.smoothWin = 10;
+experimentConfig.smoothSig = 3;
+
 experimentConfig.fcTol = 0.001;
 
 experimentConfig.gripWidth = dim; % dimension of grasp when scale = 1.0
-experimentConfig.plateScale = 0.05;
+experimentConfig.plateScale = 0.1;
 experimentConfig.objScale = 0.95;
-experimentConfig.qScale = 100;
+experimentConfig.qScale = 1;
 
 experimentConfig.evalUcGrasps = true;
 experimentConfig.evalRandSampleFcGrasps = true;
@@ -43,8 +47,8 @@ varParams.x_thresh1_high = 17;
 
 varParams.y_thresh2_low = 1;
 varParams.y_thresh2_high = 8;
-varParams.x_thresh2_low = 1;
-varParams.x_thresh2_high = 8;
+varParams.x_thresh2_low = 12;
+varParams.x_thresh2_high = 20;
 
 varParams.y_thresh3_low = 11;
 varParams.y_thresh3_high = 14;

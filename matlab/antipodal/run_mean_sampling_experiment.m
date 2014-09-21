@@ -28,6 +28,9 @@ for i = 1:numShapes
     newSurfaceImage = constructionResults.newSurfaceImage;
     numSamples = size(shapeSamples, 2);
     
+    win = experimentConfig.smoothWin;
+    sig = experimentConfig.smoothSig;
+    
     vis = false;
     showHist = false;
     badContactThresh = experimentConfig.numBadContacts;
@@ -45,7 +48,11 @@ for i = 1:numShapes
     nominalShape.surfaceThresh = shapeParams.surfaceThresh;
     nominalShape.com = shapeParams.com;
     
-    %% find the best grasp experimentally
+    tsdfGrid = reshape(nominalShape.tsdf, [nominalShape.gridDim, nominalShape.gridDim,]);
+    nominalShape.shapeImage = high_res_tsdf(tsdfGrid, scale, win, sig);
+
+    
+    % find the best grasp experimentally
     [bestQGrasp, bestPGrasp, avgSampleTime] = ...
         find_grasp_sampling(predGrid, ...
                             experimentConfig, shapeParams, shapeSamples, ...
@@ -194,27 +201,47 @@ for i = 1:numShapes
     h = figure(12);
     subplot(1,2,1);
     visualize_grasp(bestMean.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for Mean Shape', 'FontSize', 10);
-    xlabel(sprintf('Q = %.03f', bestMean.expP), 'FontSize', 10);
+    xlabel(sprintf('Q = %.03f\nP(FC) = %.03f', experimentConfig.qScale*bestMean.nomQ, bestMean.expP), 'FontSize', 10);
     subplot(1,2,2);
     visualize_grasp(bestSampling.expPGrasp.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for GPIS Using P(FC)', 'FontSize', 10);
-    xlabel(sprintf('Q = %.03f', bestSampling.expPGrasp.P), 'FontSize', 10);
+    xlabel(sprintf('Q = %.03f\nP(FC) = %.03f', ...
+        experimentConfig.qScale*bestSampling.expPGrasp.nomQ, bestSampling.expPGrasp.P),...
+        'FontSize', 10);
 
     print(h, '-depsc', sprintf('%s/%s_comp2_p.eps', outputDir, filename));
+    
+    %% plot the results of pfc
+    h = figure(76);
+    subplot(1,2,1);
+    visualize_grasp(bestMean.bestGrasp', nominalShape, nominalShape.shapeImage, scale, ...
+        experimentConfig.arrowLength, plateWidth, gripWidth);
+    title('Best Grasp for Mean Shape', 'FontSize', 10);
+    xlabel(sprintf('Q = %.03f\nP(FC) = %.03f', bestMean.nomQ, bestMean.expP), 'FontSize', 10);
+    subplot(1,2,2);
+    visualize_grasp(bestSampling.expPGrasp.bestGrasp', nominalShape, nominalShape.shapeImage, scale, ...
+        experimentConfig.arrowLength, plateWidth, gripWidth);
+    title('Best Grasp for GPIS Using P(FC)', 'FontSize', 10);
+    xlabel(sprintf('Q = %.03f\nP(FC) = %.03f', ...
+        bestSampling.expPGrasp.nomQ, bestSampling.expPGrasp.P),...
+        'FontSize', 10);
+
+    print(h, '-depsc', sprintf('%s/%s_comp2_p_nom.eps', outputDir, filename));
+    
     
     %% plot the results of E[Q]
     h = figure(13);
     subplot(1,2,1);
     visualize_grasp(bestMean.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for Mean Shape', 'FontSize', 10);
-    xlabel(sprintf('E[Q] = %.03f', bestMean.expP), 'FontSize', 10);
+    xlabel(sprintf('E[Q] = %.03f', bestMean.expQ), 'FontSize', 10);
     subplot(1,2,2);
     visualize_grasp(bestSampling.expQGrasp.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for GPIS Using E[Q]', 'FontSize', 10);
     xlabel(sprintf('E[Q] = %.03f', bestSampling.expQGrasp.Q), 'FontSize', 10);
 
@@ -225,7 +252,7 @@ for i = 1:numShapes
     
     subplot(1,4,1);
     visualize_grasp(bestNom.nomQGrasp.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for Nominal Shape', 'FontSize', 6);
     xlabel(sprintf('E[Q] = %.03f\n P(FC) = %.03f', ...
         experimentConfig.qScale*bestNom.nomQGrasp.Q, ...
@@ -234,7 +261,7 @@ for i = 1:numShapes
     
     subplot(1,4,2);
     visualize_grasp(bestMean.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for Mean Shape', 'FontSize', 6);
     xlabel(sprintf('E[Q] = %.03f\n P(FC) = %.03f', ...
         experimentConfig.qScale*bestMean.expQ, ...
@@ -243,7 +270,7 @@ for i = 1:numShapes
     
     subplot(1,4,3);
     visualize_grasp(bestSampling.expQGrasp.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for GPIS Using E[Q]', 'FontSize', 6);
     xlabel(sprintf('E[Q] = %.03f\n P(FC) = %.03f', ...
         experimentConfig.qScale*bestSampling.expQGrasp.Q, ...
@@ -252,7 +279,7 @@ for i = 1:numShapes
 
     subplot(1,4,4);
     visualize_grasp(bestSampling.expPGrasp.bestGrasp', predGrid, newSurfaceImage, scale, ...
-        experimentConfig.arrowLength);
+        experimentConfig.arrowLength, plateWidth, gripWidth);
     title('Best Grasp for GPIS Using P(FC)', 'FontSize', 6);
     xlabel(sprintf('E[Q] = %.03f\n P(FC) = %.03f', ...
         experimentConfig.qScale*bestSampling.expPGrasp.Q, ...
