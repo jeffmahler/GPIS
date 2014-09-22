@@ -23,8 +23,8 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
     
     
     alpha = 1;
-    noiseThresh = 0.5;
-    firstBigStep = 4;
+    noiseThresh = 5.0;
+    firstBigStep = 2;
     cur = x1 + firstBigStep*alpha * v;
     foundInd2 = false;
     hitBorder = false;
@@ -67,9 +67,7 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
             %plot(2*cur(1,:), 2*cur(2,:), 'cx-', 'MarkerSize', 20, 'LineWidth', 1.5);
         
         end
-        if varVal < noiseThresh
-            prevTsdfSign = sign(tsdfVal);
-        end
+        prevTsdfSign = sign(tsdfVal);
         cur = cur + alpha*v;
         k = k+1;
     end
@@ -107,9 +105,7 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
             latestCrossing = cur;
             %disp('Hit surface');
         end
-        if varVal < noiseThresh
-            prevTsdfSign = sign(tsdfVal);
-        end
+        prevTsdfSign = sign(tsdfVal);
         cur = cur + alpha*v;
         k = k+1;
     end

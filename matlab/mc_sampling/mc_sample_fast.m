@@ -1,6 +1,6 @@
 function [ mn_Q, v_Q, success, varargout] = mc_sample_fast(allPoints, coneAngle, cpSamples, ...
                                     numContacts, shapeSamples, gridDim, surfThresh, ...
-                                    badContactThresh, plateWidth, ...
+                                    badContactThresh, plateWidth, gripWidth, ...
                                     vis, showHist, qScale)
 %Takes a line not a single contact, add points in the order of [first1;
 %last1; first2; last2]; 
@@ -18,12 +18,15 @@ if nargin < 9
     plateWidth = 1;
 end
 if nargin < 10
-    vis = false;
+    gripWidth = gridDim;
 end
 if nargin < 11
-    showHist = false;
+    vis = false;
 end
 if nargin < 12
+    showHist = false;
+end
+if nargin < 13
     qScale = 1;
 end
 
@@ -66,6 +69,8 @@ while k <= num_sample
         find_contact_points(cp, numContacts, allPoints, Tsdf, Norm, ...
             sampleCom, surfThresh, vis, plateWidth, scale);
 
+    
+        
     if badContact
         num_bad = num_bad+1;
 
@@ -81,6 +86,12 @@ while k <= num_sample
         continue;
     end
     
+    % reject invalid samples (not saving Q results in lower p fc)
+    if norm(contactPts(:,1) - contactPts(:,2)) > gripWidth
+        k = k+1; % increment loop counter 
+        continue
+    end
+    
     %%fprintf('Mean Contact Points\n')
     sum_contact = sum_contact + contactPts; 
     mn_cp = sum_contact/k;
@@ -91,6 +102,7 @@ while k <= num_sample
     
     if debug
         figure(97);
+        tsdfGridBig = imresize(tsdfGrid, scale);
         imshow(tsdfGridBig);
         hold on;
         scatter(scale*contactPts(1,:)', scale*contactPts(2,:)', 50.0, 'g+', 'LineWidth', 2);
@@ -136,6 +148,7 @@ while k <= num_sample
         
         if debug
             figure(97);
+            tsdfGridBig = imresize(tsdfGrid, scale);
             conePtsR = contactPts(:,i) + 3*f_r;
             scatter(scale*conePtsR(1), scale*conePtsR(2), 50.0, 'r+', 'LineWidth', 2);
             conePtsL = contactPts(:,i) + 3*f_l;

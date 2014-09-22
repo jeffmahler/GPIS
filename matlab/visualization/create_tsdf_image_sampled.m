@@ -23,11 +23,20 @@ for i = 1:numSamples
     tsdfGrid = reshape(tsdf, shapeParams.gridDim, shapeParams.gridDim);
     tsdfBig = imresize(tsdfGrid, 2);
     
+    % find surface...
+    tsdfThresh = tsdfBig > 0;
+    SE = strel('square', 3);
+    I_d = imdilate(tsdfThresh, SE);
     
-    shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
-    tsdfSurface = ones(dim, dim);
-    tsdfSurface(shapeSurfaceIndices) = 0;
+    % create border masks
+    insideMaskOrig = (tsdfThresh == 0);
+    outsideMaskDi = (I_d == 1);
+    tsdfSurface = double(~(outsideMaskDi & insideMaskOrig));
     
+%     shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
+%     tsdfSurface = ones(dim, dim);
+%     tsdfSurface(shapeSurfaceIndices) = 0;
+%     
     if vis
         figure;
         H = high_res_surface(tsdfSurface, scale / 2);

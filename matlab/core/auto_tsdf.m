@@ -177,7 +177,9 @@ for i = 1:dim
                 j > varParams.transp_x_thresh1_low && j <= varParams.transp_x_thresh1_high) )
             % occluded regions
             measuredTsdf(i,j) = 1.0; % set outside shape
-            noise(i,j) = varParams.transpScale;
+            if tsdf(i,j) < 0.6 % only add noise to ones that were actually in the shape
+                noise(i,j) = varParams.transpScale;
+            end
         
         elseif tsdf(i,j) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high && ...
                 j > varParams.x_thresh1_low && j <= varParams.x_thresh1_high) || ...
