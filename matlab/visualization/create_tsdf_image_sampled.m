@@ -38,7 +38,7 @@ for i = 1:numSamples
 %     tsdfSurface(shapeSurfaceIndices) = 0;
 %     
     if vis
-        figure;
+        figure(100);
         H = high_res_surface(tsdfSurface, scale / 2);
         imshow(H);
         pause(0.5);

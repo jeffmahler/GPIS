@@ -2,10 +2,10 @@
 % grasp on the mean shape through exhaustive sampling
 
 
-dataDir = 'data/pr2_registration/tape1';%data/google_objects/scratch';
+dataDir = 'data/pr2_registration/tape3';%data/google_objects/scratch';
 shapeNames = {'pc_tape'};%{'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
 gripScales = {0.5}; %{0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
-outputDir = 'results/mean_vs_predicted_exp';
+outputDir = 'results/mean_vs_predicted_exp/pr2';
 scale = 4;
 maxIters = 100;
 dim = 25;
@@ -129,7 +129,7 @@ cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solu
 cfg.grip_width = experimentConfig.gripWidth; % max distance between grasp points in pixels
 
 %% run experiment
-rng(300);
+%rng(300);
 
 [bestPredGrasps, bestMeanGrasps, bestNomGrasps] = ...
         run_mean_sampling_experiment(shapeNames, gripScales, dataDir, ...

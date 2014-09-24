@@ -22,6 +22,8 @@ for i = 0:(numImages-1)
     depthFilename = sprintf('%s/depth_%d.csv', sourceDir, i);
     poseFilename = sprintf('%s/pr2_cb_transform_%d.csv', sourceDir, i);
     depthImages{i+1} = csvread(depthFilename);
+%     figure(i+1);
+%     imshow(uint8(255*histeq(depthImages{i+1})));
     cbPoses{i+1} = csvread(poseFilename);
 end
 
@@ -166,16 +168,19 @@ imshow(0.5*uint8(255*objectMask) + 0.5*rgbCrop);
 
 % compute an intensity based color segmentation (assume corners are on
 % background) 
-backGroundColor = rgbCrop(gridHeightPix, gridWidthPix);
+backGroundColor = rgbCrop(4, 4);
 rgbMask = rgbCrop < backGroundColor - colorSlack;
 
 figure(21);
-subplot(1,2,1);
+subplot(1,3,1);
 imshow(rgbMask);
 title('RGB Object Mask');
-subplot(1,2,2);
+subplot(1,3,2);
 imshow(objectMask);
 title('Depth Object Mask');
+subplot(1,3,3);
+imshow(rgbMask | objectMask);
+title('Combined Mask');
 
 % compute a signed distance function using brute force
 sdfDepthGrid = realmax * ones(gridHeightPix, gridWidthPix) .* (~objectMask);
@@ -217,24 +222,22 @@ end
 % figure(23);
 % imshow(sdfDepthGrid);
 
-% compute normals
-[sdfGx, sdfGy] = imgradientxy(sdfDepthGrid, 'CentralDifference');
-
 % create uncertainty grid (noiseScale is from 1 measurement)
 countCrop = validDepthCounts(gridStartPix(2):(gridStartPix(2) + gridHeightPix - 1), ...
                              gridStartPix(1):(gridStartPix(1) + gridWidthPix  - 1));
-                         
+                      
 % now resize to desired res
 gpScale = double(gridDim) / gridWidthPix;
 sdfGrid = imresize(sdfDepthGrid, gpScale);
-sdfGx = imresize(sdfGx, gpScale);
-sdfGy = imresize(sdfGy, gpScale);
 countCrop = imresize(countCrop, gpScale);
 objectMask = imresize(objectMask, gpScale);
 rgbMask = imresize(rgbMask, gpScale);
 
 objectMask = objectMask > 0.25;
 rgbMask = rgbMask > 0.25;
+
+countCrop = round(countCrop);
+countCrop(countCrop < 0) = 0;
 
 % create uncertainty mask
 uncertaintyGrid = ones(gridDim, gridDim);
@@ -246,8 +249,11 @@ uncertaintyGrid = ...
     disagreePenalty * (disagreementMask == 1) .* uncertaintyGrid + ...
     (disagreementMask == 0) .* uncertaintyGrid;
 
-figure(46);
-imshow(disagreementMask);
+%sdfGrid(disagreementMask) = -1.0;
+[sdfGx, sdfGy] = imgradientxy(sdfGrid, 'CentralDifference');
+
+% figure(46);
+% imshow(disagreementMask);
 
 [Xcoord, Ycoord] = meshgrid(1:gridDim, 1:gridDim);
 validIndices = ~isinf(uncertaintyGrid) & ~isnan(uncertaintyGrid);

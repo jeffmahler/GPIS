@@ -1,4 +1,4 @@
-function [expQGrasp, expPGrasp, avgSampleTime] = ...
+function [expQGrasp, expPGrasp, expResults] = ...
     find_grasp_sampling(predGrid, experimentConfig, shapeParams, ...
                         shapeSamples, surfaceImage, scale, maxIters, ...
                         gripWidth, plateWidth, sampleGrasps)
@@ -23,6 +23,7 @@ fcP = [];
 maxQ = [];
 maxP = [];
 gs = [];
+sampleTimes = [];
 k = 0;
 
 d = 2;
@@ -30,7 +31,6 @@ numContacts = 2;
 coneAngle = atan(experimentConfig.frictionCoef);
 length = experimentConfig.arrowLength;
 numSamples = size(shapeSamples, 2);
-avgSampleTime = 0;
 
 while k < maxIters
     fprintf('%d\n', k);
@@ -81,30 +81,29 @@ while k < maxIters
         maxP = [maxP; max(fcP)];
         
         gs = [gs; randGraspSamples];
-        
-        avgSampleTime = avgSampleTime + duration;
+        sampleTimes = [sampleTimes, duration];
         
         k = k+1;
         
-        figure(23);
-        visualize_grasp(randGrasp, predGrid, surfaceImage, scale, length, ...
-            plateWidth, gripWidth);
-        title('Best Grasp', 'FontSize', 15);
-        fprintf('Q = %.03f\n', fcP);
+%         figure(23);
+%         visualize_grasp(randGrasp, predGrid, surfaceImage, scale, length, ...
+%             plateWidth, gripWidth);
+%         title('Best Grasp', 'FontSize', 15);
+%         fprintf('Q = %.03f\n', fcP);
     end
 end
 
-figure(24);
-plot(maxQ, 'LineWidth', 2);
-title('Best E[Q] vs Samples');
-xlabel('# Samples');
-ylabel('E[Q]');
-
-figure(25);
-plot(maxP, 'LineWidth', 2);
-title('Best P(FC) vs Samples');
-xlabel('# Samples');
-ylabel('P(FC)');
+% figure(24);
+% plot(maxQ, 'LineWidth', 2);
+% title('Best E[Q] vs Samples');
+% xlabel('# Samples');
+% ylabel('E[Q]');
+% 
+% figure(25);
+% plot(maxP, 'LineWidth', 2);
+% title('Best P(FC) vs Samples');
+% xlabel('# Samples');
+% ylabel('P(FC)');
 
 % choose the grasp with maximum expected FC quality
 bestQGraspIndices = find(fcQ == max(fcQ));
@@ -124,13 +123,16 @@ expPGrasp.V = fcV(bestPGraspIndices(1));
 expPGrasp.P = fcP(bestPGraspIndices(1));
 expPGrasp.samples = gs(bestPGraspIndices(1), :);
 
-% calculate average sample time
-avgSampleTime = avgSampleTime / maxIters;
-
 % plot grasp
-figure(23);
-visualize_grasp(expQGrasp.bestGrasp', predGrid, surfaceImage, scale, length);
-title('Best Grasp', 'FontSize', 15);
+% figure(23);
+% visualize_grasp(expQGrasp.bestGrasp', predGrid, surfaceImage, scale, length);
+% title('Best Grasp', 'FontSize', 15);
         
+% results struct for time analysis
+expResults = struct();
+expResults.maxQ = maxQ;
+expResults.maxP = maxP;
+expResults.sampleTimes = sampleTimes;
+
 end
 

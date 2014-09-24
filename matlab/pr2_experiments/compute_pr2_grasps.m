@@ -1,21 +1,22 @@
 % get pr2 grasps
 
-sourceDir = 'data/pr2_registration/tape1';
+sourceDir = 'data/pr2_registration/tape3';
 numImages = 10;
-cfg.gridDim = 25;
-cfg.scale = 4;
-cfg.objName = 'pc_tape3';
 
 % params for constructing pointcloud from images
 cfg = struct();
+cfg.gridDim = 25;
+cfg.scale = 4;
+cfg.objName = 'pc_tape';
+
 cfg.cbSquareMeters = 0.0293; % in meters
-cfg.depthThresh = -1e-4;
-cfg.truncation = 2;
+cfg.depthThresh = 0.0288;
+cfg.truncation = 1;
 cfg.noiseScale = 5.0;
 cfg.disagreePenalty = 5;
 cfg.numSamples = 1000;
-cfg.insideScale = 5;
-cfg.colorSlack = 20;
+cfg.insideScale = 2;
+cfg.colorSlack = 30;
 
 % gpis training parameters
 trainingParams = struct();
@@ -36,3 +37,10 @@ trainingParams.hyp.lik = log(0.1);
 
 [pr2GpModel, shapeSamples, constructionResults, transformResults] = ...
     gpis_from_depth(sourceDir, numImages, cfg, trainingParams);
+
+%%
+% constructionResults.newSurfaceImage = ...
+%     create_tsdf_image_sampled(constructionResults.predGrid, ...
+%         shapeSamples, cfg.scale, 1.0, false, false);
+% figure(88);
+% imshow(constructionResults.newSurfaceImage);

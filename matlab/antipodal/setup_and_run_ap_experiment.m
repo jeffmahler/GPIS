@@ -2,18 +2,18 @@
 
 dim = 25;
 % CHANGE BELOW WHEN CREATION IS OVER!
-dataDir = 'data/google_objects/scratch';
-shapeNames = {'tape'};%{'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};%{'marker'};
-gripScales = {0.75};%{0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
+dataDir = 'data/pr2_registration/tape1';%'data/google_objects/icra';%'data/pr2_registration/tape1';
+shapeNames = {'pc_tape3'};%{'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};%{'marker'};
+gripScales = {0.5};%{0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
 outputDir = 'results/optimization';
-meanCompDir = 'results/mean_vs_predicted_exp/results_final';
-newShape = true;
+meanCompDir = 'results/mean_vs_predicted_exp/new_examples';
+newShape = false;
 scale = 4;
-createGpis = true;
+createGpis = false;
 
 %% experiment config
 experimentConfig = struct();
-experimentConfig.graspIters = 0;
+experimentConfig.graspIters = 10;
 experimentConfig.frictionCoef = 0.5;
 experimentConfig.numSamples = 1000;
 experimentConfig.surfaceThresh = 0.15;
@@ -67,7 +67,7 @@ varParams.occ_x_thresh2_high = 7;
 varParams.transp_y_thresh1_low = 6;
 varParams.transp_y_thresh1_high = 24;
 varParams.transp_x_thresh1_low = 0;
-varParams.transp_x_thresh1_high = 11;
+varParams.transp_x_thresh1_high = 12;
 % varParams.y_thresh1_low = dim;
 % varParams.y_thresh1_high = dim;
 % varParams.x_thresh1_low = dim;
@@ -84,7 +84,7 @@ varParams.transp_x_thresh1_high = 11;
 % varParams.x_thresh3_high = dim;
 
 varParams.occlusionScale = 1000;
-varParams.transpScale = 5.0;
+varParams.transpScale = 2.0;
 varParams.noiseScale = 0.2;
 varParams.interiorRate = 0.1;
 varParams.specularNoise = true;

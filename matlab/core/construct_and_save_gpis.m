@@ -43,7 +43,8 @@ save(constructName, 'constructionResults');
 
 constructionResults.newSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
-        shapeSamples, scale, 1.0);
-
+        shapeSamples, scale, 1.0, false, false);
+figure(88);
+imshow(constructionResults.newSurfaceImage);
 end
 

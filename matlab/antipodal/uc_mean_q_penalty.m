@@ -34,22 +34,26 @@ function val = uc_mean_q_penalty(x, gpModel, nu, ...
     
     meanSample = {shapeParams};
     q_estimate = 0;
+    p_estimate = 0;
     w_sum = 0;
     
     for i = 1:size(spLoas,2)
         graspSample = {spLoas{i}};
 
-        [mn_q, v_q, success] = mc_sample_fast(shapeParams.points, ...
+        [mn_q, v_q, success, p_fc] = mc_sample_fast(shapeParams.points, ...
                                         coneAngle, graspSample, numContacts, ...
                                         meanSample, shapeParams.gridDim, ...
                                         shapeParams.surfaceThresh, ...
                                         badContactThresh, plateWidth, ...
                                         visSampling, visHistogram);
         q_estimate = q_estimate + loaWeights(i) * mn_q;
+        p_estimate = p_estimate + loaWeights(i) * p_fc;
         w_sum = w_sum + loaWeights(i);
     end
     mn_q = q_estimate / w_sum;
-                                
-    val = nu*sum(diag(Sig)) - mn_q;
+    p_fc = p_estimate / w_sum;                            
+    
+    % use probability of force closure
+    val = nu*sum(diag(Sig)) - p_fc;
 end
 
