@@ -7,13 +7,21 @@ function Sigma = gp_cov(gpModel, x, Kxxp, use_derivative)
         if size(Kxxp,1) == 0
             Kxxp = se_cov_derivative(gpModel.covFunc, gpModel.hyp.cov, gpModel.beta, gpModel.training_x, x);
         end
+        
+        v = solve_chol(gpModel.L, Kxxp) / gpModel.sl;
     else
         Kxx = feval(gpModel.covFunc{:}, gpModel.hyp.cov, x);    
         if size(Kxxp,1) == 0
             Kxxp = feval(gpModel.covFunc{:}, gpModel.hyp.cov, gpModel.training_x, x);
         end
+        
+        if ~isfield(gpModel, 'Lg')
+            numTraining = size(gpModel.training_x, 1);
+            gpModel.Lg = chol(gpModel.Q(1:numTraining, 1:numTraining));
+        end
+
+        v = solve_chol(gpModel.Lg, Kxxp) / gpModel.sl;
     end
-    v = solve_chol(gpModel.L, Kxxp) / gpModel.sl;
     Sigma = Kxx - Kxxp' * v;
     
     % force symmetric due to numerical issues

@@ -33,6 +33,7 @@ cfg.trust_expand_ratio = 1.5;
 cfg.cnt_tolerance = 1e-4;
 cfg.ineq_tolerance = 1e-4;
 cfg.eq_tolerance = 1e-4;
+cfg.prog_tolerance = 0;
 cfg.max_merit_coeff_increases = 5;
 cfg.merit_coeff_increase_ratio = 8;
 cfg.initial_trust_box_size = 1;
@@ -51,6 +52,9 @@ cfg.fric_coef = 0;
 cfg.min_init_dist = 3;
 cfg.com_tol = 0;
 cfg.grip_width = intmax;
+cfg.plate_width = 1;
+cfg.arrow_length = 1;
+cfg.com = [0;0];
 cfg.callback = [];
 
 cfg = load_user_cfg(cfg, user_cfg);
@@ -101,7 +105,8 @@ while penalty_iter <= cfg.max_penalty_iter
     f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg, penalty_coeff, trust_box_size);
 	
     x_all_iters = [x_all_iters, x];
-
+    num_iters = size(x_all_iters, 2);
+    
     % reset trust box if necessary
     if trust_box_size < cfg.min_trust_box_size
         trust_box_size = cfg.initial_trust_box_size;
@@ -110,8 +115,15 @@ while penalty_iter <= cfg.max_penalty_iter
     if (max(A_ineq*x - b_ineq) > cfg.cnt_tolerance) ...
             || (max(abs(A_eq*x - b_eq)) > cfg.cnt_tolerance) ...
             || (sum(g(x) > cfg.ineq_tolerance) > 0) ...
-            || (sum(abs(h(x)) > cfg.eq_tolerance) > 0) % there's at least 1 bad constraint
+            || (sum(abs(h(x)) > cfg.eq_tolerance) > 0)% || ...
+          %  norm(x - x_all_iters(:, num_iters-1)) > cfg.prog_tolerance) % there's at least 1 bad constraint
+        max(A_ineq*x - b_ineq)
+        max(abs(A_eq*x - b_eq))
+        sum(g(x) > cfg.ineq_tolerance)
+        sum(abs(h(x)) > cfg.eq_tolerance)
+        
         fprintf('Penalty: %f\n', penalty_coeff);
+        
         penalty_coeff = cfg.merit_coeff_increase_ratio * penalty_coeff;
     else
         break; % we're close enough
@@ -185,13 +197,14 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
                     
         if cfg.f_use_numerical
             fval = f(x);
-            [fgrad, fhess] = numerical_grad_hess(f,x,cfg.full_hessian);
+            fgrad = numerical_jac(f,x);
+            %[fgrad, fhess] = numerical_grad_hess(f,x,cfg.full_hessian);
             % diagonal adjustment
-            mineig = min(eigs(fhess));
-            if mineig < 0
-                fprintf('    negative hessian detected. adjusting by %.3g\n',-mineig);
-                fhess = fhess + eye(dim_x) * ( - mineig);
-            end
+%             mineig = min(eigs(fhess));
+%             if mineig < 0
+%                 fprintf('    negative hessian detected. adjusting by %.3g\n',-mineig);
+%                 fhess = fhess + eye(dim_x) * ( - mineig);
+%             end
         else
             [fval, fgrad, fhess] = f(x);
         end
