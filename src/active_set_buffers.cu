@@ -239,16 +239,18 @@ extern "C" void update_active_set_buffers(ActiveSetBuffers *active_buffers, MaxS
   active_buffers->num_active++;
 }
 
-__global__ void norm_columns_kernel(float* A, float* x, int m, int n)
+__global__ void norm_columns_kernel(float* A, float* x, int m, int n, int lda)
 {
   // max score for each thread
   __shared__ float s_sums[BLOCK_DIM_BATCH_X * BLOCK_DIM_BATCH_Y];
 
   // parameters
   __shared__ int segment_size;
+  __shared__ int s_lda;
 
   if (threadIdx.x == 0 && threadIdx.y == 0) {
     segment_size = m;
+    s_lda = lda;
   }
 
   // initialize scores and count
@@ -267,7 +269,7 @@ __global__ void norm_columns_kernel(float* A, float* x, int m, int n)
     // read from global memory
     __syncthreads();
     if (global_x < segment_size && global_y < n) {
-      val = A[global_x + m * global_y];
+      val = A[global_x + s_lda * global_y];
       //      printf("Read %f at %d, %d\n", val, global_x, global_y); 
       s_sums[local_x] += val * val;
     }
@@ -291,7 +293,7 @@ __global__ void norm_columns_kernel(float* A, float* x, int m, int n)
 }
 
 // square norm the columns of A, store in x
-extern "C" void norm_columns(float* A, float* x, int m, int n)
+extern "C" void norm_columns(float* A, float* x, int m, int n, int lda)
 {
   // y for each column of the matrix
   dim3 block_dim(BLOCK_DIM_NORM_X, BLOCK_DIM_NORM_Y, 1);
@@ -299,6 +301,6 @@ extern "C" void norm_columns(float* A, float* x, int m, int n)
 		ceilf((float)(n)/(float)(block_dim.y)),
 		1);
 
-  cudaSafeCall((norm_columns_kernel<<<grid_dim, block_dim>>>(A, x, m, n)));
+  cudaSafeCall((norm_columns_kernel<<<grid_dim, block_dim>>>(A, x, m, n, lda)));
 
 }

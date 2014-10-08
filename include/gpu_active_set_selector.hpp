@@ -16,6 +16,10 @@ struct PredictionError {
   float max;
 };
 
+/**
+ * @class GpuActiveSetSelector
+ * @brief Selects an 'active' set of points to be used in constructing a Gaussian Process Implicit Surface
+ */
 class GpuActiveSetSelector {
 
   // possible criteria from which to select the active subset
@@ -29,27 +33,38 @@ class GpuActiveSetSelector {
   ~GpuActiveSetSelector() {}
 
  public:
+  /**
+   * SelectFromGrid
+   * @brief Selects an 'active' set of points to be used to construct a GPIS for the TSDF in the specified CSV
+   */
   bool SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
 		      int width, int height, int depth, int batchSize, float tolerance,
 		      bool storeDepth = false);
-  // Select an active subset from 
+  /**
+   * SelectCG
+   * @brief Selects the active set using CG to solve the linear system
+   */
   bool SelectCG(int maxSize, float* inputPoints, float* targetPoints,
 		SubsetSelectionMode mode,
 		GaussianProcessHyperparams hypers,
 		int inputDim, int targetDim, int numPoints, float tolerance,
 		float* activeInputs, float* activeTargets);
 
-  // Select an active subset from 
+  /**
+   * SelectChol
+   * @brief Selects the active set using a cholesky decomposition to solve the linear system
+   */
   bool SelectChol(int maxSize, float* inputPoints, float* targetPoints,
 		  SubsetSelectionMode mode,
 		  GaussianProcessHyperparams hypers,
 		  int inputDim, int targetDim, int numPoints, float tolerance, int batchSize,
-		  float* activeInputs, float* activeTargets);
+		  float* activeInputs, float* activeTargets, bool incremental = false);
 
  private:
   float SECovariance(float* x, float* y, int dim, int sigma);
   double ReadTimer();
-  bool WriteCsv(const std::string& csvFilename, float* buffer, int width, int height);
+  double Duration();
+  bool WriteCsv(const std::string& csvFilename, float* buffer, int width, int height, int lda);
   bool ReadCsv(const std::string& csvFilename, int width, int height, int depth, bool storeDepth,
 	       float* inputs, float* targets);
   bool EvaluateErrors(float* d_mu, float* d_targets, unsigned char* d_active, int numPts,

@@ -21,7 +21,7 @@ set(CULA_INCLUDE_DIRS "/usr/local/cula/include")
 set(CULA_LIBRARIES "/usr/local/cula/lib64/libcula_lapack.so;/usr/local/cula/lib64/libiomp5.so;/usr/local/cula/lib64/libcublas.so.6.0")
 include_directories (${CULA_INCLUDE_DIRS})
 
-message("${CULA_LIBRARIES}")
+#message("${CULA_LIBRARIES}")
 
 # glog
 set(GLOG_LIBRARIES glog)

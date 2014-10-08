@@ -13,5 +13,5 @@ extern "C" void compute_kernel_vector_batch(ActiveSetBuffers *active_buffers, Ma
 extern "C" void update_active_set_buffers(ActiveSetBuffers *active_buffers, MaxSubsetBuffers *subset_buffers, GaussianProcessHyperparams hypers);
 
 // random reduction function for solving the linear system fast
-extern "C" void norm_columns(float* A, float* x, int m, int n);
+extern "C" void norm_columns(float* A, float* x, int m, int n, int lda);
 

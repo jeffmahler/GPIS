@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <sstream>
 
+#include <glog/logging.h>
+
 #include "gpu_active_set_selector.hpp"
 #include "max_subset_buffers.h"
 
@@ -19,12 +21,17 @@
 #define DEFAULT_HEIGHT 1
 #define DEFAULT_DEPTH 1
 #define DEFAULT_BATCH 1
-#define DEFAULT_TOLERANCE 0.01
+#define DEFAULT_TOLERANCE 0.001
 
 // read in a configuration file
 bool readConfig(const std::string& configFilename, std::string& csvFilename, int& setSize, float& sigma, float& beta, int& width, int& height, int& depth, int& batch)
 {
   std::ifstream configFile(configFilename.c_str());
+  if (!configFile.is_open()) {
+    LOG(ERROR) << "Failed to open " << configFilename;
+    return false;
+  }
+
   int maxChars = 1000;
   char buffer[maxChars];
 
@@ -74,12 +81,16 @@ void printHelp()
 
 int main(int argc, char* argv[])
 {
-  srand(1000);//time(NULL));
+  //  srand(1000);//time(NULL));
 
   if (argc < 2) {
     printHelp();
     return 1;
   }
+
+  google::InitGoogleLogging(argv[0]);
+  FLAGS_logtostderr = 1;
+  FLAGS_v = 1;
 
   // read args
   std::string configFilename = argv[1];
@@ -93,16 +104,20 @@ int main(int argc, char* argv[])
   int batchSize = DEFAULT_BATCH;
   float tolerance = DEFAULT_TOLERANCE;
 
-  readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth, batchSize);
-  std::cout << "Using the followig GPIS params:" << std::endl;
-  std::cout << "csv:\t" << csvFilename << std::endl;
-  std::cout << "K:\t" << setSize << std::endl;
-  std::cout << "sigma:\t" << sigma << std::endl;
-  std::cout << "beta:\t" << beta << std::endl;
-  std::cout << "width:\t" << width << std::endl;
-  std::cout << "height:\t" << height << std::endl;
-  std::cout << "depth:\t" << depth << std::endl;
-  std::cout << "batch:\t" << batchSize << std::endl;
+  bool opened = readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth, batchSize);
+  if (!opened) {
+    return 1;
+  }
+
+  LOG(INFO) << "Using the following GPIS params:";
+  LOG(INFO) << "csv:\t\t" << csvFilename;
+  LOG(INFO) << "K:\t\t" << setSize;
+  LOG(INFO) << "sigma:\t" << sigma;
+  LOG(INFO) << "beta:\t\t" << beta;
+  LOG(INFO) << "width:\t" << width;
+  LOG(INFO) << "height:\t" << height;
+  LOG(INFO) << "depth:\t" << depth;
+  LOG(INFO) << "batch:\t" << batchSize;
 
   GpuActiveSetSelector gpuSetSelector;
   gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth, batchSize, tolerance);

@@ -4,8 +4,9 @@
 #include <math.h>
 
 #define BLOCK_DIM_X 128
-#define GRID_DIM_X 128
+#define GRID_DIM_X  128
 #define INIT_SCORE -1e6
+#define NO_INDEX   -1
 
 extern "C" void construct_max_subset_buffers(MaxSubsetBuffers *buffers, float* input_points, float* target_points, int dim_input, int dim_target, int num_pts) {
   // assign params
@@ -84,7 +85,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
 
   // initialize scores and count
   s_scores[threadIdx.x] = INIT_SCORE;
-  s_indices[threadIdx.x] = 0;
+  s_indices[threadIdx.x] = NO_INDEX;
   __syncthreads();
   
   // position
@@ -126,6 +127,9 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
   	ambiguity = var_scaling - fabs(pred_mean - level);
 
 	//  	printf("Index %d ambiguity: %f mean: %f std: %f\n", global_x, ambiguity, pred_mean, pred_var);
+        // if (global_x == 318 || global_x == 319 || global_x == 478 || global_x == 615) {
+        //   printf("Index %d score: %f flags: %d %d %d\n", global_x, ambiguity, active_flag, upper_flag, lower_flag);
+        // }
 
   	if (ambiguity > s_scores[threadIdx.x]) {
   	  s_scores[threadIdx.x] = ambiguity;
@@ -169,8 +173,11 @@ __global__ void distributed_point_reduction_kernel(float* scores, int* indices, 
 
   int global_x = threadIdx.x;
   __syncthreads();
-  s_scores[global_x] = scores[global_x];
-  s_indices[global_x] = indices[global_x];
+  if (global_x < GRID_DIM_X) {
+    s_scores[global_x] = scores[global_x];
+    s_indices[global_x] = indices[global_x];
+  }
+  __syncthreads();
 
   unsigned char indicator = 0;
   float diff = 0.0f;
@@ -189,8 +196,10 @@ __global__ void distributed_point_reduction_kernel(float* scores, int* indices, 
   if (threadIdx.x == 0) {
     scores[0] = s_scores[0];
     g_index[0] = s_indices[0];
-    active[s_indices[0]] = 1;
-    printf("Chose %d as next index...\n", g_index[0]);
+    if (s_indices[0] >= 0) {
+      active[s_indices[0]] = 1;
+    }
+    //    printf("Chose %d as next index...\n", g_index[0]);
   }
 }
 
