@@ -18,12 +18,17 @@ find_package (CUDA REQUIRED)
 
 # CULA (hardcoded)
 set(CULA_INCLUDE_DIRS "/usr/local/cula/include")
-set(CULA_LIBRARIES "/usr/local/cula/lib64/libcula_lapack.so")
+set(CULA_LIBRARIES "/usr/local/cula/lib64/libcula_lapack.so;/usr/local/cula/lib64/libiomp5.so;/usr/local/cula/lib64/libcublas.so.6.0")
 include_directories (${CULA_INCLUDE_DIRS})
 
-set (DEPENDENCY_LIBS ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CMAKE_DL_LIBS} ${CULA_LIBRARIES})
-#message(${DEPENDENCY_LIBS})
+message("${CULA_LIBRARIES}")
 
+# glog
+set(GLOG_LIBRARIES glog)
+
+set (DEPENDENCY_LIBS ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${CMAKE_DL_LIBS} ${CULA_LIBRARIES} ${GLOG_LIBRARIES})
+#message(${DEPENDENCY_LIBS})
+ 
 # Output flags
 set (EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 set (LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib)
