@@ -276,11 +276,11 @@ __global__ void norm_columns_kernel(float* A, float* x, int m, int n, int lda)
   }
 
   // reduce the squared sum
-  global_x = threadIdx.x;
-  for (unsigned int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+  int threads_per_block = blockDim.x * blockDim.y;
+  for (unsigned int stride = threads_per_block >> 1; stride > 0; stride >>= 1) {
     __syncthreads();
-    if (global_x < stride && (global_x + stride) < blockDim.x) {
-      s_sums[global_x + blockDim.x * threadIdx.y] += s_sums[global_x + blockDim.x * threadIdx.y + stride];
+    if (local_x < stride && (local_x + stride) < threads_per_block) {
+      s_sums[local_x] += s_sums[local_x + stride];
     }
   }
 

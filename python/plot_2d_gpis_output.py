@@ -53,7 +53,7 @@ def plot_predicted_tsdf(tsdf_filename, pred_filename, alpha_filename, active_inp
     pred_tsdf = np.genfromtxt(pred_filename, delimiter=',')
     alpha = np.genfromtxt(alpha_filename, delimiter=',')
     inputs = np.genfromtxt(active_inputs_filename, delimiter=',')
-
+    inputs = inputs - np.ones(inputs.shape)
 
     (m, n) = tsdf.shape
     '''

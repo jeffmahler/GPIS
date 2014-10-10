@@ -9,4 +9,6 @@ extern "C" void activate_max_subset_buffers(MaxSubsetBuffers *buffers, int index
 extern "C" void free_max_subset_buffers(MaxSubsetBuffers *buffers);
 
 // compute the ambiguity for each point, reclassify, and choose next point
-extern "C" void find_best_active_set_candidate(MaxSubsetBuffers* subsetBuffers, ClassificationBuffers* classificationBuffers, float* d_mu, float* d_sigma, float level, float beta, GaussianProcessHyperparams hypers); 
+extern "C" void find_best_active_set_candidate(MaxSubsetBuffers* subsetBuffers, ClassificationBuffers* classificationBuffers,
+                                               float* d_mu, float* d_sigma, float level, float beta, float eps,
+                                               GaussianProcessHyperparams hypers); 

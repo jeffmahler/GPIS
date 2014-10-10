@@ -39,7 +39,7 @@ class GpuActiveSetSelector {
    */
   bool SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
 		      int width, int height, int depth, int batchSize, float tolerance,
-		      bool storeDepth = false);
+		      float accuracy, bool storeDepth = false, int startIndex = -1);
   /**
    * SelectCG
    * @brief Selects the active set using CG to solve the linear system
@@ -57,8 +57,8 @@ class GpuActiveSetSelector {
   bool SelectChol(int maxSize, float* inputPoints, float* targetPoints,
 		  SubsetSelectionMode mode,
 		  GaussianProcessHyperparams hypers,
-		  int inputDim, int targetDim, int numPoints, float tolerance, int batchSize,
-		  float* activeInputs, float* activeTargets, bool incremental = false);
+		  int inputDim, int targetDim, int numPoints, float tolerance, float accuracy, int batchSize,
+		  float* activeInputs, float* activeTargets, int startIndex = -1, bool incremental = false);
 
  private:
   float SECovariance(float* x, float* y, int dim, int sigma);

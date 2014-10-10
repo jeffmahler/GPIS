@@ -58,7 +58,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
 						    unsigned char* active, unsigned char* upper,
 						    unsigned char* lower, float* mean,
 						    float* variance, float level,
-						    float var_scaling, float beta, float sigma,
+						    float var_scaling, float eps, float beta, float sigma,
 						    int dim_input, int num_pts)
 {
   // max score for each thread
@@ -67,6 +67,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
 
   // parameters
   __shared__ int segment_size;
+  __shared__ int s_eps;
 
   // allocate local computation buffers
   float point[MAX_DIM_INPUT];
@@ -81,6 +82,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
   // initialize
   if (threadIdx.x == 0) {
     segment_size = (int)ceilf((float)num_pts/(float)GRID_DIM_X);
+    s_eps = eps;
   }
 
   // initialize scores and count
@@ -112,23 +114,30 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
       if (!active_flag && !upper_flag && !lower_flag) { 
   	// compute the ambiguity (see Gotovos et al for more info)
   	kernel = subset_exponential_kernel(point, point, dim_input, sigma);
-  	kernel += beta;
+        kernel += beta;
+        // if (point[0] == 23 && point[1] == 8) {
+        //   printf("Point %f %f kernel: %f var red: %f\n", point[0], point[1], kernel, pred_var);
+        // }
   	pred_var = kernel - pred_var;
-  	var_scaling = var_scaling * pred_var;
+  	pred_var = var_scaling * pred_var;
 
   	// check upper, lower
-  	ambiguity = pred_mean + var_scaling - level;
-  	lower_flag = signbit(ambiguity);
+  	if (pred_mean + pred_var - s_eps <= level) {
+          lower_flag = 1;
+        }
 
-  	ambiguity = var_scaling - pred_mean + level;
-  	upper_flag = signbit(ambiguity);
+        if (pred_mean - pred_var + s_eps > level) {
+          upper_flag = 1;
+        }
 
   	// update local ambiguity score
-  	ambiguity = var_scaling - fabs(pred_mean - level);
+  	ambiguity = min(pred_mean + pred_var - level, level - (pred_mean - pred_var)); 
 
-	//  	printf("Index %d ambiguity: %f mean: %f std: %f\n", global_x, ambiguity, pred_mean, pred_var);
         // if (global_x == 318 || global_x == 319 || global_x == 478 || global_x == 615) {
         //   printf("Index %d score: %f flags: %d %d %d\n", global_x, ambiguity, active_flag, upper_flag, lower_flag);
+        // }
+        // if (point[0] == 23 && point[1] == 8) {
+        //   printf("Point %f %f index: %d ambiguity: %f mean: %f std: %f\n", point[0], point[1], global_x, ambiguity, pred_mean, pred_var);
         // }
 
   	if (ambiguity > s_scores[threadIdx.x]) {
@@ -146,15 +155,14 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
   }
 
   // max reduction
-  unsigned char indicator = 0;
   global_x = threadIdx.x;
   for (unsigned int stride = BLOCK_DIM_X >> 1; stride > 0; stride >>= 1) {
     __syncthreads();
     if (global_x < stride && (global_x + stride) < BLOCK_DIM_X) {
-      kernel = s_scores[global_x + stride] - s_scores[global_x]; // kernel is now the difference
-      indicator = 1 - signbit(kernel);
-      s_scores[global_x] += indicator * kernel;
-      s_indices[global_x] = indicator * s_indices[global_x + stride] + (1 - indicator) * s_indices[global_x];
+      if (s_scores[global_x + stride] > s_scores[global_x]) {
+        s_scores[global_x] = s_scores[global_x + stride];
+        s_indices[global_x] = s_indices[global_x + stride];
+      }
     }
   }
 
@@ -179,15 +187,13 @@ __global__ void distributed_point_reduction_kernel(float* scores, int* indices, 
   }
   __syncthreads();
 
-  unsigned char indicator = 0;
-  float diff = 0.0f;
   for (unsigned int stride = GRID_DIM_X >> 1; stride > 0; stride >>= 1) {
     __syncthreads();
     if (global_x < stride && (global_x + stride) < BLOCK_DIM_X) {
-      diff = s_scores[global_x + stride] - s_scores[global_x]; // kernel is now the difference
-      indicator = 1 - signbit(diff);
-      s_scores[global_x] += indicator * diff;
-      s_indices[global_x] = indicator * s_indices[global_x + stride] + (1 - indicator) * s_indices[global_x];
+      if (s_scores[global_x + stride] > s_scores[global_x]) {
+        s_scores[global_x] = s_scores[global_x + stride];
+        s_indices[global_x] = s_indices[global_x + stride];
+      }
     }
   }  
 
@@ -203,9 +209,11 @@ __global__ void distributed_point_reduction_kernel(float* scores, int* indices, 
   }
 }
 
-extern "C" void find_best_active_set_candidate(MaxSubsetBuffers* subsetBuffers, ClassificationBuffers* classificationBuffers, float* d_mu, float* d_sigma, float level, float beta, GaussianProcessHyperparams hypers)
+extern "C" void find_best_active_set_candidate(MaxSubsetBuffers* subsetBuffers, ClassificationBuffers* classificationBuffers,
+                                               float* d_mu, float* d_sigma, float level, float beta, float eps,
+                                               GaussianProcessHyperparams hypers)
 {
-  float var_scaling = sqrt(beta);
+  float var_scaling = sqrt(beta); // square root to get the right answer
   int num_pts = subsetBuffers->num_pts;
   int dim_input = subsetBuffers->dim_input;
 
@@ -214,17 +222,17 @@ extern "C" void find_best_active_set_candidate(MaxSubsetBuffers* subsetBuffers, 
 
   // distributed ambiguity calculation, classification, and max reduction
   cudaSafeCall((distributed_point_evaluation_kernel<<<grid_dim, block_dim>>>(subsetBuffers->inputs,
-  								       subsetBuffers->scores,
-  								       subsetBuffers->indices,
-  								       subsetBuffers->active,
-  								       classificationBuffers->upper,
-  								       classificationBuffers->lower,
-  								       d_mu, d_sigma,
-  								       level, var_scaling,
-  								       hypers.beta,
-  								       hypers.sigma,
-  								       dim_input,
-  								       num_pts)));
+                                                                             subsetBuffers->scores,
+                                                                             subsetBuffers->indices,
+                                                                             subsetBuffers->active,
+                                                                             classificationBuffers->upper,
+                                                                             classificationBuffers->lower,
+                                                                             d_mu, d_sigma,
+                                                                             level, var_scaling, eps,
+                                                                             hypers.beta,
+                                                                             hypers.sigma,
+                                                                             dim_input,
+                                                                             num_pts)));
 
   // distributed sum reduction
   cudaSafeCall((distributed_point_reduction_kernel<<<1, grid_dim>>>(subsetBuffers->scores,

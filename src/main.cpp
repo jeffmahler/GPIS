@@ -1,3 +1,8 @@
+// Right now this file runs tests, experiments on the fast GPIS construction
+#include "active_set_selection_types.h"
+#include "csv.hpp"
+#include "gpu_active_set_selector.hpp"
+#include "max_subset_buffers.h"
 
 #include <cstdlib>
 #include <ctime>
@@ -8,10 +13,7 @@
 
 #include <glog/logging.h>
 
-#include "gpu_active_set_selector.hpp"
-#include "max_subset_buffers.h"
-
-#define CONFIG_SIZE 8
+#define CONFIG_SIZE 10
 
 #define DEFAULT_CSV "test.csv"
 #define DEFAULT_SET_SIZE 100
@@ -22,9 +24,12 @@
 #define DEFAULT_DEPTH 1
 #define DEFAULT_BATCH 1
 #define DEFAULT_TOLERANCE 0.001
+#define DEFAULT_START_INDEX -1
+#define DEFAULT_ACCURACY 1e-4
 
 // read in a configuration file
-bool readConfig(const std::string& configFilename, std::string& csvFilename, int& setSize, float& sigma, float& beta, int& width, int& height, int& depth, int& batch)
+bool readConfig(const std::string& configFilename, std::string& csvFilename, int& setSize, float& sigma, float& beta,
+                int& width, int& height, int& depth, int& batch, float& tolerance, int& startIndex, float& accuracy)
 {
   std::ifstream configFile(configFilename.c_str());
   if (!configFile.is_open()) {
@@ -59,6 +64,12 @@ bool readConfig(const std::string& configFilename, std::string& csvFilename, int
 	parser >> depth;
        case 7:
 	parser >> batch;
+       case 8:
+        parser >> tolerance;
+       case 9:
+        parser >> startIndex;
+       case 10:
+        parser >> accuracy;
       }
       i++;
     }
@@ -79,6 +90,36 @@ void printHelp()
   std::cout << "\t config - name of configuration file" << std::endl;
 }
 
+bool runTest(int width, int height, int depth)
+{
+  int numPoints = width * height * depth;
+
+  std::string truthPointsFilename = "data/test/activePoints.csv";
+  float* truthPoints = new float[numPoints];
+  ReadCsv(truthPointsFilename, truthPoints, width, height, depth, false);
+
+  std::string testPointsFilename = "inputs.csv";
+  float* testPoints = new float[numPoints];
+  ReadCsv(testPointsFilename, testPoints, width, height, depth, false);
+  bool samePoints = true;
+  float truthVal = 0.0f;
+  float testVal = 0.0f;
+
+  for(int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      truthVal = truthPoints[IJK_TO_LINEAR(i, j, 0, width, height)];
+      testVal = testPoints[IJK_TO_LINEAR(i, j, 0, width, height)]; 
+      //      std::cout << truthVal << " " << testVal << std::endl;
+
+      if (abs(truthVal - testVal) > 1e-4) {
+        samePoints = false;
+      }
+    }
+  }
+
+  return samePoints;
+}
+
 int main(int argc, char* argv[])
 {
   //  srand(1000);//time(NULL));
@@ -90,7 +131,7 @@ int main(int argc, char* argv[])
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = 1;
-  FLAGS_v = 1;
+  FLAGS_v = 2;
 
   // read args
   std::string configFilename = argv[1];
@@ -103,8 +144,12 @@ int main(int argc, char* argv[])
   int depth = DEFAULT_DEPTH;
   int batchSize = DEFAULT_BATCH;
   float tolerance = DEFAULT_TOLERANCE;
+  int startIndex = DEFAULT_START_INDEX;
+  float accuracy = DEFAULT_ACCURACY;
+  bool storeDepth = false;
 
-  bool opened = readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth, batchSize);
+  bool opened = readConfig(configFilename, csvFilename, setSize, sigma, beta, width, height, depth,
+                           batchSize, tolerance, startIndex, accuracy);
   if (!opened) {
     return 1;
   }
@@ -118,9 +163,17 @@ int main(int argc, char* argv[])
   LOG(INFO) << "height:\t" << height;
   LOG(INFO) << "depth:\t" << depth;
   LOG(INFO) << "batch:\t" << batchSize;
+  LOG(INFO) << "tolerance:\t" << tolerance;
+  LOG(INFO) << "start:\t" << startIndex;
+  LOG(INFO) << "accuracy:\t" << accuracy;
 
   GpuActiveSetSelector gpuSetSelector;
-  gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth, batchSize, tolerance);
-
+  gpuSetSelector.SelectFromGrid(csvFilename, setSize, sigma, beta, width, height, depth,
+                                batchSize, tolerance, accuracy, storeDepth, startIndex);
+  bool success = runTest(2, setSize, 1);
+  if (!success) {
+    LOG(ERROR) << "TEST FAILED!";
+  }
+  
   return 0;
 }

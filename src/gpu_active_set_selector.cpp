@@ -120,10 +120,10 @@ bool GpuActiveSetSelector::ReadCsv(const std::string& csvFilename, int width, in
       parser >> val;
       if (i < width-1)
 	parser >> delim;
-      inputs[IJK_TO_LINEAR(i, j, k, width, height) + 0 * numPts] = i;
-      inputs[IJK_TO_LINEAR(i, j, k, width, height) + 1 * numPts] = j;
+      inputs[IJK_TO_LINEAR(i, j, k, width, height) + 0 * numPts] = j+1;
+      inputs[IJK_TO_LINEAR(i, j, k, width, height) + 1 * numPts] = i+1;
       if (storeDepth) {
-	inputs[IJK_TO_LINEAR(i, j, k, width, height) + 2 * numPts] = k;
+	inputs[IJK_TO_LINEAR(i, j, k, width, height) + 2 * numPts] = k+1;
       }
       targets[IJK_TO_LINEAR(i, j, k, width, height) + 0 * numPts] = val;
       //      std::cout << i << " " << j << " " << k << " " << val << std::endl;
@@ -200,7 +200,7 @@ bool GpuActiveSetSelector::EvaluateErrors(float* d_mu, float* d_targets, unsigne
 
 bool GpuActiveSetSelector::SelectFromGrid(const std::string& csvFilename, int setSize, float sigma, float beta,
 					  int width, int height, int depth, int batchSize, 
-					  float tolerance, bool storeDepth)
+					  float tolerance, float accuracy, bool storeDepth, int startIndex)
 {
   // read in csv
   int inputDim = 2;
@@ -223,7 +223,8 @@ bool GpuActiveSetSelector::SelectFromGrid(const std::string& csvFilename, int se
     return false;
   }
 
-  SelectChol(setSize, inputs, targets, GpuActiveSetSelector::LEVEL_SET, hypers, inputDim, targetDim, numPts, tolerance, batchSize, activeInputs, activeTargets);
+  SelectChol(setSize, inputs, targets, GpuActiveSetSelector::LEVEL_SET, hypers, inputDim, targetDim, numPts,
+             tolerance, accuracy, batchSize, activeInputs, activeTargets, startIndex);
   //SelectCG(setSize, inputs, targets, GpuActiveSetSelector::LEVEL_SET, hypers, inputDim, targetDim, numPts, tolerance, activeInputs, activeTargets);
 
   delete [] inputs;
@@ -347,7 +348,7 @@ bool GpuActiveSetSelector::SelectCG(int maxSize, float* inputPoints, float* targ
 
     // compute amibugity and max ambiguity reduction (and update of active set)
     find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
-				   d_mu, d_sigma, level, beta, hypers);
+				   d_mu, d_sigma, level, beta, 0.0f, hypers);
 
     checkpoint_ = Duration();
     VLOG(1) << "Reduction Time (sec):\t " << checkpoint_;
@@ -429,8 +430,8 @@ bool GpuActiveSetSelector::SelectCG(int maxSize, float* inputPoints, float* targ
 bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* targetPoints,
 				      GpuActiveSetSelector::SubsetSelectionMode mode,
 				      GaussianProcessHyperparams hypers,
-				      int inputDim, int targetDim, int numPoints, float tolerance,
-				      int batchSize, float* activeInputs, float* activeTargets, bool incremental)
+				      int inputDim, int targetDim, int numPoints, float tolerance, float accuracy, 
+				      int batchSize, float* activeInputs, float* activeTargets, int startIndex, bool incremental)
 {
   VLOG(1) << "Selcting active set using Cholesky decomposition";
 
@@ -488,13 +489,17 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   construct_classification_buffers(&classificationBuffers, numPoints);
   
   // allocate host buffers for determining set to check
-  // unsigned char* h_active = new unsigned char[numPoints];
-  // unsigned char* h_upper = new unsigned char[numPoints];
-  // unsigned char* h_lower = new unsigned char[numPoints];
+  unsigned char* h_active = new unsigned char[numPoints];
+  unsigned char* h_upper = new unsigned char[numPoints];
+  unsigned char* h_lower = new unsigned char[numPoints];
 
   // init random starting point and update the buffers
   VLOG(1) << "Setting first index...";
   int firstIndex = rand() % numPoints;
+  if (startIndex != -1) {
+    firstIndex = startIndex;
+  }
+
   VLOG(1) << "Chose " << firstIndex << " as first index ";
   activate_max_subset_buffers(&maxSubBuffers, firstIndex);
   update_active_set_buffers(&activeSetBuffers, &maxSubBuffers, hypers);
@@ -505,12 +510,10 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   VLOG(1) << "Solving initial linear system";
 
   //  if (!incremental) 
-  SolveLinearSystemChol(&activeSetBuffers, activeSetBuffers.active_targets, d_L, d_alpha,
-			&handle); 
+  SolveLinearSystemChol(&activeSetBuffers, activeSetBuffers.active_targets, d_L, d_alpha, &handle); 
   // float hostL;
   // cudaSafeCall(cudaMemcpy(&hostL, d_L, sizeof(float), cudaMemcpyDeviceToHost));
   // std::cout << "Received L " << hostL;
-
 
   checkpoint_ = Duration();
   VLOG(1) << "Chol Time (sec):\t " << checkpoint_;
@@ -522,25 +525,30 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   int nextIndex = 0;
   std::vector<int> indices;
   indices.push_back(firstIndex);
-
-  VLOG(1) << "Using beta  = " << beta;
+  std::vector<int> scores;
+  scores.push_back(0);
 
   unsigned int k;
   for (k = 1; k < maxSize && nextIndex != -1; k++) {
     VLOG(1) << "Selecting point " << k+1 << " of " << maxSize << "...";
+
+    // update beta according to formula in level set probing paper
+    beta = 2 * log(numPoints * pow(M_PI,2) * pow((k+1),2) / (6 * tolerance));
+
+    VLOG(1) << "Beta: " << beta;
     
     // get the current classification statuses from the GPU
-    // cudaSafeCall(cudaMemcpy(h_active, maxSubBuffers.active, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
-    // cudaSafeCall(cudaMemcpy(h_upper, classificationBuffers.upper, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
-    // cudaSafeCall(cudaMemcpy(h_lower, classificationBuffers.lower, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+    cudaSafeCall(cudaMemcpy(h_active, maxSubBuffers.active, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+    cudaSafeCall(cudaMemcpy(h_upper, classificationBuffers.upper, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+    cudaSafeCall(cudaMemcpy(h_lower, classificationBuffers.lower, numPoints * sizeof(unsigned char), cudaMemcpyDeviceToHost));
     
-    // int numLeft = 0;
-    // for (unsigned int i = 0; i < numPoints; i++) {
-    //   if (!h_active[i] && !h_upper[i] && !h_lower[i]) {
-    //     numLeft++;
-    //   }
-    // }
-    // VLOG(1) << "Points not classified: " << numLeft;
+    int numLeft = 0;
+    for (unsigned int i = 0; i < numPoints; i++) {
+      if (!h_active[i] && !h_upper[i] && !h_lower[i]) {
+        numLeft++;
+      }
+    }
+    VLOG(1) << "Points not classified: " << numLeft;
 
     // checkpoint_ = Duration();
     // VLOG(1) << "Memcpy Time (sec):\t " << checkpoint_;
@@ -557,16 +565,16 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
 
     // compute amibugity and max ambiguity reduction (and update of active set)
     find_best_active_set_candidate(&maxSubBuffers, &classificationBuffers,
-				   d_mu, d_sigma, level, beta, hypers);
+				   d_mu, d_sigma, level, beta, accuracy, hypers);
     cudaSafeCall(cudaMemcpy(&nextIndex, maxSubBuffers.d_next_index, sizeof(int), cudaMemcpyDeviceToHost)); 
     cudaSafeCall(cudaMemcpy(&score, maxSubBuffers.scores, sizeof(float), cudaMemcpyDeviceToHost)); 
 
     // only update the active set if points were left
     indices.push_back(nextIndex);
+    scores.push_back(score);
 
     VLOG(1) << "Chose " << nextIndex << " with score " << score << " as next index...";
     if (nextIndex >= 0) {
-
       checkpoint_ = Duration();
       VLOG(1) << "Reduction Time (sec):\t " << checkpoint_;
 
@@ -579,12 +587,8 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
       checkpoint_ = Duration();
       VLOG(1) << "Update Time (sec):\t " << checkpoint_;
 
-      // update beta according to formula in level set probing paper
-      beta = 2 * log(numPoints * pow(M_PI,2) * pow((k+1),2) / (6 * tolerance));
-
       // compute next alpha vector
-      SolveLinearSystemChol(&activeSetBuffers, activeSetBuffers.active_targets, d_L, d_alpha,
-                            &handle); 
+      SolveLinearSystemChol(&activeSetBuffers, activeSetBuffers.active_targets, d_L, d_alpha, &handle); 
 
       checkpoint_ = Duration();
       VLOG(1) << "Chol Solve Time (sec):\t " << checkpoint_;
@@ -639,9 +643,9 @@ bool GpuActiveSetSelector::SelectChol(int maxSize, float* inputPoints, float* ta
   free_max_subset_buffers(&maxSubBuffers);
   free_classification_buffers(&classificationBuffers);
 
-  // delete [] h_active;
-  // delete [] h_upper;
-  // delete [] h_lower;
+  delete [] h_active;
+  delete [] h_upper;
+  delete [] h_lower;
 
   cublasDestroy(handle);
   culaShutdown();
@@ -895,30 +899,41 @@ bool GpuActiveSetSelector::GpPredictCholBatch(MaxSubsetBuffers* subsetBuffers, A
   // solve triangular system
   cudaSafeCall(cudaMemcpy(d_gamma, d_kernelVectors, maxActive * batchSize * sizeof(float), cudaMemcpyDeviceToDevice));
 
-  float hostKV;
-  if (index == 318 || index == 319 || index == 478 || index == 615) {
-    cudaSafeCall(cudaMemcpy(&hostKV, d_gamma, sizeof(float), cudaMemcpyDeviceToHost));
-    VLOG(2) << "KV for index " << index << ": " << hostKV;
+  float* hostKV = new float[numActive];
+  if (index == -1) { //index == 557) { //index == 318 || index == 319 || index == 478 || index == 615) {
+    cudaSafeCall(cudaMemcpy(hostKV, d_gamma, numActive*sizeof(float), cudaMemcpyDeviceToHost));
+    VLOG(2) << "KV for index " << index << ": " << 10;
+    float val = 0.0f;
+    for (int i = 0; i < numActive; i++) {
+      val += hostKV[i] * hostKV[i];
+    }
+    VLOG(2) << "KV for index " << index << ": " << val;
   }
+  delete [] hostKV;
   // cudaSafeCall(cudaMemcpy(&hostL, d_L, sizeof(float), cudaMemcpyDeviceToHost));
   // std::cout << "Pred L after: " << hostL << std::endl;
 
-  cublasSafeCall(cublasStrsm(*handle, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+  cublasSafeCall(cublasStrsm(*handle, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T,
 			     CUBLAS_DIAG_NON_UNIT, numActive, batchSize, d_scalar1, d_L,
 			     maxActive, d_gamma, maxActive));
 
-  float hostG;
-  if (index == 318 || index == 319 || index == 478 || index == 615) {
-    cudaSafeCall(cudaMemcpy(&hostG, d_gamma, sizeof(float), cudaMemcpyDeviceToHost));
-    VLOG(2) << "V for index " << index << ": " << hostG;
+  float* hostG = new float[numActive];
+  if (index == -1) { //index == 557) { //index == 318 || index == 319 || index == 478 || index == 615) {
+    cudaSafeCall(cudaMemcpy(hostG, d_gamma, numActive*sizeof(float), cudaMemcpyDeviceToHost));
+    float val = 0.0f;
+    for (int i = 0; i < numActive; i++) {
+      val += hostG[i] * hostG[i];
+    }
+    VLOG(2) << "V for index " << index << ": " << val;
   }
+  delete [] hostG;
     
   // dot product to get the resulting mean and variance reduction
   //  std::cout << "Batch Mult" << std::endl;
   cublasSafeCall(cublasSgemv(*handle, CUBLAS_OP_T, numActive, batchSize, d_scalar1, d_kernelVectors, maxActive, d_alpha,
                              1, d_scalar2, d_mu + index, 1));
   float hostMean;
-  if (index == 318 || index == 319 || index == 478 || index == 615) {
+  if (index == -1) { //index == 557) { //index == 318 || index == 319 || index == 478 || index == 615) {
     cudaSafeCall(cudaMemcpy(&hostMean, d_mu + index, sizeof(float), cudaMemcpyDeviceToHost));
     VLOG(2) << "Mean for index " << index << ": " << hostMean;
   }
@@ -928,7 +943,7 @@ bool GpuActiveSetSelector::GpPredictCholBatch(MaxSubsetBuffers* subsetBuffers, A
   norm_columns(d_gamma, d_sigma + index, numActive, batchSize, maxActive);
 
   float hostSig;
-  if (index == 318 || index == 319 || index == 478 || index == 615) {
+  if (index == -1) { //index == 557) { //index == 318 || index == 319 || index == 478 || index == 615) {
     cudaSafeCall(cudaMemcpy(&hostSig, d_sigma + index, sizeof(float), cudaMemcpyDeviceToHost));
     VLOG(2) << "Var for index " << index << ": " << hostSig;
   }
@@ -958,6 +973,23 @@ bool GpuActiveSetSelector::SolveLinearSystemChol(ActiveSetBuffers* activeSetBuff
   // float hostL;
   // cudaSafeCall(cudaMemcpy(&hostL, d_L, sizeof(float), cudaMemcpyDeviceToHost));
   // std::cout << "L: " << hostL << std::endl;
+
+  return true;
+}
+
+bool GpuActiveSetSelector::UpdateChol(ActiveSetBuffers* activeSetBuffers,
+                                      float* target, float* d_L,
+                                      float* d_alpha, cublasHandle_t* handle)
+{
+  int numActive = activeSetBuffers->num_active;
+  int maxActive = activeSetBuffers->max_active;
+
+  // block cholesky decomposition
+  cudaSafeCall(cudaMemcpy(d_L, activeSetBuffers->active_kernel_matrix, maxActive * maxActive * sizeof(float), cudaMemcpyDeviceToDevice));
+  cudaSafeCall(cudaMemcpy(d_alpha, target, maxActive * sizeof(float), cudaMemcpyDeviceToDevice));
+
+  culaSafeCall(culaDeviceSpotrf('U', numActive, d_L, maxActive));
+  culaSafeCall(culaDeviceSpotrs('U', numActive, 1, d_L, maxActive, d_alpha, maxActive));
 
   return true;
 }
