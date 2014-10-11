@@ -58,7 +58,7 @@ class GpuActiveSetSelector {
 		  SubsetSelectionMode mode,
 		  GaussianProcessHyperparams hypers,
 		  int inputDim, int targetDim, int numPoints, float tolerance, float accuracy, int batchSize,
-		  float* activeInputs, float* activeTargets, int startIndex = -1, bool incremental = false);
+		  float* activeInputs, float* activeTargets, int startIndex = -1, bool incremental = true);
 
  private:
   float SECovariance(float* x, float* y, int dim, int sigma);
@@ -89,8 +89,10 @@ class GpuActiveSetSelector {
 			  float* d_kernelVectors, float* d_L, float* d_alpha, float* d_gamma,
 			  float* d_scalar1, float* d_scalar2, cublasHandle_t* handle, float* d_mu, float* d_sigma);
   bool SolveLinearSystemChol(ActiveSetBuffers* activeSetBuffers, float* target, float* d_L,
-			     float* d_alpha, cublasHandle_t* handle);
-  
+			     float* d_alpha, float* d_scalar1, cublasHandle_t* handle);
+  bool UpdateChol(ActiveSetBuffers* activeSetBuffers, float* target, float* d_L,
+                  float* d_alpha, float* d_gamma, float* d_x, float* d_scalar1, 
+                  GaussianProcessHyperparams hypers, cublasHandle_t* handle);
 
  private:
   double checkpoint_;

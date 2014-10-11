@@ -7,7 +7,10 @@
 #define BLOCK_DIM_BATCH_X 32
 #define BLOCK_DIM_BATCH_Y 32
 
-#define BLOCK_DIM_NORM_X 128
+#define GRID_DIM_BATCH_X 32
+#define GRID_DIM_BATCH_Y 32
+
+#define BLOCK_DIM_NORM_X 8//128
 #define BLOCK_DIM_NORM_Y 1
 
 #define MAT_IJ_TO_LINEAR(i, j, dim) ((i) + (j)*(dim))
@@ -91,6 +94,59 @@ extern "C" void compute_kernel_vector(ActiveSetBuffers *active_buffers, MaxSubse
   cudaSafeCall((compute_kernel_vector_kernel<<<grid_dim, block_dim>>>(active_buffers->active_inputs, subset_buffers->inputs, kernel_vector, index, hypers.sigma, active_buffers->dim_input, subset_buffers->num_pts, active_buffers->num_active, active_buffers->max_active)));
 }
 
+// __global__ void compute_kernel_vector_batch_kernel(float* active_inputs, float* all_inputs, float* kernel_vectors, int index, int batch_size, float sigma, int dim_input, int num_pts, int num_active, int max_active)
+// {
+//   __shared__ int segment_size;
+
+//   if (threadIdx.x == 0 && threadIdx.y == 0) {
+//     segment_size = max(1, (int)ceilf((float)num_active / (float)gridDim.x));
+//     //    printf("Segment %d\n", segment_size);
+//   }
+
+//   float local_new_input[MAX_DIM_INPUT];
+//   float local_active_input[MAX_DIM_INPUT];
+
+//   int global_x = threadIdx.x + segment_size * blockIdx.x; // active point to grab
+//   int global_y = threadIdx.y + blockDim.y * blockIdx.y + index; // point to operate on (offset from index)
+//   float kernel_val = 0.0f;
+
+//   if (global_x >= num_active || global_y >= num_pts || global_y >= batch_size)
+//     return;
+
+//   for (int i = 0; global_x < num_active && global_x < segment_size * (blockIdx.x+1); i++) {
+//     kernel_val = 0.0f;
+
+//     __syncthreads();
+//     // read new input into local memory
+//     for (int j = 0; j < dim_input; j++) {
+//       local_new_input[j] = all_inputs[global_y + j*num_pts];
+//     }
+//     // coalesced read of active input to compute kernel with
+//     for (int j = 0; j < dim_input; j++) {
+//       local_active_input[j] = active_inputs[global_x + j*max_active];
+//     }
+//     //    printf("XY: %d %d block: %d\n", global_x, global_y, blockIdx.x);
+//     //    printf("Input: %f %f Target: %f %f\n", local_active_input[0], local_active_input[1], local_new_input[0], local_new_input[1]);
+//     kernel_val = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
+//     kernel_vectors[global_x + global_y*max_active] = kernel_val;
+
+//     global_x = threadIdx.x + segment_size * blockIdx.x + i * blockDim.x;
+//     printf("XY: %d %d block: %d batch: %d\n", global_x, global_y, blockIdx.x, batch_size);
+//   }
+// }
+
+// extern "C" void compute_kernel_vector_batch(ActiveSetBuffers *active_buffers, MaxSubsetBuffers* subset_buffers, int index, int batch_size, float* kernel_vectors, GaussianProcessHyperparams hypers)
+// {
+//   // x corresponds to the active point to compute the kernel with
+//   // y corresponds to the query point
+//   dim3 block_dim(BLOCK_DIM_BATCH_X, BLOCK_DIM_BATCH_Y, 1);
+//   dim3 grid_dim(GRID_DIM_BATCH_X,
+// 		ceilf((float)(batch_size)/(float)(block_dim.y)),
+// 		1);
+
+//   cudaSafeCall((compute_kernel_vector_batch_kernel<<<grid_dim, block_dim>>>(active_buffers->active_inputs, subset_buffers->inputs, kernel_vectors, index, batch_size, hypers.sigma, active_buffers->dim_input, subset_buffers->num_pts, active_buffers->num_active, active_buffers->max_active)));
+// }
+
 __global__ void compute_kernel_vector_batch_kernel(float* active_inputs, float* all_inputs, float* kernel_vectors, int index, int batch_size, float sigma, int dim_input, int num_pts, int num_active, int max_active)
 {
   float local_new_input[MAX_DIM_INPUT];
@@ -131,8 +187,8 @@ extern "C" void compute_kernel_vector_batch(ActiveSetBuffers *active_buffers, Ma
   // y corresponds to the query point
   dim3 block_dim(BLOCK_DIM_BATCH_X, BLOCK_DIM_BATCH_Y, 1);
   dim3 grid_dim(ceilf((float)(active_buffers->num_active)/(float)(block_dim.x)),
-		ceilf((float)(batch_size)/(float)(block_dim.y)),
-		1);
+                ceilf((float)(batch_size)/(float)(block_dim.y)),
+                1);
 
   cudaSafeCall((compute_kernel_vector_batch_kernel<<<grid_dim, block_dim>>>(active_buffers->active_inputs, subset_buffers->inputs, kernel_vectors, index, batch_size, hypers.sigma, active_buffers->dim_input, subset_buffers->num_pts, active_buffers->num_active, active_buffers->max_active)));
 }
@@ -173,7 +229,6 @@ __global__ void update_kernel_matrix_kernel(float* kernel_matrix, float* active_
       for (int j = 0; j < dim_input; j++) {
     	local_active_input[j] = active_inputs[global_x + j*max_active];
       }
-      
       kernel = exponential_kernel(local_new_input, local_active_input, dim_input, sigma);
     }
 
@@ -302,5 +357,80 @@ extern "C" void norm_columns(float* A, float* x, int m, int n, int lda)
 		1);
 
   cudaSafeCall((norm_columns_kernel<<<grid_dim, block_dim>>>(A, x, m, n, lda)));
+}
 
+__global__ void compute_sqrt_var_kernel(float* v, float* x, int m, float sigma, float beta, int dim_input)
+{
+  // max score for each thread
+  __shared__ float s_sums[BLOCK_DIM_BATCH_X * BLOCK_DIM_BATCH_Y];
+  __shared__ float s_point[MAX_DIM_INPUT];
+  __shared__ float s_kernel;
+  __shared__ int   s_dim_input;
+
+  // parameters
+  __shared__ int segment_size;
+
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
+    segment_size = m;//max((int)1, (int)ceilf((float)(m)/(float)(gridDim.x)));
+    s_dim_input = dim_input;
+  }
+  __syncthreads();
+
+  // read input point into shared memory
+  if (threadIdx.x < s_dim_input && threadIdx.y == 0) {
+    s_point[threadIdx.x] = 0;
+  }
+
+  // compute kernel value
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
+    s_kernel = exponential_kernel(s_point, s_point, s_dim_input, sigma) + beta;
+  }
+  __syncthreads();
+
+  // initialize scores and count
+  int local_x = threadIdx.x + blockDim.x*threadIdx.y;
+  s_sums[local_x] = 0;
+
+  int global_x = threadIdx.x + blockIdx.x*blockDim.x;
+  float val = 0.0f;
+
+  // keep reading the values and squaring them
+  for (int i = 0; i * blockDim.x < segment_size; i++) {
+    global_x = threadIdx.x + i * blockDim.x;
+    //    printf("Index %d segment %d block start %d m %d\n", global_x, segment_size, blockIdx.x * blockDim.x, m);
+
+    // read from global memory
+    __syncthreads();
+    if (global_x < segment_size && global_x < m) {
+      val = v[global_x];
+      //      printf("MADE IT Index %d segment %d val %f m %d\n", global_x, segment_size, val, m);
+      s_sums[local_x] += val * val;
+    }
+  }
+
+  // reduce the squared sum
+  int threads_per_block = blockDim.x * blockDim.y;
+  for (unsigned int stride = threads_per_block >> 1; stride > 0; stride >>= 1) {
+    __syncthreads();
+    if (local_x < stride && (local_x + stride) < threads_per_block) {
+      s_sums[local_x] += s_sums[local_x + stride];
+    }
+  }
+  
+  // write result to memory
+  __syncthreads();
+  if (threadIdx.x == 0 && threadIdx.y == 0) {
+    x[0] = sqrt(s_kernel - s_sums[0]);
+    //    printf("X: %f SUM: %f\n", x[0], s_sums[0]);
+  }
+}
+
+// compute variance of a single point from the chol solved V vector
+extern "C" void compute_sqrt_var(float* v, float* x, int m, float sigma, float beta, int dim_input)
+{
+  // single row of matrix
+  dim3 block_dim(BLOCK_DIM_NORM_X*BLOCK_DIM_NORM_Y, 1);
+  dim3 grid_dim(1,1);
+
+  cudaSafeCall((compute_sqrt_var_kernel<<<grid_dim, block_dim>>>(v, x, m, sigma, beta, dim_input)));
 }

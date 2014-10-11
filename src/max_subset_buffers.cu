@@ -67,7 +67,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
 
   // parameters
   __shared__ int segment_size;
-  __shared__ int s_eps;
+  __shared__ float s_eps;
 
   // allocate local computation buffers
   float point[MAX_DIM_INPUT];
@@ -113,15 +113,17 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
       // compute things only if we do not know this point yet
       if (!active_flag && !upper_flag && !lower_flag) { 
   	// compute the ambiguity (see Gotovos et al for more info)
-  	kernel = subset_exponential_kernel(point, point, dim_input, sigma);
-        kernel += beta;
-        // if (point[0] == 23 && point[1] == 8) {
-        //   printf("Point %f %f kernel: %f var red: %f\n", point[0], point[1], kernel, pred_var);
+  	kernel = subset_exponential_kernel(point, point, dim_input, sigma) + beta;
+        // if (point[0] == 1 && point[1] == 1) {
+        //   printf("Point %f %f mean: %f kernel: %f var red: %f scaling: %f sigma: %f\n", point[0], point[1], pred_mean, kernel, pred_var, var_scaling, sigma);
         // }
-  	pred_var = kernel - pred_var;
-  	pred_var = var_scaling * pred_var;
+  	pred_var = var_scaling * (kernel - pred_var);
 
   	// check upper, lower
+        //printf("EPS %f\n", s_eps);
+        if (point[0] == 1 && point[1] == 1) {
+          printf("Point %f %f high: %f low: %f\n", point[0], point[1], pred_mean, pred_var);
+        }
   	if (pred_mean + pred_var - s_eps <= level) {
           lower_flag = 1;
         }
@@ -131,7 +133,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
         }
 
   	// update local ambiguity score
-  	ambiguity = min(pred_mean + pred_var - level, level - (pred_mean - pred_var)); 
+        ambiguity = pred_var - abs(pred_mean - level);
 
         // if (global_x == 318 || global_x == 319 || global_x == 478 || global_x == 615) {
         //   printf("Index %d score: %f flags: %d %d %d\n", global_x, ambiguity, active_flag, upper_flag, lower_flag);
@@ -145,6 +147,7 @@ __global__ void distributed_point_evaluation_kernel(float* inputs, float* scores
   	  s_indices[threadIdx.x] = global_x;
   	}
       }
+      __syncthreads();
     }
     // write upper / lower flags
     __syncthreads();

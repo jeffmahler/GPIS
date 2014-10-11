@@ -68,7 +68,7 @@ def plot_predicted_tsdf(tsdf_filename, pred_filename, alpha_filename, active_inp
 
     plt.subplot(1,2,1)
     plt.imshow(tsdf, cmap='Greys')
-    plt.scatter(inputs[:,0], inputs[:,1])
+    plt.scatter(inputs[:,1], inputs[:,0])
 
     plt.subplot(1,2,2)
     plt.imshow(pred_tsdf_grid, cmap='Greys')
@@ -79,4 +79,4 @@ def plot_predicted_tsdf(tsdf_filename, pred_filename, alpha_filename, active_inp
 if __name__ == '__main__':
 #    plot_tsdf('data/plane.csv')
 #    plot_active_set('data/plane.csv', 'inputs.csv')
-    plot_predicted_tsdf('data/plane.csv', 'predictions.csv', 'alpha.csv', 'inputs.csv')
+    plot_predicted_tsdf('data/big_plane.csv', 'predictions.csv', 'alpha.csv', 'inputs.csv')

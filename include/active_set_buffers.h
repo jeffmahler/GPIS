@@ -15,3 +15,6 @@ extern "C" void update_active_set_buffers(ActiveSetBuffers *active_buffers, MaxS
 // random reduction function for solving the linear system fast
 extern "C" void norm_columns(float* A, float* x, int m, int n, int lda);
 
+// compute variance of a single point from the chol solved V vector
+extern "C" void compute_sqrt_var(float* v, float* x, int m, float sigma, float beta, int dim_input);
+

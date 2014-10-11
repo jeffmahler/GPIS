@@ -13,7 +13,7 @@
 
 #include <glog/logging.h>
 
-#define CONFIG_SIZE 10
+#define CONFIG_SIZE 11
 
 #define DEFAULT_CSV "test.csv"
 #define DEFAULT_SET_SIZE 100
@@ -96,11 +96,11 @@ bool runTest(int width, int height, int depth)
 
   std::string truthPointsFilename = "data/test/activePoints.csv";
   float* truthPoints = new float[numPoints];
-  ReadCsv(truthPointsFilename, truthPoints, width, height, depth, false);
+  ReadCsv2(truthPointsFilename, truthPoints, width, height, depth, false);
 
   std::string testPointsFilename = "inputs.csv";
   float* testPoints = new float[numPoints];
-  ReadCsv(testPointsFilename, testPoints, width, height, depth, false);
+  ReadCsv2(testPointsFilename, testPoints, width, height, depth, false);
   bool samePoints = true;
   float truthVal = 0.0f;
   float testVal = 0.0f;
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = 1;
-  FLAGS_v = 2;
+  FLAGS_v = 1;
 
   // read args
   std::string configFilename = argv[1];

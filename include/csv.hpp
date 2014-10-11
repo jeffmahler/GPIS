@@ -21,7 +21,7 @@ bool WriteCsv(const std::string& csvFilename, float* buffer, int width, int heig
  * ReadCsv
  * @brief read a csv file with dimension up to width x height x depth into a buffer
  */
-bool ReadCsv(const std::string& csvFilename, float* buffer, int width, int height, int depth, bool storeDepth);
+bool ReadCsv2(const std::string& csvFilename, float* buffer, int width, int height, int depth, bool storeDepth);
 
 /**
  * ReadTsdf

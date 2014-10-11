@@ -51,7 +51,7 @@ bool WriteCsv(const std::string& csvFilename, float* buffer, int width, int heig
   return true;
 }
 
-bool ReadCsv(const std::string& csvFilename, float* buffer, int width, int height, int depth, bool storeDepth)
+bool ReadCsv2(const std::string& csvFilename, float* buffer, int width, int height, int depth, bool storeDepth)
 {
   std::ifstream csvFile(csvFilename.c_str());
   if (!csvFile.is_open()) {
