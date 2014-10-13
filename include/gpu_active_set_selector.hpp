@@ -60,6 +60,10 @@ class GpuActiveSetSelector {
 		  int inputDim, int targetDim, int numPoints, float tolerance, float accuracy, int batchSize,
 		  float* activeInputs, float* activeTargets, int startIndex = -1, bool incremental = true);
 
+  bool SelectFullInversion(float* inputs, float* targets, int inputDim, int targetDim, int numPoints, 
+                           GaussianProcessHyperparams hypers);
+
+
  private:
   float SECovariance(float* x, float* y, int dim, int sigma);
   double ReadTimer();
