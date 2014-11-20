@@ -11,10 +11,10 @@ end
 gridDim = max(allPoints(:,1)); 
 contacts = zeros(2, nc);
 norm = zeros(2, nc);
-dim = uint16(sqrt(size(allPoints,1)));
-tsdfGrid = reshape(allTsdf, gridDim, gridDim);
-xNormGrid = reshape(allNorm(:,1), gridDim, gridDim);
-yNormGrid = reshape(allNorm(:,2), gridDim, gridDim);
+dim = uint16(sqrt(size(allTsdf,1)));
+tsdfGrid = reshape(allTsdf, sqrt(size(allTsdf,1)), sqrt(size(allTsdf,1)));
+xNormGrid = reshape(allNorm(:,1), sqrt(size(allTsdf,1)), sqrt(size(allTsdf,1)));
+yNormGrid = reshape(allNorm(:,2), sqrt(size(allTsdf,1)), sqrt(size(allTsdf,1)));
 
 for i=1:nc
     index = 2*(i-1) + 1;
@@ -36,7 +36,7 @@ for i=1:nc
             hold on;
             scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
         end
-
+       
         if(abs(tsdfVal) < thresh || (sign(prevTsdfVal) ~= sign(tsdfVal)) )
             contacts(:,i) = loa(t,:)';
             norm(:,i) = [xNormGrid(loa(t,2), loa(t,1));...

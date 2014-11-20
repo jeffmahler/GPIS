@@ -11,27 +11,42 @@ if nargin < 6
     vis = false;
 end
 
+tsdf = shapeSamples{1}.tsdf;
+gridDim = sqrt(size(tsdf,1));
 % Alpha blend all samples
 numSamples = size(shapeSamples,2);
-dim = scale*shapeParams.gridDim;
+dim = 2 * shapeParams.gridDim;
+hd_dim = scale / 2 * dim;
 shapeSurfaceImage = zeros(dim, dim);
 alpha = contrastRatio / double(numSamples);
 
 for i = 1:numSamples
     tsdf = shapeSamples{i}.tsdf;
-    tsdfGrid = reshape(tsdf, shapeParams.gridDim, shapeParams.gridDim);
-    tsdfBig = imresize(tsdfGrid, scale);
+    tsdfGrid = reshape(tsdf, gridDim, gridDim);
+    tsdfBig = imresize(tsdfGrid, 2);
     
+    % find surface...
+    tsdfThresh = tsdfBig > 0;
+    SE = strel('square', 3);
+    I_d = imdilate(tsdfThresh, SE);
     
-    shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
-    tsdfSurface = ones(dim, dim);
-    tsdfSurface(shapeSurfaceIndices) = 0;
+    % create border masks
+    insideMaskOrig = (tsdfThresh == 0);
+    outsideMaskDi = (I_d == 1);
+    tsdfSurface = double(~(outsideMaskDi & insideMaskOrig));
     
+%     shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
+%     tsdfSurface = ones(dim, dim);
+%     tsdfSurface(shapeSurfaceIndices) = 0;
+%     
     if vis
-        figure(1);
+        figure(100);
+        H = high_res_surface(tsdfSurface, scale);
         imshow(tsdfSurface);
         pause(0.5);
     end
+%     size(tsdfSurface)
+%     size(shapeSurfaceImage)
     
     shapeSurfaceImage = shapeSurfaceImage + alpha * tsdfSurface;
 end
@@ -74,6 +89,7 @@ siEqualizedFilt = imfilter(siEqualized, G, 'same');
 siEqFlat = siEqualizedFilt.^beta;
 
 shapeSurfaceImage = blend * siContrastEnhanced + (1 - blend) * siEqFlat;
+%shapeSurfaceImage = high_res_gpis(shapeSurfaceImage, scale / 2);
 % figure;
 % imshow(shapeSurfaceImage);
 
@@ -82,7 +98,7 @@ shapeSurfaceImage = blend * siContrastEnhanced + (1 - blend) * siEqFlat;
 %     (max(max(sha (shpeSurfaceImage)) - min(min(shapeSurfaceImage)));
 
 if black
-    shapeSurfaceImage = max(max(shapeSurfaceImage))*ones(dim, dim) - shapeSurfaceImage;
+    shapeSurfaceImage = max(max(shapeSurfaceImage))*ones(hd_dim, hd_dim) - shapeSurfaceImage;
 end
 
 if false
@@ -93,4 +109,5 @@ if false
     % subplot(1,2,2);
     imshow(shapeSurfaceImage);
     %title('Avg Tsdf Zero Crossings');
+end
 end

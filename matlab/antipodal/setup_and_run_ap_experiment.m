@@ -2,15 +2,15 @@
 
 dim = 25;
 dataDir = 'data/google_objects';%/google_update_versions';
-shapeNames = {'loofa', 'marker', 'squirt_bottle', 'stapler', 'tape', 'water'};%{'marker'};
-outputDir = 'results/google_objects/test';
-newShape = false;
+shapeNames = {'measure'};%{'marker'};
+outputDir = 'data/google_update_versions/';
+newShape = true;
 scale = 2;
-createGpis = false;
+createGpis = true;
 
 %% experiment config
 experimentConfig = struct();
-experimentConfig.graspIters = 10;
+experimentConfig.graspIters = 0;
 experimentConfig.frictionCoef = 0.5;
 experimentConfig.numSamples = 1000;
 experimentConfig.surfaceThresh = 0.15;
@@ -27,35 +27,35 @@ experimentConfig.evalRandSampleFcGrasps = true;
 
 %% variance parameters
 varParams = struct();
-varParams.y_thresh1_low = 11;
-varParams.y_thresh1_high = 18;
-varParams.x_thresh1_low = 2;
+varParams.y_thresh1_low = 0;
+varParams.y_thresh1_high = 10;
+varParams.x_thresh1_low = 0;
 varParams.x_thresh1_high = 10;
-
+% 
 varParams.y_thresh2_low = 12;
 varParams.y_thresh2_high = dim;
 varParams.x_thresh2_low = 5;
-varParams.x_thresh2_high = 19;
-
-varParams.y_thresh3_low = 11;
-varParams.y_thresh3_high = 18;
-varParams.x_thresh3_low = 20;
+varParams.x_thresh2_high = 7;
+% 
+varParams.y_thresh3_low = 8;
+varParams.y_thresh3_high = 22;
+varParams.x_thresh3_low = 16;
 varParams.x_thresh3_high = 24;
 
 % varParams.y_thresh1_low = dim;
-% varParams.y_thresh1_high = dim;
+% varParams.y_thresh1_high = 0;
 % varParams.x_thresh1_low = dim;
-% varParams.x_thresh1_high = dim;
-% 
+% varParams.x_thresh1_high = 0;
+
 % varParams.y_thresh2_low = dim;
-% varParams.y_thresh2_high = dim;
+% varParams.y_thresh2_high = 0;
 % varParams.x_thresh2_low = dim;
-% varParams.x_thresh2_high = dim;
-% 
+% varParams.x_thresh2_high = 0;
+
 % varParams.y_thresh3_low = dim;
-% varParams.y_thresh3_high = dim;
+% varParams.y_thresh3_high = 0;
 % varParams.x_thresh3_low = dim;
-% varParams.x_thresh3_high = dim;
+% varParams.x_thresh3_high = 0;
 
 varParams.occlusionScale = 1000;
 varParams.noiseScale = 0.1;
@@ -127,13 +127,18 @@ for i = 1:size(shapeNames,2)
     filename = shapeNames{i};
     fprintf('Running experiment for shape %s\n', filename);
     
-    % Run experiment on next shape
-    [experimentResults, gpModel, shapeParams, shapeSamples] = ...
-        run_antipodal_experiment(dim, filename, dataDir, ...
-                                 outputDir, newShape, ...
-                                 experimentConfig, varParams, ...
-                                 trainingParams, cfg, createGpis);
+  
+    [gpModel, shapeParams, shapeSamples, constructionResults] = ...
+        create_experiment_object(dim, filename, dataDir, newShape, ...
+                                 experimentConfig, varParams, trainingParams, ...
+                                 cfg.scale);
                              
+     save('data/google_update_versions/measure_cup_gpis.mat','gpModel');
+     save('data/google_update_versions/measure_cup_samples.mat','shapeSamples');
+     save('data/google_update_versions/measure_cup_construction.mat','constructionResults');
+     save('data/google_update_versions/measure_cup_variance_params.mat','varParams');
+     save('data/google_update_versions/measure_cup.mat','shapeParams');
+                                                      
     % Store results
     shapeResult = struct();
     shapeResult.experimentResults = experimentResults;

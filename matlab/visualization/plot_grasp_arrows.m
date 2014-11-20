@@ -6,6 +6,7 @@ grad2 = grad2 / norm(grad2);
 tan1 = [-grad1(2); grad1(1)];
 tan2 = [-grad2(2); grad2(1)];
 
+figure;
 imshow(shapeImage);
 hold on;
 % plot arrows

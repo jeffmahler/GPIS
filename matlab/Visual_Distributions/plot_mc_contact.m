@@ -1,22 +1,27 @@
-function [divg] = plot_mc_contact( loa,contact_emp,p_c )
+function [divg] = plot_mc_contact( loa,contact_grasp,contact_shape )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
     
-    dist = zeros(size(loa,1),1); 
+    dist_grasp = zeros(size(loa,1),1); 
+    dist_shape = dist_grasp;
 
-
-    for i=1:size(contact_emp,1)
-        t =contact_emp(i);
-        
-        dist(t) = dist(t)+1; 
+    for i=1:size(contact_grasp,1)
+        t =contact_grasp(i);
+        dist_grasp(t) = dist_grasp(t)+1; 
+        t = find_closest_index(contact_shape(i,:),loa);
+        dist_shape(t) = dist_shape(t)+1; 
     end
 
 
-    dist = dist/norm(dist,1); 
+    dist_grasp = dist_grasp/norm(dist_grasp,1); 
+    dist_shape = dist_shape/norm(dist_shape,1); 
     
-    plot(dist); 
+    figure; 
+    plot(dist_grasp);
+    figure; 
+    plot(dist_shape);
     
-    divg = KL_divg(dist,p_c);
+    divg = KL_divg(dist_grasp,dist_shape);
 
 
 end
@@ -38,8 +43,6 @@ function [d] =  KL_divg(h1,h2)
     %# you may want to do some input testing, such as whether h1 and h2 are
     %# of the same size
 
-   
-
     %# create an index of the "good" data points
     goodIdx = h1>0 & h2>0; %# bin counts <0 are not good, either
 
@@ -50,4 +53,5 @@ function [d] =  KL_divg(h1,h2)
     %# the rest remains zero
     d = (d1+d2)/2; 
 end
+
 

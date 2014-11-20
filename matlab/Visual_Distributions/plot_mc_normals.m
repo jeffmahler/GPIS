@@ -1,24 +1,32 @@
-function [divg] = plot_mc_normals( loa,Norms,normals_emp,p_n )
+function [divg] = plot_mc_normals( Norms,normals_grasp,normals_shape)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
     
-    dist = zeros(size(p_n)); 
+    dist_grasp = zeros(size(Norms,1),1); 
+    dist_shape = zeros(size(Norms,1),1);
 
-
-    for i=1:size(normals_emp,1)
-        n =normals_emp(i,:);
+    for i=1:size(normals_grasp,1)
+        n =normals_grasp(i,:);
         n = n/norm(n,2);
         idx = find_closest_index(n,Norms);
-        dist(idx) = dist(idx)+1; 
+        dist_grasp(idx) = dist_grasp(idx)+1; 
+        
+        n =normals_shape(i,:);
+        n = n/norm(n,2);
+        idx = find_closest_index(n,Norms);
+        dist_shape(idx) = dist_shape(idx)+1; 
     end
 
 
-    dist = dist/norm(dist,1); 
+    dist_grasp = dist_grasp/norm(dist_grasp,1); 
+    dist_shape = dist_shape/norm(dist_shape,1); 
     
-    plot(dist); 
     
-    divg = KL_divg(dist,p_n);
-    plot_normal(dist,Norms(:,1),Norms(:,2));
+   
+    plot_normal(dist_grasp,Norms(:,1),Norms(:,2));
+    plot_normal(dist_shape,Norms(:,1),Norms(:,2));
+    
+    divg = KL_divg(dist_grasp,dist_shape);
 
 end
 
@@ -52,15 +60,45 @@ end
 
 function [] = plot_normal(dist,x,y)
    
-    figure(5);
+    figure;
    
-    scatter(-x,-y,10,dist);
-    axis([-1 1 -1 1]); 
+    dist = dist*50; 
+    dt = 0.01; 
+    x = x;
+    y = -y;
+    
+    Values = []; 
+    for i=1:size(x,1)
+        Values = [Values; [x(i,:) y(i,:)]]; 
+        if(dist(i) ~=0)
+            grad = [x(i,:) y(i,:)]
+            point = grad; 
+            while abs(point) < abs(grad+dist(i)*grad)
+                Values = [Values; point]; 
+                point = point + grad*dt;
+            end
+        end
+    end
+    
+    figure;
+    %h = surf(x,y,dist); 
+    %set(h,'edgecolor','flat')
+    
+    hold on; 
+    scatter(Values(:,1),Values(:,2),40);
+    scatter(x,y,40,'k');
+    hold off; 
+    
+    [vx idx] = max(abs(Values(:,1)));
+    [vy idx] = max(abs(Values(:,2))); 
+    axis([-vx-0.25 vx+0.25 -vy-0.25 vy+0.25]); 
     axis equal
-    colorbar
-    title('Empirical Distribution on Surface Normals'); 
-    xlabel('x-direction'); 
-    ylabel('y-direction'); 
+  
+    font = 18
+    set(gca,'FontSize',12)
+    title('Distribution on Surface Normals','FontSize', font); 
+    xlabel('x-direction','FontSize', font); 
+    ylabel('y-direction','FontSize', font); 
     zlabel('pdf');
     
     

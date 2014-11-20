@@ -1,11 +1,15 @@
 function [ shape_samples, pdfs] = ...
-    sample_shapes(gpModel, gridDim, numSamples)
+    sample_shapes(gpModel, gridDim, numSamples,resolution)
 %SAMPLE_SHAPE Summary of this function goes here
 %   Detailed explanation goes here
 
-[X, Y] = meshgrid(1:gridDim, 1:gridDim);
+if nargin < 4
+    resolution = 1;
+end
+
+[X, Y] = meshgrid(1:resolution:gridDim, 1:resolution:gridDim);
 allPoints = [X(:), Y(:)];
-num_points = gridDim^2;
+num_points = (size(allPoints,1));
 
 COV = gp_cov(gpModel, allPoints, [], true);
 MEAN = gp_mean(gpModel, allPoints, true); 

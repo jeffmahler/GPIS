@@ -1,15 +1,14 @@
-function [ output_args ] = single_grasp(  gpModel,shapeParams,cp,img,experimentConfig,qvals)
+function [ output_args ] = single_grasp(  gpModel,shapeParams,cp,img,experimentConfig)
 %SINGLE_GRASP Summary of this function goes here
 %   Detailed explanation goes here
-
+% 
 [loa_1,Norms,pc_1,pn_1] = Compute_Distributions(gpModel,shapeParams,cp(1:2,:),img);
 
-[loa_2,Norms,pc_2,pn_2] = Compute_Distributions(gpModel,shapeParams,cp(3:4,:),img);
-
-ca  = atan(experimentConfig.frictionCoef);
-fc = experimentConfig.frictionCoef;
-[E_Q,lb] = compute_lb( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2, shapeParams.com,ca,fc,gpModel);
-plot_grasp(loa_1,loa_2,img.mean,pc_1,pc_2)
+% [loa_2,Norms,pc_2,pn_2] = Compute_Distributions(gpModel,shapeParams,cp(3:4,:),img);
+% 
+% ca  = atan(experimentConfig.frictionCoef);
+% fc = experimentConfig.frictionCoef;
+% plot_grasp(loa_1,loa_2,img.mean,pc_1,pc_2)
     
   
 %Calculate Distribution Along In Workspace
@@ -20,7 +19,6 @@ mean = gp_mean(gpModel,shapeParams.all_points,true);
 p_com = center_of_mass(mean,cov,shapeParams.gridDim);
 plot_com(p_com,shapeParams.com,shapeParams.gridDim,img.mean)
 
-plot_hist(qvals);
 
 end
 
@@ -43,7 +41,7 @@ function [] = plot_grasp(loa_1,loa_2,testImage,pc_1,pc_2)
     figure;
     testImage = cat(3, testImage, testImage, testImage);
     imshow(testImage);
-    set(gca,'YDir','normal');
+    set(gca,'XDir','normal');
     axis on;
     hold on     
   
@@ -95,12 +93,13 @@ function [p] = plot_com(dist,com,gridDim,testImage)
     figure;
     h = surfc([1:gridDim],[1:gridDim],dist,dist); 
     set(h,'edgecolor','interp')
-    
-    title('Distribution on Density'); 
+    font = 18; 
+    set(gca,'FontSize',12)
+    title('Distribution on Density','FontSize', font);  
     colorbar
-    xlabel('x-axis'); 
-    ylabel('y-axis'); 
-    zlabel('pdf');
+    xlabel('x-axis','FontSize', font); 
+    ylabel('y-axis','FontSize', font);  
+    zlabel('pdf','FontSize', font); 
     set(gcf,'color',[1 1 1]);
   
     

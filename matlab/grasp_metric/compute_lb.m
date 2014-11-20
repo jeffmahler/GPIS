@@ -1,4 +1,4 @@
-function [ E_Q,lb ] = compute_lb( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2,cm,cone_angle,fc,gpModel)
+function [ E_Q,lb ] = compute_lb( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2,cm,cone_angle,fc,gpModel,Grasp_Data)
 %COMPUTE_LB Given a distribution on grasps returns a lower bound on
 %expected grasp 
 
@@ -7,15 +7,36 @@ function [ E_Q,lb ] = compute_lb( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2,cm,cone_
     
     [E_C,E_N,sc,sn ] = expected_grasp( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2);
       
-    forces = forces_on_friction_cone(E_N,cone_angle)
+    forces = forces_on_friction_cone(E_N,cone_angle);
     
     E_C = [E_C; zeros(1,nc)]
     
     E_Q = ferrari_canny( [cm 0]',E_C,forces);
     
-    b(1) = find_b(pc_1,pn_1,sc(1),sn(1),Norms,loa_1,gpModel,zeta,cm,fc);
+    [b(1) r1] = find_b(pc_1,pn_1,sc(1),sn(1),Norms,loa_1,gpModel,zeta,cm,fc);
         
-    b(2) = find_b(pc_2,pn_2,sc(2),sn(2),Norms,loa_2,gpModel,zeta,cm,fc);
+    [b(2) r2] = find_b(pc_2,pn_2,sc(2),sn(2),Norms,loa_2,gpModel,zeta,cm,fc);
+    
+    
+    max_r = max(r1,r2); 
+    num_samples =1; 
+    
+    for i=1:num_samples
+        [v,ic1] = max(pc_1); 
+        grasp(1:2) = loa_1(ic1,:)-cm; 
+        
+        [v,ic2] = max(pc_2);
+        grasp(3:4) = loa_2(ic2,:)-cm; 
+        
+        [v,in1] = max(pn_1);
+        grasp(5:6) = Norms(in1,:); 
+        
+        [v,in2] = max(pn_2);
+        grasp(7:8) = Norms(in2,:); 
+        
+        
+        [vl vh] = compute_closest_grasp( Grasp_Data,grasp,fc,max_r);
+    end
     
     
         
@@ -23,7 +44,7 @@ function [ E_Q,lb ] = compute_lb( loa_1,loa_2,Norms,pc_1,pn_1,pc_2,pn_2,cm,cone_
 
 end
 
-function [b] =  find_b(p_c,pn,sc,sn,Norms,loa,gpModel,zeta,cm,fc)
+function [b,r] =  find_b(p_c,pn,sc,sn,Norms,loa,gpModel,zeta,cm,fc)
 
     cov_loa = gp_cov(gpModel,loa, [], true);
 

@@ -1,8 +1,10 @@
 % script for setting up and running an antipodal experiment
+
 close all;
+load('Grasp.mat')
 dim = 25;
 dataDir = 'data/google_update_versions';
-filename = 'marker';
+filename = 'measure_cup';
 outputDir = 'results/google_objects/test';
 newShape = false;
 scale = 2;
@@ -103,8 +105,18 @@ cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solu
 %                              varParams, trainingParams,experimentConfig);
 [gpModel, shapeParams, shapeSamples, constructionResults] = load_experiment_object(filename, dataDir, scale);
 img.mean = constructionResults.newSurfaceImage;
+figure; 
+imshow(img.mean)
 
-[T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img,constructionResults);
+H = high_res_gpis(img.mean,4); 
+figure; 
+imshow(H)
+
+[cp cp_mc] = get_random_grasp(shapeParams.gridDim,shapeParams.gridDim);
+
+single_grasp(gpModel,shapeParams,cp,img,experimentConfig)
+
+%[T_Q,contacts,HIST] = Run_Comp(experimentConfig,gpModel,shapeParams,img,constructionResults,Grasp);
 % [loa_1,Norms,pc_1,pn_1] = Compute_Distributions(gpModel,shapeParams,grip_point1,img);
 % 
 % [loa_2,Norms,pc_2,pn_2] = Compute_Distributions(gpModel,shapeParams,grip_point2,img);
