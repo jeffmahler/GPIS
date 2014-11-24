@@ -115,8 +115,8 @@ gridDepthMult = repmat(gridDepths, 3, 1);
 depthCrop = combinedDepth(gridStartPix(2):(gridStartPix(2) + gridHeightPix - 1), ...
                            gridStartPix(1):(gridStartPix(1) + gridWidthPix  - 1));
 rgbCrop = rgbImage(gridStartPix(2):(gridStartPix(2) + gridHeightPix - 1), ...
-                 gridStartPix(1):(gridStartPix(1) + gridWidthPix  - 1));                       
-                       
+                 gridStartPix(1):(gridStartPix(1) + gridWidthPix  - 1));                        
+             
 grid3Dcam = inv(Kd) * (gridDepthMult .* gridImageCoords);
 
 % transform points into cb frame
@@ -278,6 +278,8 @@ transformResults = struct();
 transformResults.T_cb_grid = T_cb_grid;
 transformResults.pixTo3D = pixTo3D;
 transformResults.gpScale = gpScale;
+
+constructionResults.rgbCrop = rgbCrop;
                         
 end
 

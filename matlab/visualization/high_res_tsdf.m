@@ -12,7 +12,7 @@ G = fspecial('gaussian', [win, win], sig);
 H = imfilter(J, G, 'replicate');
 H = imsharpen(H, 'Amount', 10);
 
-H = 1 - (H <= 0.25);
+%H = 1 - (H <= 0.25);
 
 end
 

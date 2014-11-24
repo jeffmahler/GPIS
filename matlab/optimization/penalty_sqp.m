@@ -85,7 +85,11 @@ trust_box_size = cfg.initial_trust_box_size; % The trust region will be a box ar
 penalty_coeff = cfg.initial_penalty_coeff; % Coefficient of l1 penalties 
 penalty_iter = 0;
 
-if ~isempty(cfg.callback), cfg.callback(); end;
+info = struct();
+info.trust_box_size = trust_box_size;
+info.cfg = cfg;
+
+if ~isempty(cfg.callback), cfg.callback(x0, info); end;
 
 % TODO: Write the outer loop of the sqp algorithm, which repeatedly minimizes
 % the merit function f(x) + penalty_coeff*( pospart(g(x)) + abs(h(x)) )

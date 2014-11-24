@@ -39,9 +39,14 @@ for i = 1:numShapes
     coneAngle = atan(experimentConfig.frictionCoef);
 
     % create struct for nominal shape
+    tsdfGrid = reshape(shapeParams.fullTsdf, [shapeParams.gridDim, shapeParams.gridDim]);
+    G = fspecial('gaussian', [3 3], 1);
+    tsdfGridSmooth = imfilter(tsdfGrid, G, 'same', 'replicate');
+    [smoothGx, smoothGy] = imgradientxy(tsdfGridSmooth, 'CentralDifference');
+    
     nominalShape = struct();
-    nominalShape.tsdf = shapeParams.fullTsdf;
-    nominalShape.normals = shapeParams.fullNormals;
+    nominalShape.tsdf = tsdfGridSmooth(:);
+    nominalShape.normals = [smoothGx(:), smoothGy(:)];
     nominalShape.points = shapeParams.all_points;
     nominalShape.noise = zeros(size(nominalShape.tsdf,1), 1);
     nominalShape.gridDim = shapeParams.gridDim;
@@ -51,18 +56,19 @@ for i = 1:numShapes
     tsdfGrid = reshape(nominalShape.tsdf, [nominalShape.gridDim, nominalShape.gridDim,]);
     nominalShape.shapeImage = high_res_tsdf(tsdfGrid, scale, win, sig);
 
+    nominalSample = {nominalShape};
     
     % find the best grasp experimentally
-    [bestQGrasp, bestPGrasp, avgSampleTime] = ...
+    [bestQGrasp, bestPGrasp, sampleTimes] = ...
         find_grasp_sampling(predGrid, ...
                             experimentConfig, shapeParams, shapeSamples, ...
                             surfaceImage, optimizationParams.scale, maxIters, ...
-                            gripWidth, plateWidth);
+                            nominalShape, gripWidth, plateWidth);
 
     bestSampling = struct();
     bestSampling.expQGrasp = bestQGrasp;
     bestSampling.expPGrasp = bestPGrasp;
-    bestSampling.avgSampleTime = avgSampleTime;
+    bestSampling.sampleTimes = sampleTimes;
 
     %% evaluate best Q grasp on mean shape
     meanSample = {predGrid};
@@ -136,14 +142,14 @@ for i = 1:numShapes
     %% find the best grasp on the mean shape
     meanSample = {predGrid};
     sampleGrasps = false;
-    [bestQGrasp, bestPGrasp, avgSampleTime] = ...
+    [bestQGrasp, bestPGrasp, sampleTimes] = ...
         find_grasp_sampling(predGrid, ...
                             experimentConfig, shapeParams, meanSample, ...
                             surfaceImage, optimizationParams.scale, maxIters, ...
-                            gripWidth, plateWidth, sampleGrasps);
+                            nominalShape, gripWidth, plateWidth, sampleGrasps);
 
     bestMean = bestQGrasp;
-    bestMean.avgSampleTime = avgSampleTime;
+    bestMean.sampleTimes = sampleTimes;
 
     %% evaluate mean grasp experimentally using samples
     useHist = false;
@@ -188,15 +194,16 @@ for i = 1:numShapes
         nominalSamples{j} = nominalShape;
     end
     %experimentConfig.visSampling = true;
-    [bestQGrasp, bestPGrasp, avgSampleTime] = ...
+    [bestQGrasp, bestPGrasp, sampleTimes] = ...
         find_grasp_sampling(nominalShape, ...
                             experimentConfig, nominalShape, nominalSamples, ...
-                            surfaceImage, scale, maxIters, gripWidth, plateWidth);
+                            surfaceImage, scale, maxIters, nominalShape, ...
+                            gripWidth, plateWidth);
 
     bestNom = struct();
     bestNom.nomQGrasp = bestQGrasp;
     bestNom.nomPGrasp = bestPGrasp;
-    bestNom.avgSampleTime = avgSampleTime;
+    bestNom.sampleTimes = sampleTimes;
     %% plot the results of pfc
     h = figure(12);
     subplot(1,2,1);

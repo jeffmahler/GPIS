@@ -10,7 +10,7 @@ gpModel = create_gpis(shapeParams.points, shapeParams.tsdf, ...
 constructionTime = toc(startTime);
 
 [predGrid, predSurface] = predict_2d_grid(gpModel, shapeParams.gridDim,...
-    trainingParams.surfaceThresh);
+    trainingParams.surfaceThresh, true, 4);
 
 % noiseGrid = reshape(predGrid.noise, 25 ,25);
 % a = prctile(noiseGrid(:), 80);
@@ -18,20 +18,20 @@ constructionTime = toc(startTime);
 % figure;
 % surf(noiseGrid);
 
-tsdfReconError = ...
-    evaluate_errors(predGrid.tsdf, shapeParams.fullTsdf, numPoints);
-normalError = ...
-    evaluate_errors(predGrid.normals, shapeParams.fullNormals, numPoints);
+tsdfReconError = struct();%...
+    %evaluate_errors(predGrid.tsdf, shapeParams.fullTsdf, numPoints);
+normalError = struct();%...
+    %evaluate_errors(predGrid.normals, shapeParams.fullNormals, numPoints);
 
 [testImageDarkened, combImageBig] = create_tsdf_image(predGrid, scale);
 surfaceImage = combImageBig;
 
-figure;
-imshow(combImageBig);
-hold on;
-scatter(scale*gpModel.training_x(1,1), scale*gpModel.training_x(1,2), 150.0, 'x', 'LineWidth', 1.5);
-scatter(scale*gpModel.training_x(:,1), scale*gpModel.training_x(:,2), 50.0, 'x', 'LineWidth', 1.5);
-hold off;
+% figure;
+% imshow(combImageBig);
+% hold on;
+% scatter(scale*gpModel.training_x(1,1), scale*gpModel.training_x(1,2), 150.0, 'x', 'LineWidth', 1.5);
+% scatter(scale*gpModel.training_x(:,1), scale*gpModel.training_x(:,2), 50.0, 'x', 'LineWidth', 1.5);
+% hold off;
 
 end
 

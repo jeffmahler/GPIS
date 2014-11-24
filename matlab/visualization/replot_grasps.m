@@ -5,12 +5,14 @@ offset = 1.5; % num seconds to sample shape
 length = 4; % arrow length
 plateScale = 0.075;
 objScale = 0.95;
+scale = 4;
+dim = 25;
 
-shapeNames = {'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
-gripScales = {0.45, 0.6, 0.8, 1.2, 0.4, 0.6, 0.75, 0.4};
-hashNums = {555647, 163603, 24685, 736205, 241629, 658943, 412912, 34654};
-dataDir = 'results/optimization/icra';
-outputDir = 'results/optimization';
+shapeNames = {'tape'};%{'can_opener', 'plane', 'squirt_bottle'};%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {0.75};%{0.38, 1.2, 0.4};%{0.45, 0.6, 0.8, 1.2, 0.4, 0.6, 0.75, 0.4};
+hashNums = {149774};%{555647, 736205, 241629};%{555647, 163603, 24685, 736205, 241629, 658943, 412912, 34654};
+dataDir = 'results/optimization/icra_final';
+outputDir = 'results/optimization/icra_final';
 meanCompDir = 'results/mean_vs_predicted_exp/icra_long';
 numShapes = size(shapeNames, 2);
 
@@ -54,12 +56,18 @@ for i = 1:numShapes
     
     predGrid = experimentResults.constructionResults.predGrid;
     surfaceImage = experimentResults.constructionResults.newSurfaceImage;
-    
+
+%     I = imread('data/pr2_registration/tape4/rgb_crop.png');
+%     J = imresize(I, 100.0/70.0);
+%     J(1:100, 1:100) = J(1:100,1:100);
+%     surfaceImage = J;
+    %optimizationParams.surfaceImage = J;%constructionResults.newSurfaceImage;
+
     h = figure(39);
     subplot(1,3,1);
     visualize_grasp(meanGrasp', predGrid, surfaceImage, ...
         scale, length, plateWidth, gripWidth);
-    title({'Best Grasp Ranked by', 'Q(F) on Mean Shape'}, 'FontSize', 12, 'FontWeight', 'bold');
+    title('GP-M', 'FontSize', 12, 'FontWeight', 'bold');
     xlabel(sprintf('Q(N) = %.03f\n P(FC) = %.03f', ...
         bestMean.nomQ, bestMean.expP), ...
         'FontSize', 10);
@@ -69,7 +77,7 @@ for i = 1:numShapes
     subplot(1,3,2);
     visualize_grasp(bestSampling.expPGrasp.bestGrasp', predGrid, surfaceImage, ...
         scale, length, plateWidth, gripWidth);
-    title({'Best Grasp Ranked by', 'P(FC) on GPIS'}, 'FontSize', 12, 'FontWeight', 'bold');
+    title('GP-P', 'FontSize', 12, 'FontWeight', 'bold');
     xlabel(sprintf('Q(N) = %.03f\n P(FC) = %.03f', ...
         bestSampling.expPGrasp.nomQ, ...
         bestSampling.expPGrasp.P), ...
@@ -78,7 +86,7 @@ for i = 1:numShapes
     subplot(1,3,3);
     visualize_grasp(optGrasp', predGrid, surfaceImage, ...
         scale, length, plateWidth, gripWidth);
-    title({'Grasp Selected by', 'Our Algorithm'}, 'FontSize', 12, 'FontWeight', 'bold');
+    title('GP-GPIS-OPT', 'FontSize', 12, 'FontWeight', 'bold');
     xlabel(sprintf('Q(N) = %.03f\n P(FC) = %.03f', ...
         nomQ(i), optResults.pFc(optResults.bestIndex)), ...
         'FontSize', 10); 

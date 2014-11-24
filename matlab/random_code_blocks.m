@@ -1,5 +1,228 @@
-% Random things I like to do at the end of gpid_2d but they're not
+% Random things I like to do at the end of gpis_2d but they're not
 % necessary
+
+%% try out these Brown shapes
+close all;
+
+shape1 = imread('data/brown_dataset/Bone01.pgm');
+shape2 = imread('data/brown_dataset/Bone02.pgm');
+
+% shape1 = imread('data/pgms/bottle16.pgm');
+% shape2 = imread('data/pgms/glas01.pgm');
+padding = 20;
+D = 0.25;
+grid_dim = max([size(shape1) size(shape2)]) + 2*padding;
+
+M1 = 255*ones(grid_dim);
+M1(padding+1:padding+size(shape1,1), padding+1:padding+size(shape1,2)) = shape1;
+shape1 = M1;
+
+M2 = 255*ones(grid_dim);
+M2(padding+1:padding+size(shape2,1), padding+1:padding+size(shape2,2)) = shape2;
+shape2 = M2;
+
+tsdf1 = trunc_signed_distance(255-shape1, 25);
+tsdf2 = trunc_signed_distance(255-shape2, 25);
+
+penalties = struct();
+penalties.Q = 10.0;
+stop_criteria = struct();
+stop_criteria.T = 1.0;
+stop_criteria.eps = 1e-2;
+stop_criteria.max_iter = 20;
+update_params = struct();
+update_params.shrink_temp = 0.1;
+
+tsdf1_down = imresize(tsdf1, D);
+tsdf2_down = imresize(tsdf2, D);
+
+figure(2);
+subplot(1,2,1);
+sdf_surface(tsdf1, 0.5);
+subplot(1,2,2);
+sdf_surface(tsdf2, 0.5);
+% 
+% figure(2);
+% subplot(1,2,1);
+% imagesc(tsdf1);
+% subplot(1,2,2);
+% imagesc(tsdf2);
+
+%%
+interpolate_sdfs(tsdf1, tsdf2, grid_dim, 0.5, 2);
+
+%% matlab registration
+[opt, met] = imregconfig('monomodal');
+tsdf1_padded = thresh * ones(3*grid_dim); % pad image to remove warp fill-in
+tsdf1_padded(grid_dim+1:2*grid_dim, grid_dim+1:2*grid_dim) = tsdf1;
+tsdf1_reg = imregister(tsdf1_padded, tsdf2, 'similarity', opt, met);
+
+figure(3);
+subplot(1,3,1);
+imshow(tsdf1);
+title('Original Object', 'FontSize', 15);
+subplot(1,3,2);
+imshow(tsdf2);
+title('Target Object', 'FontSize', 15);
+subplot(1,3,3);
+imshow(tsdf1_reg);
+title('Registered Object', 'FontSize', 15);
+%%
+interpolate_sdfs(tsdf1_reg, tsdf2, grid_dim, 0.5, 2);
+
+%% std pose
+tsdf1_std = standardize_tsdf(tsdf1);
+tsdf2_std = standardize_tsdf(tsdf2);
+
+figure(14);
+subplot(1,2,1);
+imshow(tsdf1_std);
+subplot(1,2,2);
+imshow(tsdf2_std);
+
+%% KNN
+X = [tsdf1(:)'; tsdf2(:)'];
+NS = KDTreeSearcher(X, 'BucketSize', 2);
+
+%%
+a = zeros(1,grid_dim * grid_dim);
+e = knnsearch(NS, a);
+
+%%
+registration = register_2d_rigid_unknown_corrs(tsdf1_down, tsdf2_down, penalties,...
+    stop_criteria, update_params);
+registration.t = (1.0 / D) * registration.t;
+registration.s = 1.0;
+
+%%
+interpolate_sdfs(tsdf1, tsdf2, grid_dim, 0.5, 2)
+
+%% create registered tsdfs
+tsdf1_reg = warp_grid(registration, tsdf1);
+%%
+
+A = [registration.R', zeros(2,1); (1.0 / D) * registration.t', 1];
+tf = affine2d(A);
+tf = maketform('affine', A);
+[tsdf1_reg, xdata, ydata] = imtransform(tsdf1, tf, 'Size', [grid_dim, grid_dim]);
+%%
+interpolate_sdfs(tsdf1_reg, tsdf2, grid_dim, 0.5, 2)
+%%
+% figure(1);
+% subplot(1,2,1);
+% imagesc(abs(tsdf1 - tsdf1_reg));
+% subplot(1,2,2);
+% imagesc(abs(tsdf1_reg - tsdf2));
+
+figure(2);
+subplot(1,3,1);
+sdf_surface(tsdf1, 0.5);
+subplot(1,3,2);
+sdf_surface(tsdf2, 0.5);
+subplot(1,3,3);
+sdf_surface(tsdf1_reg, 0.5);
+
+
+%%
+close all;
+
+predGrid = shapeSamples{15};
+tsdf1 = predGrid.tsdf;
+predGrid = shapeSamples{50};
+tsdf2 = predGrid.tsdf;
+
+interpolate_sdfs(tsdf1, tsdf2, 25, 2.0, 4.0);
+
+%% random shape generator?
+grid_dim = 100;
+minPoints = 3;
+maxPoints = 10;
+numPoints = minPoints + uint8((maxPoints-minPoints)*rand());
+randomPoints = ones(numPoints,2) + (grid_dim-1)*rand(numPoints, 2);
+DT = delaunayTriangulation(randomPoints);
+
+figure(4);
+triplot(DT);
+
+[X, Y] = meshgrid(1:grid_dim, 1:grid_dim);
+testPoints = [X(:), Y(:)];
+insideMask = inhull(testPoints, randomPoints);
+insideMask = reshape(insideMask, [grid_dim grid_dim]);
+figure(5);
+imshow(insideMask);
+
+truncSignedDist = trunc_signed_distance(insideMask, 10);
+
+figure(6);
+sdf_surface(truncSignedDist(:), grid_dim, 2);
+
+%% some random ass tsdf stuff
+predGrid = experimentResults.constructionResults.predGrid;
+tsdfGrid = reshape(predGrid.tsdf, [25, 25]);
+tsdfGridBig = high_res_tsdf(tsdfGrid, 2);
+
+figure(1);
+tsdfColors = zeros(size(tsdfGridBig,1), size(tsdfGridBig,2), 3);
+tsdfColors(:,:,1) = ones(size(tsdfGridBig));
+tsdfColors(:,:,2) = ones(size(tsdfGridBig));
+surf(tsdfGridBig, tsdfColors);%, 'LineStyle', 'none');
+
+% set(gca, 'XTick', []);
+% set(gca, 'YTick', []);
+hold on;
+
+zeroCrossing = zeros(size(tsdfGridBig));
+%colormap([0,0,1]);
+zcColors = zeros(size(tsdfGridBig,1), size(tsdfGridBig,2), 3);
+zcColors(:,:,3) = ones(size(tsdfGridBig));
+surf(zeroCrossing, zcColors);
+%colorbar
+
+tsdfThresh = tsdfGridBig > 0;
+SE = strel('square', 3);
+I_d = imdilate(tsdfThresh, SE);
+
+% create border masks
+insideMaskOrig = (tsdfThresh == 0);
+outsideMaskDi = (I_d == 1);
+tsdfSurface = double(~(outsideMaskDi & insideMaskOrig));
+[interiorI, interiorJ] = find(insideMaskOrig == 1);
+%plot3(interiorJ, interiorI, -2*ones(size(interiorI,1),1), ...
+%    'LineWidth', 1, 'Color', [1,0,0]);
+
+%%
+offset = 1.17; % num seconds to sample shape
+
+for i = 1:8
+    maxP = bestPredGrasps{1,i}.sampleTimes.maxP;
+    times = bestPredGrasps{1,i}.sampleTimes.sampleTimes;
+    adjustedTimes = offset + times;
+    adjustedTimesCum = cumsum(adjustedTimes);
+
+    figure(1);
+    plot(log(adjustedTimesCum), maxP, 'LineWidth', 2);
+    hold on;
+end
+
+
+%% ANNEALING (TODO: try it out)
+%     f = @(x) soft_constraint_energy(x, gpModel, optimizationParams, shapeParams.gridDim, shapeParams.com, ...
+%             predGrid, coneAngle, experimentConfig.numBadContacts, ...
+%             plateWidth, gripWidth, graspSigma);
+%     lb = zeros(4,1);
+%     ub = shapeParams.gridDim * ones(4,1);
+%     
+%     info = struct();
+%     info.cfg = optimizationParams;
+%     plotfn = @(opts,optimvals,flag) plot_surface_grasp_points(optimvals.x, info);
+%     options = saoptimset('Display', 'iter', 'DisplayInterval', 25);
+%     options = saoptimset(options, 'InitialTemperature', 5);
+%     options = saoptimset(options, 'TolFun', 1e-6);
+%     options = saoptimset(options, 'MaxIter', 2000);
+%     options = saoptimset(options, 'PlotFcns', plotfn, 'PlotInterval', 25);
+%     [bestGrasp, opt_p_fc_approx, exitFlat, output] = ...
+%         simulannealbnd(f, initGrasp, lb, ub, options);
+     
 
 %%
 figure(1);

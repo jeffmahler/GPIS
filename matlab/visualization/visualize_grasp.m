@@ -10,8 +10,6 @@ if nargin < 7
 end
 
 d = size(grasp,1) / 2;
-x1 = grasp(1:d,1);
-x2 = grasp(d+1:2*d,1);
 graspPoints = create_ap_loa(grasp, gripWidth);
 
 % find where these grasp points would contact the surface

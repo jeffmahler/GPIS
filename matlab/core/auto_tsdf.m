@@ -174,10 +174,12 @@ for i = 1:dim
 
         % add in transparency, occlusions
         if ((i > varParams.transp_y_thresh1_low && i <= varParams.transp_y_thresh1_high && ...
-                j > varParams.transp_x_thresh1_low && j <= varParams.transp_x_thresh1_high) )
+              j > varParams.transp_x_thresh1_low && j <= varParams.transp_x_thresh1_high) || ...
+              (i > varParams.transp_y_thresh2_low && i <= varParams.transp_y_thresh2_high && ...
+              j > varParams.transp_x_thresh2_low && j <= varParams.transp_x_thresh2_high) )
             % occluded regions
-            measuredTsdf(i,j) = 0.5; % set outside shape
             if tsdf(i,j) < 0.6 % only add noise to ones that were actually in the shape
+                measuredTsdf(i,j) = 0.5; % set outside shape
                 noise(i,j) = varParams.transpScale;
             end
         

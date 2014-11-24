@@ -24,8 +24,8 @@ hold on;
 start1 = x1 - length*grad1;
 start2 = x2 - length*grad2;
 
-arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 7, 'Width', 4, 'TipAngle', 30);
-arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 7, 'Width', 4, 'TipAngle', 30);
+arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 5, 'Width', 2, 'TipAngle', 15);
+arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 5, 'Width', 2, 'TipAngle', 15);
 
 % plot small parallel jaws
 start1 = x1 + plateWidth*tan1/2;

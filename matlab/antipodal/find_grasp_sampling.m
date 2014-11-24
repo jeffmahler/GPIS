@@ -1,18 +1,18 @@
 function [expQGrasp, expPGrasp, expResults] = ...
     find_grasp_sampling(predGrid, experimentConfig, shapeParams, ...
                         shapeSamples, surfaceImage, scale, maxIters, ...
-                        gripWidth, plateWidth, sampleGrasps)
+                        nominalShape, gripWidth, plateWidth, sampleGrasps)
 %FIND_GRASP_SAMPLING Find the best grasp via sampling shapes
 % The quality we are using is an estimate of the probability of force
 % closure, P(Q_FC > 0)
 
-if nargin < 8
+if nargin < 9
    gripWidth = intmax; 
 end
-if nargin < 9
+if nargin < 10
    plateWidth = 1; 
 end
-if nargin < 10
+if nargin < 11
    sampleGrasps = true; 
 end
 
@@ -20,8 +20,10 @@ attemptedGrasps = [];
 fcQ = [];
 fcV = [];
 fcP = [];
+fcN = [];
 maxQ = [];
 maxP = [];
+nomQ = [];
 gs = [];
 sampleTimes = [];
 k = 0;
@@ -69,16 +71,33 @@ while k < maxIters
                                     experimentConfig.visSampling, false, ...
                                     experimentConfig.qScale);
     duration = toc(startTime);
-                                
+              
+    % eval on nominal shape
+    graspSamples = sample_grasps(loa, 0, 1);
+    nominalSample = {nominalShape};
+    [nom_q, nom_v, success, nom_p] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, graspSamples, numContacts, ...
+                                    nominalSample, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, ...
+                                    plateWidth, gripWidth, ...
+                                    experimentConfig.visSampling, false, ...
+                                    experimentConfig.qScale);
+    
     % add quality to running count
     if success
         attemptedGrasps = [attemptedGrasps; randGrasp'];
         fcQ = [fcQ; mn_q];
         fcV = [fcV; v_q];
         fcP = [fcP; p_fc];
+        fcN = [fcN; nom_q];
+        
+        bestInd = find(fcP == max(fcP));
+        bestInd = bestInd(1);
         
         maxQ = [maxQ; max(fcQ)];
         maxP = [maxP; max(fcP)];
+        nomQ = [nomQ; fcN(bestInd)];
         
         gs = [gs; randGraspSamples];
         sampleTimes = [sampleTimes, duration];
@@ -132,6 +151,7 @@ expPGrasp.samples = gs(bestPGraspIndices(1), :);
 expResults = struct();
 expResults.maxQ = maxQ;
 expResults.maxP = maxP;
+expResults.nomQ = nomQ;
 expResults.sampleTimes = sampleTimes;
 
 end

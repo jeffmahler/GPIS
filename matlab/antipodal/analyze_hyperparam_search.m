@@ -1,6 +1,6 @@
 % Script to analyze the results of a hyperparameter search 
 
-load('results/hyper_tuning/results1/hyper_results.mat');
+%load('results/hyper_tuning/results1/hyper_results.mat');
 
 %% Search for the numbers with the highest mean and var Q
 
@@ -22,6 +22,7 @@ for i = 1:numShapes
     % first pass - find the max mean Q and mean P
     maxMnQ = -realmax;
     maxMnP = -realmax;
+    
     for j = 1:numCombinations
         % compute mean
         combMnQ = mean(hyperResults{i,j}.mn_q);

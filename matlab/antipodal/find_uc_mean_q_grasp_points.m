@@ -36,6 +36,9 @@ q = zeros(1, 2*d);
 f = @(x) (uc_mean_q_penalty(x, gpModel, nu, coneAngle, shapeParams, ...
     badContactThresh, plateWidth, gripWidth, graspSigma));
 
+cfg.com = shapeParams.com;
+cfg.plate_width = plateWidth;
+
 if forceAntipodal
     if use_com
         g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef, com, cfg.com_tol); ...
@@ -48,7 +51,8 @@ if forceAntipodal
     end
 else
     % unconstrained
-    g = @(x) (0);
+    g = @(x) ([0;0;0 ; ...
+               gripper_width_constraint(x, gpModel, cfg.grip_width) ]);
     surfaceOnly = true;
     zeroCom = [0,0];
     if use_com

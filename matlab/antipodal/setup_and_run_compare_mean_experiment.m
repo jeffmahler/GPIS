@@ -2,13 +2,13 @@
 % grasp on the mean shape through exhaustive sampling
 
 
-dataDir = 'data/pr2_registration/tape3';%data/google_objects/scratch';
-shapeNames = {'pc_tape'};%{'can_opener', 'loofa', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
-gripScales = {0.5}; %{0.8, 1.2, 1.2, 3.0, 0.6, 1.0, 2.0, 0.75};
-outputDir = 'results/mean_vs_predicted_exp/pr2';
-scale = 4;
-maxIters = 100;
-dim = 25;
+dataDir = 'data/google_objects/scratch';
+shapeNames = {'plane'};%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {1.2};%{0.4, 0.5, 0.5, 1.2, 0.3, 0.6, 0.75, 0.4};
+outputDir = 'results/mean_vs_predicted_exp/scaling/70';
+scale = 2;
+maxIters = 20;
+dim = 70;
 
 %% experiment config
 experimentConfig = struct();
@@ -18,7 +18,7 @@ experimentConfig.numSamples = 1000;
 experimentConfig.surfaceThresh = 0.15;
 experimentConfig.arrowLength = 4;
 experimentConfig.loaScale = 1.75;
-experimentConfig.graspSigma = 0.25;
+experimentConfig.graspSigma = 1.0;
 experimentConfig.numBadContacts = 10;
 experimentConfig.visSampling = false;
 experimentConfig.visOptimization = true;
@@ -31,7 +31,7 @@ experimentConfig.smoothSig = 3;
 experimentConfig.fcTol = 0.001;
 
 experimentConfig.gripWidth = dim; % dimension of grasp when scale = 1.0
-experimentConfig.plateScale = 0.1;
+experimentConfig.plateScale = 0.075;
 experimentConfig.objScale = 0.95;
 experimentConfig.qScale = 1;
 

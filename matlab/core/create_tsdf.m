@@ -28,10 +28,13 @@ if size(points,1) > 1
     points = reshape(points', 1, 2*size(points,1));
     csvwrite(pointsName, points);
 end
+pointScale = gridDim / 25;
+points = points * pointScale;
 
 if useCom
     comName = sprintf('%s/%s_com.csv', dataDir, filename);
     com = csvread(comName);
+    com = com * pointScale;
 end
 [shapeParams, shapeImage] = ...
     auto_tsdf(shape, gridDim, points, varParams);

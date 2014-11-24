@@ -1,16 +1,16 @@
 % script to run hyperparam tuning
 
 dim = 25;
-dataDir = 'data/google_objects/google_update_versions';
-shapeNames = {'alka_seltzer', 'deodorant', 'oatmeal'};%, 'stapler', 'tape', 'water'};
-gripScales = {1.2, 1.0, 0.8};
+dataDir = 'data/google_objects/icra';
+shapeNames = {'plane', 'can_opener', 'tape'};%{'alka_seltzer', 'loofa', 'oatmeal'};%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {1.2, 0.4, 0.6};%{0.8, 0.9, 0.9};%{0.4, 0.5, 0.5, 1.2, 0.3, 0.6, 0.75, 0.4};
 outputDir = 'results/hyper_tuning';
 newShape = false;
 scale = 2;
 
 %% experiment config
 experimentConfig = struct();
-experimentConfig.numGrasps = 10;
+experimentConfig.numGrasps = 20;
 experimentConfig.frictionCoef = 0.5;
 experimentConfig.surfaceThresh = 0.15;
 experimentConfig.arrowLength = 4;
@@ -28,16 +28,16 @@ experimentConfig.plateScale = 0.05;
 experimentConfig.objScale = 0.95;
 experimentConfig.qScale = 100;
 
-experimentConfig.min_mcir = 1.6;
-experimentConfig.max_mcir = 1.6;
-experimentConfig.inc_mcir = 0.5;
+experimentConfig.min_mcir = 2.0;
+experimentConfig.max_mcir = 2.0;
+experimentConfig.inc_mcir = 0.25;
 
 experimentConfig.min_ipc = 0.5;
 experimentConfig.max_ipc = 0.5;
 experimentConfig.inc_ipc = 0.5;
 
-experimentConfig.min_itbs = 11;
-experimentConfig.max_itbs = 11;
+experimentConfig.min_itbs = 10;
+experimentConfig.max_itbs = 10;
 experimentConfig.inc_itbs = 5;
 
 experimentConfig.min_tsr = 0.4;
@@ -46,11 +46,11 @@ experimentConfig.inc_tsr = 0.2;
 
 experimentConfig.min_ter = 1.25;
 experimentConfig.max_ter = 1.25;
-experimentConfig.inc_ter = 0.5;
+experimentConfig.inc_ter = 0.3;
 
-experimentConfig.min_nu = 0.25;
-experimentConfig.max_nu = 4.0;
-experimentConfig.scale_nu = 2.0;
+experimentConfig.min_nu = 0.01;
+experimentConfig.max_nu = 100.0;
+experimentConfig.scale_nu = 100.0;
 
 %% optimization parameters
 cf = cos(atan(experimentConfig.frictionCoef));

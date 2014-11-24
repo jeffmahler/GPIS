@@ -4,7 +4,7 @@ function val = uc_mean_q_penalty(x, gpModel, nu, ...
 
     % full covariance penaty if not specified
     d = size(x,1) / 2;
-    Sig = gp_cov(gpModel, [x(1:d,1)'; x(d+1:2*d,1)'], [], true);
+    Sig = gp_cov(gpModel, [x(1:d,1)'; x(d+1:2*d,1)'], [], false);
     
     numContacts = 2;
     visSampling = false;

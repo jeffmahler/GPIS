@@ -33,13 +33,15 @@ for i = 1:numSamples
     outsideMaskDi = (I_d == 1);
     tsdfSurface = double(~(outsideMaskDi & insideMaskOrig));
     
-%     shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
-%     tsdfSurface = ones(dim, dim);
-%     tsdfSurface(shapeSurfaceIndices) = 0;
-%     
+    shapeSurfaceIndices = find(abs(tsdfBig) < shapeParams.surfaceThresh);
+    tsdfSurfaceThresh = ones(dim, dim);
+    tsdfSurfaceThresh(shapeSurfaceIndices) = 0;
+    
+    tsdfSurface = tsdfSurface & tsdfSurfaceThresh;
+    
     if vis
         figure(100);
-        H = high_res_surface(tsdfSurface, scale / 2);
+        H = high_res_surface(double(tsdfSurface), scale / 2);
         imshow(H);
         pause(0.5);
     end

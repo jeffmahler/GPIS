@@ -10,7 +10,7 @@ if nargin < 3
     use_com = false;
 end
 if nargin < 4
-    surface_only = false;
+    surface_only = true;
 end
 
 

@@ -90,6 +90,8 @@ for i = 1:numShapes
                             fprintf('trust_expand_ratio: %f\n', optimizationParams.trust_expand_ratio);
                             fprintf('nu: %f\n', optimizationParams.nu);
                             
+                            save('tmp_cfg.mat', 'optimizationParams');
+                            
                             mn_q_vec = zeros(1, experimentConfig.numGrasps);
                             v_q_vec = zeros(1, experimentConfig.numGrasps);
                             p_fc_vec = zeros(1, experimentConfig.numGrasps);
@@ -124,7 +126,7 @@ for i = 1:numShapes
                                                                 shapeSamples, shapeParams.gridDim, ...
                                                                 shapeParams.surfaceThresh, ...
                                                                 experimentConfig.numBadContacts, ...
-                                                                plateWidth, ...
+                                                                plateWidth, gripWidth, ...
                                                                 experimentConfig.visSampling);
                                 fprintf('Grasp %d mean q: %f var q: %f prob fc %f\n', g, mn_q, v_q, p_fc);
 %                                 [mn_q2, v_q2, success] = MC_sample(gpModel, points, ...
@@ -140,6 +142,7 @@ for i = 1:numShapes
                             % log results
                             paramResults = struct();
                             paramResults.cfg = optimizationParams;
+                            paramResults.grasps = x_grasp_vec;
                             paramResults.mn_q = mn_q_vec;
                             paramResults.max_mn_q = max(mn_q_vec);
                             paramResults.mean_mn_q = mean(mn_q_vec);

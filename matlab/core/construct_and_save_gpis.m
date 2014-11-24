@@ -13,12 +13,13 @@ end
 
 % sample shapes
 startTime = tic;
-[shapeSamples, pdfs] = ...
-    sample_shapes(gpModel, shapeParams.gridDim, numSamples);
+shapeSamples = {predGrid};
+pdfs = {};
+% [shapeSamples, pdfs] = ...
+%     sample_shapes(gpModel, shapeParams.gridDim, numSamples, trainingParams.useGradients);
 samplingTime = toc(startTime);
 
-fprintf('Sampled %d shapes in %f sec\n', numSamples, samplingTime);
-
+%fprintf('Sampled %d shapes in %f sec\n', numSamples, samplingTime);
 
 % fill in construction results
 constructionResults = struct();
@@ -43,7 +44,7 @@ save(constructName, 'constructionResults');
 
 constructionResults.newSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
-        shapeSamples, scale, 1.0, false, false);
+        shapeSamples, 4.0, 1.0, false, false);
 figure(88);
 imshow(constructionResults.newSurfaceImage);
 end
