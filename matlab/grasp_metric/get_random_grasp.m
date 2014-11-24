@@ -9,7 +9,6 @@ end
 %TODO: Support more than 2 contact points
  
 theta1 = rand()*pi; 
-theta1 = 0; 
 theta2 = rand()*pi+pi;
 
 trans = grid_dim/2;
@@ -19,8 +18,8 @@ grid_dim = grid_dim/2;
 grid_dim_shape = grid_dim_shape/2;
 
  if(random) 
-     x_trans = rand()*1/2;
-     y_trans = rand()*1/2; 
+     x_trans = rand();
+     y_trans = rand(); 
  else
      x_trans = 0; 
      y_trans = 0;
