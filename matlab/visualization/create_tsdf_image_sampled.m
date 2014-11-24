@@ -12,15 +12,16 @@ if nargin < 6
 end
 
 % Alpha blend all samples
+sample_dim = shapeParams.gridDim;
 numSamples = size(shapeSamples,2);
-dim = 2 * shapeParams.gridDim;
+dim = 2 * sample_dim;
 hd_dim = scale / 2 * dim;
 shapeSurfaceImage = zeros(dim, dim);
 alpha = contrastRatio / double(numSamples);
 
 for i = 1:numSamples
     tsdf = shapeSamples{i}.tsdf;
-    tsdfGrid = reshape(tsdf, shapeParams.gridDim, shapeParams.gridDim);
+    tsdfGrid = reshape(tsdf, sample_dim, sample_dim);
     tsdfBig = imresize(tsdfGrid, 2);
     
     % find surface...

@@ -7,6 +7,12 @@ tsdf_thresh = 10;
 padding = 5;
 scale = 4;
 
+config = struct();
+config.arrow_length = 10;
+config.scale = 1.0;
+config.frictionCoef = 0.5;
+config.plate_width = 3;
+
 caltech_data = load('data/caltech/caltech101_silhouettes_28.mat');
 num_points = size(caltech_data.X, 2);
 data_dim = sqrt(num_points);
@@ -111,9 +117,9 @@ end
 % trim cell centers, add noise
 %% variance parameters
 var_params = struct();
-var_params.y_thresh1_low = 79;
+var_params.y_thresh1_low = 30;
 var_params.y_thresh1_high = 79;
-var_params.x_thresh1_low = 79;
+var_params.x_thresh1_low = 1;
 var_params.x_thresh1_high = 79;
 
 var_params.y_thresh2_low = 79;
@@ -126,9 +132,9 @@ var_params.y_thresh3_high = 79;
 var_params.x_thresh3_low = 79;
 var_params.x_thresh3_high = 79;
 
-var_params.occ_y_thresh1_low = 1;
-var_params.occ_y_thresh1_high = 30;
-var_params.occ_x_thresh1_low = 1;
+var_params.occ_y_thresh1_low = 79;
+var_params.occ_y_thresh1_high = 79;
+var_params.occ_x_thresh1_low = 79;
 var_params.occ_x_thresh1_high = 79;
 
 var_params.occ_y_thresh2_low = 79;
@@ -148,12 +154,12 @@ var_params.transp_x_thresh2_high = 79;
 
 var_params.occlusionScale = 1000;
 var_params.transpScale = 4.0;
-var_params.noiseScale = 0.1;
+var_params.noiseScale = 0.2;
 var_params.interiorRate = 0.1;
 var_params.specularNoise = true;
 var_params.sparsityRate = 0.2;
 var_params.sparseScaling = 1000;
-var_params.edgeWin = 1;
+var_params.edgeWin = 2;
 
 var_params.noiseGradMode = 'None';
 var_params.horizScale = 1;
@@ -169,8 +175,8 @@ noise = zeros(num_centers, 1);
 measured_tsdf = tsdf(cell_centers_linear);
 
 for k = 1:num_centers
-    i = cell_centers_mod(1,k);
-    j = cell_centers_mod(2,k);
+    i = cell_centers_mod(2,k);
+    j = cell_centers_mod(1,k);
     i_low = max(1,i-var_params.edgeWin);
     i_high = min(grid_dim,i+var_params.edgeWin);
     j_low = max(1,j-var_params.edgeWin);
@@ -190,7 +196,7 @@ for k = 1:num_centers
             noise(k) = var_params.transpScale; 
         end
 
-    elseif tsdf(i,j) < 0.6 && ((i > var_params.y_thresh1_low && i <= var_params.y_thresh1_high && ...
+    elseif min(min(tsdf_win)) < 0.6 && ((i > var_params.y_thresh1_low && i <= var_params.y_thresh1_high && ...
             j > var_params.x_thresh1_low && j <= var_params.x_thresh1_high) || ...
             (i > var_params.y_thresh2_low && i <= var_params.y_thresh2_high && ... 
             j > var_params.x_thresh2_low && j <= var_params.x_thresh2_high) || ...
@@ -268,12 +274,13 @@ training_params.hyp.cov = [log(exp(2)), log(1)];
 training_params.hyp.mean = [0; 0; 0];
 training_params.hyp.lik = log(0.1);
 training_params.useGradients = true;
+training_params.downsample = 2;
 
-num_samples = 1;
-scale = 1.0;
+num_samples = 1000;
+image_scale = 4.0;
 [gp_model, shape_samples, construction_results] = ...
             construct_and_save_gpis(shape_names{1}, data_dir, shape_params, ...
-                                    training_params, num_samples, scale);
+                                    training_params, num_samples, image_scale);
         
 
 %% lookup nearest neighbors
@@ -286,6 +293,7 @@ title('Original TSDF');
 
 figure(77);
 grasp = zeros(4,1);
+grasp_candidates = zeros(K, 4);
 %g2 = zeros(2,1);
 for i = 1:K
    tsdf_neighbor = tsdf_vectors(idx(i),:);
@@ -295,11 +303,19 @@ for i = 1:K
    %imshow(tsdf_neighbor);
    %hold on;
    grasp(:) = grasps_neighbor(1,1,:);
+   grasp_candidates(i, :) = grasp';
 %    g1(:) = grasp(1,1,1:2);
 %    g2(:) = grasp(1,1,3:4);
-   shape_params = tsdf_to_shape_params(tsdf);
-   shape_params.surfaceThresh = 0.1;
+   neighbor_shape_params = tsdf_to_shape_params(tsdf);
+   neighbor_shape_params.surfaceThresh = 0.1;
    %plot_grasp_arrows(tsdf_neighbor, g1, g2, -grasp_dir, grasp_dir, 1, 5, [0;0], 3);
-   visualize_grasp(grasp, shape_params, tsdf_neighbor, 1.0, 10, 3, grid_dim);
+   visualize_grasp(grasp, neighbor_shape_params, tsdf_neighbor, ...
+       config.scale, config.arrow_length, config.plate_width, grid_dim);
    title(sprintf('Neighbor %d', i));
 end
+
+%% use bandits to select the best grasp
+grasp_samples = collect_samples_grasps(gp_model, grasp_candidates);
+
+%%
+%best_grasp = thompson_sampling(grasp_samples, K, shape_params, config, tsdf);

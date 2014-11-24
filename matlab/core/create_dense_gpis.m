@@ -1,5 +1,9 @@
 function [gpModel, predGrid, tsdfReconError, normalError, surfaceImage, constructionTime] = ...
-    create_dense_gpis(shapeParams, trainingParams, scale)
+    create_dense_gpis(shapeParams, trainingParams, scale, downsample)
+if nargin < 4
+   downsample = 1; 
+end
+
 %CREATE_DENSE_GPIS Create a GPIS using all samples from the surface
 numPoints = shapeParams.gridDim * shapeParams.gridDim;
 
@@ -10,7 +14,7 @@ gpModel = create_gpis(shapeParams.points, shapeParams.tsdf, ...
 constructionTime = toc(startTime);
 
 [predGrid, predSurface] = predict_2d_grid(gpModel, shapeParams.gridDim,...
-    trainingParams.surfaceThresh, true, 4);
+    trainingParams.surfaceThresh, true, downsample);
 
 % noiseGrid = reshape(predGrid.noise, 25 ,25);
 % a = prctile(noiseGrid(:), 80);

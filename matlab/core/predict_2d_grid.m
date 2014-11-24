@@ -9,7 +9,7 @@ if nargin < 5
    downsample = 1; 
 end
 
-dim = floor(gridDim / downsample);
+dim = round(gridDim / downsample);
 [X, Y] = meshgrid(1:dim, 1:dim);
 testPoints = downsample * [X(:), Y(:)];
 numTest = size(testPoints,1);

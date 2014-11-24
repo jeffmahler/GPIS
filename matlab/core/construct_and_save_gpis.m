@@ -1,11 +1,12 @@
 function [gpModel, shapeSamples, constructionResults] = ...
     construct_and_save_gpis(filename, dataDir, shapeParams, ...
-                            trainingParams, numSamples, scale)
+                            trainingParams, numSamples, image_scale)
 
 % construct a gpis either from the full matrix or otherwise
 if strcmp(trainingParams.activeSetMethod, 'Full') == 1
     [gpModel, predGrid, tsdfReconError, normalError, surfaceImage, constructionTime] = ...
-        create_dense_gpis(shapeParams, trainingParams, trainingParams.scale);
+        create_dense_gpis(shapeParams, trainingParams, trainingParams.scale, ...
+        trainingParams.downsample);
 else
     [gpModel, predGrid, tsdfReconError, normalError, surfaceImage, constructionTime] = ...
         create_sparse_gpis(shapeParams, trainingParams, trainingParams.scale);
@@ -13,10 +14,11 @@ end
 
 % sample shapes
 startTime = tic;
-shapeSamples = {predGrid};
-pdfs = {};
-% [shapeSamples, pdfs] = ...
-%     sample_shapes(gpModel, shapeParams.gridDim, numSamples, trainingParams.useGradients);
+%shapeSamples = {predGrid};
+%pdfs = {};
+[shapeSamples, pdfs] = ...
+     sample_shapes(gpModel, shapeParams.gridDim, numSamples, ...
+        trainingParams.useGradients, trainingParams.downsample);
 samplingTime = toc(startTime);
 
 %fprintf('Sampled %d shapes in %f sec\n', numSamples, samplingTime);
@@ -42,9 +44,10 @@ save(gpisName, 'gpModel');
 save(samplesName, 'shapeSamples');
 save(constructName, 'constructionResults');
 
+contrast = 1.0;
 constructionResults.newSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
-        shapeSamples, 4.0, 1.0, false, false);
+        shapeSamples, image_scale, contrast, false, false);
 figure(88);
 imshow(constructionResults.newSurfaceImage);
 end
