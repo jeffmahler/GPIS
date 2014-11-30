@@ -7,6 +7,9 @@ function [grasp_samples] = collect_samples_grasps(gpModel, grasps, numSamples)
     grasp_samples = cell(num_grasps,1);
     cp = zeros(4,2);
     
+    pose_sigma = 0.1;
+    pose_mu = zeros(3,1);
+        
     for i =1:num_grasps
         close all; 
         
@@ -18,8 +21,10 @@ function [grasp_samples] = collect_samples_grasps(gpModel, grasps, numSamples)
         loa_1 = compute_loa(cp(1:2,:));
         loa_2 = compute_loa(cp(3:4,:));
         
-        [c1_emps,n1_emps] = sample_loas(gpModel, loa_1, numSamples, cp(1:2,:));
-        [c2_emps,n2_emps] = sample_loas(gpModel, loa_2, numSamples, cp(3:4,:));
+        pose_samples = sample_pose_2d(pose_sigma, pose_mu, numSamples);
+        
+        [c1_emps,n1_emps] = sample_loas(gpModel, loa_1, numSamples, pose_samples);
+        [c2_emps,n2_emps] = sample_loas(gpModel, loa_2, numSamples, pose_samples);
         
         grasp_samples{i} = struct(); 
         grasp_samples{i}.cp = cp; 

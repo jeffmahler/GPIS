@@ -20,7 +20,7 @@ surf_ind = find(tsdf_surface == 1);
 inside_ind = find(inside_mask == 1);
 outside_ind = find(outside_mask == 1);
 
-if tsdf_dims(3) > 1
+if numel(tsdf_dims) == 3
     [surf_x, surf_y, surf_z] = ind2sub(tsdf_dims, surf_ind);
     
     if nargout > 0
