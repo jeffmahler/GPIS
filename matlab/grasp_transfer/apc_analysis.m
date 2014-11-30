@@ -75,7 +75,7 @@ g1 = [g1_x g1_y g1_z] + center;
 g2 = [g2_x g2_y g2_z] + center;
 
 grasp_diff = g2 - g1;
-grasp_dir = grasp_diff / norm(grasp_dir);
+grasp_dir = grasp_diff / norm(grasp_diff);
 start1 = g1 - arrow_length * grasp_dir;
 start2 = g2 + arrow_length * grasp_dir;
 
@@ -91,6 +91,7 @@ contacts = find_contacts(loas, sdf);
 %% get grasp quality
 friction_coef = 0.5;
 n_cone_faces = 2;
+n_contacts = 2;
 
 [forces, failed] = compute_forces(contacts, Gx, Gy, Gz, friction_coef, n_cone_faces);
 Q = ferrari_canny_3d(centroid', contacts', forces);

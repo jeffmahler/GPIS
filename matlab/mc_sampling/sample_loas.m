@@ -1,20 +1,35 @@
-function [ contact_emps,norm_emps] = sample_loas(gpModel, loa, numSamples,grip_point)
+function [ contact_emps, norm_emps] = sample_loas(gpModel, loa, numSamples, pose_samples)
 %SAMPLE_SHAPE Summary of this function goes here
 %   Detailed explanation goes here 
-    
-    COV = gp_cov(gpModel, loa, [], true);
-    MEAN = gp_mean(gpModel, loa, true); 
+  
+    % default to identity poses
+    if nargin < 4
+       pose_samples = cell(1, numSamples);
+       for i = 1:numSamples
+          pose_samples{i} = eye(4);
+       end
+    end
 
+    COV = gp_cov(gpModel, loa, [], true);
+    MEAN = gp_mean(gpModel, loa, true);
+    
     contact_emps= []; 
     norm_emps = []; 
-    samples = mvnrnd(MEAN, COV + 1e-12*eye(size(COV,1)),numSamples);
+    shape_samples = mvnrnd(MEAN, COV + 1e-12*eye(size(COV,1)), numSamples);
+    
     for i = 1:numSamples
         % make sure the sample is somewhat probable (almost everything will
         % evaluate to inf)
-        sample = samples(i,:);
+        shape_sample = shape_samples(i,:);
+        pose_sample = pose_samples{i};
         
-        loa_sample = sample(:,1:size(loa,1)); 
-        norm_sample = reshape(sample(:,size(loa,1)+1:end),size(loa,1),2);
+        theta = acos(pose_sample(1,1));
+        t = pose(1:2,3);
+        shape_sample = imrotate(shape_sample, theta);
+        shape_sample = imtranslate(shape_sample, t);
+        
+        loa_sample = shape_sample(:,1:size(loa,1)); 
+        norm_sample = reshape(shape_sample(:,size(loa,1)+1:end),size(loa,1),2);
        
         idx = find(loa_sample <=0.05); 
         if(size(idx) ~= 0)
