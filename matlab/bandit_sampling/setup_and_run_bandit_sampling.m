@@ -105,8 +105,8 @@ cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solu
  [gpModel, shapeParams, shapeSamples, constructionResults] = load_experiment_object(filename, dataDir, scale);
  img.mean = constructionResults.newSurfaceImage;
 % 
-%   [grasp_samples] = collect_samples(experimentConfig,gpModel,shapeParams,img,constructionResults);
-%   save([outputDir 'grasp_samples_bandit_marker.mat'],'grasp_samples');
+  [grasp_samples] = collect_samples(experimentConfig,gpModel,shapeParams,img,constructionResults);
+  save([outputDir 'grasp_samples_bandit_marker.mat'],'grasp_samples');
 
 imshow(img.mean)
 num_grasps = size(grasp_samples,2);
