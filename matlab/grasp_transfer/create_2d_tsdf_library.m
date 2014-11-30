@@ -2,7 +2,7 @@
 
 % define variables
 data_dir = 'data/brown_dataset';
-model_dir = 'data/grasp_transfer_models/brown_dataset';
+model_dir = 'data/grasp_transfer_models';
 downsample = 4;
 padding = 20;
 tsdf_thresh = 10;
@@ -44,7 +44,7 @@ X = zeros(num_training, ds_dim^2);
 h1 = fspecial('gaussian', win, sigma_down);
 h2 = fspecial('gaussian', win, sigma_smooth);
 
-for i = 1:num_training
+for i = 724:724%1:num_training
     filename = filenames{i};
     if mod(i, 10) == 0
        fprintf('Reading shape file %d: %s\n', i, filename);
@@ -59,6 +59,8 @@ for i = 1:num_training
     tsdf = trunc_signed_distance(255-shape_image, tsdf_thresh);
     tsdf = imfilter(tsdf, h1);
     tsdf = imresize(tsdf, (double(ds_dim) / grid_dim));
+    figure(1);
+    imshow(tsdf);
     
     tsdf = standardize_tsdf(tsdf, vis_std);
     tsdf = imfilter(tsdf, h2);

@@ -1,13 +1,13 @@
-function [Q, varargout] = ferrari_canny( center_of_mass,p,f )
+function [Q, varargout] = ferrari_canny( center_of_mass, contacts, forces)
 %FERRARI_CANNY Summary of this function goes here
 %   Detailed explanation goes here
 
-num_contacts = size(p,2);
+num_contacts = size(contacts,2);
 eps = 1e-5;
 
 %Get radius from center of mass to contacts 
 for i=1:num_contacts
-    r(:,i) = (p(:,i) - center_of_mass); 
+    r(:,i) = (contacts(:,i) - center_of_mass); 
 end
 
 
@@ -21,10 +21,10 @@ for i=1:num_contacts
     R(2,1) = r(3,i);  R(2,2) = 0;       R(2,3) = -r(1,i); 
     R(3,1) = -r(2,i); R(3,2) = r(1,i);  R(3,3) = 0; 
     
-    t(:,index) = R*f(:,index);
+    t(:,index) = R*forces(:,index);
   %  t(:,index) = t(:,index); 
     index = index+1;
-    t(:,index) = R*f(:,index);
+    t(:,index) = R*forces(:,index);
   %  t(:,index) = t(:,index)/norm(t(:,index),2); 
     index = index+1;
 end
@@ -32,7 +32,7 @@ end
 %Compose Wrenches 
 W = zeros(3,2*num_contacts); 
 
-W(1:2,:) = f(1:2,:); 
+W(1:2,:) = forces(1:2,:); 
 W(3,:) = t(3,:); 
 
 % check unique wrenches

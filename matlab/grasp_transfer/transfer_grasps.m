@@ -1,5 +1,5 @@
-% Gnerate a new uncertain shape and lookup similar items in the database
-data_dir = 'data/brown_dataset/test';
+% Generate a new uncertain shape and lookup similar items in the database
+data_dir = 'data/grasp_transfer_models/test';
 shape_index = 8576;
 shape_names = {'mandolin'};
 grip_scales = {0.4};
@@ -66,21 +66,25 @@ outside_mask = imresize(outside_mask, (double(grid_dim) / size(M,1)));
 outside_mask = outside_mask > 0.5;
 tsdf = trunc_signed_distance(1-outside_mask, tsdf_thresh);
 
+% create main parameters
 tsdf = standardize_tsdf(tsdf, vis_std);
 tsdf = imfilter(tsdf, h);
+
+[Gx, Gy] = imgradientxy(tsdf, 'CentralDifference');
+tsdf_grad = zeros(grid_dim, grid_dim, 2);
+tsdf_grad(:,:,1) = Gx;
+tsdf_grad(:,:,2) = Gy;
+
+[X, Y] = meshgrid(1:grid_dim, 1:grid_dim);
+points = [X(:), Y(:)];
 
 % quadtree
 min_dim = 2;
 max_dim = 128;
 inside_mask = tsdf < 0;
 outside_mask = tsdf > 0;
-
-% get surface points
-SE = strel('square', 3);
-outside_di = imdilate(outside_mask, SE);
-outside_mask_di = (outside_di== 1);
-tsdf_surface = double(outside_mask_di & inside_mask);
-tsdf_surf_points = find(tsdf_surface(:) == 1);
+[tsdf_surface, tsdf_surf_points, inside_points, outside_points] = ...
+    compute_tsdf_surface(tsdf);
 
 dim_diff = max_dim - grid_dim;
 pad = floor(dim_diff / 2);
@@ -103,12 +107,12 @@ blocks(end,1:end) = 1;
 blocks(1:end,end) = 1;
 
 % parse cell centers
-[X, Y] = find(S > 0);
-num_cells = size(X, 1);
+[pX, pY] = find(S > 0);
+num_cells = size(pX, 1);
 cell_centers = zeros(2, num_cells);
 
 for i = 1:num_cells
-   p = [Y(i); X(i)];
+   p = [pY(i); pX(i)];
    cell_size = S(p(1), p(2));
    cell_center = p + floor(cell_size / 2) * ones(2,1);
    cell_centers(:, i) = cell_center;
@@ -232,9 +236,6 @@ for k = 1:num_centers
         noise(k) = noise_val * var_params.noiseScale;
     end
 end
-
-[Gx, Gy] = imgradientxy(tsdf, 'CentralDifference');
-[X, Y] = meshgrid(1:grid_dim, 1:grid_dim);
 %noise_grid = noise_scale * ones(grid_dim);
 
 cell_normals = [Gx(cell_centers_linear), Gy(cell_centers_linear)];
@@ -276,7 +277,7 @@ training_params.hyp.lik = log(0.1);
 training_params.useGradients = true;
 training_params.downsample = 2;
 
-num_samples = 1000;
+num_samples = 100;
 image_scale = 4.0;
 [gp_model, shape_samples, construction_results] = ...
             construct_and_save_gpis(shape_names{1}, data_dir, shape_params, ...
@@ -294,28 +295,44 @@ title('Original TSDF');
 figure(77);
 grasp = zeros(4,1);
 grasp_candidates = zeros(K, 4);
-%g2 = zeros(2,1);
+tsdf_grad_neigh = zeros(grid_dim, grid_dim, 2);
+
+tsdf_corr_thresh = 2.0;
+alpha = 1.0;
+beta = 1.0;
+corr_win = 3;
+
 for i = 1:K
-   tsdf_neighbor = tsdf_vectors(idx(i),:);
-   grasps_neighbor = grasps(idx(i), :, :);
-   tsdf_neighbor = reshape(tsdf_neighbor, [grid_dim, grid_dim]);
-   subplot(sqrt(K),sqrt(K),i);
-   %imshow(tsdf_neighbor);
-   %hold on;
-   grasp(:) = grasps_neighbor(1,1,:);
-   grasp_candidates(i, :) = grasp';
-%    g1(:) = grasp(1,1,1:2);
-%    g2(:) = grasp(1,1,3:4);
-   neighbor_shape_params = tsdf_to_shape_params(tsdf);
-   neighbor_shape_params.surfaceThresh = 0.1;
-   %plot_grasp_arrows(tsdf_neighbor, g1, g2, -grasp_dir, grasp_dir, 1, 5, [0;0], 3);
-   visualize_grasp(grasp, neighbor_shape_params, tsdf_neighbor, ...
-       config.scale, config.arrow_length, config.plate_width, grid_dim);
-   title(sprintf('Neighbor %d', i));
+    % load neighbor attributes
+    tsdf_neighbor = tsdf_vectors(idx(i),:);
+    grasps_neighbor = grasps(idx(i), :, :);
+    tsdf_neighbor = reshape(tsdf_neighbor, [grid_dim, grid_dim]);
+    [Gx_nbr, Gy_nbr] = imgradientxy(tsdf_neighbor, 'CentralDifference');
+    tsdf_grad_nbr(:,:,1) = Gx_nbr;
+    tsdf_grad_nbr(:,:,2) = Gy_nbr;
+   
+    % tps registration
+%    [corrs, outliers] = tsdf_tps_corrs(points, tsdf_neighbor, tsdf, tsdf_grad_nbr, tsdf_grad,...
+%        tsdf_corr_thresh, alpha, beta, corr_win);
+%     source_points = points(corrs(~outliers),:);
+%     target_points = points(~outliers,:);
+%     st = tpaps(target_points', source_points');
+   
+    % transfer neighbor grasp
+    grasp(:) = grasps_neighbor(1,1,:);
+    grasp_candidates(i, :) = grasp';
+    neighbor_shape_params = tsdf_to_shape_params(tsdf);
+    neighbor_shape_params.surfaceThresh = 0.1;
+   
+    % visualization
+    subplot(sqrt(K),sqrt(K),i);
+    visualize_grasp(grasp, neighbor_shape_params, tsdf_neighbor, ...
+         config.scale, config.arrow_length, config.plate_width, grid_dim);
+    title(sprintf('Neighbor %d', i));
 end
 
 %% use bandits to select the best grasp
 grasp_samples = collect_samples_grasps(gp_model, grasp_candidates);
 
 %%
-%best_grasp = thompson_sampling(grasp_samples, K, shape_params, config, tsdf);
+best_grasp = thompson_sampling(grasp_samples, K, shape_params, config, tsdf);

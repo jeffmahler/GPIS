@@ -4,11 +4,11 @@
 %% try out these Brown shapes
 close all;
 
-shape1 = imread('data/brown_dataset/Bone01.pgm');
-shape2 = imread('data/brown_dataset/Bone02.pgm');
+% shape1 = imread('data/brown_dataset/Bone01.pgm');
+% shape2 = imread('data/brown_dataset/Bone02.pgm');
 
-% shape1 = imread('data/pgms/bottle16.pgm');
-% shape2 = imread('data/pgms/glas01.pgm');
+shape1 = imread('data/brown_dataset/bottle16.pgm');
+shape2 = imread('data/brown_dataset/glas01.pgm');
 padding = 20;
 D = 0.25;
 grid_dim = max([size(shape1) size(shape2)]) + 2*padding;
@@ -52,6 +52,7 @@ sdf_surface(tsdf2, 0.5);
 interpolate_sdfs(tsdf1, tsdf2, grid_dim, 0.5, 2);
 
 %% matlab registration
+thresh = 10;
 [opt, met] = imregconfig('monomodal');
 tsdf1_padded = thresh * ones(3*grid_dim); % pad image to remove warp fill-in
 tsdf1_padded(grid_dim+1:2*grid_dim, grid_dim+1:2*grid_dim) = tsdf1;
@@ -68,6 +69,7 @@ subplot(1,3,3);
 imshow(tsdf1_reg);
 title('Registered Object', 'FontSize', 15);
 %%
+pause(2);
 interpolate_sdfs(tsdf1_reg, tsdf2, grid_dim, 0.5, 2);
 
 %% std pose
