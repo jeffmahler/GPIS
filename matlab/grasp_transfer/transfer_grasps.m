@@ -54,7 +54,7 @@ noise_scale = 0.1;
 win = 7;
 sigma = sqrt(2)^2;
 h = fspecial('gaussian', win, sigma);
-vis_std = false;
+vis_std = true;
 
 outside_mask = caltech_data.X(shape_index,:);
 outside_mask = reshape(outside_mask, [data_dim, data_dim]);
@@ -333,7 +333,8 @@ for i = 1:K
 end
 
 %% use bandits to select the best grasp
-grasp_samples = collect_samples_grasps(gp_model, grasp_candidates);
+grasp_samples = collect_samples_grasps(gp_model, grasp_candidates,1500,config,shape_params);
 
 %%
+close all; 
 best_grasp = thompson_sampling(grasp_samples, K, shape_params, config, tsdf);

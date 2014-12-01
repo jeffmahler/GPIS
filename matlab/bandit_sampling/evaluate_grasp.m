@@ -5,16 +5,16 @@ function [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,exp
         grasp_stor = grasp; 
         
         iter = grasp_samples{grasp_stor}.current_iter;
-        if(iter > 1500)
+        if(iter > 1300)
             Q = -1; 
             return;
         end
-        
+       
         cm = grasp_samples{grasp_stor}.com(iter,:);
         
         ca = atan(grasp_samples{grasp_stor}.fc(iter));
         
-        if(size(grasp_samples{grasp_stor}.n1_emps,1) < 1500 || size(grasp_samples{grasp_stor}.n2_emps,1) < 1500)
+        if(size(grasp_samples{grasp_stor}.n1_emps,1) < 1000 || size(grasp_samples{grasp_stor}.n2_emps,1) < 1000)
             Q = 0; 
             return 
         end

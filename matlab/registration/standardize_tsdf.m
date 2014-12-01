@@ -27,7 +27,7 @@ grid_center = ones(1,2);
 grid_center(1) = width / 2;
 grid_center(2) = height / 2;
 
-[U, mu, vars] = pca(surf_points');
+U = pca(surf_points);
 princ_dir1 = [U(2,1), U(1,1)];
 princ_dir2 = [-U(1,1), U(2,1)];
 

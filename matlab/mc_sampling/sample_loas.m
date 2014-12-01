@@ -23,7 +23,6 @@ function [ contact_emps, norm_emps] = sample_loas(gpModel, loa, numSamples, pose
         %fprintf('Sample %d\n', i);
         % make sure the sample is somewhat probable (almost everything will
         % evaluate to inf)
-        %s
         
         if use_pose
             pose_sample = pose_samples{i};
@@ -47,7 +46,7 @@ function [ contact_emps, norm_emps] = sample_loas(gpModel, loa, numSamples, pose
         else
            shape_sample = shape_samples(i,:); 
         end
-        
+
         loa_sample = shape_sample(:,1:size(loa,1)); 
         norm_sample = reshape(shape_sample(:,size(loa,1)+1:end),size(loa,1),2);
        

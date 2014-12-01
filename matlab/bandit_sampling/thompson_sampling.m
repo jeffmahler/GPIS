@@ -2,7 +2,7 @@ function [ best_grasp ] = thompson_sampling(grasp_samples,num_grasps,shapeParams
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 4000; 
+    Total_Iters = 2000; 
     i = 1; 
     ts = true; 
     prune = false; 
