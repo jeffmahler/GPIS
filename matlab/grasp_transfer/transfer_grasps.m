@@ -306,6 +306,7 @@ for i = 1:K
     % load neighbor attributes
     tsdf_neighbor = tsdf_vectors(idx(i),:);
     grasps_neighbor = grasps(idx(i), :, :);
+    grasp_q_neighbor = grasp_q(idx(i), :);
     tsdf_neighbor = reshape(tsdf_neighbor, [grid_dim, grid_dim]);
     [Gx_nbr, Gy_nbr] = imgradientxy(tsdf_neighbor, 'CentralDifference');
     tsdf_grad_nbr(:,:,1) = Gx_nbr;
