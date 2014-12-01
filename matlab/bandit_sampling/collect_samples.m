@@ -26,6 +26,13 @@ function [grasp_samples] = collect_samples(experimentConfig,gpModel,shapeParams,
         grasp_samples{i}.c1_emps = c1_emps; 
         grasp_samples{i}.c2_emps = c2_emps; 
         
+        grasp_samples{i}.fc = experimentConfig.frictionCoef + 0.1*rand(1,num_grasps);
+        
+        com = zeros(num_grasps,2); 
+        com(:,1) = 3*randn(num_grasps,1)+shapeParams.com(1); 
+        com(:,2) = 3*randn(num_grasps,2)+shapeParams.com(2); 
+        
+        grasp_samples{i}.com = com; 
         grasp_samples{i}.n1_emps = n1_emps; 
         grasp_samples{i}.n2_emps = n2_emps; 
         

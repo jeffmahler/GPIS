@@ -1,0 +1,13 @@
+discount = 0.9; 
+T = 1500; 
+indices = zeros(T,T); 
+i = T; 
+
+while(i ~= 1)
+    j = T; 
+    while(j ~= 1)
+        indices(i,j) = i/(i+j) + discount((i)/(i+j)*indices(i+1,j)+j/(i+j)*indices(i,j+1)); 
+        j = j -1; 
+    end 
+end
+        
