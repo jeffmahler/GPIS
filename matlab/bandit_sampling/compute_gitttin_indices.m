@@ -3,9 +3,9 @@ T = 1500;
 indices = zeros(T,T); 
 i = T; 
 
-while(i ~= 1)
+while(i ~= 0)
     j = T; 
-    while(j ~= 1)
+    while(j ~= 0)
         if(i == T && j == T)
             indices(i,j) = i/(i+j);
         elseif(j == T)

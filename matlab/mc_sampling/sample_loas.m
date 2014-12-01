@@ -22,12 +22,12 @@ function [ contact_emps, norm_emps] = sample_loas(gpModel, loa, numSamples, pose
         % evaluate to inf)
         shape_sample = shape_samples(i,:);
         pose_sample = pose_samples{i};
-        
-        theta = acos(pose_sample(1,1));
-        t = pose(1:2,3);
-        shape_sample = imrotate(shape_sample, theta);
-        shape_sample = imtranslate(shape_sample, t);
-        
+%         
+%         theta = acos(pose_sample(1,1));
+% %        t = pose(1:2,3);
+%         shape_sample = imrotate(shape_sample, theta);
+%         shape_sample = imtranslate(shape_sample, t);
+%         
         loa_sample = shape_sample(:,1:size(loa,1)); 
         norm_sample = reshape(shape_sample(:,size(loa,1)+1:end),size(loa,1),2);
        

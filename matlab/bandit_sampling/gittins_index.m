@@ -2,7 +2,7 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 4000; 
+    Total_Iters = 2000; 
     i = 1; 
     ts = true; 
     prune = false; 
@@ -55,7 +55,7 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
             else
                 grasp = randi(num_grasps);
             end
-
+            
             [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,experimentConfig);
 
             if(Q == 1)
@@ -120,9 +120,7 @@ function [grasp] = get_grasp(Value,indices)
    A = Value(:,1)+1; 
    B = (Value(:,2)-Value(:,1))+1; 
    
-   
-   
-   [v, grasp] = max(indices(A,B)); 
+   [v, grasp] = max(diag(indices(A,B))); 
    
 end
 
