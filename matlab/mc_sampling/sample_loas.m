@@ -3,35 +3,55 @@ function [ contact_emps, norm_emps] = sample_loas(gpModel, loa, numSamples, pose
 %   Detailed explanation goes here 
   
     % default to identity poses
+    use_pose = true;
     if nargin < 4
-       pose_samples = cell(1, numSamples);
-       for i = 1:numSamples
-          pose_samples{i} = eye(4);
-       end
+       use_pose = false;
     end
 
-    COV = gp_cov(gpModel, loa, [], true);
-    MEAN = gp_mean(gpModel, loa, true);
-    
     contact_emps= []; 
-    norm_emps = []; 
-    shape_samples = mvnrnd(MEAN, COV + 1e-12*eye(size(COV,1)), numSamples);
+    norm_emps = [];
+    grid_center = mean(gpModel.training_x)';
+    grid_center = repmat(grid_center, 1, size(loa, 1));
     
+    if ~use_pose
+        COV = gp_cov(gpModel, loa, [], true);
+        MEAN = gp_mean(gpModel, loa, true);
+        shape_samples = mvnrnd(MEAN, COV + 1e-12*eye(size(COV,1)), numSamples);
+    end
+            
     for i = 1:numSamples
+        %fprintf('Sample %d\n', i);
         % make sure the sample is somewhat probable (almost everything will
         % evaluate to inf)
-        shape_sample = shape_samples(i,:);
-        pose_sample = pose_samples{i};
+        %s
         
-        theta = acos(pose_sample(1,1));
-        t = pose(1:2,3);
-        shape_sample = imrotate(shape_sample, theta);
-        shape_sample = imtranslate(shape_sample, t);
+        if use_pose
+            pose_sample = pose_samples{i};
+
+            % transform loa
+            loa_transformed = [loa' - grid_center; ...
+                ones(1, size(loa, 1))];
+            loa_transformed = inv(pose_sample) * loa_transformed;
+            loa_transformed = loa_transformed(1:2,:) + grid_center;
+
+            startTime = tic;
+            COV = gp_cov(gpModel, loa_transformed', [], true);
+            MEAN = gp_mean(gpModel, loa_transformed', true);
+            endTime = toc(startTime);
+            %fprintf('Mat time %f\n', endTime);
+
+            startTime = tic;
+            shape_sample = mvnrnd(MEAN, COV + 1e-12*eye(size(COV,1)), 1);
+            endTime = toc(startTime);
+            %fprintf('Sample time %f\n', endTime);
+        else
+           shape_sample = shape_samples(i,:); 
+        end
         
         loa_sample = shape_sample(:,1:size(loa,1)); 
         norm_sample = reshape(shape_sample(:,size(loa,1)+1:end),size(loa,1),2);
        
-        idx = find(loa_sample <=0.05); 
+        idx = find(loa_sample <= 0.05); 
         if(size(idx) ~= 0)
             contact_emps = [contact_emps; idx(1)];
             %[marg_cov,marg_mean] = marg_normals(COV,MEAN,idx(1)); 
