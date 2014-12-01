@@ -19,7 +19,7 @@ figure;
  for i=1:N
      cp = grasp_samples{sortingIndices(i)}.cp;
      
-     plot_grasp_arrows2( surface_image, cp(1,:)', cp(3,:)', -(cp(1,:)-cp(2,:))', -(cp(3,:)-cp(4,:))', 1,10,i,N,true_value(i,3))
+     plot_grasp_arrows2( surface_image, cp(1,:)', cp(3,:)', -(cp(1,:)-cp(2,:))', -(cp(3,:)-cp(4,:))', 1,10,i,N,true_value(sortingIndices(i),3))
  end
 
 end

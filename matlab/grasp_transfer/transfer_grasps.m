@@ -121,9 +121,9 @@ end
 % trim cell centers, add noise
 %% variance parameters
 var_params = struct();
-var_params.y_thresh1_low = 30;
+var_params.y_thresh1_low = 79;
 var_params.y_thresh1_high = 79;
-var_params.x_thresh1_low = 1;
+var_params.x_thresh1_low = 79;
 var_params.x_thresh1_high = 79;
 
 var_params.y_thresh2_low = 79;
@@ -136,9 +136,9 @@ var_params.y_thresh3_high = 79;
 var_params.x_thresh3_low = 79;
 var_params.x_thresh3_high = 79;
 
-var_params.occ_y_thresh1_low = 79;
+var_params.occ_y_thresh1_low = 40;
 var_params.occ_y_thresh1_high = 79;
-var_params.occ_x_thresh1_low = 79;
+var_params.occ_x_thresh1_low = 1;
 var_params.occ_x_thresh1_high = 79;
 
 var_params.occ_y_thresh2_low = 79;
@@ -333,7 +333,9 @@ end
 
 %% use bandits to select the best grasp
 grasp_samples = collect_samples_grasps(gp_model, grasp_candidates,1500,config,shape_params);
+best_grasp = monte_carlo(grasp_samples, K, shape_params, config, tsdf);
+
 
 %%
 close all; 
-best_grasp = thompson_sampling(grasp_samples, K, shape_params, config, tsdf);
+best_grasp = gittins_index(grasp_samples, K, shape_params, config, tsdf);

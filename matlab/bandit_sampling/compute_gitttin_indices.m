@@ -1,4 +1,4 @@
-discount = 0.9; 
+discount = 0.99; 
 T = 1500; 
 indices = zeros(T,T); 
 i = T; 
@@ -13,7 +13,9 @@ while(i ~= 0)
         elseif(i == T)
              indices(i,j) = i/(i+j) + discount*(j/(i+j)*indices(i,j+1));
         else 
-            indices(i,j) = i/(i+j) + discount*((i)/(i+j)*indices(i+1,j)+j/(i+j)*indices(i,j+1)); 
+            indices(i,j) = i/(i+j) + discount*((i)/(i+j)*indices(i+1,j)+j/(i+j)*indices(i,j+1));
+          
+            
         end
         j = j-1; 
     end 

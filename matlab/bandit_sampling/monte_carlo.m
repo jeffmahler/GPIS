@@ -8,7 +8,7 @@ function [ best_grasp ] = monte_carlo(grasp_samples,num_grasps,shapeParams,exper
     prune = false; 
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
-    load('matlab/bandit_sampling/gittins_indices');      
+
 
     for interval = 1:1
         Storage = {};
