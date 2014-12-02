@@ -24,7 +24,9 @@ num_points = size(tsdf_vectors, 2);
 grid_dim = sqrt(num_points);
 
 %% loop through models, generating and ranking a grasp set for each
-debug = true;
+rng(100);
+debug = false;
+
 scale = 2;
 arrow_length = 10;
 plate_width = 3;
@@ -35,14 +37,18 @@ friction_coef = 0.75;
 surface_thresh = 0.25;
 cone_angle = atan(friction_coef);
 
-num_grasps = 500;
+num_grasps = 1000;
 num_grasps_keep = 25;
+grasp_dist_thresh = 25;
 grasps_scratch = zeros(num_grasps, 4);
 grasp_q_scratch = zeros(num_grasps, 1);
 grasps = zeros(num_training, num_grasps_keep, 4);
 grasp_qualities = zeros(num_training, num_grasps_keep);
 
 for i = 1:num_training
+    grasps_scratch = zeros(num_grasps, 4);
+    grasp_q_scratch = zeros(num_grasps, 1);
+
     filename = filenames{i};
     if mod(i, 10) == 0
        fprintf('Evaluating grasps on shape file %d: %s\n', i, filename);
@@ -51,7 +57,7 @@ for i = 1:num_training
     tsdf = reshape(tsdf, [grid_dim, grid_dim]);
     
     if debug
-        figure;
+        figure(2);
         imshow(tsdf);
         pause(2);
     end
@@ -66,11 +72,20 @@ for i = 1:num_training
         r = rand();
         if r < 0.33
             g1 = get_initial_antipodal_grasp(shape_params, true);
+            if debug
+                disp('Normals method');
+            end
         elseif r < 0.67
             g1 = get_initial_antipodal_grasp(shape_params, false);
+            if debug
+                disp('COM method');
+            end
         else
             [g1, g2] = get_random_grasp(grid_dim, grid_dim);
             g1 = [g1(1,:) g1(2,:)]';
+            if debug
+                disp('Circle method');
+            end
         end
        
         loa = create_ap_loa(g1, grip_width);
@@ -81,34 +96,66 @@ for i = 1:num_training
             grip_width, false);
         
         grasps_scratch(j,:) = [loa(1,:), loa(2,:)];
-        grasp_q_scratch(j) = mn_Q;
-        
+
+        % only store quality if sufficiently different from other grasps
+        grasp_dist = [grasps_scratch(1:j-1,:);
+                      grasps_scratch(1:j-1,3:4) grasps_scratch(1:j-1,1:2)] - ...
+            repmat(grasps_scratch(j,:), 2*(j-1), 1);
+        min_grasp_dist = min(sum(grasp_dist.^2, 2));
+
+        if min_grasp_dist > grasp_dist_thresh
+            grasp_q_scratch(j) = mn_Q;
+        end
+
         if debug
             fprintf('Grasp %d Q: %f\n', j, mn_Q);
-            figure(4);
-            visualize_grasp(g1, shape_params, shape_image, scale, arrow_length, ...
-                plate_width, grip_width);
-            pause(1);
+            %figure(4);
+            if mn_Q > 0
+                figure(3);
+                visualize_grasp(g1, shape_params, shape_image, scale, arrow_length, ...
+                    plate_width, grip_width);
+                %pause(1);
+            end
         end
     end
+    pause(1);
     grasp_q_sorted = sort(grasp_q_scratch, 'descend');
     k = 1;
     while k <= num_grasps_keep
        ind = find(grasp_q_scratch == grasp_q_sorted(k));
        l = 1;
-       while l <= size(ind,2) && k <= num_grasps_keep
+       while l <= size(ind,1) && k <= num_grasps_keep
            grasps(i,k,:) = grasps_scratch(ind(l),:); 
            grasp_qualities(i,k) = grasp_q_scratch(ind(l));
            k = k+1;
            l = l+1;
+           
+           if debug || k == 2
+                %fprintf('%d-th best grasp\n', k-1);
+                %grasps_scratch(ind(l-1),:)
+                figure(3);
+                visualize_grasp(grasps_scratch(ind(l-1),:)', shape_params, shape_image, ...
+                     scale, arrow_length, plate_width, grip_width);
+                pause(1);
+           end
        end
     end
 end
 
+%%
+
+% for i = 1:1
+%     cur_grasp = grasps_scratch(i,:);
+%     grasp_diff = repmat(cur_grasp, num_grasps, 1) - grasps_scratch;
+% end
+% 
+% diffs = sum(grasp_diff.^2,2);
+% min(diffs(diffs > 0))
+
 %% save grasps
 
-grasps_name = sprintf('%s/grasps_%d.mat', model_dir, downsample);
-grasp_q_name = sprintf('%s/grasp_q_%d.mat', model_dir, downsample);
-
-save(grasps_name, 'grasps');
-save(grasp_q_name, 'grasp_qualities');
+% grasps_name = sprintf('%s/grasps_%d.mat', model_dir, downsample);
+% grasp_q_name = sprintf('%s/grasp_q_%d.mat', model_dir, downsample);
+% 
+% save(grasps_name, 'grasps');
+% save(grasp_q_name, 'grasp_qualities');
