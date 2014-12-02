@@ -339,4 +339,4 @@ best_grasp = monte_carlo(grasp_samples, K, shape_params, config, tsdf);
 
 %%
 close all; 
-best_grasp = gittins_index(grasp_samples, K, shape_params, config, tsdf);
+best_grasp = ucb(grasp_samples, K, shape_params, config, tsdf);

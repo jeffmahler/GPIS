@@ -1,0 +1,39 @@
+
+Here you can find straightforward implementations of some algorithms to
+calculate the Gittins index for Markov chains with rewards on the states.
+
+The algorithms run in Matlab and Octave.  You can see one demonstration in:
+
+            Demo_Gittins_Indexes.m
+
+Just run it, it will generate a number of random models and report the
+differences between the outcomes of the algorithms in three different matrices.
+These differences should be merely rounding errors.
+
+If you have comments or corrections, feel free to contact me at:
+
+            lorenzo.digregorio@gmail.com
+
+but please consider that, depending on my workload, I might not manage to find
+time to reply.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Copyright 2005 Lorenzo Di Gregorio
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+%         Lorenzo Di Gregorio <lorenzo.digregorio@gmail.com>
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+

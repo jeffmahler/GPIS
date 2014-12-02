@@ -10,7 +10,7 @@ true_value
 [sortedX,sortingIndices] = sort(Value(:,3),'descend');
 
 figure; 
-plot(Value(sortingIndices,3),Value(sortingIndices,2)); 
+plot(true_value(sortingIndices,3),Value(sortingIndices,2)); 
 title('Samples per Grasp Quality'); 
 xlabel('Probability of Force Closure'); 
 ylabel('Samples'); 

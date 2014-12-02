@@ -9,7 +9,7 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
     load('matlab/bandit_sampling/gittins_indices');      
-
+  
     for interval = 1:1
         Storage = {};
         Value = zeros(num_grasps,5); 
@@ -119,7 +119,7 @@ function [grasp] = get_grasp(Value,indices)
    
    A = Value(:,1)+1; 
    B = (Value(:,2)-Value(:,1))+1; 
-   
+
    [v, grasp] = max(diag(indices(A,B))); 
    
 end

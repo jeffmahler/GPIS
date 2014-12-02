@@ -1,25 +1,81 @@
-discount = 0.99; 
-T = 1500; 
-indices = zeros(T,T); 
-i = T; 
 
-while(i ~= 0)
-    j = T; 
-    while(j ~= 0)
-        if(i == T && j == T)
-            indices(i,j) = i/(i+j);
-        elseif(j == T)
-             indices(i,j) = i/(i+j) + discount*((i)/(i+j)*indices(i+1,j)); 
-        elseif(i == T)
-             indices(i,j) = i/(i+j) + discount*(j/(i+j)*indices(i,j+1));
-        else 
-            indices(i,j) = i/(i+j) + discount*((i)/(i+j)*indices(i+1,j)+j/(i+j)*indices(i,j+1));
-          
-            
-        end
-        j = j-1; 
-    end 
-    i = i-1; 
+function [] = compute_gitttin_indices()
+discount = 0.9; 
+T = 1500; 
+ 
+Indices = zeros(T,T); 
+
+load('matlab/bandit_sampling/indices'); 
+
+Indices(1:199,1:199) = 0.1*indices(2:200,2:200); 
+
+for i=1:T
+    for j=200:T
+        Indices(i,j) = i/(i+j);
+    end
 end
-        
+
+for i = 200:T
+    for j=1:T
+        Indices(i,j) = i/(i+j);
+    end
+end
+indices = Indices; 
+
 save('matlab/bandit_sampling/gittins_indices','indices'); 
+end
+
+function prob = tran_next_state(state,next_state,T)
+    
+    prob = 0; 
+    size = [T; T]; 
+    [a_s,b_s] = ind2sub(size,state); 
+    [a_sp1,b_sp1] = ind2sub(size,next_state); 
+    
+    if(a_sp1 == a_s+1 && b_s == b_sp1)
+        prob = a_s/(b_s+a_s);
+    elseif(a_sp1 == a_s && b_s == b_sp1+1)
+        prob = 1-a_s/(b_s+a_s);    
+    else
+        prob = 0; 
+        
+    end
+    return; 
+end
+
+function prob = tran_restart(state,next_state,T,s_0)
+    
+    prob = 0; 
+    size = [T; T]; 
+    [a_s0,b_s0] = ind2sub(size,s_0); 
+    [a_s,b_s] = ind2sub(size,state); 
+    [a_sp1,b_sp1] = ind2sub(size,next_state); 
+    
+    if(a_sp1 == a_s0 && b_sp1 == b_s0)
+        prob = 1;    
+    else
+        prob = 0;
+    end
+    return; 
+end
+
+function reward = r_restart(state,next_state,T)
+    
+    reward = 0; 
+    return; 
+end
+
+function prob = r_next_state(state,next_state,T)
+    
+    prob = 0; 
+    size = [T; T]; 
+    [a_s,b_s] = ind2sub(size,state); 
+    [a_sp1,b_sp1] = ind2sub(size,next_state); 
+    
+    if(a_sp1-a_s == 1 && b_s == b_sp1)
+        reward = 1;   
+    else
+        reward = 0;
+    end
+    return; 
+end
