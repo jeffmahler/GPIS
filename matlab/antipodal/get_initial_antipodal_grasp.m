@@ -4,14 +4,13 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
     varGrid = reshape(predShape.noise, predShape.gridDim, predShape.gridDim);
     xNormGrid = reshape(predShape.normals(:,1), predShape.gridDim, predShape.gridDim);
     yNormGrid = reshape(predShape.normals(:,2), predShape.gridDim, predShape.gridDim);
-    [x_surface_i, x_surface_j] = ...
-        find(abs(predGrid) < predShape.surfaceThresh);
-    numSurf = size(x_surface_i, 1);
+    [tsdf_surface, surf_points, ~] = compute_tsdf_surface(predGrid);
+    numSurf = size(surf_points, 1);
     
     % choose random point on surface for point 1
     ind1 = uint16(rand * (numSurf-1) + 1);
-    x1 = [x_surface_j(ind1) + (0.5 - rand); x_surface_i(ind1) + (0.5 - rand)];
-    
+    x1 = surf_points(ind1,:)' + (0.5 - rand); % small random perturbation
+        
     % get direction
     n1 = [xNormGrid(round(x1(2)),round(x1(1))) + 20*(rand - 0.5); ...
           yNormGrid(round(x1(2)),round(x1(1))) + 20*(rand - 0.5)];
@@ -113,6 +112,12 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
 %     plot(2*x2(1,:), 2*x2(2,:), 'bx-', 'MarkerSize', 20, 'LineWidth', 1.5);
 %         
 
-    init_grasp = [x1; x2];
+    init_grasp = [x1(2); x1(1); x2(2); x2(1)];
+    
+%     figure(1);
+%     imshow(tsdf_surface);
+%     hold on;
+%     scatter(x1(2), x1(1), 50, '+r');
+%     scatter(x2(2), x2(1), 50, '+g');
 end
 

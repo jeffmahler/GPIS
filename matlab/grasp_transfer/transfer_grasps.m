@@ -7,13 +7,41 @@ tsdf_thresh = 10;
 padding = 5;
 scale = 4;
 
+shape_indices = [8576];
+
+% get random shape indices
+num_test_shapes = 1000;
+shape_indices = round(8600 * rand(num_test_shapes, 1) + 1);
+
 config = struct();
 config.arrow_length = 10;
 config.scale = 1.0;
-config.frictionCoef = 0.5;
+config.friction_coef = 0.5;
 config.plate_width = 3;
+config.grip_scale = 0.4;
+config.padding = 5;
+config.tsdf_thresh = 10;
+config.downsample = 4;
 
-caltech_data = load('data/caltech/caltech101_silhouettes_28.mat');
+config.test_data_file = 'data/caltech/caltech101_silhouettes_28.mat';
+config.mat_save_dir = 'data/grasp_transfer_models/test';
+config.model_dir = 'data/grasp_transfer_models/brown_dataset';
+
+config.filter_win = 7;
+config.filter_sigma = sqrt(2)^2;
+config.vis_std = false;
+
+config.quad_min_dim = 2;
+config.quad_max_dim = 128;
+
+config.num_shape_samples = 100;
+config.image_scale = 4.0;
+
+config.knn = 16;
+config.vis_knn = false;
+config.num_grasp_samples = 1500;
+
+caltech_data = load(config.test_data_file);
 num_points = size(caltech_data.X, 2);
 data_dim = sqrt(num_points);
 
@@ -169,6 +197,8 @@ var_params.noiseGradMode = 'None';
 var_params.horizScale = 1;
 var_params.vertScale = 1;
 
+config.noise_params = var_params;
+
 cell_centers_mod = cell_centers - pad;
 cell_centers_mod(cell_centers_mod < 1) = 1;
 cell_centers_mod(cell_centers_mod > grid_dim) = grid_dim; 
@@ -186,9 +216,7 @@ for k = 1:num_centers
     j_low = max(1,j-var_params.edgeWin);
     j_high = min(grid_dim,j+var_params.edgeWin);
     tsdf_win = tsdf(i_low:i_high, j_low:j_high);
-
-    %fprintf('(i,j) = (%d,%d)\n', i, j);
-    
+  
     % add in transparency, occlusions
     if ((i > var_params.transp_y_thresh1_low && i <= var_params.transp_y_thresh1_high && ...
           j > var_params.transp_x_thresh1_low && j <= var_params.transp_x_thresh1_high) || ...
@@ -252,55 +280,59 @@ shape_params.all_points = [X(:) Y(:)];
 shape_params.fullTsdf = tsdf(:);
 shape_params.fullNormals = [Gx(:) Gy(:)];
 shape_params.com = mean(shape_params.points(shape_params.tsdf < 0,:));
+shape_params.surfaceThresh = 0.1;
+% figure(11);
+% scatter(shape_params.points(:,1), shape_params.points(:,2));
+% set(gca,'YDir','Reverse');
 
-figure(11);
-scatter(shape_params.points(:,1), shape_params.points(:,2));
-set(gca,'YDir','Reverse');
+construction_params = struct();
+construction_params.activeSetMethod = 'Full';
+construction_params.activeSetSize = 1;
+construction_params.beta = 10;
+construction_params.firstIndex = 150;
+construction_params.numIters = 0;
+construction_params.eps = 1e-2;
+construction_params.delta = 1e-2;
+construction_params.levelSet = 0;
+construction_params.surfaceThresh = 0.1;
+construction_params.scale = 1.0;
+construction_params.numSamples = 20;
+construction_params.trainHyp = false;
+construction_params.hyp = struct();
+construction_params.hyp.cov = [log(exp(2)), log(1)];
+construction_params.hyp.mean = [0; 0; 0];
+construction_params.hyp.lik = log(0.1);
+construction_params.useGradients = true;
+construction_params.downsample = 2;
 
-training_params = struct();
-training_params.activeSetMethod = 'Full';
-training_params.activeSetSize = 1;
-training_params.beta = 10;
-training_params.firstIndex = 150;
-training_params.numIters = 0;
-training_params.eps = 1e-2;
-training_params.delta = 1e-2;
-training_params.levelSet = 0;
-training_params.surfaceThresh = 0.1;
-training_params.scale = scale;
-training_params.numSamples = 20;
-training_params.trainHyp = false;
-training_params.hyp = struct();
-training_params.hyp.cov = [log(exp(2)), log(1)];
-training_params.hyp.mean = [0; 0; 0];
-training_params.hyp.lik = log(0.1);
-training_params.useGradients = true;
-training_params.downsample = 2;
+config.construction_params = construction_params;
 
 num_samples = 100;
 image_scale = 4.0;
 [gp_model, shape_samples, construction_results] = ...
             construct_and_save_gpis(shape_names{1}, data_dir, shape_params, ...
-                                    training_params, num_samples, image_scale);
+                                    construction_params, num_samples, image_scale);
         
 
 %% lookup nearest neighbors
 K = 16;
 idx = knnsearch(kd_tree, tsdf(:)', 'K', K);
 
-figure(66);
-imshow(tsdf);
-title('Original TSDF');
+if config.vis_knn
+    figure(66);
+    imshow(tsdf);
+    title('Original TSDF');
 
-figure(77);
-grasp = zeros(4,1);
-grasp_candidates = zeros(K, 4);
-tsdf_grad_neigh = zeros(grid_dim, grid_dim, 2);
+    figure(77);
+    grasp = zeros(4,1);
+    grasp_candidates = zeros(K, 4);
+    tsdf_grad_neigh = zeros(grid_dim, grid_dim, 2);
+end
 
-tsdf_corr_thresh = 2.0;
-alpha = 1.0;
-beta = 1.0;
-corr_win = 3;
+% tsdf_corr_thresh = 2.0;
+% alpha = 1.0;
+% beta = 1.0;
+% corr_win = 3;
 
 for i = 1:K
     % load neighbor attributes
@@ -320,12 +352,22 @@ for i = 1:K
 %     st = tpaps(target_points', source_points');
    
     % transfer neighbor grasp
-    grasp(:) = grasps_neighbor(1,1,:);
-    grasp_candidates(i, :) = grasp';
-    neighbor_shape_params = tsdf_to_shape_params(tsdf);
+    neighbor_shape_params = tsdf_to_shape_params(tsdf_neighbor);
     neighbor_shape_params.surfaceThresh = 0.1;
-   
+
+    for j = 1:1
+        grasp(:) = grasps_neighbor(1,j,:);
+        grasp_candidates(i, :) = grasp';
+        
+%         subplot(sqrt(25),sqrt(25),j);
+%         visualize_grasp(grasp, neighbor_shape_params, tsdf_neighbor, ...
+%             config.scale, config.arrow_length, config.plate_width, grid_dim);
+%         title(sprintf('Grasp %d', j));
+    end
     % visualization
+    if i == 11
+        test = 1;
+    end
     subplot(sqrt(K),sqrt(K),i);
     visualize_grasp(grasp, neighbor_shape_params, tsdf_neighbor, ...
          config.scale, config.arrow_length, config.plate_width, grid_dim);
@@ -333,10 +375,10 @@ for i = 1:K
 end
 
 %% use bandits to select the best grasp
-grasp_samples = collect_samples_grasps(gp_model, grasp_candidates,1500,config,shape_params);
-best_grasp = monte_carlo(grasp_samples, K, shape_params, config, tsdf);
-
-
-%%
-close all; 
-best_grasp = gittins_index(grasp_samples, K, shape_params, config, tsdf);
+% grasp_samples = collect_samples_grasps(gp_model, grasp_candidates,1500,config,shape_params);
+% best_grasp = monte_carlo(grasp_samples, K, shape_params, config, tsdf);
+% 
+% 
+% %%
+% close all; 
+% best_grasp = gittins_index(grasp_samples, K, shape_params, config, tsdf);

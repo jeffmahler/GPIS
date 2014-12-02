@@ -14,9 +14,9 @@ graspPoints = create_ap_loa(grasp, gripWidth);
 
 % find where these grasp points would contact the surface
 numContacts = 2;
-figure(10);
-imshow(shapeImage);
-hold on;
+% figure(10);
+% imshow(shapeImage);
+% hold on;
 [contacts, normals, bad ] = ...
     find_contact_points(graspPoints, numContacts, shapeParams.points, ...
         shapeParams.tsdf, shapeParams.normals, ...
