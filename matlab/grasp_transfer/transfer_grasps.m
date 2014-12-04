@@ -318,14 +318,15 @@ image_scale = 4.0;
 K = 16;
 idx = knnsearch(kd_tree, tsdf(:)', 'K', K);
 
+grasp = zeros(4,1);
+grasp_candidates = zeros(K, 4);
+    
 if config.vis_knn
     figure(66);
     imshow(tsdf);
     title('Original TSDF');
 
     figure(77);
-    grasp = zeros(4,1);
-    grasp_candidates = zeros(K, 4);
     tsdf_grad_neigh = zeros(grid_dim, grid_dim, 2);
 end
 
@@ -382,4 +383,4 @@ best_grasp = monte_carlo(grasp_samples, K, shape_params, config, tsdf);
 
 %%
 close all; 
-best_grasp = random(grasp_samples, K, shape_params, config, tsdf);
+best_grasp = succesive_rejects(grasp_samples, K, shape_params, config, tsdf);

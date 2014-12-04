@@ -1,4 +1,4 @@
-function [ best_grasp ] = random(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image)
+function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -91,15 +91,7 @@ function [ best_grasp ] = random(grasp_samples,num_grasps,shapeParams,experiment
     ylabel('Simple Regret'); 
     
     visualize_value( Value,grasp_samples, surface_image )
-    
-    if(~ts && ~prune)
-        save('marker_bandit_values_pfc','Value');
-        %save('regret_marker_pfc_mc','regret','Value');
-    elseif(prune)
-        save('regret_marker_pfc_sf','regret','Value');
-    else
-        save('regret_marker_pfc','regret','Value');
-    end
+   
 end
 
 
