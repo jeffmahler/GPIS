@@ -15,7 +15,6 @@ function [ best_grasp, regret, Value ] = ...
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
          
-
     for interval = 1:1
         Storage = {};
         Value = zeros(num_grasps,5); 
