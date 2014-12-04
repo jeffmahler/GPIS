@@ -1,12 +1,11 @@
 function [ ] = visualize_value( Value,grasp_samples,surface_image)
 
-N = 16; 
-
+N = size(grasp_samples, 1); 
 
 A =  load('marker_bandit_values_pfc.mat'); 
 
 true_value = A.Value; 
-true_value
+%true_value
 [sortedX,sortingIndices] = sort(Value(:,3),'descend');
 
 figure; 

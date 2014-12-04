@@ -1,6 +1,12 @@
-function [ best_grasp ] = thompson_sampling(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image  )
+function [ best_grasp, regret, Value ] = ...
+    thompson_sampling(grasp_samples, num_grasps, shapeParams, ...
+        experimentConfig, surface_image, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
+
+    if nargin < 6
+        vis_bandits = true;
+    end
 
     Total_Iters = 2000; 
     i = 1; 
@@ -89,14 +95,17 @@ function [ best_grasp ] = thompson_sampling(grasp_samples,num_grasps,shapeParams
     end
     np_grasp = not_pruned(Value);
     size(np_grasp);
-    figure;
-    plot(regret)
-    title('Simple Regret over Samples'); 
-    xlabel('Samples'); 
-    ylabel('Simple Regret'); 
-    
-    visualize_value( Value,grasp_samples, surface_image )
-    
+
+    if vis_bandits
+        figure;
+        plot(regret)
+        title('Simple Regret over Samples'); 
+        xlabel('Samples'); 
+        ylabel('Simple Regret'); 
+
+        visualize_value( Value,grasp_samples, surface_image )
+    end
+
     if(~ts && ~prune)
         save('marker_bandit_values_pfc','Value');
         %save('regret_marker_pfc_mc','regret','Value');

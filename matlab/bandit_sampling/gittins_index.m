@@ -1,6 +1,11 @@
-function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image)
+function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps, ...
+    shapeParams, experimentConfig, surface_image, vis_bandits, index_file)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
+
+    if nargin < 7
+        index_file = 'matlab/bandit_sampling/gittins_indices';
+    end
 
     Total_Iters = 2000; 
     i = 1; 
@@ -8,7 +13,7 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
     prune = false; 
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
-    load('matlab/bandit_sampling/gittins_indices');      
+    load(index_file);      
   
     for interval = 1:1
         Storage = {};
@@ -42,7 +47,7 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
         end
 
 
-        i = 1
+        i = 1;
         not_sat = true; 
          while(i<Total_Iters && not_sat)
             %i
@@ -61,7 +66,8 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
             if(Q == 1)
                 Storage{grasp}.p1 = Storage{grasp}.p1+1;  
             elseif( Q == -1)
-                not_sat = false; 
+                not_sat = false;
+                regret(t:end) = regret(t-1);
                 break;
             else
                 Storage{grasp}.m1 = Storage{grasp}.m1+1; 
@@ -89,14 +95,15 @@ function [ best_grasp ] = gittins_index(grasp_samples,num_grasps,shapeParams,exp
     end
     np_grasp = not_pruned(Value);
     size(np_grasp);
-    figure;
-    plot(regret)
-    title('Simple Regret over Samples'); 
-    xlabel('Samples'); 
-    ylabel('Simple Regret'); 
-    
-    visualize_value( Value,grasp_samples, surface_image )
-    
+    if vis_bandits
+        figure;
+        plot(regret)
+        title('Simple Regret over Samples'); 
+        xlabel('Samples'); 
+        ylabel('Simple Regret'); 
+
+        visualize_value( Value,grasp_samples, surface_image );
+    end
     if(~ts && ~prune)
         save('marker_bandit_values_pfc','Value');
         %save('regret_marker_pfc_mc','regret','Value');

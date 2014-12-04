@@ -50,6 +50,8 @@ grasp_q = S.grasp_qualities;
 num_training = size(tsdf_vectors, 1);
 data_dim = sqrt(size(tsdf_vectors, 2));
 
+compute_gitttin_indices();
+
 for i = 1:num_shapes
     shape_index = shape_indices(i);
     class_name = caltech_data.classnames{caltech_data.Y(shape_index)};
@@ -95,10 +97,12 @@ for i = 1:num_shapes
         figure(7);
     end
 
-    grasps_per_shape = size(grasps, 2);
+    grasps_per_shape = min(size(grasps, 2), config.num_knn_grasps);
     grasp_size = size(grasps, 3);
+    num_grasp_candidates = K * grasps_per_shape;
+
     grasps_neighbor = zeros(grasps_per_shape, grasp_size);
-    grasp_candidates = zeros(K * grasps_per_shape, 4);
+    grasp_candidates = zeros(num_grasp_candidates, 4);
 
     start_I = 1;
     end_I = start_I + grasps_per_shape - 1;
@@ -114,7 +118,7 @@ for i = 1:num_shapes
 
         % transfer neighbor grasp
         grasp_q_neighbor = grasp_q(idx(j), :);
-        grasps_neighbor(:,:) = grasps(idx(j), :, :);
+        grasps_neighbor(:,:) = grasps(idx(j), 1:grasps_per_shape, :);
         grasp_candidates(start_I:end_I, :) = grasps_neighbor;
 
         start_I = start_I + grasps_per_shape;
@@ -131,8 +135,8 @@ for i = 1:num_shapes
 
     % use bandits to select the best grasp
     num_grasp_samples = config.num_grasp_samples;
-%    grasp_samples = collect_samples_grasps(gp_model, grasp_candidates, ...
-%        num_grasp_samples, config, shape_params);
+    grasp_samples = collect_samples_grasps(gp_model, grasp_candidates, ...
+        num_grasp_samples, config, shape_params);
 
     transfer_results = struct();
     
@@ -140,13 +144,36 @@ for i = 1:num_shapes
     transfer_results.shape_samples = shape_samples;
     transfer_results.construction_results = construction_results;
     
-%     transfer_results.ucb_best_grasp = ucb(grasp_samples, K, shape_params, config, tsdf);
-% 
-%     transfer_results.thomspon_best_grasp = thompson_sampling(grasp_samples, K, shape_params, config, tsdf);
-% 
-%     transfer_results.gittins_best_grasp = gittins_index(grasp_samples, K, shape_params, config, tsdf);
+    transfer_results.grasp_candidates = grasp_candidates;
+    [~, transfer_results.grasp_values] = ...
+        monte_carlo(grasp_samples, num_grasp_candidates, shape_params, config, tsdf);
+ 
+    % ucb
+    ucb_results = struct();
+    [ucb_results.best_grasp, ucb_results.regret, ucb_results.values] = ...
+        ucb(grasp_samples, num_grasp_candidates, ...
+            shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.ucb_results = ucb_results;
+
+    % thompson sampling
+    thompson_results = struct();
+    [thompson_results.best_grasp, thompson_results.regret, thompson_results.values] = ...
+        thompson_sampling(grasp_samples, num_grasp_candidates, ...
+            shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.thompson_results = thompson_results;
+    
+    % gittins index policy
+    gittins_results = struct();
+    [gittins_results.best_grasp, gittins_results.regret, gittins_results.values] = ...
+        gittins_index(grasp_samples, num_grasp_candidates, ...
+            shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.gittins_results = gittins_results;
 
     comparison_results{i} = transfer_results;
+
+    if mod(i, config.snapshot_iter) == 0
+        save('results/bandits/comparison_results_snapshot.mat', 'comparison_results');
+    end
 end
 
 end

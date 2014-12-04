@@ -1,4 +1,6 @@
-function [ best_grasp ] = ucb( grasp_samples,num_grasps,shapeParams,experimentConfig,constructionResults  )
+function [ best_grasp, regret, Value ] = ...
+    ucb(grasp_samples, num_grasps, shapeParams, experimentConfig, ...
+        constructionResults, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -6,15 +8,13 @@ function [ best_grasp ] = ucb( grasp_samples,num_grasps,shapeParams,experimentCo
     i = 1; 
     ts = true; 
     prune = false; 
-    regret = zeros(Total_Iters+1000,1)+-1; 
-
-         
+    regret = zeros(Total_Iters+num_grasps,1); 
 
     for interval = 1:1
         Storage = {};
         Value = zeros(num_grasps,4); 
         t = 1;
-        for i=1:num_grasps
+        for i = 1:num_grasps
      
             [Q] = evaluate_grasp(i,grasp_samples,shapeParams,experimentConfig);
 
@@ -30,7 +30,7 @@ function [ best_grasp ] = ucb( grasp_samples,num_grasps,shapeParams,experimentCo
         end
 
 
-        i = 1
+        i = 1;
         not_sat = true; 
          while(i<Total_Iters && not_sat)
             %i
@@ -68,14 +68,16 @@ function [ best_grasp ] = ucb( grasp_samples,num_grasps,shapeParams,experimentCo
         np_grasp = not_pruned(Value);
         size(np_grasp);
     end
-    figure;
-    plot(regret)
-    title('Simple Regret over Samples'); 
-    xlabel('Samples'); 
-    ylabel('Simple Regret'); 
-    
-    visualize_value(Value,grasp_samples,constructionResults); 
-    
+
+    if vis_bandits
+        figure;
+        plot(regret)
+        title('Simple Regret over Samples'); 
+        xlabel('Samples'); 
+        ylabel('Simple Regret'); 
+
+        visualize_value(Value,grasp_samples,constructionResults); 
+    end
     if(~ts && ~prune)
         %save('marker_bandit_values_pfc','Value');
         save('regret_marker_pfc_mc_ucb','regret','Value');

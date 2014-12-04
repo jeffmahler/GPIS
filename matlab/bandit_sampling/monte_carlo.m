@@ -1,4 +1,4 @@
-function [ best_grasp ] = monte_carlo(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image)
+function [ best_grasp, grasp_values ] = monte_carlo(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -42,7 +42,7 @@ function [ best_grasp ] = monte_carlo(grasp_samples,num_grasps,shapeParams,exper
         end
 
 
-        i = 1
+        i = 1;
         not_sat = true; 
          while(i<Total_Iters && not_sat)
             %i
@@ -89,16 +89,15 @@ function [ best_grasp ] = monte_carlo(grasp_samples,num_grasps,shapeParams,exper
     end
     np_grasp = not_pruned(Value);
     size(np_grasp);
-    figure;
-    plot(regret)
-    title('Simple Regret over Samples'); 
-    xlabel('Samples'); 
-    ylabel('Simple Regret'); 
-    
-    visualize_value( Value,grasp_samples, surface_image )
-    
+%     figure;
+%     plot(regret)
+%     title('Simple Regret over Samples'); 
+%     xlabel('Samples'); 
+%     ylabel('Simple Regret'); 
+    grasp_values = Value;
+
     if(~ts && ~prune)
-        save('marker_bandit_values_pfc','Value');
+        save('marker_bandit_values_pfc', 'Value');
         %save('regret_marker_pfc_mc','regret','Value');
     elseif(prune)
         save('regret_marker_pfc_sf','regret','Value');

@@ -10,9 +10,9 @@ function [grasp_samples] = collect_samples_grasps(gpModel, grasps, numSamples,ex
     pose_sigma = 0.1;
     pose_mu = zeros(3,1);
         
-    for i =1:num_grasps
-        close all; 
-        
+    for i = 1:num_grasps
+        fprintf('Grasp sample %d\n', i);
+
         cp(1,:) = grasps(i, 1:2);
         cp(2,:) = grasps(i, 3:4); 
         cp(3,:) = cp(2,:);
@@ -21,22 +21,28 @@ function [grasp_samples] = collect_samples_grasps(gpModel, grasps, numSamples,ex
         loa_1 = compute_loa(cp(1:2,:));
         loa_2 = compute_loa(cp(3:4,:));
         
-        pose_samples = sample_pose_2d(pose_sigma, pose_mu, numSamples);
-        
+        %pose_samples = sample_pose_2d(pose_sigma, pose_mu, numSamples);
+        start_time = tic;
         [c1_emps,n1_emps] = sample_loas(gpModel, loa_1, numSamples);%, pose_samples);
+        end_time = toc(start_time);
+        %fprintf('Sample loas %f\n', end_time);
+
+        start_time = tic;
         [c2_emps,n2_emps] = sample_loas(gpModel, loa_2, numSamples);%, pose_samples);
-        
+        end_time = toc(start_time);
+        %fprintf('Sample loas %f\n', end_time);
+
+        start_time = tic;
         grasp_samples{i} = struct(); 
         grasp_samples{i}.cp = cp; 
         grasp_samples{i}.c1_emps = c1_emps; 
         grasp_samples{i}.c2_emps = c2_emps; 
-        
-        
+              
         grasp_samples{i}.fc = experimentConfig.friction_coef + 0.1*rand(1,numSamples);
         
         com = zeros(numSamples,2); 
-        com(:,1) = 3*randn(numSamples,1)+shapeParams.com(1); 
-        com(:,2) = 3*randn(numSamples,1)+shapeParams.com(2); 
+        com(:,1) = 5*randn(numSamples,1)+shapeParams.com(1); 
+        com(:,2) = 5*randn(numSamples,1)+shapeParams.com(2); 
         
         grasp_samples{i}.com = com; 
         
@@ -48,6 +54,9 @@ function [grasp_samples] = collect_samples_grasps(gpModel, grasps, numSamples,ex
         
         grasp_samples{i}.current_iter = 1; 
         grasp_samples{i}.q = [];
+        end_time = toc(start_time);
+        %fprintf('Everything else %f\n', end_time);
+
     end
    
 end

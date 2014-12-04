@@ -6,7 +6,7 @@ function [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,exp
         
         iter = grasp_samples{grasp_stor}.current_iter;
         if(iter > 1300)
-            Q = -1; 
+            Q = -1; % same arm forever at this point   -1; 
             return;
         end
        
