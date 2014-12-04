@@ -21,7 +21,7 @@ function [grasp_samples] = collect_samples_grasps(gpModel, grasps, numSamples,ex
         loa_1 = compute_loa(cp(1:2,:));
         loa_2 = compute_loa(cp(3:4,:));
         
-        pose_samples = sample_pose_2d(pose_sigma, pose_mu, numSamples);
+        %pose_samples = sample_pose_2d(pose_sigma, pose_mu, numSamples);
         
         [c1_emps,n1_emps] = sample_loas(gpModel, loa_1, numSamples);%, pose_samples);
         [c2_emps,n2_emps] = sample_loas(gpModel, loa_2, numSamples);%, pose_samples);
