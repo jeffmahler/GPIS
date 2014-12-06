@@ -19,7 +19,7 @@ function [ best_grasp, regret, Value ] = ...
         Storage = {};
         Value = zeros(num_grasps,5); 
         t = 1;
-        for i=1:num_grasps
+        for i = 1:num_grasps
             grasp_samples{i}.current_iter = 1; 
             [Q] = evaluate_grasp(i,grasp_samples,shapeParams,experimentConfig);
             if(Q == 1)
@@ -41,7 +41,7 @@ function [ best_grasp, regret, Value ] = ...
             if ts
                 regret(t) = (interval-1)/interval*regret(t) + (1/interval)*compute_regret_pfc(best_grasp);
             else
-               regret(t) = 0; 
+                regret(t) = 0; 
             end
             t=t+1; 
         end
@@ -66,7 +66,10 @@ function [ best_grasp, regret, Value ] = ...
             if(Q == 1)
                 Storage{grasp}.p1 = Storage{grasp}.p1+1;  
             elseif( Q == -1)
-                not_sat = false; 
+                not_sat = false;
+                remaining_time = Total_Iters - i;
+                regret(t:end) = regret(t-1);
+                Value(grasp,2) = Value(grasp,2) + remaining_time;
                 break;
             else
                 Storage{grasp}.m1 = Storage{grasp}.m1+1; 

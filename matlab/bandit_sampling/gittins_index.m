@@ -67,7 +67,9 @@ function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps
                 Storage{grasp}.p1 = Storage{grasp}.p1+1;  
             elseif( Q == -1)
                 not_sat = false;
+                remaining_time = Total_Iters - i;
                 regret(t:end) = regret(t-1);
+                Value(grasp,2) = Value(grasp,2) + remaining_time;
                 break;
             else
                 Storage{grasp}.m1 = Storage{grasp}.m1+1; 

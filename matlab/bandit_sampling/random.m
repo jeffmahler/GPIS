@@ -1,4 +1,5 @@
-function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image)
+function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,...
+    shapeParams,experimentConfig, surface_image, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -8,7 +9,6 @@ function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,shapePara
     prune = false; 
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
-
 
     for interval = 1:1
         Storage = {};
@@ -60,6 +60,9 @@ function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,shapePara
                 Storage{grasp}.p1 = Storage{grasp}.p1+1;  
             elseif( Q == -1)
                 not_sat = false; 
+                remaining_time = Total_Iters - i;
+                regret(t:end) = regret(t-1);
+                Value(grasp,2) = Value(grasp,2) + remaining_time;
                 break;
             else
                 Storage{grasp}.m1 = Storage{grasp}.m1+1; 
@@ -84,13 +87,15 @@ function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,shapePara
     end
     np_grasp = not_pruned(Value);
     size(np_grasp);
-    figure;
-    plot(regret)
-    title('Simple Regret over Samples'); 
-    xlabel('Samples'); 
-    ylabel('Simple Regret'); 
-    
-    visualize_value( Value,grasp_samples, surface_image )
+    if vis_bandits
+        figure;
+        plot(regret)
+        title('Simple Regret over Samples'); 
+        xlabel('Samples'); 
+        ylabel('Simple Regret'); 
+
+        visualize_value( Value,grasp_samples, surface_image )
+    end
    
 end
 

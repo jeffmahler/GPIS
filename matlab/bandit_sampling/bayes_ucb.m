@@ -1,6 +1,6 @@
 function [ best_grasp, regret, Value ] = ...
-    ucb(grasp_samples, num_grasps, shapeParams, experimentConfig, ...
-        constructionResults, vis_bandits)
+    bayes_ucb(grasp_samples, num_grasps, shapeParams, experimentConfig, ...
+              constructionResults, samples_table, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -35,7 +35,7 @@ function [ best_grasp, regret, Value ] = ...
          while(i<Total_Iters && not_sat)
             %i
             if(ts) 
-                grasp = get_grasp(Value,t); 
+                grasp = get_grasp(Value,t,Total_Iters,samples_table); 
             elseif(prune)
                 np_grasp = not_pruned(Value); 
                 grasp_idx = randi(length(np_grasp)); 
@@ -47,7 +47,7 @@ function [ best_grasp, regret, Value ] = ...
             [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,experimentConfig);
             
             if(Q == -1)
-                not_sat = false;
+                not_sat = false; 
                 remaining_time = Total_Iters - i;
                 regret(t:end) = regret(t-1);
                 Value(grasp,2) = Value(grasp,2) + remaining_time;
@@ -63,7 +63,7 @@ function [ best_grasp, regret, Value ] = ...
             [v, best_grasp] = max(Value(:,3)); 
             regret(t) = (interval-1)/interval*regret(t) + (1/interval)*compute_regret_pfc(best_grasp);
             i = i+1; 
-            t=t+1; 
+            t=t+1;
 
          end
     end
@@ -99,12 +99,22 @@ function [not_pruned_grsp] = not_pruned(Value)
 
 end
 
-function [grasp] = get_grasp(Value,t)    
-    sigma = 1; 
+function [grasp] = get_grasp(Value, t, n, samples_table)    
+    sigma = 1;
+    c = 5;
     
-    Value(:,4) = Value(:,4)*sqrt(6*sigma^2*log(t)); 
+    p = 1.0 - 1.0 ./ (t * log(n)^c);
+    alpha = Value(:,1) + 1;
+    beta = Value(:,2) - Value(:,1) + 1;
+    for i = 1:size(Value,1)
+        a = min(alpha(i), size(samples_table,1));
+        b = min(beta(i), size(samples_table,2));
+        Value(i,3) = quantile(samples_table(a, b, :), p);
+    end
+    
+    Value(:,4) = Value(:,3); % not sure what this is supposed to store
    
-    [v, grasp] = max(Value(:,3)+Value(:,4));
+    [v, grasp] = max(Value(:,3));
  
 end
 

@@ -1,11 +1,17 @@
 
-function [] = compute_gitttin_indices()
-discount = 0.9; 
+function [] = compute_gitttin_indices(in_filename, out_filename)
 T = 1500; 
  
 Indices = zeros(T,T); 
 
-load('matlab/bandit_sampling/indices'); 
+if nargin < 1
+    in_filename = 'matlab/bandit_sampling/indices';
+end
+if nargin < 2
+    out_filename = 'matlab/bandit_sampling/gittins_indices';
+end
+
+load(in_filename); 
 
 Indices(1:199,1:199) = 0.1*indices(2:200,2:200); 
 
@@ -22,7 +28,7 @@ for i = 200:T
 end
 indices = Indices; 
 
-save('matlab/bandit_sampling/gittins_indices','indices'); 
+save(out_filename,'indices'); 
 end
 
 function prob = tran_next_state(state,next_state,T)

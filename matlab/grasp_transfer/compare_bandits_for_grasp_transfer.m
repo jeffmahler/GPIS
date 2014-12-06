@@ -50,7 +50,24 @@ grasp_q = S.grasp_qualities;
 num_training = size(tsdf_vectors, 1);
 data_dim = sqrt(size(tsdf_vectors, 2));
 
-compute_gitttin_indices();
+% gamma = 0.98
+compute_gitttin_indices(config.gittins_in_filename1, ...
+    config.gittins_out_filename1);
+
+% gamma = 0.9
+compute_gitttin_indices(config.gittins_in_filename2, ...
+    config.gittins_out_filename2);
+
+% create bayes ucb table
+num_alpha_samp = 250;
+num_beta_samp = 250;
+num_samples = 1000;
+samples_table = zeros(num_alpha_samp, num_beta_samp, num_samples);
+for i = 1:num_alpha_samp
+    for j = 1:num_beta_samp
+        samples_table(i,j,:) = betarnd(i,j,1,num_samples);
+    end
+end
 
 for i = 1:num_shapes
     shape_index = shape_indices(i);
@@ -148,26 +165,61 @@ for i = 1:num_shapes
     [~, transfer_results.grasp_values] = ...
         monte_carlo(grasp_samples, num_grasp_candidates, shape_params, config, tsdf);
  
+    % random
+    random_results = struct();
+    [random_results.best_grasp, random_results.regret, random_results.values] = ...
+        random(grasp_samples, num_grasp_candidates, ...
+               shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.random = random_results;
+    
+    % successive rejects
+    successive_rejects_results = struct();
+    [successive_rejects_results.best_grasp, successive_rejects_results.regret, successive_rejects_results.values] = ...
+        succesive_rejects(grasp_samples, num_grasp_candidates, ...
+                           shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.successive_rejects = successive_rejects_results;
+    
+    % hoeffding races
+    hoeffding_races_results = struct();
+    [hoeffding_races_results.best_grasp, hoeffding_races_results.regret, hoeffding_races_results.values] = ...
+        hoeffding_races(grasp_samples, num_grasp_candidates, ...
+                        shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.hoeffding_races = hoeffding_races_results;
+    
     % ucb
     ucb_results = struct();
     [ucb_results.best_grasp, ucb_results.regret, ucb_results.values] = ...
         ucb(grasp_samples, num_grasp_candidates, ...
             shape_params, config, tsdf, config.vis_bandits);
-    transfer_results.ucb_results = ucb_results;
+    transfer_results.ucb = ucb_results;
 
+    % bayes ucb
+    bayes_ucb_results = struct();
+    [bayes_ucb_results.best_grasp, bayes_ucb_results.regret, bayes_ucb_results.values] = ...
+       bayes_ucb(grasp_samples, num_grasp_candidates, ...
+                shape_params, config, tsdf, samples_table, config.vis_bandits);
+    transfer_results.bayes_ucbs = bayes_ucb_results;
+    
     % thompson sampling
     thompson_results = struct();
     [thompson_results.best_grasp, thompson_results.regret, thompson_results.values] = ...
         thompson_sampling(grasp_samples, num_grasp_candidates, ...
             shape_params, config, tsdf, config.vis_bandits);
-    transfer_results.thompson_results = thompson_results;
+    transfer_results.thompson = thompson_results;
     
-    % gittins index policy
-    gittins_results = struct();
-    [gittins_results.best_grasp, gittins_results.regret, gittins_results.values] = ...
+    % gittins index policy gamma = 0.90
+    gittins90_results = struct();
+    [gittins90_results.best_grasp, gittins90_results.regret, gittins90_results.values] = ...
         gittins_index(grasp_samples, num_grasp_candidates, ...
-            shape_params, config, tsdf, config.vis_bandits);
-    transfer_results.gittins_results = gittins_results;
+            shape_params, config, tsdf, config.vis_bandits, config.gittins_out_filename2);
+    transfer_results.gittins90 = gittins90_results;
+    
+    % gittins index policy gamma = 0.98
+    gittins98_results = struct();
+    [gittins98_results.best_grasp, gittins98_results.regret, gittins98_results.values] = ...
+        gittins_index(grasp_samples, num_grasp_candidates, ...
+            shape_params, config, tsdf, config.vis_bandits, config.gittins_out_filename1);
+    transfer_results.gittins98 = gittins98_results;
 
     comparison_results{i} = transfer_results;
 

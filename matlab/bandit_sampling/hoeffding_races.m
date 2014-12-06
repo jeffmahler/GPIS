@@ -1,4 +1,5 @@
-function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples,num_grasps,shapeParams,experimentConfig, surface_image  )
+function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples, ...
+    num_grasps,shapeParams,experimentConfig, surface_image, vis_bandits)
 %UGABEB Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -43,6 +44,9 @@ function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples,num_grasp
 
         if( Q == -1)
             not_sat = false; 
+            remaining_time = Total_Iters - i;
+            regret(t:end) = regret(t-1);
+            Value(grasp,2) = Value(grasp,2) + remaining_time;
             break;
         end
 
@@ -64,13 +68,15 @@ function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples,num_grasp
     end
     end
    
-    figure;
-    plot(regret)
-    title('Simple Regret over Samples'); 
-    xlabel('Samples'); 
-    ylabel('Simple Regret'); 
-    
-    visualize_value( Value,grasp_samples,surface_image )
+    if vis_bandits
+        figure;
+        plot(regret)
+        title('Simple Regret over Samples'); 
+        xlabel('Samples'); 
+        ylabel('Simple Regret'); 
+
+        visualize_value( Value,grasp_samples,surface_image )
+    end
     
    
 end
