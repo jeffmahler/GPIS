@@ -1,19 +1,19 @@
-function T = sample_pose_2d(sigma, mu, num_samples)
+function T = sample_pose_2d(num_samples,sigma, mu)
 % SAMPLE_POSE sample pose with variance sigma and mean mu
 % mu organized as follows:
 %   [tx ty wx]
 
 % default to unitary var, zero mean
 if nargin < 1
-   sigma = eye(3); 
-end
-if nargin < 2
-   mu = zeros(3,1); 
-end
-if nargin < 3
-   num_samples = 1; 
+    num_samples = 1; 
 end
 
+if nargin < 2
+   sigma = eye(3); 
+end
+if nargin < 3
+   mu = zeros(3,1); 
+end
 if size(sigma, 1) == 1
     sigma = sigma * eye(3);
 end
@@ -32,7 +32,7 @@ for i = 1:num_samples
     M = [    phi_ss, t;
          zeros(1,2), 0];
 
-    T{i} = expm(M);
+    T{i} = [t; phi];
 end
 
 if num_samples == 1

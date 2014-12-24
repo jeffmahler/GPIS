@@ -1,15 +1,15 @@
 function regret_results = ...
-    analyze_final_regret(experiment_results, method_names, eps)
+    analyze_final_regret(experiment_results, method_names,config, eps)
 %COMPUTE_AVERAGE_REGRET Summary of this function goes here
 %   Detailed explanation goes here
 
-if nargin < 3
+if nargin < 4
     eps = 1e-3;
 end
 
 num_trials = size(experiment_results, 2);
 num_methods = size(method_names, 2);
-num_grasps = size(experiment_results{1}.grasp_candidates, 1);
+num_grasps = config.num_grasps;
 regret_results = cell(num_methods, 1);
 
 for i = 1:num_methods
@@ -43,8 +43,8 @@ for i = 1:num_methods
     regret_results{i}.mean_final_regret   = mean(regret_results{i}.final_regret);
     regret_results{i}.median_final_regret = median(regret_results{i}.final_regret);
     regret_results{i}.min_final_regret    = min(regret_results{i}.final_regret);
-    regret_results{i}.max_final_regret     = max(regret_results{i}.final_regret);
-    regret_results{i}.max_final_regret     = max(regret_results{i}.final_regret);
+    regret_results{i}.max_final_regret    = max(regret_results{i}.final_regret);
+    regret_results{i}.max_final_regret    = max(regret_results{i}.final_regret);
     regret_results{i}.worst_cases = ...
         find(regret_results{i}.final_regret == regret_results{i}.max_final_regret);
 end

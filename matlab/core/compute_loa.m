@@ -2,7 +2,7 @@ function [loa] = compute_loa(grip_point, step_size)
 %Calculate Line of Action given start and end point
 
     if nargin < 2
-        step_size = 0.3; 
+        step_size = 1; 
     end
 
     start_point = grip_point(1,:); 

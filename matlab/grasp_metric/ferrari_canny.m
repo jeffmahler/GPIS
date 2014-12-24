@@ -51,12 +51,13 @@ if sum(sum(isnan(W))) > 0
     wrenches_invalid = true;
 end
 
-% check rank
-[U, S, V] = svd(W);
-if S(3,3) < 1e-2
-    wrenches_invalid = true;
+if(~wrenches_invalid)
+    % check rank
+    [U, S, V] = svd(W);
+    if S(3,3) < 1e-2
+        wrenches_invalid = true;
+    end
 end
-
 
 
 %TODO look up plane from triangle calculation 
