@@ -1,11 +1,11 @@
-function [] = plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length, ...
+function [] = plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length,i,N,value, ...
     com, plateWidth)
 
 use_com = true;
-if nargin < 8
+if nargin < 11
     use_com = false;
 end
-if nargin < 9
+if nargin < 12
    plateWidth = length / 2; 
 end
 
@@ -18,6 +18,7 @@ tan2 = [-grad2(2); grad2(1)];
 plateWidth = scale*double(plateWidth);
 
 %figure(45);
+subplot(1,N,i); 
 imshow(shapeImage);
 hold on;
 % plot arrows
@@ -42,6 +43,7 @@ if use_com
 end
 
 hold off;
-
+xlabel(strcat('P(Q>0) = ',num2str(value))); 
+title(num2str(i)); 
 end
 

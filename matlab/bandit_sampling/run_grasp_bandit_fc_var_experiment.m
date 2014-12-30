@@ -8,6 +8,7 @@ shape_indices = round(8600 * rand(num_test_shapes, 1) + 1);
 %shape_indices = [326];
 
 config = struct();
+config.num_shapes = num_test_shapes;
 config.num_iters = 8; 
 config.arrow_length = 10;
 config.scale = 1.0;

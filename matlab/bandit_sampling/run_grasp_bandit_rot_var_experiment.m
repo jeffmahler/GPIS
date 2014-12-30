@@ -2,12 +2,13 @@
 % get random shape indices
 close all; 
  
-num_test_shapes = 3;
-rng(100);
+num_test_shapes = 5;
+rng(77);
 shape_indices = round(8600 * rand(num_test_shapes, 1) + 1);
 %shape_indices = [326];
 
 config = struct();
+config.num_shapes = num_test_shapes;
 config.num_iters = 8; 
 config.arrow_length = 10;
 config.scale = 1.0;
@@ -46,7 +47,7 @@ config.gittins_out_filename1 = 'matlab/bandit_sampling/gittins_indices';
 
 config.fric_var = 0.05; 
 p_uncertain = eye(3); 
-p_uncertain(3,3) = 0.01; 
+p_uncertain(3,3) = 0.03; 
 config.pose_var = p_uncertain; 
 
 config.vis_bandits = false;
@@ -136,6 +137,7 @@ rot_var_orig = config.pose_var(3,3);
 for i = 1:config.num_iters
     close all; 
     config.pose_var(3,3) = i*rot_var_orig; 
+    rng(500); 
     bandit_comparison_results = compare_bandits(shape_indices, config);
     results_fric_var{i} = bandit_comparison_results; 
     
@@ -303,7 +305,7 @@ end
 %%
 degs = []; 
 for i=1:config.num_iters
-    degs = [degs radtodeg(config.pose_var(3,3)*i)]; 
+    degs = [degs radtodeg(rot_var_orig*i)]; 
 end
 
 

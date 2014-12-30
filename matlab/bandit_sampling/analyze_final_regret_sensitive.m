@@ -11,15 +11,30 @@ num_trials = size(experiment_results, 2);
 num_methods = size(method_names, 2);
 num_iters = config.num_iters; 
 num_grasps = config.num_grasps;
+num_shapes = config.num_shapes; 
 regret_results = cell(num_methods, 1);
 for i = 1:num_methods
         regret_results{i} = struct();
         regret_results{i}.var_time = zeros(num_iters,1); 
 end
 
+
+
+for i = 1:num_shapes
+    top_grasp = {}; 
+    Value = zeros(num_iters,5); 
+    for t =1:num_iters
+        shape_result = experiment_results{t}{i}; 
+        [v,t_grasp] = max(shape_result.grasp_values(:,3)); 
+        t_grasp 
+        Value(t,:) = shape_result.grasp_values(t_grasp,:);
+        
+        top_grasp{t} = shape_result.grasp_samples{t_grasp}; 
+    end
+    img = shape_result.construction_results.newSurfaceImage; 
+    visualize_value( Value,top_grasp,img);
+end
 figure; 
-
-
 for t = 1:num_iters
     for i = 1:num_methods
        
@@ -67,5 +82,21 @@ for t = 1:num_iters
         end
     end
 
+end
+
+
+function [ ] = visualize_value( Value,grasp_samples,surface_image)
+
+N = size(grasp_samples, 2); 
+
+
+figure;
+
+ for i=1:N
+     cp = grasp_samples{i}.cp;
+     cp
+     plot_grasp_arrows( surface_image, cp(1,:)', cp(3,:)', -(cp(1,:)-cp(2,:))', -(cp(3,:)-cp(4,:))', 4,4,i,N,Value(i,3))
+ end
+tightfig; 
 end
 

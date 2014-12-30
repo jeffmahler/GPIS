@@ -18,11 +18,17 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
     shape_samples = sample_shapes_pose(gpModel, grid_size, numSamples,true,2,pose_samples);
     dim = shape_samples{1}.dim; 
     Value = zeros(num_grasps,5); 
-    
+    rng(500); 
+    CP = {num_grasps,1}; 
+    for i=1:num_grasps
+        [cp cp_mc] = get_random_grasp(dim,dim,1); 
+        CP{i} = cp; 
+    end
+   
     parfor i =1:num_grasps
   
         grasp_samples{i} = struct(); 
-        [cp cp_mc] = get_random_grasp(dim,dim,1);
+        %[cp cp_mc] = get_random_grasp(dim,dim,1)
         c1_emps = zeros(numSamples,2); 
         c2_emps = zeros(numSamples,2); 
         Q_samps = zeros(numSamples,1); 
@@ -33,7 +39,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
             allTsdf = shapeSample.tsdf;
             allNorm = shapeSample.normals;
             allPoints = shapeSample.all_points; 
-            [contacts, normal, bad]= find_contact_points(cp, 2, allPoints, allTsdf, allNorm);
+            [contacts, normal, bad]= find_contact_points(CP{i}, 2, allPoints, allTsdf, allNorm);
             com = 0.5*shapeParams.com; 
             fc = experimentConfig.friction_coef + experimentConfig.fric_var*rand();
             Q = evaluate_grasp_lite(normal(:,1),normal(:,2),contacts(:,1),contacts(:,2),com,fc);
@@ -59,7 +65,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
      
         
         grasp_samples{i} = struct(); 
-        grasp_samples{i}.cp = cp; 
+        grasp_samples{i}.cp = CP{i}; 
         grasp_samples{i}.c1_emps = c1_emps; 
         grasp_samples{i}.c2_emps = c2_emps; 
         grasp_samples{i}.Q_samps = Q_samps; 

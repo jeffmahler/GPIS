@@ -3,12 +3,13 @@
 close all; 
 clear all; 
 num_test_shapes = 5;
-rng(100);
+rng(69);
 shape_indices = round(8600 * rand(num_test_shapes, 1) + 1);
 %shape_indices = [326];
 
 config = struct();
 config.num_iters = 8; 
+config.num_shapes = num_test_shapes; 
 config.arrow_length = 10;
 config.scale = 1.0;
 config.friction_coef = 0.5;
@@ -301,13 +302,14 @@ for i = 1:config.num_iters
 
 end
 %%
-regret_sensitive = analyze_final_regret_sensitive(results_fric_var,...
-                                   config.method_names,config);
-%% covg_plot
 degs = []; 
 for i=1:config.num_iters
     degs = [degs i]; 
 end
+regret_sensitive = analyze_final_regret_sensitive(results_fric_var,...
+                                   config.method_names,config,degs);
+%% covg_plot
+
 
 
 avg_random_simp_convg = regret_sensitive{1}.var_time;
