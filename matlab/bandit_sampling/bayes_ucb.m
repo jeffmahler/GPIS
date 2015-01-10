@@ -57,7 +57,7 @@ function [ best_grasp, regret, Value ] = ...
             UCB_part = sqrt(1/(Value(grasp,2))); 
             Value(grasp,1) =  Value(grasp,1)+Q; 
             Value(grasp,2) = Value(grasp,2)+1; 
-            Value(grasp,3) = Value(grasp,1)/Value(grasp,2); 
+            Value(grasp,3) = (Value(grasp,1)+1)/(Value(grasp,2)+2); 
             Value(grasp,4) = UCB_part; 
             
             [v, best_grasp] = max(Value(:,3)); 
@@ -101,20 +101,20 @@ end
 
 function [grasp] = get_grasp(Value, t, n, samples_table)    
     sigma = 1;
-    c = 5;
+    c = 0;
     
     p = 1.0 - 1.0 ./ (t * log(n)^c);
     alpha = Value(:,1) + 1;
     beta = Value(:,2) - Value(:,1) + 1;
-    for i = 1:size(Value,1)
+  
+    parfor i = 1:size(Value,1)
         a = min(alpha(i), size(samples_table,1));
         b = min(beta(i), size(samples_table,2));
-        Value(i,3) = quantile(samples_table(a, b, :), p);
+        Value(i,4) = quantile(samples_table(a, b, :), p);
     end
     
-    Value(:,4) = Value(:,3); % not sure what this is supposed to store
    
-    [v, grasp] = max(Value(:,3));
+    [v, grasp] = max(Value(:,4));
  
 end
 

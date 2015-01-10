@@ -8,7 +8,8 @@ function [ best_grasp, regret, Value ] = ...
         vis_bandits = true;
     end
 
-    Total_Iters = 8000; 
+    Total_Iters = 20000;
+    
     i = 1; 
     ts = true; 
     prune = false; 
@@ -41,7 +42,7 @@ function [ best_grasp, regret, Value ] = ...
     end
 
 
-    i = 1
+    i = 1;
     not_sat = true; 
      while(i<Total_Iters && not_sat)
         %i

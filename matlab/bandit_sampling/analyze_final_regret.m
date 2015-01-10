@@ -21,22 +21,24 @@ for i = 1:num_methods
     regret_results{i}.time_to_optimal = -1 * ones(num_trials, 1);
     
     for j = 1:num_trials
-        trial_results = experiment_results{j};
-        method_results = getfield(trial_results, method_names{i});
-        regret_results{i}.final_regret(j) = method_results.regret(end-1);
-        regret_results{i}.cumulative_regret{j} = cumsum(method_results.regret);
-        regret_results{i}.simple_regret{j} = method_results.regret;
-        nonzero_regret_ind = find(method_results.regret > eps);
-        if size(nonzero_regret_ind,1) > 0
-            regret_results{i}.time_to_optimal(j) = nonzero_regret_ind(end);
+        if(j ~= 9)
+            trial_results = experiment_results{j};
+            method_results = getfield(trial_results, method_names{i});
+            regret_results{i}.final_regret(j) = method_results.regret(end-1);
+            regret_results{i}.cumulative_regret{j} = cumsum(method_results.regret);
+            regret_results{i}.simple_regret{j} = method_results.regret;
+            nonzero_regret_ind = find(method_results.regret > eps);
+            if size(nonzero_regret_ind,1) > 0
+                regret_results{i}.time_to_optimal(j) = nonzero_regret_ind(end);
+            end
+
+            % get the sorted arms and # pulls
+            true_values = experiment_results{j}.grasp_values;
+            [sortedX,sortingIndices] = sort(true_values(:,3),'descend');
+            pulls_per_grasp = method_results.values(sortingIndices, 2);
+            regret_results{i}.pulls_per_grasp = ...
+                regret_results{i}.pulls_per_grasp + pulls_per_grasp;
         end
-        
-        % get the sorted arms and # pulls
-        true_values = experiment_results{j}.grasp_values;
-        [sortedX,sortingIndices] = sort(true_values(:,3),'descend');
-        pulls_per_grasp = method_results.values(sortingIndices, 2);
-        regret_results{i}.pulls_per_grasp = ...
-            regret_results{i}.pulls_per_grasp + pulls_per_grasp;
     end
     regret_results{i}.pulls_per_grasp = ...
             regret_results{i}.pulls_per_grasp / num_trials;

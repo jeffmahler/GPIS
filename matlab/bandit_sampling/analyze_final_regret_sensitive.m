@@ -19,22 +19,26 @@ for i = 1:num_methods
 end
 
 
-
+ 
 for i = 1:num_shapes
     top_grasp = {}; 
-    Value = zeros(num_iters,5); 
-    for t =1:num_iters
+    Value = zeros(3,5); 
+    count = 1;
+    for t =1:3:num_iters
         shape_result = experiment_results{t}{i}; 
         [v,t_grasp] = max(shape_result.grasp_values(:,3)); 
         t_grasp 
-        Value(t,:) = shape_result.grasp_values(t_grasp,:);
+        Value(count,:) = shape_result.grasp_values(t_grasp,:);
         
-        top_grasp{t} = shape_result.grasp_samples{t_grasp}; 
+        top_grasp{count} = shape_result.grasp_samples{t_grasp}; 
+        count = count + 1; 
     end
     img = shape_result.construction_results.newSurfaceImage; 
-    visualize_value( Value,top_grasp,img);
+    shapeParams = shape_result.construction_results.predGrid; 
+    visualize_value( Value,shapeParams,top_grasp,img);
 end
 figure; 
+count = 1; 
 for t = 1:num_iters
     for i = 1:num_methods
        
@@ -52,15 +56,28 @@ for t = 1:num_iters
         
         mean_simple = mean(cell2mat(regret_results{i}.simple_regret'), 2);
         
-        if(i==4)
-            subplot(num_iters,1,t); 
+        if(i==5)
+            mean_simple_git = mean(cell2mat(regret_results{i}.simple_regret'), 2);
+            mean_simple_thom = mean(cell2mat(regret_results{i-1}.simple_regret'), 2);
+            subplot(3,1,count); 
             hold on; 
-            if(t == 1)
-               title('Sensitivity Analysis for Friction'); 
+            
+            plot(mean_simple_git,'b', 'LineWidth', 3); 
+            plot(mean_simple_thom,'r', 'LineWidth', 3); 
+            if(count == 1)
+               title('Sensitivity Analysis for Translation Variance in Pose','FontSize',18); 
+               [hleg1, hobj1] = legend('Gittins', ...
+                'Thompson', 'Location', 'Best');
+                textobj = findobj(hobj1, 'type', 'text');
+                set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
+            elseif(count == 3)
+                xlabel('Iterations', 'FontSize', 18); 
+            elseif(count == 2)
+                ylabel('Simple Regret','FontSize',18);
             end
-            plot(mean_simple,color_struct(t)); 
-            axis([1000 size(mean_simple,1) 0 1.0]); 
-            ylabel(strcat('Var ',num2str(degs(t)))); 
+            axis([1000 size(mean_simple_thom,1) 0 1.0]); 
+            %ylabel(strcat('Var ',num2str(degs(t)))); 
+            count = count+1; 
         end
         idx = find(mean_simple <= eps); 
         
@@ -80,12 +97,13 @@ for t = 1:num_iters
          
            
         end
-    end
+end
+tightfig;
 
 end
 
 
-function [ ] = visualize_value( Value,grasp_samples,surface_image)
+function [ ] = visualize_value( Value,shapeParams,grasp_samples,surface_image)
 
 N = size(grasp_samples, 2); 
 
@@ -94,8 +112,8 @@ figure;
 
  for i=1:N
      cp = grasp_samples{i}.cp;
-     cp
-     plot_grasp_arrows( surface_image, cp(1,:)', cp(3,:)', -(cp(1,:)-cp(2,:))', -(cp(3,:)-cp(4,:))', 4,4,i,N,Value(i,3))
+     visualize_grasp(cp,shapeParams, surface_image, 4, 5,i,N,Value(i,3)); 
+     %plot_grasp_arrows( surface_image, cp(1,:)', cp(3,:)', -(cp(1,:)-cp(2,:))', -(cp(3,:)-cp(4,:))', 4,4,i,N,Value(i,3))
  end
 tightfig; 
 end

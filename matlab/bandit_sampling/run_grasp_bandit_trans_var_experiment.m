@@ -1,7 +1,7 @@
 % Set up config and run bandit comparison experiment
 % get random shape indices
 close all; 
-clear all; 
+%clear all; 
 num_test_shapes = 5;
 rng(69);
 shape_indices = round(8600 * rand(num_test_shapes, 1) + 1);

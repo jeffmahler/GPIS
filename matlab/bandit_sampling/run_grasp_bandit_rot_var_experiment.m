@@ -1,15 +1,15 @@
 % Set up config and run bandit comparison experiment
 % get random shape indices
 close all; 
- 
-num_test_shapes = 5;
-rng(77);
+clear all; 
+num_test_shapes = 15;
+rng(69);
 shape_indices = round(8600 * rand(num_test_shapes, 1) + 1);
 %shape_indices = [326];
 
 config = struct();
 config.num_shapes = num_test_shapes;
-config.num_iters = 8; 
+config.num_iters = 3; 
 config.arrow_length = 10;
 config.scale = 1.0;
 config.friction_coef = 0.5;
@@ -49,7 +49,7 @@ config.fric_var = 0.05;
 p_uncertain = eye(3); 
 p_uncertain(3,3) = 0.03; 
 config.pose_var = p_uncertain; 
-
+config.rot_var = [ 0.03 0.12 0.24]; 
 config.vis_bandits = false;
 config.method_names = ...
     {'random', 'ucb', ...
@@ -136,7 +136,7 @@ results_fric_var = cell(config.num_iters, 1);
 rot_var_orig = config.pose_var(3,3); 
 for i = 1:config.num_iters
     close all; 
-    config.pose_var(3,3) = i*rot_var_orig; 
+    config.pose_var(3,3) = config.rot_var(i); 
     rng(500); 
     bandit_comparison_results = compare_bandits(shape_indices, config);
     results_fric_var{i} = bandit_comparison_results; 

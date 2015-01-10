@@ -34,7 +34,11 @@ shape_params.all_points = [X(:) Y(:)];
 shape_params.fullTsdf = tsdf(:);
 shape_params.fullNormals = [Gx(:) Gy(:)];
 shape_params.com = mean(shape_params.points(shape_params.tsdf < 0,:));
-
+if( max(size(shape_params.com))<2)
+   shape_params.com = [20 20]; 
+elseif(isnan(shape_params.com(1)) ||isnan(shape_params.com(2))); 
+    shape_params.com = [20 20]; 
+end
 
 end
 

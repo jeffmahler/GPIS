@@ -24,7 +24,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
         [cp cp_mc] = get_random_grasp(dim,dim,1); 
         CP{i} = cp; 
     end
-   
+ 
     parfor i =1:num_grasps
   
         grasp_samples{i} = struct(); 
@@ -34,6 +34,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
         Q_samps = zeros(numSamples,1); 
         n1_emps = zeros(numSamples,2); 
         n2_emps = zeros(numSamples,2); 
+        
         for k =1:numSamples
             shapeSample = shape_samples{k};
             allTsdf = shapeSample.tsdf;

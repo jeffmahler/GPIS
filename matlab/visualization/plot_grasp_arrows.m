@@ -1,11 +1,11 @@
 function [] = plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length,i,N,value, ...
-    com, plateWidth)
+    Names,com, plateWidth)
 
-use_com = true;
-if nargin < 11
+use_com =false;
+if nargin < 12
     use_com = false;
 end
-if nargin < 12
+if nargin < 13
    plateWidth = length / 2; 
 end
 
@@ -43,7 +43,9 @@ if use_com
 end
 
 hold off;
-xlabel(strcat('P(Q>0) = ',num2str(value))); 
-title(num2str(i)); 
+val = num2str(value); 
+val = val(1:4); 
+xlabel(strcat('P(Q>0) = ',val)); 
+title(Names{i}); 
 end
 

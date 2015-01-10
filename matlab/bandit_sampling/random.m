@@ -1,4 +1,4 @@
-function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,...
+function [ best_grasp,regret,Value, stop_grasp ] = random(grasp_samples,num_grasps,...
     shapeParams,experimentConfig, surface_image, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
@@ -77,7 +77,9 @@ function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,...
             
             [v best_grasp] = max(Value(:,3));
             
-            
+            if(i == experimentConfig.budget)
+                stop_grasp = best_grasp; 
+            end
             regret(t) = (interval-1)/interval*regret(t) + (1/interval)*compute_regret_pfc(best_grasp);
            
             i = i+1; 
@@ -96,7 +98,7 @@ function [ best_grasp,regret,Value ] = random(grasp_samples,num_grasps,...
 
         visualize_value( Value,grasp_samples, surface_image )
     end
-   
+    best_grasp = stop_grasp; 
 end
 
 
