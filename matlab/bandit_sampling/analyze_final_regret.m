@@ -19,7 +19,7 @@ for i = 1:num_methods
     regret_results{i}.simple_regret = cell(num_trials, 1);
     regret_results{i}.pulls_per_grasp = zeros(num_grasps, 1);
     regret_results{i}.time_to_optimal = -1 * ones(num_trials, 1);
-    
+    regret_results{i}.pfc = cell(num_trials, 1);
     for j = 1:num_trials
         if(j ~= 9)
             trial_results = experiment_results{j};
@@ -27,6 +27,8 @@ for i = 1:num_methods
             regret_results{i}.final_regret(j) = method_results.regret(end-1);
             regret_results{i}.cumulative_regret{j} = cumsum(method_results.regret);
             regret_results{i}.simple_regret{j} = method_results.regret;
+            [v,idx] = max(experiment_results{j}.grasp_values(:,3)); 
+            regret_results{i}.pfc{j} = v-method_results.regret;
             nonzero_regret_ind = find(method_results.regret > eps);
             if size(nonzero_regret_ind,1) > 0
                 regret_results{i}.time_to_optimal(j) = nonzero_regret_ind(end);

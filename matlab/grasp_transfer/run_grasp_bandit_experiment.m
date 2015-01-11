@@ -133,12 +133,12 @@ config.construction_params = construction_params;
 
 %% run experiment
 bandit_comparison_results = compare_bandits(shape_indices, config);
-save('results/bandits/bandit_comparison_results.mat', 'bandit_comparison_results');
+save('results/bandits/bandit_comparison_results.mat', 'bandit_comparison_results','-v7.3');
 % 
 %% accumulate results
 regret_analysis = analyze_final_regret(bandit_comparison_results,...
                                        config.method_names,config);
-save('results/bandits/regret_analysis.mat', 'regret_analysis');
+save('results/bandits/regret_analysis.mat', 'regret_analysis','-v7.3');
 
 %% vis grasp picked 
 vis_stop_grasp(bandit_comparison_results,config)
@@ -213,6 +213,45 @@ axis([1000 size(avg_random_simp_regret,1)-10 0 0.5]);
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 
+%% Probability of Force Closure 
+avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.pfc'), 2);
+avg_ucb_simp_regret = mean(cell2mat(regret_analysis{2}.pfc'), 2);
+avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
+avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
+avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
+avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
+
+%Padding 
+avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
+avg_bucb_simp = zeros(size(avg_random_simp_regret));
+avg_thom_simp = zeros(size(avg_random_simp_regret));
+avg_git_simp = zeros(size(avg_random_simp_regret)); 
+avg_kehoe_simp = zeros(size(avg_random_simp_regret)); 
+
+avg_ucb_simp(1:size(avg_ucb_simp_regret,1),1) = avg_ucb_simp_regret;
+avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
+avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
+avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
+avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
+
+figure(5);
+clf;
+plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+hold on;
+%plot(avg_bucb_simp, 'g', 'LineWidth', 3);
+plot(avg_thom_simp, 'r', 'LineWidth', 3);
+plot(avg_git_simp, 'b', 'LineWidth', 3);
+plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
+[hleg1, hobj1] = legend('Monte-Carlo', 'Thompson', ...
+    'Gittins','Kehoe et al.','Location','Best');
+textobj = findobj(hobj1, 'type', 'text');
+set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
+xlabel('Iterations', 'FontSize', 15);
+ylabel('Probability of Force Closure', 'FontSize', 15);
+title('Average Probability of Force Closure', 'FontSize', 15);
+axis([1000 15000 0.3 1.0]); 
+% xlim([0, 200]);
+% ylim([0, 0.1]);
 %% time to find optima
 % figure(6);
 % subplot(1,3,1);
