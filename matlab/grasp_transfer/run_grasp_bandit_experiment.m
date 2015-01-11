@@ -209,7 +209,7 @@ set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
 xlabel('Iterations', 'FontSize', 15);
 ylabel('Simple Regret', 'FontSize', 15);
 title('Average Simple Regret', 'FontSize', 15);
-axis([1000 size(avg_random_simp_regret,1)-10 0 0.5]); 
+axis([1000 size(avg_git98_simp_regret,1)-10 0 0.5]); 
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 
