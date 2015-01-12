@@ -13,7 +13,7 @@ regret_results = cell(num_methods, 1);
 
 for i = 1:num_shapes
     top_grasp = {}; 
-    Value = zeros(3,5); 
+    Value = zeros(5,5); 
     count = 1;
     shape_result = experiment_results{i}; 
     
@@ -22,7 +22,11 @@ for i = 1:num_shapes
     best_bayes_ucb = shape_result.bayes_ucbs.best_grasp; 
     best_thompson = shape_result.thompson.best_grasp; 
     best_gittins98 = shape_result.gittins98.best_grasp; 
+    [best_value,best_grasp] = max(shape_result.grasp_values(:,3)); 
     
+    
+    Value(5,:) = shape_result.grasp_values(best_grasp,:);
+    top_grasp{5} = shape_result.grasp_samples{best_grasp}; 
     
     Value(1,:) = shape_result.grasp_values(best_random,:);
     top_grasp{1} = shape_result.grasp_samples{best_random}; 
@@ -54,11 +58,12 @@ function [ ] = visualize_value( Value,shapeParams,grasp_samples,surface_image)
 
 N = size(grasp_samples, 2); 
 
-Names = cell(4,1); 
+Names = cell(5,1); 
 Names{1} = 'Monte-Carlo';
 Names{2} = 'Kehoe';
 Names{3} = 'Thompson';
 Names{4} = 'Gittins';
+Names{5} = 'Best in Set';
 figure;
 
  for i=1:N

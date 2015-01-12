@@ -1,6 +1,6 @@
 % Set up config and run bandit comparison experiment
 % get random shape indices
-close all; 
+%close all; 
 %clear all; 
 num_test_shapes = 30;
 rng(60);
@@ -220,6 +220,7 @@ avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
 avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
 avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
 avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
+avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2); 
 
 %Padding 
 avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
@@ -240,16 +241,17 @@ plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 hold on;
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 plot(avg_thom_simp, 'r', 'LineWidth', 3);
-plot(avg_git_simp, 'b', 'LineWidth', 3);
+plot(avg_git_simp, 'g', 'LineWidth', 3);
 plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
+plot(avg_opt_value,'b','LineWidth',3); 
 [hleg1, hobj1] = legend('Monte-Carlo', 'Thompson', ...
-    'Gittins','Kehoe et al.','Location','Best');
+    'Gittins','Kehoe et al.','Optimal','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
 xlabel('Iterations', 'FontSize', 15);
 ylabel('Probability of Force Closure', 'FontSize', 15);
 title('Average Probability of Force Closure', 'FontSize', 15);
-axis([1000 15000 0.3 1.0]); 
+axis([1000 20000 0.1 1.0]); 
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 %% time to find optima
