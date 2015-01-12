@@ -3,7 +3,7 @@ function [ best_grasp,regret,Value, stop_grasp ] = random(grasp_samples,num_gras
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 25000; 
+    Total_Iters = 400000; 
     i = 1; 
     ts = false; 
     prune = false; 

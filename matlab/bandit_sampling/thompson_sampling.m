@@ -8,7 +8,7 @@ function [ best_grasp, regret, Value ] = ...
         vis_bandits = true;
     end
 
-    Total_Iters = 20000;
+    Total_Iters = 400000;
     
     i = 1; 
     ts = true; 

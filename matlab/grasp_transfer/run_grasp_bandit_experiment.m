@@ -2,7 +2,7 @@
 % get random shape indices
 %close all; 
 %clear all; 
-num_test_shapes = 30;
+num_test_shapes = 1;
 rng(60);
 shape_indices = randi(1070,num_test_shapes,1);
 %shape_indices = [326];
@@ -18,7 +18,7 @@ config.padding = 5;
 config.tsdf_thresh = 10;
 config.downsample = 4;
 config.snapshot_iter = 1;
-
+config.adverserial = false; 
 
 config.test_data_file = 'data/caltech/caltech101_silhouettes_28.mat';
 config.mat_save_dir = 'data/grasp_transfer_models/test';

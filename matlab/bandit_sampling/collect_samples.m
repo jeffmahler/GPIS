@@ -3,7 +3,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
     num_contacts = 2; 
     numSamples = experimentConfig.num_grasp_samples; 
    
-    
+    adverserial = experimentConfig.adverserial; 
     grid_size = sqrt(size(shapeParams.all_points,1)); 
     
     grasp_samples = {};
@@ -88,6 +88,10 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
         grasp_samples{i}.q = [];
       
     end
+    if(adverserial)
+        grasp_samples = adverserial_sort(Value,grasp_samples); 
+    end
+    
     save('marker_bandit_values_pfc', 'Value');
     [best_grasp,v] = max(Value(:,3)); 
    
