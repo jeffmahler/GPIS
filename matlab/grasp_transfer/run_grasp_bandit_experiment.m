@@ -247,11 +247,11 @@ plot(avg_opt_value,'b','LineWidth',3);
 [hleg1, hobj1] = legend('Monte-Carlo', 'Thompson', ...
     'Gittins','Kehoe et al.','Optimal','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
-set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
-xlabel('Iterations', 'FontSize', 18);
-ylabel('Probability of Force Closure', 'FontSize', 18);
-title('Average Probability of Force Closure', 'FontSize', 18);
-axis([1000 20000 0.1 1.0]); 
+set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
+xlabel('Iterations', 'FontSize', 30);
+ylabel('Probability of Force Closure', 'FontSize', 30);
+title('Average Probability of Force Closure', 'FontSize',30);
+axis([1000 20000 0.3 1.0]); 
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 %% time to find optima
