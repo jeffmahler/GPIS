@@ -3,7 +3,7 @@ function [ best_grasp, regret, Value ] = kehoe(grasp_samples, ...
 %UGABEB Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 400000; 
+    Total_Iters = 600000; 
     M = 0.1;
     I = 1500;
     i = 1; 

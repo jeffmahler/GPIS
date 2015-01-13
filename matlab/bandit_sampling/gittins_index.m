@@ -7,7 +7,7 @@ function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps
         index_file = 'matlab/bandit_sampling/gittins_indices';
     end
 
-    Total_Iters = 400000;
+    Total_Iters = 600000;
     i = 1; 
     ts = true; 
     prune = false; 
