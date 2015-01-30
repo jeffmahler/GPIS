@@ -6,7 +6,7 @@ def write_paths():
 		start_path = sys.argv[1]
 	except:
 		start_path = "."
-	print(start_dir)
+	print(start_path)
 	path_list = open('paths', 'w')
 	formats = [".obj", ".skp", ".3DS", ".off", ".h5"]
 	for root, dirs, files in os.walk(start_path):
