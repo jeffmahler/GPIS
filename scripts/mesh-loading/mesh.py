@@ -1,6 +1,3 @@
-import bpy.ops.import_scene
-from converters import import_obj, load
-
 class Mesh:
 	"""A Mesh is a three-dimensional shape representation"""
 
@@ -19,7 +16,7 @@ class Mesh:
 	def get_normals(self):
 		if self.normals_:
 			return self.normals_
-		return "Mesh does not have a list of normals."
+		return None #"Mesh does not have a list of normals."
 
 	def get_metadata(self):
 		if self.metadata_:
@@ -38,43 +35,3 @@ class Mesh:
 	def set_metadata(self, metadata):
 		self.metadata_ = metadata
 
-class MeshFile:
-	"""A MeshFile holds a Mesh in one of various file formats"""
-	convertible_modes = ["OBJ", "SKP", "3DS", "OFF", "HDF5"]
-
-	def __init__(self, filepath, mode):
-		self.filepath_ = filepath
-		if mode.upper() in convertible_modes:
-			self.mode_ = mode.upper() #entered as a String and not including the .
-		else:
-			self.mode_ = None
-			print("Cannot convert files of type " + mode)
-
-	def get_filepath(self):
-		return self.filepath_
-
-	def get_mode(self):
-		return self.mode_
-
-	def open(self, filepath, mode):
-		if mode == "OBJ":
-			try:
-				import_obj(filepath)
-			except:
-				bpy.ops.import_scene.obj(filepath)
-		if mode == "SKP":
-			#implement
-		if mode == "3DS":
-			bpy.ops.import_scene.autodesk_3ds(filepath)
-		if mode == "OFF":
-			load(filepath)
-		if mode == "HDF5":
-			#implement
-		else:
-			return "Cannot open files of type " + mode
-
-	def read(self):
-		#implement function
-
-	def write(self, mesh):
-		#implement function
