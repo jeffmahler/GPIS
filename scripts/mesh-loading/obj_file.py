@@ -57,13 +57,14 @@ class ObjFile:
                     nti = []
                     if vals[1].find('/') == -1:
                         vi = map(int, vals[1:])
+                        vi = [i - 1 for i in vi]
                     else:
                         for val in vals:
                             # break up like by / to read vert inds, tex coords, and normal inds
                             tokens = vals.split('/')
                             for i in range(len(tokens)):
                                 if i == 0:
-                                    vi.append(int(tokens[i]))
+                                    vi.append(int(tokens[i]) - 1) # adjust for python 0 - indexing
                                 elif i == 1:
                                     vti.append(int(tokens[i]))
                                 elif i == 2:
@@ -102,13 +103,12 @@ class ObjFile:
 
         # write the normals list
         if normals is not None and len(normals) > 0:
-            IPython.embed()
             for n in normals:
                 f.write('vn %f %f %f\n' %(n[0], n[1], n[2]))
 
         # write the normals list
         for t in faces:
-            f.write('f %d %d %d\n' %(t[0], t[1], t[2]))
+            f.write('f %d %d %d\n' %(t[0]+1, t[1]+1, t[2]+1)) # convert back to 1-indexing
 
         f.close()
 
