@@ -1,9 +1,11 @@
-function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples, ...
+function [ best_grasp, regret, Value ] = kehoe(grasp_samples, ...
     num_grasps,shapeParams,experimentConfig, surface_image, vis_bandits)
 %UGABEB Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 2000; 
+    Total_Iters = 25000; 
+    M = 0.1;
+    I = 1000;
     i = 1; 
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
@@ -40,6 +42,7 @@ function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples, ...
         
         idx = randi(max(size(good_grasps)));
         grasp = good_grasps(idx); 
+        
         [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,experimentConfig);
 
         if( Q == -1)
@@ -62,9 +65,9 @@ function [ best_grasp, regret, Value ] = hoeffding_races(grasp_samples, ...
 
         i = i+1; 
         t=t+1; 
-
-        good_grasps = not_pruned(Value,good_grasps); 
-        
+        if(rem(i,I)==0)
+            good_grasps = not_pruned(Value,good_grasps,M); 
+        end
     end
     end
    
@@ -96,10 +99,11 @@ function [phases] = compute_phases(K,n)
    
 end
 
-function [not_pruned] = not_pruned(Value,good_grasps)
-
-     max_lower_bound = max(Value(good_grasps,4)); 
-     not_pruned = find(max_lower_bound < Value(good_grasps,5));
+function [not_pruned] = not_pruned(Value,good_grasps,M)
+     [sX,sInd] = sort(Value(:,3),'descend');
+     L = M*size(good_grasps);
+     not_pruned = sInd(1:L); 
+ 
 
 
 end

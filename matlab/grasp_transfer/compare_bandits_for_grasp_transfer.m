@@ -54,9 +54,6 @@ data_dim = sqrt(size(tsdf_vectors, 2));
 compute_gitttin_indices(config.gittins_in_filename1, ...
     config.gittins_out_filename1);
 
-% gamma = 0.9
-compute_gitttin_indices(config.gittins_in_filename2, ...
-    config.gittins_out_filename2);
 
 % create bayes ucb table
 num_alpha_samp = 250;

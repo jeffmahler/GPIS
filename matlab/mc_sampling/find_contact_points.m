@@ -1,11 +1,15 @@
 function [ contacts, normal, bad ] = ...
-    find_contact_points(contactPoints, nc, allPoints, allTsdf, allNorm, ...
-        COM, thresh, vis, plateWidth, scale)
+    find_contact_points(contactPoints, nc, allPoints, allTsdf, allNorm,thresh, vis, plateWidth, scale)
 %Given sampled Tsdf finds the contact points, which are the intersection of
 %lines of actions with the 0-level crossing
 
+
+if(nargin < 7)
+    thresh = 0.05; 
+end
+
 if nargin < 8
-    vis = true;
+    vis = false;
 end
 if nargin < 9
    plateWidth = 1; 
@@ -18,9 +22,9 @@ gridDim = max(allPoints(:,1));
 contacts = zeros(2, nc);
 normal = zeros(2, nc);
 dim = uint16(sqrt(size(allPoints,1)));
-tsdfGrid = reshape(allTsdf, gridDim, gridDim);
-xNormGrid = reshape(allNorm(:,1), gridDim, gridDim);
-yNormGrid = reshape(allNorm(:,2), gridDim, gridDim);
+tsdfGrid = reshape(allTsdf, dim, dim);
+xNormGrid = reshape(allNorm(:,1), dim, dim);
+yNormGrid = reshape(allNorm(:,2), dim, dim);
 
 % find the line tangent to the loa
 loaDir = contactPoints(1,:)' - contactPoints(2,:)';
@@ -40,9 +44,11 @@ for i=1:nc
         % visualize the region
         if vis
             figure(10);
-            scatter(scale*loa(t,1), scale*loa(t,2), 50.0, 'x', 'LineWidth', 1.5);
+            tsdfGridBig = imresize(tsdfGrid, scale);
+            imshow(tsdfGridBig);
             hold on;
-            scatter(scale*COM(1), scale*COM(2), 50.0, '+', 'LineWidth', 2);
+            scatter(scale*loa(1:t,1), scale*loa(1:t,2), 50.0, 'x', 'LineWidth', 1.5);
+            hold off; 
         end
         
         % tsdf grid 

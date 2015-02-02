@@ -4,7 +4,7 @@ function [ best_grasp, regret, Value ] = ...
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 2000; 
+    Total_Iters = 20000; 
     i = 1; 
     ts = true; 
     prune = false; 
