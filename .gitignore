@@ -1,7 +1,19 @@
+# directories
 bin/*
 build/*
+cfg/*
+matlab/dependencies/*
 lib/*
+
+# temp files
 *~
 *#*
+
+# file types
 *.zip
 *.tar.gz
+*.csv
+*.obj
+*.pyc
+*.recv
+*.send
