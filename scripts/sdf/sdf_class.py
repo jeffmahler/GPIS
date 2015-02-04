@@ -45,6 +45,16 @@ class SDF:
                     count +=1 
         my_file.close()
 
+    def file_name(self):
+        """ 
+        SDF file name information
+        Params: -
+        Returns: 
+            (strin): File name + path (relative to root from where loaded)
+        """
+
+        return self.file_name_
+
     def dimensions(self):
         """ 
         SDF dimension information
@@ -117,6 +127,7 @@ class SDF:
         """
         scipy.io.savemat(out_file, mdict={'X':self.xlist_, 'Y': self.ylist_, 'Z': self.zlist_, 'vals': self.values_in_order_})
         "SDF information saved to %s" % out_file
+
     def make_plot(self):
         """
         Plots the SDF as a matplotlib 3D scatter plot, and displays the figure
@@ -124,7 +135,7 @@ class SDF:
         Returns: - 
         """
         X, Y, Z, values = [],[],[], []
-        for i in range(0,self.dimension_,4):
+        for i in range(0,self.dimension_,1):
             val = self.values_in_order_[i] 
             if val <= 0: #Filter currently set to only show points on or within the surface of the object
                 values.append(val)
@@ -136,9 +147,9 @@ class SDF:
         ax.scatter3D(X,Y,Z,c=values, cmap="Blues")
         plt.show()
 
-
+ 
 def test_function():
-    test_sdf = "Teapot N071014.sdf"
+    test_sdf = "aunt_jemima_original_syrup/processed/textured_meshes/optimized_tsdf_texture_mapped_mesh.sdf"
     matlab_file = "data.mat"
     teatime = SDF(test_sdf)
     print "Done processing %s" % test_sdf
