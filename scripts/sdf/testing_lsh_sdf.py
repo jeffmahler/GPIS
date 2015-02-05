@@ -1,15 +1,3 @@
-from os import walk, path
-from sdf_class import SDF
-from operator import itemgetter
-
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-import scipy.io
-
-from nearpy import Engine
-from nearpy.hashes import RandomBinaryProjections
-
 from engine_creation import train_and_test_lsh
 
 NUM_TRAIN = 50
