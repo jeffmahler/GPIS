@@ -54,7 +54,7 @@ def load_engine(sdf_files):
     #dimension here can be altered as well
     rbp = RandomBinaryProjections('rbp',10)
     engine = Engine(dimension, lshashes=[rbp])  
-    for file_ in sdf_files[:10]:
+    for file_ in sdf_files:
         converted = SDF(file_)
         converted.add_to_nearpy_engine(engine)
     return engine
@@ -82,10 +82,11 @@ def train_and_test_lsh(num_train, num_test, root_dir):
     get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
 
     engine = load_engine(get_training(sdf_files))
-    for file_ in get_testing(sdf_files):
+    for file_ in list(get_testing(sdf_files)):
+        print "Querying: ", file_
         converted = SDF(file_)
         closest = converted.query_nearpy_engine(engine)
-        print closest
+        print closest[0]
         test_results.append([converted.file_name(),closest])
     return engine, test_results
         
