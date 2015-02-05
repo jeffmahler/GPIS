@@ -90,6 +90,10 @@ s_particles = zeros(num_pose_particles, 1); % scale particles
 particle_weights = (1.0 / num_pose_particles) * ...
     ones(num_pose_particles, 1); % all same relatively bc of unif prior
 
+fig1 = figure(20);
+fig2 = figure(21);
+fig3 = figure(22);
+
 t_particles(:,1) = unifrnd(min_trans(1) * ones(num_pose_particles,1), ...
                            max_trans(1) * ones(num_pose_particles,1));
 t_particles(:,2) = unifrnd(min_trans(2) * ones(num_pose_particles,1), ...
@@ -174,7 +178,10 @@ while t <= num_iters && num_unclassified > 0
     mean_warped = warp_mean_function(tf, mean_grid, grid_center);    
     tf_mean = tf_from_particle(mean_r, mean_t, mean_s);
     mean_mean_warped = warp_mean_function(tf_mean, mean_grid, grid_center);    
-    figure(20);
+    
+    set(0, 'CurrentFigure', fig1);
+    clf;
+    % figure(20);
     subplot(1,3,1);
     imagesc(mean_warped);
     hold on;
@@ -190,6 +197,20 @@ while t <= num_iters && num_unclassified > 0
     hold on;
     scatter(active_points(:,1), active_points(:,2), '+y', 'LineWidth', 2);
     title('True Function');
+    drawnow;
+    
+    set(0, 'CurrentFigure', fig3);
+    %figure(22);
+    clf;
+    for i = 1:num_pose_particles
+        tf = tf_from_particle(r_particles(i,:), t_particles(i,:), s_particles(i,:));
+        mean_warped = warp_mean_function(tf, mean_grid, grid_center); 
+        subplot(ceil(sqrt(num_pose_particles)), ceil(sqrt(num_pose_particles)), i);
+        imagesc(mean_warped);
+        hold on;
+        title(sprintf('Particle %d\nweight %.04f', i, particle_weights(i)));
+    end
+    drawnow;
     
 	% update active set
     active_points = [active_points; next_point];
@@ -199,6 +220,7 @@ while t <= num_iters && num_unclassified > 0
     start_time = tic;
     
     effective_sample_size = 1.0 / sum(particle_weights.^2);
+    fprintf('Effective sample size: %f\n', effective_sample_size);
     if effective_sample_size < config.resample_size
         resample_inds = mnrnd(1, particle_weights, num_pose_particles);
         [~, resample_inds] = find(resample_inds == 1);
@@ -257,9 +279,11 @@ while t <= num_iters && num_unclassified > 0
         class_images{class_im_index} = classification_im;
         class_im_index = class_im_index + 1;
         
-        figure(21);
+        set(0, 'CurrentFigure', fig2);
+        clf;
         imshow(class_images{class_im_index-1});
         title('Classification');
+        drawnow;
     end
     
     if config.vis_path
@@ -286,12 +310,19 @@ while t <= num_iters && num_unclassified > 0
 end
 
 % analyze path lengths
+path_lengths = zeros(num_iters, 1);
 path_diff= active_points(2:end,:) - active_points(1:(end-1),:);
 path_norm = sqrt(sum(path_diff.^2, 2));
-path_lengths = cumsum(path_norm);
+path_lengths(1:size(path_norm,1)) = cumsum(path_norm);
+path_lengths(size(path_norm,1)+1:end) = path_lengths(size(path_norm,1));
 times = (1:num_iters);
 
 class_losses = class_losses + path_penalty * path_lengths ./ times';
+
+if t < num_iters
+    class_results{class_result_index} = ...
+            lse_class_accuracy(true_above, true_below, pred_above, pred_below);
+end
 
 if config.vis_class_im
     figure(2);
