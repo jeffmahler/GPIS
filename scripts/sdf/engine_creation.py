@@ -70,25 +70,43 @@ def train_and_test_lsh(num_train, num_test, root_dir):
         sdf_files: list of sdf files to draw from
 
     Returns
+        accuracy: float representing the accuracy of querying the nearpy engine with the test results
         engine: the trained and "tested" nearpy engine 
-        test_results: vector of the results from the "testing"
+        test_results: dictionary of the results from the "testing" for each of the sdf_files 
+    Sample Usage
+        >>> train_and_test_lsh(100,5,"datasets/Cat50_ModelDatabase")
     """
-    test_results = []
+    test_results = {}
+    accuracy = 0
+
     sdf_files = find_sdf(root_dir)
     assert num_train+num_test <= len(sdf_files)
     #Randomly permutes the indices of the sdf_files list. 
     permuted_indices = np.random.permutation(len(sdf_files))
     get_training = itemgetter(*permuted_indices[:num_train])
     get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
-
     engine = load_engine(get_training(sdf_files))
-    for file_ in list(get_testing(sdf_files)):
-        print "Querying: ", file_
+    
+    if num_test > 1:
+        test_files = get_testing(sdf_files)
+    else:
+        test_files = [get_testing(sdf_files)]
+    
+    for file_ in list(test_files):
+        #NOTE: This is assuming the file structure is: data/<dataset_name>/<category>/... also line 104
+        query_category = file_.split("/")[2]
+        print "Querying: %s with category %s "%(file_, query_category)
         converted = SDF(file_)
         closest = converted.query_nearpy_engine(engine)
-        print closest[0]
-        test_results.append([converted.file_name(),closest])
-    return engine, test_results
-        
+        category = "No Results"
+        if len(closest[0]) > 0:
+            closest_category = closest[0][0]
+            category = closest_category.split("/")[2]
+        print "Result Category: %s"%(category)
+        if category == query_category:
+            accuracy+=1
+        test_results[file_]= [closest]
+    
+    return accuracy/float(num_test), engine, test_results   
 
     
