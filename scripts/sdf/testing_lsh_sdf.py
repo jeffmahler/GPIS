@@ -12,9 +12,11 @@ from nearpy.hashes import RandomBinaryProjections
 
 from engine_creation import train_and_test_lsh
 
-NUM_TRAIN = 20
-NUM_TEST = 5
+NUM_TRAIN = 50
+NUM_TEST = 3
 ROOT_DIR = "datasets/Cat50_ModelDatabase"
 
-train_and_test_lsh(NUM_TRAIN, NUM_TEST, ROOT_DIR)
+accuracy, engine, results = train_and_test_lsh(NUM_TRAIN, NUM_TEST, ROOT_DIR)
+
+print "Accuracy: %s"%(accuracy)
 
