@@ -1,5 +1,5 @@
 function [class_results, path_lengths, class_losses, class_images, iter_times] = ...
-    discrete_gp_lse_pose_prior(f_grid, config, start_ind)
+    discrete_gp_lse_pose_line_probe(f_grid, config, start_ind)
 %GP_LSE runs the gaussian process level set estimation algorithms with
 %various parameters (uses uniform initial prior atm)
 %   f_grid - grid of samples of true function to test on
