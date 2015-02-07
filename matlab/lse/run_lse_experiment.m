@@ -54,7 +54,7 @@ f_Sigma = 1e-10 + (f_Sigma + f_Sigma') / 2;
 f = mvnrnd(f_mu, f_Sigma);
 f_grid = reshape(f, [config.height, config.width]);
 
-%% display sampled function
+% display sampled function
 height = config.height;
 width = config.width;
 figure(1);
@@ -84,7 +84,6 @@ tf.t = [0; 0];
 tf.R = R;
 tf.s = 0.9;
 
-%%
 f_warped = warp_mean_function(tf, f_grid, grid_center);
 
 figure(10);
@@ -93,9 +92,14 @@ imagesc(f_grid);
 subplot(1,2,2);
 imagesc(f_warped);
 
+mu_grid = f_warped;
+config.mean_func = f_grid;
+f = mvnrnd(mu_grid(:), f_Sigma);
+f_sample_grid = reshape(f, [config.height, config.width]);
+sdf_surface(f_sample_grid);
+
 %% try it out
-config.mean_func = tsdf;
-config.num_pose_particles = 100;
+config.num_pose_particles = 20;
 config.r_sigma_resample = 0.01;
 config.t_sigma_resample = 0.1;
 config.s_sigma_resample = 0.001;
@@ -126,15 +130,19 @@ grid = zeros(config.height, config.width);
 grid(5:end-5, (config.width/2 - 5):(config.width/2 + 5)) = 1;
 tsdf = trunc_signed_distance(grid, config.sdf_trunc);
 mu_grid = warp_mean_function(tf, tsdf, grid_center);
-
 f = mvnrnd(mu_grid(:), f_Sigma);
 f_grid = reshape(f, [config.height, config.width]);
 sdf_surface(f_grid);
 
-%%
+config.mean_func = mu_grid;
+
+%% run pose
 rng(100);
+config.num_iters = 250;
+config.delta = 0.90;
 [pclass_results, ppath_lengths, plosses, pclass_images, piter_times] = ...
     discrete_gp_lse_pose_prior(f_grid, config);
+
 %% run others with zero mean
 config.mean_func = [];
 [rclass_results, rpath_lengths, rlosses, rclass_images] = ...
@@ -156,14 +164,19 @@ truth_im(:,:,2) = f_below_grid; % green below
 figure(5);
 subplot(1,5,1);
 imshow(rclass_images{end});
+title('Random');
 subplot(1,5,2);
 imshow(sclass_images{end});
+title('Subsample');
 subplot(1,5,3);
 imshow(lclass_images{end});
+title('LSE');
 subplot(1,5,4);
 imshow(pclass_images{end});
+title('Pose');
 subplot(1,5,5);
 imshow(truth_im);
+title('Ground Truth');
 %% test discrete gp lse
 rng(100);
 % [rclass_results, rpath_lengths, rlosses, rclass_images] = discrete_gp_ls_random(f_grid, config);
@@ -228,11 +241,16 @@ for i = 1:num_to_plot
     lAcc = [lAcc, (cr.tp + cr.tn) / (cr.tp + cr.tn + cr.fp + cr.fn + cr.ukn)];
     liters = [liters, cr.iteration];
     
-    cr = pclass_results{i};
+    if i > size(pclass_results,2)
+        cr = pclass_results{end};
+        piters = [piters, liters(end)];
+    else
+        cr = pclass_results{i};
+        piters = [piters, cr.iteration];    
+    end
     pukns = [pukns, cr.ukn_rate];
     pF1s = [pF1s, cr.F1];
     pAcc = [pAcc, (cr.tp + cr.tn) / (cr.tp + cr.tn + cr.fp + cr.fn + cr.ukn)];
-    piters = [piters, cr.iteration];
 end
 
 figure(1);

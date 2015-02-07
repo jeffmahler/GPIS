@@ -21,7 +21,11 @@ lse_config.points = [X(:), Y(:)];
 % params of the gp
 lse_config.sigma_kernel = 4.5;
 lse_config.kernel_scale = 1;
+<<<<<<< HEAD
 lse_config.resample_kernel_scale = 0.1;
+=======
+lse_config.resample_kernel_scale = 0.01;
+>>>>>>> 7dedda417d1668b8b106403b09696f8518c0e95d
 lse_config.sigma_noise = 0.1;
 lse_config.mean_func = [];
 lse_config.cov_func = @covSEiso;
@@ -49,7 +53,11 @@ lse_config.tol = 1e-2;
 lse_config.f_rkhs_norm = 1;
 
 % particle filter
+<<<<<<< HEAD
 lse_config.num_pose_particles = 75;
+=======
+lse_config.num_pose_particles = 25;
+>>>>>>> 7dedda417d1668b8b106403b09696f8518c0e95d
 lse_config.r_sigma_resample = 0.01;
 lse_config.t_sigma_resample = 0.1;
 lse_config.s_sigma_resample = 0.001;
@@ -64,7 +72,6 @@ lse_config.gaussian_resample = 1;
 lse_config.kernel_resample = 0;
 lse_config.num_f_samples = 100;
 
-%rng(150);
 experiment_results = lse_pose_experiment(experiment_config, lse_config);
 
 %% analyze results
