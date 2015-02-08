@@ -237,15 +237,16 @@ avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
 
 figure(5);
 clf;
-plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+
 hold on;
-%plot(avg_bucb_simp, 'g', 'LineWidth', 3);
-plot(avg_thom_simp, 'r', 'LineWidth', 3);
-plot(avg_git_simp, 'g', 'LineWidth', 3);
-plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
 plot(avg_opt_value,'b','LineWidth',3); 
-[hleg1, hobj1] = legend('Monte-Carlo', 'Thompson', ...
-    'Gittins','Kehoe et al.','Optimal','Location','Best');
+plot(avg_git_simp, 'g', 'LineWidth', 3);
+plot(avg_thom_simp, 'r', 'LineWidth', 3);
+%plot(avg_bucb_simp, 'g', 'LineWidth', 3);
+plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
+plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+
+[hleg1, hobj1] = legend('Optimal','Gittins','Thompson','Kehoe et al.','Monte-Carlo', 'Thompson','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
 xlabel('Iterations', 'FontSize', 30);
