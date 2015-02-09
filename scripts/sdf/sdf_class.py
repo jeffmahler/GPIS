@@ -11,7 +11,7 @@ import scipy.io
 
 from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
-
+import IPython
 
 run_test_function = False
 
@@ -99,7 +99,7 @@ class SDF:
         Returns: - 
         """
         engine.store_vector(self.values_in_order_,self.file_name_)
-        print "Stored %s as vector" % self.file_name_
+        #        print "Stored %s as vector" % self.file_name_
 
     def query_nearpy_engine(self, engine):
         """
