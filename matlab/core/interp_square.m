@@ -2,8 +2,9 @@ function interp_val = interp_square( x, value_grid )
 %INTERP_SQUARE Summary of this function goes here
 %   Detailed explanation goes here
 
-x_min = floor(x);
-x_max = ceil(x);
+[height, width] = size(value_grid);
+x_min = max(floor(x), [1;1]);
+x_max = min(ceil(x), [width; height]);
 
 interp_points = [x_min(1), x_min(2);
                  x_min(1), x_max(2);

@@ -6,7 +6,7 @@ config.width = 50;
 num_points = config.height * config.width;
 [X, Y] = meshgrid(1:config.width, 1:config.height);
 config.points = [X(:), Y(:)];
-grid_center = [width / 2, height / 2];
+grid_center = [config.width / 2, config.height / 2];
 config.sdf_trunc = 4.0;
 
 % params of the gp
@@ -99,7 +99,7 @@ f_sample_grid = reshape(f, [config.height, config.width]);
 sdf_surface(f_sample_grid);
 
 %% try it out
-config.num_pose_particles = 20;
+config.num_pose_particles = 40;
 config.r_sigma_resample = 0.01;
 config.t_sigma_resample = 0.1;
 config.s_sigma_resample = 0.001;
@@ -107,15 +107,17 @@ config.min_rot = 0;
 config.max_rot = 2 * pi;
 config.min_trans = [-config.height / 8, -config.width / 8];
 config.max_trans = [config.height / 8, config.width / 8];
-config.min_scale = 0.8;
-config.max_scale = 1.0;
+config.min_scale = 0.9;
+config.max_scale = 1.1;
 config.resample_size = config.num_pose_particles;
 config.kernel_resample = 0;
 config.gaussian_resample = 1;
 config.num_f_samples = 100;
 config.true_tf = tf;
 config.vis_path = 0;
-config.kernel_scale = 1;
+config.kernel_scale = 1.0;
+config.resample_kernel_scale = 0.4;
+config.discrete_rate = 10;
 
 config.path_penalty = 1e-1;
 config.use_dec_path_penalty = 1;
@@ -123,7 +125,7 @@ config.class_image_rate = 1;
 
 %% user defined bar function
 f_Sigma = feval(config.cov_func, ...
-    [log(config.sigma_kernel), log(config.kernel_scale)], config.points);
+    [log(config.sigma_kernel), log(config.resample_kernel_scale)], config.points);
 f_Sigma = 1e-10 + (f_Sigma + f_Sigma') / 2; 
 
 grid = zeros(config.height, config.width);
@@ -140,8 +142,11 @@ config.mean_func = mu_grid;
 rng(100);
 config.num_iters = 250;
 config.delta = 0.90;
+config.num_pose_particles = 100;
+config.ucr_term = 0.01; % stop when 99 percent of points are classified
+
 [pclass_results, ppath_lengths, plosses, pclass_images, piter_times] = ...
-    discrete_gp_lse_pose_prior(f_grid, config);
+    discrete_gp_lse_pose_line_probe(f_grid, config);
 
 %% run others with zero mean
 config.mean_func = [];
