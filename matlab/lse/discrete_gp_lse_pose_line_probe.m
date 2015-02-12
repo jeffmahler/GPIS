@@ -15,6 +15,7 @@ kernel_scale = config.resample_kernel_scale;
 cov_func = config.cov_func;
 mean_grid = config.mean_func; % ONLY SUPPORTS THOSE WITHOUT HYPERS
 lik_func = config.lik_func;
+discrete_rate = config.discrete_rate;
 
 [X, Y] = meshgrid(1:width, 1:height);
 points = [X(:), Y(:)];
@@ -104,7 +105,8 @@ s_particles(:) = unifrnd(min_scale * ones(num_pose_particles,1), ...
                          max_scale * ones(num_pose_particles,1));
 t = 1; 
 num_unclassified = num_points;
-while t <= num_iters && num_unclassified > 0
+unclassified_rate = 1.0;
+while t <= num_iters && num_unclassified > 0 && unclassified_rate > config.ucr_term
     fprintf('Iteration %d\n', t);
     start_time = tic;
     
@@ -127,7 +129,7 @@ while t <= num_iters && num_unclassified > 0
         next_best_points(active_points, active_y, points, beta_t, h_points, ...
                          path_penalty_t, hyp, mean_grid, cov_func, lik_func, ...
                          r_particles, t_particles, s_particles, ...
-                         particle_weights, grid_center, num_f_samples);           
+                         particle_weights, grid_center, discrete_rate, num_f_samples);           
                      
     % classify points according to ambiguity score
     pred_below(ucb_max < tol & pred_above == 0) = 1;
@@ -137,6 +139,7 @@ while t <= num_iters && num_unclassified > 0
     path_score(pred_above == 1 | pred_below == 1) = -1e6;                 
     
     num_unclassified = sum(~pred_below & ~pred_above);
+    unclassified_rate = num_unclassified / num_points;
     fprintf('Num unclassified: %d\n', num_unclassified);
     
     % go back through path to find best
@@ -157,13 +160,21 @@ while t <= num_iters && num_unclassified > 0
         class_result_index = class_result_index + 1;
     end
     
-    % add next point chosen to the active set
-    eps_noise = normrnd(0, sigma_noise);
-    next_y = f(next_ind) + eps_noise;
+    % probe points along chosen line
+    prev_point = active_points(end,:);
+    next_points = zeros(discrete_rate, 2);
+    next_y = zeros(discrete_rate, 1);
+    for s = 1:discrete_rate
+        cur_point = prev_point + ...
+                (next_point - prev_point) * s / discrete_rate;
+        eps_noise = normrnd(0, sigma_noise);
+        next_points(s,:) = cur_point;
+        next_y(s) = interp_square(cur_point', f_grid) + eps_noise;
+    end
     
     % update particle weights
     particle_weights = update_particles(active_points, active_y,  ...
-        next_point, next_y, num_f_samples, sigma_noise, hyp, ...
+        next_points, next_y, num_f_samples, sigma_noise, hyp, ...
         mean_grid, cov_func, lik_func, r_particles, t_particles, ...
         s_particles, particle_weights, grid_center, height, width);
     
@@ -186,16 +197,19 @@ while t <= num_iters && num_unclassified > 0
     imagesc(mean_warped);
     hold on;
     scatter(active_points(:,1), active_points(:,2), '+y', 'LineWidth', 2);
+    scatter(next_points(:,1), next_points(:,2), '+m', 'LineWidth', 2);
     title('Best Hypothesis');
     subplot(1,3,2);
     imagesc(mean_mean_warped);
     hold on;
     scatter(active_points(:,1), active_points(:,2), '+y', 'LineWidth', 2);
+    scatter(next_points(:,1), next_points(:,2), '+m', 'LineWidth', 2);
     title('Mean Hypothesis');
     subplot(1,3,3);
     imagesc(reshape(f, [height, width]));
     hold on;
     scatter(active_points(:,1), active_points(:,2), '+y', 'LineWidth', 2);
+    scatter(next_points(:,1), next_points(:,2), '+m', 'LineWidth', 2);
     title('True Function');
     drawnow;
     
@@ -213,7 +227,7 @@ while t <= num_iters && num_unclassified > 0
     drawnow;
     
 	% update active set
-    active_points = [active_points; next_point];
+    active_points = [active_points; next_points];
     active_y = [active_y; next_y];
     
     % resample the particles (if necessary)
@@ -340,7 +354,7 @@ function [scores, ucb_max, ucb_min, dist_penalty, mu_pred, sig_pred] = ...
     next_best_points(active_points, active_y, points, beta, h_points, ...
                      path_penalty, hyp, mean_grid, cov_func, lik_func, ...
                      r_particles, t_particles, s_particles, particle_weights, ...
-                     grid_center, num_f_samples)
+                     grid_center, discrete_rate, num_f_samples)
     
     % predict function value at points and compute upper confidence bound
     num_points = size(points, 1);
@@ -356,7 +370,7 @@ function [scores, ucb_max, ucb_min, dist_penalty, mu_pred, sig_pred] = ...
         mean_warped = warp_mean_function(tf, mean_grid, grid_center);
         
         % create mean function (TODO: double check)
-        mean_func = @(h, x) mean_warped(sub2ind([height, width], x(:,2), x(:,1)));
+        mean_func = @(h, x) mean_warped(sub2ind([height, width], round(x(:,2)), round(x(:,1))));
         
         % loop through particles and transform
         [mu_pred, sig_pred] = ...
@@ -384,16 +398,20 @@ function [scores, ucb_max, ucb_min, dist_penalty, mu_pred, sig_pred] = ...
     ucb_min = h_points - mu_pred + sqrt(beta) * sig_pred;
     ambig = min([ucb_max, ucb_min], [], 2);
     
-    % compute and apply distance penalty
+    % integrate ambiguity for all lines
     prev_point = active_points(end,:);
+    int_ambig = integrate_ambiguity(prev_point, points, ambig, ...
+        height, width, discrete_rate);
+    
+    % compute and apply distance penalty
     dist_penalty = points - repmat(prev_point, [num_points, 1]);
     dist_penalty = path_penalty * sqrt(sum(dist_penalty.^2, 2));
-    scores = ambig - dist_penalty;
+    scores = int_ambig - dist_penalty;
 end
 
 % call before adding next point to active points
 function [new_particle_weights] = ...
-    update_particles(active_points, active_y, next_point, next_y, ...
+    update_particles(active_points, active_y, next_points, next_y, ...
                      num_f_samples, sigma_noise, hyp, mean_grid, cov_func, lik_func, ...
                      r_particles, t_particles, s_particles, ...
                      particle_weights, grid_center, height, width)
@@ -401,6 +419,7 @@ function [new_particle_weights] = ...
     % predict function value at points and compute upper confidence bound
     num_particles = size(r_particles, 1);
     new_particle_weights = zeros(size(particle_weights));
+    num_new_points = size(next_points, 1);
     [X, Y] = meshgrid(1:width, 1:height);
     points = [X(:), Y(:)];
     
@@ -410,23 +429,42 @@ function [new_particle_weights] = ...
         mean_warped = warp_mean_function(tf, mean_grid, grid_center);
         
         % create mean function (TODO: double check)
-        mean_func = @(h, x) mean_warped(sub2ind([height, width], x(:,2), x(:,1)));
+        mean_func = @(h, x) mean_warped(sub2ind([height, width], round(x(:,2)), round(x(:,1))));
         
         % loop through particles and transform
         [mu_pred, sig_pred] = ...
             gp(hyp, @infExact, mean_func, cov_func, lik_func, ...
-               active_points, active_y, next_point);
+               active_points, active_y, next_points);
         
         % generate samples from distribution on f
-        f_samples = normrnd(mu_pred, sig_pred, num_f_samples, 1);
+        f_samples = mvnrnd(mu_pred, diag(sig_pred), num_f_samples);
         
         % integrate by computing pdf of y given f samples and summing
         % uses importance sampling
-        y_vec = repmat(next_y, [num_f_samples, 1]);
-        y_liks = normpdf(y_vec, f_samples, sigma_noise);
+        y_vec = repmat(next_y', [num_f_samples, 1]);
+        y_liks = mvnpdf(y_vec, f_samples, sigma_noise*ones(1,num_new_points));
         new_particle_weights(i) = sum(y_liks) * particle_weights(i) / sum(particle_weights);
     end
     new_particle_weights = new_particle_weights / sum(new_particle_weights);
+end
+
+function int_ambig = integrate_ambiguity(prev_point, points, ambig, height, width, N)
+    num_points = size(points, 1);
+    ambig_grid = reshape(ambig, [height, width]);
+    int_ambig_grid = zeros(height, width);
+    
+    for i = 1:num_points
+        next_point = points(i, :);
+        ambig_sum = 0;
+        for s = 1:N
+            cur_point = prev_point + ...
+                (next_point - prev_point) * s / N;
+            cur_ambig = interp_square(cur_point', ambig_grid);
+            ambig_sum = ambig_sum + cur_ambig;
+        end
+        int_ambig_grid(next_point(2), next_point(1)) = ambig_sum / N;
+    end
+    int_ambig = int_ambig_grid(:);
 end
 
 function tf = tf_from_particle(r, t, s)
