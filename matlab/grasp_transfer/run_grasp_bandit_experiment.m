@@ -251,8 +251,9 @@ textobj = findobj(hobj1, 'type', 'text');
 set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
-title('Average Probability of Force Closure', 'FontSize',30);
+%title('Average Probability of Force Closure', 'FontSize',30);
 axis([1000 20000 0.3 1.0]); 
+set(gca,'FontSize',20)
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 %% time to find optima
@@ -293,10 +294,10 @@ plot(regret_analysis{5}.pulls_per_grasp, 'b', 'LineWidth', 3);
      'Thompson', ...
     'Gittins', 'Location', 'Best');
 textobj = findobj(hobj1, 'type', 'text');
-set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
-xlabel('Grasp Ranking', 'FontSize', 18);
-ylabel('Evaluations Per Grasp', 'FontSize', 18);
-title('Grasp Ranking', 'FontSize', 18);
+set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
+xlabel('Grasp Ranking', 'FontSize', 30);
+ylabel('Evaluations Per Grasp', 'FontSize', 30);
+set(gca,'FontSize',20);
 axis([0 1000 0 200]);
 % %% histograms of final regret
 % figure(8);
