@@ -8,7 +8,7 @@ function [ best_grasp, regret, Value ] = ...
         vis_bandits = true;
     end
 
-    Total_Iters = 600000;
+    Total_Iters = 6000;
     
     i = 1; 
     ts = true; 
@@ -24,9 +24,9 @@ function [ best_grasp, regret, Value ] = ...
         grasp_samples{i}.current_iter = 1; 
         [Q] = evaluate_grasp(i,grasp_samples,shapeParams,experimentConfig);
        
-        Value(i,1) = Q;
+        Value(i,1) = 1+Q;
         Value(i,2) = 1; 
-        Value(i,3) = (Value(i,1)+1)/(2+Value(i,2)); 
+        Value(i,3) = (Value(i,1))/(Value(i,1)+Value(i,2)); 
         Value(i,4) = Value(i,3) - 1.96*(1/Value(i,2)*Value(i,3)*(1-Value(i,3)))^(1/2); 
         Value(i,5) = Value(i,3) + 1.96*(1/Value(i,2)*Value(i,3)*(1-Value(i,3)))^(1/2); 
 
@@ -56,7 +56,7 @@ function [ best_grasp, regret, Value ] = ...
 
         [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,experimentConfig);
 
-     
+       
         if( Q == -1)
             remaining_time = Total_Iters - i;
             regret(t:end) = regret(t-1);
@@ -64,10 +64,10 @@ function [ best_grasp, regret, Value ] = ...
             break;
         end
 
-
-        Value(grasp,1) =  Value(grasp,1)+Q; 
-        Value(grasp,2) = Value(grasp,2)+1; 
-        Value(grasp,3) = (Value(grasp,1)+1)/(Value(grasp,2)+2); 
+        data = [data; [Q grasp]]; 
+        Value = update_correlated_beta(grasp_samples,Value,data);
+       
+        Value(grasp,3) = (Value(grasp,1)+1)/(Value(grasp,1)+Value(grasp,2)); 
         Value(grasp,4) = Value(grasp,3) - 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2); 
         Value(grasp,5) = Value(grasp,3) + 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2);
 
@@ -117,8 +117,8 @@ end
 
 function [grasp] = get_grasp(Value)    
    
-   A = Value(:,1)+1; 
-   B = (Value(:,2)-Value(:,1))+1; 
+   A = Value(:,1); 
+   B = Value(:,2); 
    
    Sample = betarnd(A,B); 
    
@@ -139,8 +139,8 @@ function [Value] = update_correlated_beta(grasp_samples,Value,data)
                 beta = beta+rbf_kernel(grasp_samples{data(j,2)}.loa_1,grasp_samples{i}.loa_1);
             end
         end
-        Value(i,1) = alpha; 
-        Value(i,2) = beta; 
+        Value(i,1) = alpha+1; 
+        Value(i,2) = beta+1; 
     end
 
 
