@@ -2,7 +2,7 @@
 % get random shape indices
 %close all; 
 %clear all; 
-num_test_shapes = 1;
+num_test_shapes = 10;
 rng(60);
 shape_indices = randi(1070,num_test_shapes,1);
 %shape_indices = [326];
@@ -38,10 +38,10 @@ config.knn = 9;
 config.vis_knn = true;
 config.num_grasp_samples = 1000;
 config.num_knn_grasps = 5;
-config.num_grasps = 1000; 
+config.num_grasps = 100; 
 config.gittins_in_filename1 = 'matlab/bandit_sampling/indices';
 config.gittins_out_filename1 = 'matlab/bandit_sampling/gittins_indices';
-config.budget = 9000; 
+config.budget = 5; 
 config.num_methods = 6; 
 %Noise Parameters
 

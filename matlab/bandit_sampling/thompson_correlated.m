@@ -8,7 +8,7 @@ function [ best_grasp, regret, Value ] = ...
         vis_bandits = true;
     end
 
-    Total_Iters = 6000;
+    Total_Iters = 20000;
     
     i = 1; 
     ts = true; 
@@ -16,7 +16,7 @@ function [ best_grasp, regret, Value ] = ...
     regret = zeros(Total_Iters+num_grasps,1); 
     not_sat = true; 
          
-   
+    [gram_mat] = calc_correlation(grasp_samples,num_grasps); 
     Storage = {};
     Value = zeros(num_grasps,5); 
     t = 1;
@@ -25,7 +25,7 @@ function [ best_grasp, regret, Value ] = ...
         [Q] = evaluate_grasp(i,grasp_samples,shapeParams,experimentConfig);
        
         Value(i,1) = 1+Q;
-        Value(i,2) = 1; 
+        Value(i,2) = 1+(1-Q); 
         Value(i,3) = (Value(i,1))/(Value(i,1)+Value(i,2)); 
         Value(i,4) = Value(i,3) - 1.96*(1/Value(i,2)*Value(i,3)*(1-Value(i,3)))^(1/2); 
         Value(i,5) = Value(i,3) + 1.96*(1/Value(i,2)*Value(i,3)*(1-Value(i,3)))^(1/2); 
@@ -42,6 +42,7 @@ function [ best_grasp, regret, Value ] = ...
 
     i = 1;
     not_sat = true; 
+    data = []; 
      while(i<Total_Iters && not_sat)
         %i
         if(ts)
@@ -65,7 +66,7 @@ function [ best_grasp, regret, Value ] = ...
         end
 
         data = [data; [Q grasp]]; 
-        Value = update_correlated_beta(grasp_samples,Value,data);
+        Value = update_correlated_beta(gram_mat,Value,data);
        
         Value(grasp,3) = (Value(grasp,1)+1)/(Value(grasp,1)+Value(grasp,2)); 
         Value(grasp,4) = Value(grasp,3) - 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2); 
@@ -127,29 +128,37 @@ function [grasp] = get_grasp(Value)
 end
 
 
-function [Value] = update_correlated_beta(grasp_samples,Value,data)
-    num_grasps = size(Value,1); 
-    num_exps = size(data,1); 
-
-    for i=1:num_grasps
-        for j=1:num_exps
-            if(data(j,1) == 1)
-                alpha = alpha+rbf_kernel(grasp_samples{data(j,2)}.loa_1,grasp_samples{i}.loa_1); 
-            else 
-                beta = beta+rbf_kernel(grasp_samples{data(j,2)}.loa_1,grasp_samples{i}.loa_1);
-            end
-        end
-        Value(i,1) = alpha+1; 
-        Value(i,2) = beta+1; 
+function [Value] = update_correlated_beta(gram_mat,Value,data)
+    
+    if(data(end,1) == 1)
+        Value(:,1) = Value(:,1)+gram_mat(:,data(end,2));
+    else
+        Value(:,2) = Value(:,2)+gram_mat(:,data(end,2));
     end
-
 
 end
 
-function [val] = rbf_kernel(x_i,x)
-sig = 1; 
+function [gram_mat] = calc_correlation(grasp_samples,num_grasps) 
 
-val = exp(-norm(x_i-x,2)/sig); 
+
+gram_mat = eye(num_grasps);
+for i=1:num_grasps
+    for j=1:num_grasps
+        gram_mat(i,j) = rbf_kernel(grasp_samples{i}.cp(:),grasp_samples{j}.cp(:));
+    end
+end
+end
+
+
+
+
+function [val] = rbf_kernel(x_i,x)
+sig = 0.0001; 
+if(size(x_i,1) ~= size(x,1))
+    val = 0; 
+else
+    val = exp(-norm(x_i-x,2)/sig); 
+end
 
 end
 

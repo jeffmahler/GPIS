@@ -60,7 +60,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
             
         end
         
-        
+        cp = CP{i}; 
         loa_1 = compute_loa(cp(1:2,:));
         loa_2 = compute_loa(cp(3:4,:));
      
