@@ -67,9 +67,8 @@ function [ best_grasp, regret, Value ] = ...
 
         data = [data; [Q grasp]]; 
         Value = update_correlated_beta(gram_mat,Value,data);
-       
-        Value(grasp,3) = (Value(grasp,1)+1)/(Value(grasp,1)+Value(grasp,2)); 
-        Value(grasp,4) = Value(grasp,3) - 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2); 
+        Value(grasp,2) = Value(grasp,2)+1; 
+        Value(:,3) = (Value(:,1))./(Value(:,1)+Value(:,4)); 
         Value(grasp,5) = Value(grasp,3) + 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2);
 
         [v best_grasp] = max(Value(:,3));
@@ -133,7 +132,7 @@ function [Value] = update_correlated_beta(gram_mat,Value,data)
     if(data(end,1) == 1)
         Value(:,1) = Value(:,1)+gram_mat(:,data(end,2));
     else
-        Value(:,2) = Value(:,2)+gram_mat(:,data(end,2));
+        Value(:,4) = Value(:,4)+gram_mat(:,data(end,2));
     end
 
 end
@@ -153,7 +152,7 @@ end
 
 
 function [val] = rbf_kernel(x_i,x)
-sig = 0.0001; 
+sig = 0.01; 
 if(size(x_i,1) ~= size(x,1))
     val = 0; 
 else

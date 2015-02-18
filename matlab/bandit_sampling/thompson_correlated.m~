@@ -8,7 +8,7 @@ function [ best_grasp, regret, Value ] = ...
         vis_bandits = true;
     end
 
-    Total_Iters = 6000;
+    Total_Iters = 20000;
     
     i = 1; 
     ts = true; 
@@ -25,7 +25,7 @@ function [ best_grasp, regret, Value ] = ...
         [Q] = evaluate_grasp(i,grasp_samples,shapeParams,experimentConfig);
        
         Value(i,1) = 1+Q;
-        Value(i,2) = 1; 
+        Value(i,2) = 1+(1-Q); 
         Value(i,3) = (Value(i,1))/(Value(i,1)+Value(i,2)); 
         Value(i,4) = Value(i,3) - 1.96*(1/Value(i,2)*Value(i,3)*(1-Value(i,3)))^(1/2); 
         Value(i,5) = Value(i,3) + 1.96*(1/Value(i,2)*Value(i,3)*(1-Value(i,3)))^(1/2); 
@@ -66,9 +66,9 @@ function [ best_grasp, regret, Value ] = ...
         end
 
         data = [data; [Q grasp]]; 
-        Value = update_correlated_beta(grasp_samples,Value,data);
-       
-        Value(grasp,3) = (Value(grasp,1)+1)/(Value(grasp,1)+Value(grasp,2)); 
+        Value = update_correlated_beta(gram_mat,Value,data);
+        Value(grasp,2) = Value(grasp,2)+1; 
+        Value(:,3) = (Value(:,1))./(Value(:,1)+Value(:,4)); 
         Value(grasp,4) = Value(grasp,3) - 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2); 
         Value(grasp,5) = Value(grasp,3) + 1.96*(1/Value(grasp,2)*Value(grasp,3)*(1-Value(grasp,3)))^(1/2);
 
@@ -129,26 +129,22 @@ end
 
 
 function [Value] = update_correlated_beta(gram_mat,Value,data)
-    num_grasps = size(Value,1); 
-    num_exps = size(data,1); 
-    APH = zeros(size(Value(:,1))); 
-    BTA = APH; 
+    
     if(data(end,1) == 1)
-        Value(:,1) = gram_mat(:,data(end,2));
+        Value(:,1) = Value(:,1)+gram_mat(:,data(end,2));
     else
-        
-    Value(:,1) = APH; 
-    Value(:,2) = BTA; 
+        Value(:,2) = Value(:,2)+gram_mat(:,data(end,2));
+    end
 
 end
 
-function [gram_mat] = calc_correlation(grasp_samples,Value) 
+function [gram_mat] = calc_correlation(grasp_samples,num_grasps) 
 
-num_grasps = size(Value(:,1),1);  
-gram_mat = eye(num_grasps)
+
+gram_mat = eye(num_grasps);
 for i=1:num_grasps
     for j=1:num_grasps
-        gram_mat(i,j) = grasp_samples{i}.loa_1,grasp_samples{j}.loa_1)
+        gram_mat(i,j) = rbf_kernel(grasp_samples{i}.cp(:),grasp_samples{j}.cp(:));
     end
 end
 end
@@ -157,9 +153,12 @@ end
 
 
 function [val] = rbf_kernel(x_i,x)
-sig = 1; 
-
-val = exp(-norm(x_i-x,2)/sig); 
+sig = 0.0001; 
+if(size(x_i,1) ~= size(x,1))
+    val = 0; 
+else
+    val = exp(-norm(x_i-x,2)/sig); 
+end
 
 end
 
