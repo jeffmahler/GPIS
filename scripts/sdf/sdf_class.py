@@ -115,16 +115,19 @@ class SDF:
         newy = 2*window_center + self.ny_
         newz = 2*window_center + self.ny_
         padded_vals = np.zeros(newx*newy*newz)
-     
+    
+        #padding the original values list 
         for k in range(self.nz_):
             for j in range(self.ny_):
                 for i in range(self.nx_):
-                    padded_vals[(i+window_center) + (j+window_center)*newx + (k+window_center)*newx*newy] = \
-                                                            self.values_in_order_[i + j*self.nx_ + k*self.nx_*self.ny_]
+                    padded_coord = (i+window_center) + (j+window_center)*newx + (k+window_center)*newx*newy
+                    orig_coord = i + j*self.nx_ + k*self.nx_*self.ny_
+                    padded_vals[padded_coord] = self.values_in_order_[orig_coord]
+
         for z in range(window_center, self.nz_ + window_center, S):
             for y in range(window_center, self.ny_ + window_center, S):
                 for x in range(window_center+offset, self.nx_ + window_center, S):
-                        #print [map(lambda x: x-window_center,[x,y,z])]
+                        #print map(lambda x: x-window_center,[x,y,z])
                     new_window = np.empty(W**3)
                     count = 0
                     for k in range(-window_center, window_center+1):    
