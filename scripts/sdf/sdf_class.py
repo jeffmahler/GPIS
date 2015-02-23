@@ -13,6 +13,12 @@ from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
 import IPython
 
+from random_functions import has_p_and_n
+
+from sys import version_info
+if version_info[0] != 3:
+    range = xrange
+
 run_test_function = False
 
 class SDF:
@@ -50,7 +56,7 @@ class SDF:
         SDF file name information
         Params: -
         Returns: 
-            (strin): File name + path (relative to root from where loaded)
+            (string): File name + path (relative to root from where loaded)
         """
 
         return self.file_name_
@@ -90,6 +96,47 @@ class SDF:
             numpy.ndarray: nx x ny x nz matrix containing the SDF value of the object
         """
         return self.data_
+
+    def make_windows(self, W, S, target=False): 
+        """ 
+        Function for windowing the SDF grid
+        Params: 
+            W: the side length of the window (currently assumed to be odd so centering makes sense)
+            S: stride length between cubes (x axis "wraps" around)
+            target: True for targetted windowing (filters for cubes containing both positive and negative values)
+        Returns: 
+            ([np.array,...,np.array]): contains a list of numpy arrays, each of which is an unrolled window/cube.
+                                       window order based on center coordinate (increasing order of x, y, then z)
+        """
+        windows = []
+        window_center = (W-1)/2 #assuming odd window
+        offset = 0 #parameter used to "wrap around" x / not start back at x=1 each time  
+        newx = 2*window_center + self.nx_
+        newy = 2*window_center + self.ny_
+        newz = 2*window_center + self.ny_
+        padded_vals = np.zeros(newx*newy*newz)
+     
+        for k in range(self.nz_):
+            for j in range(self.ny_):
+                for i in range(self.nx_):
+                    padded_vals[(i+window_center) + (j+window_center)*newx + (k+window_center)*newx*newy] = \
+                                                            self.values_in_order_[i + j*self.nx_ + k*self.nx_*self.ny_]
+        for z in range(window_center, self.nz_ + window_center, S):
+            for y in range(window_center, self.ny_ + window_center, S):
+                for x in range(window_center+offset, self.nx_ + window_center, S):
+                        #print [map(lambda x: x-window_center,[x,y,z])]
+                    new_window = np.empty(W**3)
+                    count = 0
+                    for k in range(-window_center, window_center+1):    
+                        for j in range(-window_center, window_center+1):
+                            for i in range(-window_center, window_center+1):
+                                new_window[count] = padded_vals[(x+i) + (y+j)*newx + (z+k)*newx*newy] 
+                                count += 1
+                        windows.append(new_window)
+                offset = (x+S) - (self.nx_+window_center)
+        if target:
+            windows = filter(has_p_and_n, windows)          
+        return windows       
 
     def add_to_nearpy_engine(self, engine):
         """
