@@ -16,6 +16,7 @@ class ObjFile:
         self.filepath_ = filepath
         file_root, file_ext = os.path.splitext(self.filepath_)
         if file_ext != '.obj':
+            print 'Extension', file_ext
             raise Exception('Cannot load file extension %s. Please supply a .obj file' %(file_ext))
 
     def get_filepath(self):

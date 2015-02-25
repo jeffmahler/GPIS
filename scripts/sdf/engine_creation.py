@@ -12,8 +12,32 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import scipy.io
 
+import IPython
+
 from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
+
+UNKNOWN_TAG = 'No Results'
+
+def cat50_file_category(filename):
+    """
+    Returns the category associated with the full path of file |filename|
+    """
+    full_filename = path.abspath(filename)
+    dirs, file_root = path.split(full_filename)
+    head, category = path.split(dirs)
+    return category
+
+def remove_double_clean(root_dir):
+    invalid_ending = "_clean_clean.sdf"
+    invalid_chars = len(invalid_ending)
+    num_invalid = 0
+    for root, dirs, files in os.walk(root_dir):
+        for f in files:
+            if len(f) >= invalid_chars and f[-invalid_chars:] == invalid_ending:
+                os.remove(os.path.join(root, f))
+                num_invalid += 1
+
 
 
 def find_sdf(root_dir):
@@ -54,12 +78,18 @@ def load_engine(sdf_files):
     #dimension here can be altered as well
     rbp = RandomBinaryProjections('rbp',10)
     engine = Engine(dimension, lshashes=[rbp])  
+
+    count = 0
     for file_ in sdf_files:
+        #print file_
+        if count % 100 == 0:
+            print 'Converted %d files' %(count)
         converted = SDF(file_)
         converted.add_to_nearpy_engine(engine)
+        count += 1
     return engine
 
-def train_and_test_lsh(num_train, num_test, root_dir):
+def train_and_test_lsh(num_train, num_test, root_dir, K = 1):
     """
     Function that generates a list of sdf files given a root_dir, and loads a random num_train of them into a nearpy engine. It then queries the LSH engine for a 
     random num_test other sdf files. num_train+num_test must be less than the total number of sdf_files
@@ -68,6 +98,7 @@ def train_and_test_lsh(num_train, num_test, root_dir):
         num_train: number of files to load into the engine
         num_test: number of files to query after
         sdf_files: list of sdf files to draw from
+        K: number of neighbors to check
 
     Returns
         accuracy: float representing the accuracy of querying the nearpy engine with the test results
@@ -77,11 +108,14 @@ def train_and_test_lsh(num_train, num_test, root_dir):
         >>> train_and_test_lsh(100,5,"datasets/Cat50_ModelDatabase")
     """
     test_results = {}
-    accuracy = 0
+    confusion = {}
 
     sdf_files = find_sdf(root_dir)
+    print 'Found %d SDF files' %(len(sdf_files))
     assert num_train+num_test <= len(sdf_files)
+
     #Randomly permutes the indices of the sdf_files list. 
+    np.random.seed(100)
     permuted_indices = np.random.permutation(len(sdf_files))
     get_training = itemgetter(*permuted_indices[:num_train])
     get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
@@ -91,22 +125,74 @@ def train_and_test_lsh(num_train, num_test, root_dir):
         test_files = get_testing(sdf_files)
     else:
         test_files = [get_testing(sdf_files)]
+
+    # setup confusion matrix
+    confusion[UNKNOWN_TAG] = {}
+    for file_ in sdf_files:
+        category = cat50_file_category(file_)
+        confusion[category] = {}
+    for query_cat in confusion.keys():
+        for pred_cat in confusion.keys():
+            confusion[query_cat][pred_cat] = 0
     
     for file_ in list(test_files):
         #NOTE: This is assuming the file structure is: data/<dataset_name>/<category>/... also line 104
-        query_category = file_.split("/")[2]
+        query_category = cat50_file_category(file_)
         print "Querying: %s with category %s "%(file_, query_category)
         converted = SDF(file_)
-        closest = converted.query_nearpy_engine(engine)
-        category = "No Results"
-        if len(closest[0]) > 0:
-            closest_category = closest[0][0]
-            category = closest_category.split("/")[2]
-        print "Result Category: %s"%(category)
-        if category == query_category:
-            accuracy+=1
-        test_results[file_]= [closest]
+        closest_names, closest_vals = converted.query_nearpy_engine(engine)
+
+        # check if top K items contains the query category
+        pred_category = UNKNOWN_TAG
+        if len(closest_names) > 0:
+            closest_category = closest_names[0]
+            pred_category = cat50_file_category(closest_category)
+
+            for i in range(1, min(K, len(closest_names))):
+                closest_category = closest_names[i]
+                potential_category = cat50_file_category(closest_category)
+
+                if potential_category == query_category:
+                    pred_category = potential_category
+
+        print "Result Category: %s"%(pred_category)
+
+        confusion[query_category][pred_category] += 1
+        test_results[file_]= [(closest_names, closest_vals)]
     
-    return accuracy/float(num_test), engine, test_results   
+    # convert the dictionary to a numpy array
+    row_names = confusion.keys()
+    confusion_mat = np.zeros([len(row_names), len(row_names)])
+    i = 0
+    for query_cat in confusion.keys():
+        j = 0
+        for pred_cat in confusion.keys():
+            confusion_mat[i,j] = confusion[query_cat][pred_cat]
+            j += 1
+        i += 1
+
+    # get true positives, etc for each category
+    num_preds = len(test_files)
+    tp = np.diag(confusion_mat)
+    fp = np.sum(confusion_mat, axis=0) - np.diag(confusion_mat)
+    fn = np.sum(confusion_mat, axis=1) - np.diag(confusion_mat)
+    tn = num_preds * np.ones(tp.shape) - tp - fp - fn
+
+    # compute useful statistics
+    recall = tp / (tp + fn)
+    tnr = tn / (fp + tn)
+    precision = tp / (tp + fp)
+    npv = tn / (tn + fn)
+    fpr = fp / (fp + tn)
+    accuracy = np.sum(tp) / num_preds # correct predictions over entire dataset
+
+    # remove nans
+    recall[np.isnan(recall)] = 0
+    tnr[np.isnan(tnr)] = 0
+    precision[np.isnan(precision)] = 0
+    npv[np.isnan(npv)] = 0
+    fpr[np.isnan(fpr)] = 0
+
+    return accuracy, engine, test_results   
 
     
