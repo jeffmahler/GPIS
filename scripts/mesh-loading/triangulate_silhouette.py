@@ -29,25 +29,23 @@ class MeshConverter2D:
         self.upper_bound_ = 255
         # what to do?
 
-    def convert_binary_image_to_mesh(self, filename, extrusion = 100):
+    def convert_binary_image_to_mesh(self, binary_img, extrusion = 100):
         '''
         Converts a binary image in file "filename" to a mesh
         
         Params:
-           filename: (string) the name of the image file
+           binary_img: (2d numpy arry) binary image for silhouette (255 = occupied, 0 = not occupied)
         Returns:
            mesh object with specified depth
         '''
         # get occupied indices from binary image
-        binary_img = Image.open(filename)
-        #binary_img.show()
         binary_map = np.array(binary_img)
         occ_ind = np.where(binary_map > self.occupied_thresh_)
         occ_coords = zip(occ_ind[0], occ_ind[1])
 
         # todo: duplicate at multiple depths
-        front_verts, front_tris, front_ind_map = self.create_mesh_face(occ_coords, extrusion / 2, binary_map.shape)
-        back_verts, back_tris, back_ind_map = self.create_mesh_face(occ_coords, -extrusion / 2, binary_map.shape)
+        front_verts, front_tris, front_ind_map = self.create_mesh_face(occ_coords, extrusion / 2, binary_map.shape, cw = True)
+        back_verts, back_tris, back_ind_map = self.create_mesh_face(occ_coords, -extrusion / 2, binary_map.shape, cw = False)
         verts, tris = self.join_vert_tri_lists(front_verts, front_tris, back_verts, back_tris)
         num_verts = len(front_verts)
         back_ind_map = back_ind_map + num_verts
@@ -193,7 +191,7 @@ class MeshConverter2D:
         return np.array(arr)
 
 
-    def create_mesh_face(self, occ_coords, depth, index_shape):
+    def create_mesh_face(self, occ_coords, depth, index_shape, cw = True):
         '''
         Creates a 2D mesh face of vertices and triangles from the given coordinates at a specified depth
         
@@ -201,6 +199,7 @@ class MeshConverter2D:
            occ_coords: (list of vertices (3-tuples)) the coordinates of vertices
            depth: (float) the depth at which to place the face
            index_shape: (2-tuple) the shape of the numpy grid on which the vertices lie
+           cw: (bool) clockwise or counterclockwise orientation
         Returns:
            verts: (list of verts)
            tris: (list of tris)
@@ -229,14 +228,22 @@ class MeshConverter2D:
 
                 # check if valid vertices and add
                 if left_ind > -1 and above_ind > -1:
-                    tris.append([int(cur_ind), int(left_ind), int(above_ind)])
+                    if cw:
+                        tris.append([int(cur_ind), int(left_ind), int(above_ind)])
+                    else:
+                        tris.append([int(cur_ind), int(above_ind), int(left_ind)])                        
                 elif above_ind > -1:
                     # try to patch area
                     coord_left_above = [coord[0] - 1, coord[1] - 1]
                     if coord_left_above[0] > 0 and coord_left_above[1] > 0:
                         left_above_ind = ind_map[coord_left_above[0], coord_left_above[1]]
+
+                        # check validity
                         if left_above_ind > -1:
-                            tris.append([int(cur_ind), int(left_above_ind), int(above_ind)])
+                            if cw:
+                                tris.append([int(cur_ind), int(left_above_ind), int(above_ind)])
+                            else:
+                                tris.append([int(cur_ind), int(above_ind), int(left_above_ind)])                                
 
             # add tri below right
             if coord_right[0] < index_shape[1] and coord_below[1] < index_shape[0]:
@@ -245,22 +252,37 @@ class MeshConverter2D:
 
                 # check if valid vertices and add
                 if right_ind > -1 and below_ind > -1:
-                    tris.append([int(cur_ind), int(right_ind), int(below_ind)])
+                    if cw:
+                        tris.append([int(cur_ind), int(right_ind), int(below_ind)])
+                    else:
+                        tris.append([int(cur_ind), int(below_ind), int(right_ind)])
                 elif below_ind > -1:
                     # try to patch area
                     coord_right_below = [coord[0] + 1, coord[1] + 1]
                     if coord_right_below[0] < index_shape[0] and coord_right_below[1] < index_shape[1]:
                         right_below_ind = ind_map[coord_right_below[0], coord_right_below[1]]
+
+                        # check validity
                         if right_below_ind > -1:
-                            tris.append([int(cur_ind), int(right_below_ind), int(below_ind)])
-                            
+                            if cw:
+                                tris.append([int(cur_ind), int(right_below_ind), int(below_ind)])
+                            else:
+                                tris.append([int(cur_ind), int(below_ind), int(right_below_ind)])
 
         return verts, tris, ind_map
 
 if __name__ == '__main__':
     filename = sys.argv[1]
+    binary_img = Image.open(filename)
     m = MeshConverter2D()
-    bin_mesh = m.convert_binary_image_to_mesh(filename)
+    bin_mesh = m.convert_binary_image_to_mesh(binary_img)
 
-    of = obj_file.ObjFile('test.obj')
+    out_filename = 'test.obj'
+    dec_filename = 'test_dec.obj'
+    dec_script_path = 'scripts/meshlab/decimation.mlx'
+    of = obj_file.ObjFile(out_filename)
     of.write(bin_mesh)
+
+    meshlabserver_cmd = 'meshlabserver -i %s -o %s -s %s' %(out_filename, dec_filename, dec_script_path)
+    os.system(meshlabserver_cmd)
+
