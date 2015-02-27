@@ -60,9 +60,9 @@ N = size(grasp_samples, 2);
 
 Names = cell(5,1); 
 Names{1} = 'Monte-Carlo';
-Names{2} = 'Kehoe';
-Names{3} = 'Thompson';
-Names{4} = 'Gittins';
+Names{2} = 'Adaptive';
+Names{3} = 'MAB-Thompson';
+Names{4} = 'MAB-Gittins';
 Names{5} = 'Best in Set';
 figure;
 

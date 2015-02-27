@@ -246,9 +246,15 @@ plot(avg_thom_simp, 'r', 'LineWidth', 3);
 plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
 plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 
-[hleg1, hobj1] = legend('Optimal','Gittins','Thompson','Kehoe et al.','Monte-Carlo', 'Thompson','Location','Best');
+
+
+
+[hleg1, hobj1] = legend('Optimal','MAB-Gittins','MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
-set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
+% Pos = get(textobj,'position');
+% %Pos(3) = 2*Pos(3); 
+% set(textobj,'position',Pos); 
+set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
@@ -283,16 +289,17 @@ set(gca,'FontSize',20)
 figure(7);
 
 clf;
-plot(regret_analysis{1}.pulls_per_grasp, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 hold on;
-%plot(regret_analysis{6}.pulls_per_grasp, 'Color', [1, 0.5, 0.75], 'LineWidth', 3);
-plot(regret_analysis{6}.pulls_per_grasp, 'g', 'LineWidth', 3);
+plot(regret_analysis{5}.pulls_per_grasp, 'g', 'LineWidth', 3);
 plot(regret_analysis{4}.pulls_per_grasp, 'r', 'LineWidth', 3);
-plot(regret_analysis{5}.pulls_per_grasp, 'b', 'LineWidth', 3);
 
-[hleg1, hobj1] = legend('Monte-Carlo', 'Kehoe', ...
-     'Thompson', ...
-    'Gittins', 'Location', 'Best');
+%plot(regret_analysis{6}.pulls_per_grasp, 'Color', [1, 0.5, 0.75], 'LineWidth', 3);
+
+plot(regret_analysis{6}.pulls_per_grasp, 'c', 'LineWidth', 3);
+plot(regret_analysis{1}.pulls_per_grasp, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+
+[hleg1, hobj1] = legend('MAB-Gittins','MAB-Thompson','Adaptive','Monte-Carlo',...
+     'Location', 'Best');
 textobj = findobj(hobj1, 'type', 'text');
 set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
 xlabel('Grasp Ranking', 'FontSize', 30);
