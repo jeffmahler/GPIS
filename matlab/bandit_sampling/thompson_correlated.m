@@ -153,7 +153,7 @@ end
 
 
 function [val] = rbf_kernel(x_i,x)
-sig = 0.0001; 
+sig = 1; 
 if(size(x_i,1) ~= size(x,1))
     val = 0; 
 else
