@@ -1,5 +1,6 @@
 from PIL import Image
 from pylab import *
+import sys
 
 lower_bound, upper_bound = 50, 255
 
@@ -24,3 +25,7 @@ def find_boundary(img_path):
                 arr[i][j] = 255
     return arr
 
+path_list = open(sys.argv[1], 'r')
+for img_path in path_list:
+    im = Image.fromarray(np.array(find_boundary(img_path)).astype(np.uint8))
+    result.save(img_path[:-3] + "bmp")

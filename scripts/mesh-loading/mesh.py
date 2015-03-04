@@ -265,29 +265,47 @@ class Mesh:
                 vertex_array = scale_factor * vertex_array
                 self.vertices_ = vertex_array.tolist()
 
+        def make_image(self, filename, rot):
+            proj_img = self.project_binary(cp, T)
+            file_root, file_ext = os.path.splitext(filename)
+            proj_img.save(file_root + ".jpg")                
+
+            oof = obj_file.ObjFile(filename)
+            oof.write(self)
                 
 if __name__ == '__main__':
         # test various aspects of mesh cleanup
-        filename = sys.argv[1]
-        of = obj_file.ObjFile(filename)
-        m = of.read()
+        with open("paths", "r") as ifile:
+            for line in ifile: 
+                print("converting " + line) 
+                filename = line
+                of = obj_file.ObjFile(filename)
+                m = of.read()
 
-        cp = CameraParams(480., 640., 525., 525.)
+                cp = CameraParams(480., 640., 525., 525.)
 
-        T = np.eye(4)
-        T[:3,3] = np.array([0, 0, 1.5])
-        min_dim = 0.5
-        
-        m.remove_unreferenced_vertices()
+                T = np.eye(4)
+                T[:3,3] = np.array([0, 0, 3.0])
+                min_dim = 0.5
+                
+                m.remove_unreferenced_vertices()
 
-        m.normalize_vertices()
-        m.rescale_vertices(min_dim)
+                m.normalize_vertices()
+                m.rescale_vertices(min_dim)
 
-        proj_img = m.project_binary(cp, T)
-        proj_img.show()
+                m.make_image(filename, T)
 
-        oof = obj_file.ObjFile('test.obj')
-        oof.write(m)
+                T[:3,:3] = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])
+                m.make_image(filename[:-4] + "_x_axis.jpg", T)
+                
+                T[:3,:3] = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
+                m.make_image(filename[:-4] + "_y_axis.jpg", T)
+
+                T[:3,:3] = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+                m.make_image(filename[:-4] + "_z_axis.jpg", T)
+
+                
+
 
 #        IPython.embed()
 
