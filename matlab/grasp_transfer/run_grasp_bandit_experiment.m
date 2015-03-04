@@ -133,7 +133,7 @@ config.construction_params = construction_params;
 
 %% run experiment
 bandit_comparison_results = compare_bandits(shape_indices, config);
-save('results/bandits/bandit_comparison_results.mat', 'bandit_comparison_results','-v7.3');
+save('results/bandits/bandit_comparison_results_long.mat', 'bandit_comparison_results','-v7.3');
 % 
 %% accumulate results
 regret_analysis = analyze_final_regret(bandit_comparison_results,...
@@ -213,7 +213,7 @@ axis([1000 size(avg_git98_simp_regret,1)-10 0 0.5]);
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 
-%% Probability of Force Closure 
+%% Confidence Bounds 
 avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.pfc'), 2);
 avg_ucb_simp_regret = mean(cell2mat(regret_analysis{2}.pfc'), 2);
 avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
@@ -221,6 +221,25 @@ avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
 avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
 avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
 avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2); 
+
+%Upper Bound 
+avg_random_u = mean(cell2mat(regret_analysis{1}.upper'), 2);
+avg_ucb_u = mean(cell2mat(regret_analysis{2}.upper'), 2);
+avg_bucb_u = mean(cell2mat(regret_analysis{3}.upper'), 2);
+avg_thomp_u = mean(cell2mat(regret_analysis{4}.upper'), 2);
+avg_git98_u = mean(cell2mat(regret_analysis{5}.upper'), 2);
+avg_kehoe_u = mean(cell2mat(regret_analysis{6}.upper'), 2);
+
+%Lower Bound 
+avg_random_l = mean(cell2mat(regret_analysis{1}.lower'), 2);
+avg_ucb_l = mean(cell2mat(regret_analysis{2}.lower'), 2);
+avg_bucb_l = mean(cell2mat(regret_analysis{3}.lower'), 2);
+avg_thomp_l = mean(cell2mat(regret_analysis{4}.lower'), 2);
+avg_git98_l = mean(cell2mat(regret_analysis{5}.lower'), 2);
+avg_kehoe_l = mean(cell2mat(regret_analysis{6}.lower'), 2);
+
+%%
+
 
 %Padding 
 avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
@@ -231,20 +250,130 @@ avg_kehoe_simp = zeros(size(avg_random_simp_regret));
 
 avg_ucb_simp(1:size(avg_ucb_simp_regret,1),1) = avg_ucb_simp_regret;
 avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
-avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
+
 avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
 avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
+
+avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
+%avg_thom_simp = avg_thomp_simp_regret(1:size(avg_thom_simp));
 
 figure(5);
 clf;
 
 hold on;
-plot(avg_opt_value,'b','LineWidth',3); 
-plot(avg_git_simp, 'g', 'LineWidth', 3);
-plot(avg_thom_simp, 'r', 'LineWidth', 3);
-%plot(avg_bucb_simp, 'g', 'LineWidth', 3);
-plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
-plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+X = [1:size(avg_opt_value,1)]'; 
+X_thomp = [1:size(avg_thom_simp,1)]';
+
+%plot(avg_opt_value,'b','LineWidth',3); 
+%errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u, 'g', 'LineWidth', 3);
+
+%errorbar(X,avg_bucb_simp,avg_ 'g', 'LineWidth', 3);
+
+errorbar(X,avg_random_simp_regret,avg_random_l,avg_random_u, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+errorbar(X,avg_kehoe_simp,avg_kehoe_l,avg_kehoe_u, 'c', 'LineWidth', 3);
+ha = errorbar(X_thomp,avg_thom_simp,avg_thomp_l,avg_thomp_u, 'r', 'LineWidth', 3);
+hb = get(ha,'children');  
+Xdata = get(hb(2),'Xdata');
+temp = 4:3:length(Xdata);
+temp(3:3:end) = [];
+% xleft and xright contain the indices of the left and right
+%  endpoints of the horizontal lines
+xleft = temp; xright = temp+1; 
+% Increase line length by 0.2 units
+Xdata(xleft) = Xdata(xleft) + 3500;
+Xdata(xright) = Xdata(xright) - 3500;
+set(hb(2),'Xdata',Xdata)
+
+
+
+
+[hleg1, hobj1] = legend('MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
+textobj = findobj(hobj1, 'type', 'text');
+% Pos = get(textobj,'position');
+% %Pos(3) = 2*Pos(3); 
+% set(textobj,'position',Pos); 
+set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
+xlabel('Iterations', 'FontSize', 30);
+ylabel('Probability of Force Closure', 'FontSize', 30);
+%title('Average Probability of Force Closure', 'FontSize',30);
+axis([1000 40000 0.3 1.0]); 
+set(gca,'FontSize',20)
+% xlim([0, 200]);
+% ylim([0, 0.1]);
+
+
+
+
+%% Probability of Force Closure 
+avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.pfc'), 2);
+avg_ucb_simp_regret = mean(cell2mat(regret_analysis{2}.pfc'), 2);
+avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
+avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
+avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
+avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
+avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2); 
+
+%Upper Bound 
+avg_random_u = mean(cell2mat(regret_analysis{1}.upper'), 2);
+avg_ucb_u = mean(cell2mat(regret_analysis{2}.upper'), 2);
+avg_bucb_u = mean(cell2mat(regret_analysis{3}.upper'), 2);
+avg_thomp_u = mean(cell2mat(regret_analysis{4}.upper'), 2);
+avg_git98_u = mean(cell2mat(regret_analysis{5}.upper'), 2);
+avg_kehoe_u = mean(cell2mat(regret_analysis{6}.upper'), 2);
+
+%Lower Bound 
+avg_random_l = mean(cell2mat(regret_analysis{1}.lower'), 2);
+avg_ucb_l = mean(cell2mat(regret_analysis{2}.lower'), 2);
+avg_bucb_l = mean(cell2mat(regret_analysis{3}.lower'), 2);
+avg_thomp_l = mean(cell2mat(regret_analysis{4}.lower'), 2);
+avg_git98_l = mean(cell2mat(regret_analysis{5}.lower'), 2);
+avg_kehoe_l = mean(cell2mat(regret_analysis{6}.lower'), 2);
+
+%%
+
+
+%Padding 
+avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
+avg_bucb_simp = zeros(size(avg_random_simp_regret));
+avg_thom_simp = zeros(size(avg_random_simp_regret));
+avg_git_simp = zeros(size(avg_random_simp_regret)); 
+avg_kehoe_simp = zeros(size(avg_random_simp_regret)); 
+
+avg_ucb_simp(1:size(avg_ucb_simp_regret,1),1) = avg_ucb_simp_regret;
+avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
+
+avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
+avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
+
+avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
+%avg_thom_simp = avg_thomp_simp_regret(1:size(avg_thom_simp));
+
+figure(5);
+clf;
+
+hold on;
+X = [1:size(avg_opt_value,1)]'; 
+X_thomp = [1:size(avg_thom_simp,1)]';
+
+%plot(avg_opt_value,'b','LineWidth',3); 
+%errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u, 'g', 'LineWidth', 3);
+
+%errorbar(X,avg_bucb_simp,avg_ 'g', 'LineWidth', 3);
+
+errorbar(X,avg_random_simp_regret,avg_random_l,avg_random_u, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+errorbar(X,avg_kehoe_simp,avg_kehoe_l,avg_kehoe_u, 'c', 'LineWidth', 3);
+ha = errorbar(X_thomp,avg_thom_simp,avg_thomp_l,avg_thomp_u, 'r', 'LineWidth', 3);
+hb = get(ha,'children');  
+Xdata = get(hb(2),'Xdata');
+temp = 4:3:length(Xdata);
+temp(3:3:end) = [];
+% xleft and xright contain the indices of the left and right
+%  endpoints of the horizontal lines
+xleft = temp; xright = temp+1; 
+% Increase line length by 0.2 units
+Xdata(xleft) = Xdata(xleft) + 3000;
+Xdata(xright) = Xdata(xright) - 3000;
+set(hb(2),'Xdata',Xdata)
 
 
 
@@ -258,7 +387,7 @@ set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
-axis([1000 20000 0.3 1.0]); 
+axis([1000 40000 0.3 1.0]); 
 set(gca,'FontSize',20)
 % xlim([0, 200]);
 % ylim([0, 0.1]);

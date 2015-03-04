@@ -1,4 +1,4 @@
-function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps, ...
+function [ best_grasp, regret, Value,bounds ] = gittins_index(grasp_samples, num_grasps, ...
     shapeParams, experimentConfig, surface_image, vis_bandits, index_file)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
@@ -7,11 +7,12 @@ function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps
         index_file = 'matlab/bandit_sampling/gittins_indices';
     end
 
-    Total_Iters = 20000;
+    Total_Iters = 40000;
     i = 1; 
     ts = true; 
     prune = false; 
     regret = zeros(Total_Iters+num_grasps,1); 
+    bounds =  zeros(Total_Iters+num_grasps,2); 
     not_sat = true; 
     load(index_file);      
   
@@ -43,6 +44,13 @@ function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps
             else
                regret(t) = 0; 
             end
+          
+            alpha = Value(best_grasp,1)+1; 
+            beta = Value(best_grasp,2) - Value(best_grasp,1)+1; 
+            bounds(t,1) = betainv(0.95,alpha,beta); 
+            bounds(t,2) = betainv(0.05,alpha,beta); 
+            
+            
             t=t+1; 
         end
 
@@ -89,6 +97,11 @@ function [ best_grasp, regret, Value ] = gittins_index(grasp_samples, num_grasps
             else
                 regret(t) = 0; 
             end
+            
+            alpha = Value(best_grasp,1)+1; 
+            beta = Value(best_grasp,2) - Value(best_grasp,1)+1; 
+            bounds(t,1) = betainv(0.95,alpha,beta); 
+            bounds(t,2) = betainv(0.05,alpha,beta); 
             
             i = i+1; 
             t=t+1; 
