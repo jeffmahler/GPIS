@@ -287,7 +287,7 @@ set(hb(2),'Xdata',Xdata)
 
 
 
-[hleg1, hobj1] = legend('MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
+[hleg1, hobj1] = legend('Monte-Carlo','Adaptive','MAB-Thompson','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
