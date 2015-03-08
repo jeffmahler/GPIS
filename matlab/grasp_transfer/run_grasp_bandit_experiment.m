@@ -349,7 +349,7 @@ set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
-axis([1000 40000 0.0 1.0]); 
+axis([1000 40000 0.3 1.0]); 
 set(gca,'FontSize',20)
 % xlim([0, 200]);
 % ylim([0, 0.1]);
