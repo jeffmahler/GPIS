@@ -1,4 +1,4 @@
-function [ best_grasp, regret, Value ] = ...
+function [ best_grasp, regret, Value,bounds ] = ...
     thompson_correlated(grasp_samples, num_grasps, shapeParams, ...
         experimentConfig, surface_image, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
@@ -8,12 +8,13 @@ function [ best_grasp, regret, Value ] = ...
         vis_bandits = true;
     end
 
-    Total_Iters = 20000;
+    Total_Iters = 40000;
     
     i = 1; 
     ts = true; 
     prune = false; 
     regret = zeros(Total_Iters+num_grasps,1); 
+    bounds = zeros(Total_Iters+num_grasps,2); 
     not_sat = true; 
          
     [gram_mat] = calc_correlation(grasp_samples,num_grasps); 
@@ -36,6 +37,10 @@ function [ best_grasp, regret, Value ] = ...
         else
             regret(t) = 0; 
         end
+        alpha = Value(best_grasp,1)+1;
+        beta = Value(best_grasp,2) - Value(best_grasp,1)+1; 
+        bounds(t,1) = betainv(0.95,alpha,beta); 
+        bounds(t,2) = betainv(0.05,alpha,beta); 
         t=t+1; 
     end
 
@@ -78,6 +83,11 @@ function [ best_grasp, regret, Value ] = ...
         else
             regret(t) = 0; 
         end
+        
+        alpha = Value(best_grasp,1)+1;
+        beta = Value(best_grasp,2) - Value(best_grasp,1)+1; 
+        bounds(t,1) = betainv(0.95,alpha,beta); 
+        bounds(t,2) = betainv(0.05,alpha,beta); 
 
         i = i+1; 
         t=t+1; 
@@ -153,7 +163,7 @@ end
 
 function [val] = rbf_kernel(x_i,x)
 
-sig = 0.01; 
+sig = 0.05; 
 
 if(size(x_i,1) ~= size(x,1))
     val = 0; 

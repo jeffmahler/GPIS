@@ -2,7 +2,7 @@
 % get random shape indices
 %close all; 
 %clear all; 
-num_test_shapes = 40;
+num_test_shapes = 8;
 rng(60);
 shape_indices = randi(1070,num_test_shapes,1);
 %shape_indices = [326];
@@ -133,7 +133,7 @@ config.construction_params = construction_params;
 
 %% run experiment
 bandit_comparison_results = compare_bandits(shape_indices, config);
-save('results/bandits/bandit_comparison_results_long.mat', 'bandit_comparison_results','-v7.3');
+save('results/bandits/bandit_comparison_results_cor.mat', 'bandit_comparison_results','-v7.3');
 % 
 %% accumulate results
 regret_analysis = analyze_final_regret(bandit_comparison_results,...
@@ -340,7 +340,7 @@ plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 
 
 
-[hleg1, hobj1] = legend('Optimal','MAB-Gittins','MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
+[hleg1, hobj1] = legend('Optimal','MAB-Correlated','MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
