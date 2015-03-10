@@ -9,21 +9,20 @@ import sklearn.decomposition as skdec
 UNKNOWN_TAG = 'No Results'
 
 class testing_suite:
-"""
-Class to test SDF files in a nearest neighbor lookup format, under different models of representation 
-such as PCA, FactorAnalysis, KernelPCA with the rbf kernel, FastICA, and DictionaryLearning
+	"""
+	Class to test SDF files in a nearest neighbor lookup format, under different models of representation 
+	such as PCA, FactorAnalysis, KernelPCA with the rbf kernel, FastICA, and DictionaryLearning
 
-Sample Usage:
+	Sample Usage:
 
-	test=testing_suite()
-	test.adddir("/mnt/terastation/shape_data/Cat50_ModelDatabase/screwdriver")
-	num_train=12
-	num_test=4
+		test=testing_suite()
+		test.adddir("/mnt/terastation/shape_data/Cat50_ModelDatabase/screwdriver")
+		num_train=12
+		num_test=4
 
-	test.make_train_test(num_train,num_test)
-	accuracy,results=test.perform_PCA_tests()
-
-"""
+		test.make_train_test(num_train,num_test)
+		accuracy,results=test.perform_PCA_tests()
+	"""
 
 	def __init__(self):
 		self.PCA_changed_=True
@@ -36,7 +35,7 @@ Sample Usage:
 		self.FA_ = None
 		self.KPCA_ = None
 		self.FICA_ = None
-		self.DL_ = None
+		self.DL_ = []
 		self.testing_=[]
 		self.training_=[]
 		self.engine_=[]
@@ -140,8 +139,8 @@ Sample Usage:
 	def transform_FA(self,training_vectors):
 		return self.FA_.transform(training_vectors)
 
-	def make_KPCA(self,num_components=len(list(self.training_))):
-		self.KPCA_=skdec.KernelPCA(n_components=num_components,kernel="rbf")
+	def make_KPCA(self,num_components=len(list(self.training_)),kernel_option="rbf"):
+		self.KPCA_=skdec.KernelPCA(n_components=num_components,kernel=kernel_option)
 
 	def fit_KPCA(self,training_vectors):
 		self.KPCA_.fit(training_vectors)
@@ -149,23 +148,23 @@ Sample Usage:
 	def transform_KPCA(self,training_vectors):
 		return self.KPCA_.transform(training_vectors)
 
-	def make_KPCA(self,num_components=len(list(self.training_))):
+	def make_FICA(self,num_components=len(list(self.training_))):
 		self.FICA_=skdec.FastICA(n_components=num_components)
 
-	def fit_KPCA(self,training_vectors):
+	def fit_FICA(self,training_vectors):
 		self.FICA_.fit(training_vectors)
 
-	def transform_KPCA(self,training_vectors):
+	def transform_FICA(self,training_vectors):
 		return self.FICA_.transform(training_vectors)
 
-	def make_DL(self,num_components=len(list(self.training_))):
-		self.DL_=skdec.DictionaryLearning(n_components=num_components,alpha= [0.01, 0.1, 1, 10, 100, 1000])
+	def make_DL(self,num_components=len(list(self.training_)),alpha_values):
+		self.DL_.append(skdec.DictionaryLearning(n_components=num_components,alpha= alpha_values))
 
 	def fit_DL(self,training_vectors):
-		self.DL_.fit(training_vectors)
+		self.DL_[-1].fit(training_vectors)
 
 	def transform_DL(self,training_vectors):
-		return self.DL_.transform(training_vectors)
+		return self.DL_[-1].transform(training_vectors)
 
 	def load_to_engine(self,vector_set):
 	"""
@@ -220,7 +219,7 @@ Sample Usage:
 	def make_DL_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
 		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.DL_.transform(normalized)
+		return self.DL_[-1].transform(normalized)
 
 	def make_FICA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
@@ -249,7 +248,7 @@ Sample Usage:
 	        test_results: dictionary of the results from the "testing" for each of the sdf_files 
 	"""
 	def perform_tests(self,K,test_type):
-		for file_ in list(test_files):
+		for file_ in list(self.testing_):
 			query_cat=cat50_file_category(file_)
 			print "Querying: %s with category %s "%(file_, query_category)
 			converted = SDF(file_)
@@ -284,7 +283,7 @@ Sample Usage:
 	        i += 1
 
 	    # get true positives, etc for each category
-	    num_preds = len(test_files)
+	    num_preds = len(self.testing_)
 	    tp = np.diag(confusion_mat)
 	    fp = np.sum(confusion_mat, axis=0) - np.diag(confusion_mat)
 	    fn = np.sum(confusion_mat, axis=1) - np.diag(confusion_mat)
@@ -305,7 +304,7 @@ Sample Usage:
 	    npv[np.isnan(npv)] = 0
 	    fpr[np.isnan(fpr)] = 0
 
-	    return accuracy, test_results
+	    return accuracy, test_results, recall, tnr, precision,npv,fpr
 
 
 	"""
@@ -321,8 +320,8 @@ Sample Usage:
 		train_vectors=self.transform_PCA(train_vectors)
 		self.load_to_engine(train_vectors)
 		self.setup_confusion()
-		accuracy,test_results=self.perform_tests(K,"PCA")
-		return accuracy,test_results
+		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"PCA")
+		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
 	def perform_FA_tests(self,K):
 		train_vectors=self.get_PCA_training_vectors()
@@ -331,18 +330,18 @@ Sample Usage:
 		train_vectors=self.transform_FA(train_vectors)
 		self.load_to_engine(train_vectors)
 		self.setup_confusion()
-		accuracy,test_results=self.perform_tests(K,"FA")
-		return accuracy,test_results
+		accuracy,test_result, recall, tnr, precision,npv,fprs=self.perform_tests(K,"FA")
+		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
-	def perform_KPCA_tests(self,K):
+	def perform_KPCA_tests(self,K,kernel="rbf"):
 		train_vectors=self.get_PCA_training_vectors()
-		self.make_KPCA()
+		self.make_KPCA(kernel_option=kernel)
 		self.fit_KPCA(train_vectors)
 		train_vectors=self.transform_KPCA(train_vectors)
 		self.load_to_engine(train_vectors)
 		self.setup_confusion()
-		accuracy,test_results=self.perform_tests(K,"KPCA")
-		return accuracy,test_results
+		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"KPCA")
+		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
 
 	def perform_FICA_tests(self,K):
@@ -352,18 +351,18 @@ Sample Usage:
 		train_vectors=self.transform_FICA(train_vectors)
 		self.load_to_engine(train_vectors)
 		self.setup_confusion()
-		accuracy,test_results=self.perform_tests(K,"FICA")
-		return accuracy,test_results
+		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"FICA")
+		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
-	def perform_DL_tests(self,K):
+	def perform_DL_tests(self,K,alpha):
 		train_vectors=self.get_PCA_training_vectors()
-		self.make_DL()
+		self.make_DL(alpha_values=alpha)
 		self.fit_DL()
 		train_vectors=self.transform_DL(train_vectors)
 		self.load_to_engine(training_vectors)
 		self.setup_confusion()
-		accuracy,test_results=self.perform_tests(K,"DL")
-		return accuracy,test_results
+		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"DL")
+		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
 	def get_engine(self):
 		return self.engine_
@@ -382,6 +381,9 @@ Sample Usage:
 
 	def get_DL(self):
 		return self.DL_
+
+	def get_explained_variance_ratio(self):
+		return self.PCA_.explained_variance_ratio_
 
 def cat50_file_category(filename):
     """
