@@ -6,6 +6,7 @@ from sdf_class import SDF
 from operator import itemgetter
 import sklearn.decomposition as skdec
 
+
 UNKNOWN_TAG = 'No Results'
 
 class testing_suite:
@@ -49,11 +50,11 @@ class testing_suite:
 			instance variable
 		"""
 		sdf_files = []
-	    for root,dirs,files in walk(dir_to_add):
-	        for file_ in files:
-	            if file_.endswith(".sdf"):
-	                sdf_files.append(path.join(root,file_))
-	    self.all_files_+=sdf_files
+		for root,dirs,files in walk(dir_to_add):
+			for file_ in files:
+				if file_.endswith(".sdf"):
+					sdf_files.append(path.join(root,file_))
+		self.all_files_+=sdf_files
 
 	def addfile(self,file_to_add):
 		"""add only one file to all_files"""
@@ -74,20 +75,19 @@ class testing_suite:
 		"""
 		assert num_train+num_test<=len(self.all_files_)
 		np.random.seed(100)
-	    permuted_indices = np.random.permutation(len(self.all_files_))
-	    get_training = itemgetter(*permuted_indices[:num_train])
-	    get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
-	    
-	    if num_test > 1:
-	        self.training_ = get_training(self.all_files_)
-	    else:
-	        self.training_= [get_training(self.all_files_)]
+		permuted_indices = np.random.permutation(len(self.all_files_))
+		get_training = itemgetter(*permuted_indices[:num_train])
+		get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
+		if num_test > 1:
+			self.training_ = get_training(self.all_files_)
+		else:
+			self.training_= [get_training(self.all_files_)]
 
 
-	    if num_test > 1:
-	        self.testing_ = get_testing(self.all_files_)
-	    else:
-	        self.testing_ = [get_testing(self.all_files_)]
+		if num_test > 1:
+			self.testing_ = get_testing(self.all_files_)
+		else:
+			self.testing_ = [get_testing(self.all_files_)]
 
 	def normalize_vector(self,vector,largest_dimension):
 		"""normalizes smaller sdf vectors to a larger size by vertical stacking a column of zeros underneath"""
@@ -157,8 +157,8 @@ class testing_suite:
 	def transform_FICA(self,training_vectors):
 		return self.FICA_.transform(training_vectors)
 
-	def make_DL(self,num_components=len(list(self.training_)),alpha_values):
-		self.DL_.append(skdec.DictionaryLearning(n_components=num_components,alpha= alpha_values))
+	def make_DL(self,alpha_values,num_components=len(list(self.training_))):
+		self.DL_.append(skdec.DictionaryLearning(n_components=num_components,alpha= alpha_values,transform_algorithms = 'omp'))
 
 	def fit_DL(self,training_vectors):
 		self.DL_[-1].fit(training_vectors)
@@ -167,37 +167,35 @@ class testing_suite:
 		return self.DL_[-1].transform(training_vectors)
 
 	def load_to_engine(self,vector_set):
-	"""
-	reinitializes our engine and loads a numpy set of vectors of dimension (self.biggest,1) 
-	into self.engine_
-	"""
+		"""reinitializes our engine and loads a numpy set of vectors of dimension (self.biggest,1) 
+		into self.engine_"""
 		rbp = RandomBinaryProjections('rbp',10)
-    	self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		self.engine_ = Engine(self.biggest, lshashes=[rbp])
 		for i in range(len(list(self.training_))):
 			vector=vector_set[:,i]
 			self.engine_.store_vector(vector,self.training_[i])
 
 	def engine_query(self,test_vector):
-	"""
-	queries the engine with a (self.biggest,1) dimension vector and returns the file_names of nearest
-	neighbors and the results
-	"""
+		"""
+		queries the engine with a (self.biggest,1) dimension vector and returns the file_names of nearest
+		neighbors and the results
+		"""
 		results = self.engine.neighbours(test_vector)
-        file_names = [i[1] for i in results]
-        return file_names, results
+		file_names = [i[1] for i in results]
+		return file_names, results
 
-    def setup_confusion(self):
-    """
-    reinitializes the self.confusion_ confusion matrix variable
-    """
-    	self.confusion_={}
-    	self.confusion_[UNKNOWN_TAG] = {}
-	    for file_ in self.all_files_:
-	        category = cat50_file_category(file_)
-	        self.confusion[category] = {}
-	    for query_cat in self.confusion.keys():
-	        for pred_cat in self.confusion.keys():
-	            self.confusion[query_cat][pred_cat] = 0
+	def setup_confusion(self):
+		"""
+		reinitializes the self.confusion_ confusion matrix variable
+		"""
+		self.confusion_={}
+		self.confusion_[UNKNOWN_TAG] = {}
+		for file_ in self.all_files_:
+			category = cat50_file_category(file_)
+			self.confusion[category] = {}
+		for query_cat in self.confusion.keys():
+			for pred_cat in self.confusion.keys():
+				self.confusion[query_cat][pred_cat] = 0
 
 	"""
 	Makes a test vector by taking in an SDF, reshaping it, normalizing it, then returns a transformed
@@ -263,48 +261,48 @@ class testing_suite:
 
 				for i in range(1,min(K,len(closest_names))):
 					closest_category = closest_names[i]
-	                potential_category = cat50_file_category(closest_category)
+					potential_category = cat50_file_category(closest_category)
 
-	                if potential_category == query_category:
-	                    pred_category = potential_category
-	        print "Result Category: %s"%(pred_category)
+					if potential_category == query_category:
+						pred_category = potential_category
+			print "Result Category: %s"%(pred_category)
 
-	        self.confusion[query_category][pred_category] += 1
-        	test_results[file_]= [(closest_names, closest_vals)]
+			self.confusion[query_category][pred_category] += 1
+			test_results[file_]= [(closest_names, closest_vals)]
 
-        row_names=self.confusion_.keys()
-        confusion_mat=np.zeros([len(row_names),len(row_names)])
-        i=0
-        for query_cat in self.confusion.keys():
-	        j = 0
-	        for pred_cat in self.confusion.keys():
-	            confusion_mat[i,j] = confusion[query_cat][pred_cat]
-	            j += 1
-	        i += 1
+		row_names=self.confusion_.keys()
+		confusion_mat=np.zeros([len(row_names),len(row_names)])
+		i=0
+		for query_cat in self.confusion.keys():
+			j = 0
+			for pred_cat in self.confusion.keys():
+				confusion_mat[i,j] = confusion[query_cat][pred_cat]
+				j += 1
+			i += 1
 
 	    # get true positives, etc for each category
-	    num_preds = len(self.testing_)
-	    tp = np.diag(confusion_mat)
-	    fp = np.sum(confusion_mat, axis=0) - np.diag(confusion_mat)
-	    fn = np.sum(confusion_mat, axis=1) - np.diag(confusion_mat)
-	    tn = num_preds * np.ones(tp.shape) - tp - fp - fn
+		num_preds = len(self.testing_)
+		tp = np.diag(confusion_mat)
+		fp = np.sum(confusion_mat, axis=0) - np.diag(confusion_mat)
+		fn = np.sum(confusion_mat, axis=1) - np.diag(confusion_mat)
+		tn = num_preds * np.ones(tp.shape) - tp - fp - fn
 
 	    # compute useful statistics
-	    recall = tp / (tp + fn)
-	    tnr = tn / (fp + tn)
-	    precision = tp / (tp + fp)
-	    npv = tn / (tn + fn)
-	    fpr = fp / (fp + tn)
-	    accuracy = np.sum(tp) / num_preds # correct predictions over entire dataset
+		recall = tp / (tp + fn)
+		tnr = tn / (fp + tn)
+		precision = tp / (tp + fp)
+		npv = tn / (tn + fn)
+		fpr = fp / (fp + tn)
+		accuracy = np.sum(tp) / num_preds # correct predictions over entire dataset
 
 	    # remove nans
-	    recall[np.isnan(recall)] = 0
-	    tnr[np.isnan(tnr)] = 0
-	    precision[np.isnan(precision)] = 0
-	    npv[np.isnan(npv)] = 0
-	    fpr[np.isnan(fpr)] = 0
+		recall[np.isnan(recall)] = 0
+		tnr[np.isnan(tnr)] = 0
+		precision[np.isnan(precision)] = 0
+		npv[np.isnan(npv)] = 0
+		fpr[np.isnan(fpr)] = 0
 
-	    return accuracy, test_results, recall, tnr, precision,npv,fpr
+		return accuracy, test_results, recall, tnr, precision,npv,fpr
 
 
 	"""
@@ -386,10 +384,10 @@ class testing_suite:
 		return self.PCA_.explained_variance_ratio_
 
 def cat50_file_category(filename):
-    """
+	"""
     Returns the category associated with the full path of file |filename|
     """
-    full_filename = path.abspath(filename)
-    dirs, file_root = path.split(full_filename)
-    head, category = path.split(dirs)
-    return category
+	full_filename = path.abspath(filename)
+	dirs, file_root = path.split(full_filename)
+	head, category = path.split(dirs)
+	return category
