@@ -56,6 +56,17 @@ class testing_suite:
 					sdf_files.append(path.join(root,file_))
 		self.all_files_+=sdf_files
 
+	def adddir_25(self,dir_to_add):
+		"""add files in a directory only with dimension 12"""
+		sdf_files = []
+		for root,dirs,files in walk(dir_to_add):
+			for file_ in files:
+				if file_.endswith(".sdf"):
+					tempsdf=SDF(path.join(root,file_))
+					if tempsdf.dimensions()[0]==25*25*25:
+						sdf_files.append(path.join(root,file_))
+		self.all_files_+=sdf_files
+
 	def addfile(self,file_to_add):
 		"""add only one file to all_files"""
 		self.all_files_.append(file_to_add)
@@ -78,7 +89,7 @@ class testing_suite:
 		permuted_indices = np.random.permutation(len(self.all_files_))
 		get_training = itemgetter(*permuted_indices[:num_train])
 		get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
-		if num_test > 1:
+		if num_train > 1:
 			self.training_ = get_training(self.all_files_)
 		else:
 			self.training_= [get_training(self.all_files_)]
@@ -99,13 +110,14 @@ class testing_suite:
 		vector and adds them all to a numpy array that gets returned
 		"""
 		training_sdf=[SDF(i) for i in list(self.training_)]
-		biggest=0
+		
+		self.biggest=0
 		for item in training_sdf:
-			biggest=max(biggest,item.dimensions[0])
+			self.biggest=max(self.biggest,item.dimensions()[0])
 		return_train_vectors=None
 		for tempsdf in training_sdf:
-			vectorized=numpy.reshape(tempsdf.data(),(tempsdf.dimensions()[0],1))
-			normal_vector=self.normalize_vector(vectorized,biggest)
+			vectorized=np.reshape(tempsdf.data(),(tempsdf.dimensions()[0],1))
+			normal_vector=self.normalize_vector(vectorized,self.biggest)
 			if return_train_vectors==None:
 				return_train_vectors=normal_vector
 			else:
@@ -120,67 +132,92 @@ class testing_suite:
 	decomposition framework
 	"""
 
-	def make_PCA(self,num_components=len(list(self.training_))):
-		self.PCA_=skdec.PCA(n_components=num_components)
+	def make_PCA(self):
+		self.PCA_=skdec.PCA(n_components='mle')
 
 	def fit_PCA(self,training_vectors):
 		self.PCA_.fit(training_vectors)
 
-	def transform_PCA(self,training_vectors):
-		return_vectors=self.PCA_.transform(training_vectors)
-		return return_vectors
-
-	def make_FA(self,num_components=len(list(self.training_))):
-		self.FA_=skdec.FactorAnalysis(n_components=num_components)
+	def make_FA(self):
+		self.FA_=skdec.FactorAnalysis(n_components=len(list(self.training_)))
 
 	def fit_FA(self,training_vectors):
 		self.FA_.fit(training_vectors)
 
-	def transform_FA(self,training_vectors):
-		return self.FA_.transform(training_vectors)
-
-	def make_KPCA(self,num_components=len(list(self.training_)),kernel_option="rbf"):
-		self.KPCA_=skdec.KernelPCA(n_components=num_components,kernel=kernel_option)
+	def make_KPCA(self,kernel_option="rbf"):
+		self.KPCA_=skdec.KernelPCA(n_components=len(list(self.training_)),kernel=kernel_option)
 
 	def fit_KPCA(self,training_vectors):
 		self.KPCA_.fit(training_vectors)
 
-	def transform_KPCA(self,training_vectors):
-		return self.KPCA_.transform(training_vectors)
-
-	def make_FICA(self,num_components=len(list(self.training_))):
-		self.FICA_=skdec.FastICA(n_components=num_components)
+	def make_FICA(self):
+		self.FICA_=skdec.FastICA(n_components=len(list(self.training_)))
 
 	def fit_FICA(self,training_vectors):
 		self.FICA_.fit(training_vectors)
 
-	def transform_FICA(self,training_vectors):
-		return self.FICA_.transform(training_vectors)
-
-	def make_DL(self,alpha_values,num_components=len(list(self.training_))):
-		self.DL_.append(skdec.DictionaryLearning(n_components=num_components,alpha= alpha_values,transform_algorithms = 'omp'))
+	def make_DL(self,alpha_values):
+		self.DL_.append(skdec.DictionaryLearning(n_components=len(list(self.training_)),alpha= alpha_values,transform_algorithm = 'omp'))
 
 	def fit_DL(self,training_vectors):
 		self.DL_[-1].fit(training_vectors)
 
-	def transform_DL(self,training_vectors):
-		return self.DL_[-1].transform(training_vectors)
-
-	def load_to_engine(self,vector_set):
+	def load_PCA(self,vector_set):
 		"""reinitializes our engine and loads a numpy set of vectors of dimension (self.biggest,1) 
 		into self.engine_"""
 		rbp = RandomBinaryProjections('rbp',10)
 		self.engine_ = Engine(self.biggest, lshashes=[rbp])
 		for i in range(len(list(self.training_))):
 			vector=vector_set[:,i]
-			self.engine_.store_vector(vector,self.training_[i])
+			vector=np.reshape(vector,(self.biggest,1))
+			vector=self.PCA_.transform(vector)
+			self.engine_.store_vector(vector[:,0],self.training_[i])
+
+	def load_FA(self,vector_set):
+		rbp = RandomBinaryProjections('rbp',10)
+		self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		for i in range(len(list(self.training_))):
+			vector=vector_set[:,i]
+			vector=np.reshape(vector,(self.biggest,1))
+			vector=self.FA_.transform(vector)
+			self.engine_.store_vector(vector[:,0],self.training_[i])
+
+	def load_KPCA(self,vector_set):
+		rbp = RandomBinaryProjections('rbp',10)
+		self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		for i in range(len(list(self.training_))):
+			vector=vector_set[:,i]
+			vector=np.reshape(vector,(self.biggest,1))
+			vector=self.KPCA_.transform(vector)
+			self.engine_.store_vector(vector[:,0],self.training_[i])
+
+	def load_FICA(self,vector_set):
+		rbp = RandomBinaryProjections('rbp',10)
+		self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		for i in range(len(list(self.training_))):
+			vector=vector_set[:,i]
+			vector=np.reshape(vector,(self.biggest,1))
+			vector=self.FICA_.transform(vector)
+			self.engine_.store_vector(vector[:,0],self.training_[i])
+
+	def load_DL(self,vector_set):
+		rbp = RandomBinaryProjections('rbp',10)
+		self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		for i in range(len(list(self.training_))):
+			vector=vector_set[:,i]
+			vector=np.reshape(vector,(self.biggest,1))
+			vector=self.DL_[-1].transform(vector)
+			self.engine_.store_vector(vector[:,0],self.training_[i])		
 
 	def engine_query(self,test_vector):
 		"""
 		queries the engine with a (self.biggest,1) dimension vector and returns the file_names of nearest
 		neighbors and the results
 		"""
-		results = self.engine.neighbours(test_vector)
+		#print test_vector
+		reshaped=np.reshape(test_vector,(self.biggest,1))
+		
+		results = self.engine_.neighbours(test_vector)
 		file_names = [i[1] for i in results]
 		return file_names, results
 
@@ -192,10 +229,10 @@ class testing_suite:
 		self.confusion_[UNKNOWN_TAG] = {}
 		for file_ in self.all_files_:
 			category = cat50_file_category(file_)
-			self.confusion[category] = {}
-		for query_cat in self.confusion.keys():
-			for pred_cat in self.confusion.keys():
-				self.confusion[query_cat][pred_cat] = 0
+			self.confusion_[category] = {}
+		for query_cat in self.confusion_.keys():
+			for pred_cat in self.confusion_.keys():
+				self.confusion_[query_cat][pred_cat] = 0
 
 	"""
 	Makes a test vector by taking in an SDF, reshaping it, normalizing it, then returns a transformed
@@ -204,40 +241,42 @@ class testing_suite:
 
 	def make_test_vector(self,sdf_array,vector_type):
 		if vector_type=="PCA":
-			return make_PCA_test_vector(sdf_array)
+			return self.make_PCA_test_vector(sdf_array)
 		elif vector_type=="FA":
-			return make_FA_test_vector(sef_array)
+			return self.make_FA_test_vector(sdf_array)
 		elif vector_type=="KPCA":
-			return make_KPCA_test_vector(sdf_array)
+			return self.make_KPCA_test_vector(sdf_array)
 		elif vector_type=="FICA":
-			return make_FICA_test_vector(sdf_array)
+			return self.make_FICA_test_vector(sdf_array)
 		elif vector_type=="DL":
-			return make_DL_test_vector(sdf_array)
+			return self.make_DL_test_vector(sdf_array)
 
 	def make_DL_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
 		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.DL_[-1].transform(normalized)
+		return self.DL_[-1].transform(normalized)[:,0]
 
 	def make_FICA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
 		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.FICA_.transform(normalized)
+		return self.FICA_.transform(normalized)[:,0]
 
 	def make_KPCA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
 		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.KPCA_.transform(normalized)
+		return self.KPCA_.transform(normalized)[:,0]
 
 	def make_FA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
 		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.FA_.transform(normalized)
+		return self.FA_.transform(normalized)[:,0]
 
 	def make_PCA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
+		
 		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.PCA_.transform(normalized)
+		
+		return self.PCA_.transform(normalized)[:,0]
 
 	"""
 	querys the loaded and trained engine with each of your test vectors from make_train_test
@@ -246,12 +285,13 @@ class testing_suite:
 	        test_results: dictionary of the results from the "testing" for each of the sdf_files 
 	"""
 	def perform_tests(self,K,test_type):
+		test_results={}
 		for file_ in list(self.testing_):
-			query_cat=cat50_file_category(file_)
+			query_category=cat50_file_category(file_)
 			print "Querying: %s with category %s "%(file_, query_category)
 			converted = SDF(file_)
-			test_vector=make_test_vector(converted,test_type)
-			closest_names, closest_vals=engine_query(test_vector)
+			test_vector=self.make_test_vector(converted,test_type)
+			closest_names, closest_vals=self.engine_query(test_vector)
 
 			pred_category=UNKNOWN_TAG
 
@@ -267,16 +307,16 @@ class testing_suite:
 						pred_category = potential_category
 			print "Result Category: %s"%(pred_category)
 
-			self.confusion[query_category][pred_category] += 1
+			self.confusion_[query_category][pred_category] += 1
 			test_results[file_]= [(closest_names, closest_vals)]
 
 		row_names=self.confusion_.keys()
 		confusion_mat=np.zeros([len(row_names),len(row_names)])
 		i=0
-		for query_cat in self.confusion.keys():
+		for query_cat in self.confusion_.keys():
 			j = 0
-			for pred_cat in self.confusion.keys():
-				confusion_mat[i,j] = confusion[query_cat][pred_cat]
+			for pred_cat in self.confusion_.keys():
+				confusion_mat[i,j] = self.confusion_[query_cat][pred_cat]
 				j += 1
 			i += 1
 
@@ -315,8 +355,7 @@ class testing_suite:
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_PCA()
 		self.fit_PCA(train_vectors)
-		train_vectors=self.transform_PCA(train_vectors)
-		self.load_to_engine(train_vectors)
+		self.load_PCA(train_vectors)
 		self.setup_confusion()
 		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"PCA")
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
@@ -325,18 +364,16 @@ class testing_suite:
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_FA()
 		self.fit_FA(train_vectors)
-		train_vectors=self.transform_FA(train_vectors)
-		self.load_to_engine(train_vectors)
+		self.load_FA(train_vectors)
 		self.setup_confusion()
-		accuracy,test_result, recall, tnr, precision,npv,fprs=self.perform_tests(K,"FA")
+		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"FA")
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
 	def perform_KPCA_tests(self,K,kernel="rbf"):
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_KPCA(kernel_option=kernel)
 		self.fit_KPCA(train_vectors)
-		train_vectors=self.transform_KPCA(train_vectors)
-		self.load_to_engine(train_vectors)
+		self.load_KPCA(train_vectors)
 		self.setup_confusion()
 		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"KPCA")
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
@@ -346,8 +383,7 @@ class testing_suite:
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_FICA()
 		self.fit_FICA(train_vectors)
-		train_vectors=self.transform_FICA(train_vectors)
-		self.load_to_engine(train_vectors)
+		self.load_FICA(train_vectors)
 		self.setup_confusion()
 		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"FICA")
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
@@ -355,9 +391,8 @@ class testing_suite:
 	def perform_DL_tests(self,K,alpha):
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_DL(alpha_values=alpha)
-		self.fit_DL()
-		train_vectors=self.transform_DL(train_vectors)
-		self.load_to_engine(training_vectors)
+		self.fit_DL(train_vectors)
+		self.load_DL(train_vectors)
 		self.setup_confusion()
 		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"DL")
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
