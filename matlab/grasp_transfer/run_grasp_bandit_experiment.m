@@ -2,7 +2,7 @@
 % get random shape indices
 %close all; 
 %clear all; 
-num_test_shapes = 8;
+num_test_shapes = 100;
 rng(60);
 shape_indices = randi(1070,num_test_shapes,1);
 %shape_indices = [326];
@@ -133,7 +133,7 @@ config.construction_params = construction_params;
 
 %% run experiment
 bandit_comparison_results = compare_bandits(shape_indices, config);
-save('results/bandits/bandit_comparison_results_cor.mat', 'bandit_comparison_results','-v7.3');
+save('results/bandits/bandit_comparison_results_100s.mat', 'bandit_comparison_results','-v7.3');
 % 
 %% accumulate results
 regret_analysis = analyze_final_regret(bandit_comparison_results,...
@@ -172,6 +172,7 @@ legend('Random', 'UCB', ...
 xlabel('Iterations', 'FontSize', 15);
 ylabel('Cumulative Regret', 'FontSize', 15);
 title('Average Cumulative Regret', 'FontSize', 15);
+axis([0 40000 0 max(avg_thomp_cum_regret)]); 
 
 %% simple regret
 avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.simple_regret'), 2);
@@ -265,12 +266,14 @@ X = [1:size(avg_opt_value,1)]';
 X_thomp = [1:size(avg_thom_simp,1)]';
 
 %plot(avg_opt_value,'b','LineWidth',3); 
-%errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u, 'g', 'LineWidth', 3);
+
 
 %errorbar(X,avg_bucb_simp,avg_ 'g', 'LineWidth', 3);
 
-errorbar(X,avg_random_simp_regret,avg_random_l,avg_random_u, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+errorbar(X,avg_random_simp_regret,avg_random_l,avg_random_u, 'k', 'LineWidth', 3);
 errorbar(X,avg_kehoe_simp,avg_kehoe_l,avg_kehoe_u, 'c', 'LineWidth', 3);
+
+errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u, 'g', 'LineWidth', 3);
 ha = errorbar(X_thomp,avg_thom_simp,avg_thomp_l,avg_thomp_u, 'r', 'LineWidth', 3);
 hb = get(ha,'children');  
 Xdata = get(hb(2),'Xdata');
@@ -287,12 +290,12 @@ set(hb(2),'Xdata',Xdata)
 
 
 
-[hleg1, hobj1] = legend('Monte-Carlo','Adaptive','MAB-Thompson','Location','Best');
+[hleg1, hobj1] = legend('Uniform','Iterative Pruning','MAB-Gittins','MAB-Thompson','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
 % set(textobj,'position',Pos); 
-set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
+set(textobj, 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
@@ -325,6 +328,9 @@ avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
 avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
 avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
 avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
+val = avg_random_simp_regret(end-1); 
+final_bar = zeros(size(avg_kehoe_simp))+val; 
+
 
 figure(5);
 
@@ -335,17 +341,19 @@ plot(avg_git_simp, 'g', 'LineWidth', 3);
 plot(avg_thom_simp, 'r', 'LineWidth', 3);
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
-plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+plot(avg_random_simp_regret, 'k', 'LineWidth', 3);
+plot(final_bar, '--','Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 
 
 
 
-[hleg1, hobj1] = legend('Optimal','MAB-Correlated','MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
+[hleg1, hobj1] = legend('Brute Force','MAB-Gittins','MAB-Thompson','Iterative Pruning','Uniform','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
 % set(textobj,'position',Pos); 
-set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
+%set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
+set(textobj, 'Interpreter','latex', 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
@@ -388,16 +396,16 @@ plot(regret_analysis{4}.pulls_per_grasp, 'r', 'LineWidth', 3);
 %plot(regret_analysis{6}.pulls_per_grasp, 'Color', [1, 0.5, 0.75], 'LineWidth', 3);
 
 plot(regret_analysis{6}.pulls_per_grasp, 'c', 'LineWidth', 3);
-plot(regret_analysis{1}.pulls_per_grasp, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+plot(regret_analysis{1}.pulls_per_grasp, 'k', 'LineWidth', 3);
 
-[hleg1, hobj1] = legend('MAB-Gittins','MAB-Thompson','Adaptive','Monte-Carlo',...
+[hleg1, hobj1] = legend('MAB-Gittins','MAB-Thompson','Iterative Pruning','Uniform',...
      'Location', 'Best');
 textobj = findobj(hobj1, 'type', 'text');
-set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
+set(textobj, 'fontsize',25);
 xlabel('Grasp Ranking', 'FontSize', 30);
 ylabel('Evaluations Per Grasp', 'FontSize', 30);
 set(gca,'FontSize',20);
-axis([0 1000 0 200]);
+axis([0 1000 0 400]);
 % %% histograms of final regret
 % figure(8);
 % 

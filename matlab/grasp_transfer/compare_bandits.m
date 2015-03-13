@@ -178,8 +178,8 @@ for i = 1:num_shapes
     % gittins index policy gamma = 0.98
     gittins98_results = struct();
     [gittins98_results.best_grasp, gittins98_results.regret, gittins98_results.values, gittins98_results.bounds] = ...
-     thompson_correlated(grasp_samples, num_grasp_candidates, ...
-            shape_params, config, tsdf, config.vis_bandits);
+    gittins_index(grasp_samples, num_grasp_candidates, ...
+             shape_params, config, tsdf,config.vis_bandits);
     transfer_results.gittins98 = gittins98_results;
     toc
     

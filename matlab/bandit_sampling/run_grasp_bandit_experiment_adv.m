@@ -244,17 +244,17 @@ plot(avg_git_simp, 'g', 'LineWidth', 3);
 plot(avg_thom_simp, 'r', 'LineWidth', 3);
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
-plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+plot(avg_random_simp_regret, 'k', 'LineWidth', 3);
 
 
 
 
-[hleg1, hobj1] = legend('Optimal','MAB-Gittins','MAB-Thompson','Adaptive','Monte-Carlo','Location','Best');
+[hleg1, hobj1] = legend('Brute Force','MAB-Gittins','MAB-Thompson','Iterative Pruning','Uniform','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
 % set(textobj,'position',Pos); 
-set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
+set(textobj, 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);

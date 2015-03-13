@@ -48,7 +48,7 @@ for i = 1:num_shapes
  
     img = shape_result.construction_results.newSurfaceImage; 
     shapeParams = shape_result.construction_results.predGrid; 
-    visualize_value( Value,shapeParams,top_grasp,img);
+%    visualize_value( Value,shapeParams,top_grasp,img);
 end
 
 end
