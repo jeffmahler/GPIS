@@ -331,7 +331,7 @@ avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
 avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
 avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
 val = avg_random_simp_regret(end-1); 
-%final_bar = zeros(size(avg_kehoe_simp))+val; 
+final_bar = zeros(size(avg_kehoe_simp))+val; 
 
 
 figure(5);
@@ -347,7 +347,7 @@ plot(avg_git_simp, 'g', 'LineWidth', 3);
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 
 
-%plot(final_bar, '--','Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+plot(final_bar, '--','Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 
 
 
@@ -362,8 +362,8 @@ set(textobj, 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
-%axis([1000 40000 0.3 1.0]); 
-axis([1000 600000 0.0 1.0]); 
+axis([1000 40000 0.5 0.9]); 
+%axis([1000 600000 0.0 1.0]); 
 set(gca,'FontSize',20)
 % xlim([0, 200]);
 % ylim([0, 0.1]);
