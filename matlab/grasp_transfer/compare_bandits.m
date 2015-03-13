@@ -72,7 +72,7 @@ end
 
 
 for i = 1:num_shapes
-    
+    i
     shape_index = shape_indices(i);
     class_name = caltech_data.classnames{caltech_data.Y(shape_index)};
     
@@ -147,11 +147,11 @@ for i = 1:num_shapes
     
     % ucb
     tic
-    ucb_results = struct();
-    [ucb_results.best_grasp, ucb_results.regret, ucb_results.values,ucb_results.bounds] = ...
-        ucb(grasp_samples, num_grasp_candidates, ...
-            shape_params, config, tsdf, config.vis_bandits);
-    transfer_results.ucb = ucb_results;
+%     ucb_results = struct();
+%     [ucb_results.best_grasp, ucb_results.regret, ucb_results.values,ucb_results.bounds] = ...
+%         ucb(grasp_samples, num_grasp_candidates, ...
+%             shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.ucb =random_results;
     toc
    
     
@@ -162,7 +162,7 @@ for i = 1:num_shapes
 %     [bayes_ucb_results.best_grasp, bayes_ucb_results.regret, bayes_ucb_results.values] = ...
 %        bayes_ucb(grasp_samples, num_grasp_candidates, ...
 %                 shape_params, config, tsdf, samples_table, config.vis_bandits);
-    transfer_results.bayes_ucbs =  ucb_results;
+    transfer_results.bayes_ucbs =  random_results;
     toc
     tic
     % thompson sampling
