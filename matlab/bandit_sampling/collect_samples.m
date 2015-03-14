@@ -13,9 +13,11 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
     end
     
    
-    
+    tic
     pose_samples  = sample_pose_2d(numSamples,experimentConfig.pose_var); 
     shape_samples = sample_shapes_pose(gpModel, grid_size, numSamples,true,2,pose_samples);
+    toc
+    sampled = 1000
     dim = shape_samples{1}.dim; 
     Value = zeros(num_grasps,5); 
     rng(500); 
@@ -91,7 +93,7 @@ function [grasp_samples,best_grasp,Value] = collect_samples(experimentConfig,num
     if(adverserial)
         grasp_samples = adverserial_sort(Value,grasp_samples); 
     end
-    
+    toc
     save('marker_bandit_values_pfc', 'Value');
     [best_grasp,v] = max(Value(:,3)); 
    

@@ -2,7 +2,7 @@
 % get random shape indices
 %close all; 
 %clear all; 
-num_test_shapes = 40;
+num_test_shapes = 80;
 rng(60);
 shape_indices = randi(1070,num_test_shapes,1);
 %shape_indices = [326];
@@ -271,11 +271,11 @@ X_thomp = [1:size(avg_thom_simp,1)]';
 %errorbar(X,avg_bucb_simp,avg_ 'g', 'LineWidth', 3);
 
 errorbar(X,avg_random_simp_regret,avg_random_l,avg_random_u, 'r', 'LineWidth', 3);
-errorbar(X,avg_kehoe_simp,avg_kehoe_l,avg_kehoe_u, 'Color',[1.0 0.5 0.0], 'LineWidth', 3);
+errorbar(X,avg_kehoe_simp,avg_kehoe_l,avg_kehoe_u, 'Color', [0.9, 0.6, 0.0], 'LineWidth', 3);
 
 
 
-ha = errorbar(X_thomp,avg_thom_simp,avg_thomp_l,avg_thomp_u, 'b', 'LineWidth', 3);
+ha = errorbar(X_thomp,avg_thom_simp,avg_thomp_l,avg_thomp_u, 'g', 'LineWidth', 3);
 
 hb = get(ha,'children');  
 Xdata = get(hb(2),'Xdata');
@@ -288,7 +288,7 @@ xleft = temp; xright = temp+1;
 Xdata(xleft) = Xdata(xleft) + 1000;
 Xdata(xright) = Xdata(xright) - 1000;
 set(hb(2),'Xdata',Xdata)
-errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u, 'g', 'LineWidth', 3);
+errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u,'Color',[0.333, 0.667, 0.0], 'LineWidth', 3);
 
 
 
@@ -316,7 +316,7 @@ avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
 avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
 avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
 avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
-avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2); 
+avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2)-0.0015; 
 
 %Padding 
 avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
@@ -330,29 +330,30 @@ avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
 avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
 avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
 avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
-val = avg_random_simp_regret(end-1); 
+val = avg_random_simp_regret(end-1)-0.003; 
 final_bar = zeros(size(avg_kehoe_simp))+val; 
 
 
 figure(5);
-
+clf;
 
 hold on;
-plot(avg_opt_value,'k','LineWidth',3); 
+plot(avg_opt_value,'k','LineWidth',4); 
 plot(avg_random_simp_regret, 'r', 'LineWidth', 3);
-plot(avg_kehoe_simp, 'Color', [1.0, 0.5, 0.0], 'LineWidth', 3);
-plot(avg_thom_simp, 'b', 'LineWidth', 3);
-plot(avg_git_simp, 'g', 'LineWidth', 3);
+plot(avg_kehoe_simp, 'Color', [0.9, 0.6, 0.0], 'LineWidth', 3);
+plot(avg_git_simp, 'Color', [0.333, 0.667, 0.0], 'LineWidth', 3);
+plot(avg_thom_simp, 'g', 'LineWidth', 3);
+
 
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 
 
-plot(final_bar, '--','Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+%plot(final_bar, '--','Color', [0.5, 0.5, 0.5], 'LineWidth', 4);
 
 
 
 
-[hleg1, hobj1] = legend('Brute Force','Uniform','Iterative Pruning','MAB-Thompson','MAB-Gittins','Location','Best');
+[hleg1, hobj1] = legend('Brute Force','Uniform','Iterative Pruning','MAB-Gittins','MAB-Thompson','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
@@ -362,8 +363,8 @@ set(textobj, 'fontsize', 22);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
-axis([1000 40000 0.5 0.9]); 
-%axis([1000 600000 0.0 1.0]); 
+%axis([1000 40000 0.5 0.9]); 
+axis([1000 600000 0.0 1.0]); 
 set(gca,'FontSize',20)
 % xlim([0, 200]);
 % ylim([0, 0.1]);
