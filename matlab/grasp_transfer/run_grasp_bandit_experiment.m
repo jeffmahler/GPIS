@@ -316,6 +316,17 @@ avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
 avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
 avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
 avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
+
+std_random = sqrt(var(cell2mat(regret_analysis{1}.pfc')'));
+std_ucb = sqrt(var(cell2mat(regret_analysis{2}.pfc')));
+std_bucb = sqrt(var(cell2mat(regret_analysis{3}.pfc')));
+std_thomp = sqrt(var(cell2mat(regret_analysis{4}.pfc')'));
+std_git98 = sqrt(var(cell2mat(regret_analysis{5}.pfc')'));
+std_kehoe = sqrt(var(cell2mat(regret_analysis{6}.pfc')'));
+
+
+
+
 avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2)-0.0015; 
 
 %Padding 
@@ -338,12 +349,16 @@ figure(5);
 clf;
 
 hold on;
-plot(avg_opt_value,'k','LineWidth',4); 
-plot(avg_random_simp_regret, 'r', 'LineWidth', 3);
-plot(avg_kehoe_simp, 'Color', [0.9, 0.6, 0.0], 'LineWidth', 3);
-plot(avg_git_simp, 'Color', [0.333, 0.667, 0.0], 'LineWidth', 3);
-plot(avg_thom_simp, 'g', 'LineWidth', 3);
+%plot(avg_opt_value,'k','LineWidth',4); 
+% errorbar(avg_random_simp_regret,std_random, 'r', 'LineWidth', 3);
+% errorbar(avg_kehoe_simp,std_kehoe, 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
+% errorbar(avg_git_simp,std_git98, 'Color', [0.66, 0.0, 0.9], 'LineWidth', 3);
+% errorbar(avg_thom_simp+0.00205,std_thomp, 'b', 'LineWidth', 3);
 
+plot(avg_random_simp_regret, 'r', 'LineWidth', 3);
+plot(avg_kehoe_simp, 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
+plot(avg_git_simp, 'Color', [0.33, 0.66, 0.0], 'LineWidth', 3);
+plot(avg_thom_simp, 'g', 'LineWidth', 3);
 
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 
@@ -353,17 +368,17 @@ plot(avg_thom_simp, 'g', 'LineWidth', 3);
 
 
 
-[hleg1, hobj1] = legend('Brute Force','Uniform','Iterative Pruning','MAB-Gittins','MAB-Thompson','Location','Best');
+[hleg1, hobj1] = legend('Uniform','Iterative Pruning','MAB-Gittins','MAB-Thompson','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
 % Pos = get(textobj,'position');
 % %Pos(3) = 2*Pos(3); 
 % set(textobj,'position',Pos); 
 %set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
-set(textobj, 'fontsize', 22);
+set(textobj, 'fontsize', 26);
 xlabel('Iterations', 'FontSize', 30);
-ylabel('Probability of Force Closure', 'FontSize', 30);
+ylabel('Normalized Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
-%axis([1000 40000 0.5 0.9]); 
+%axis([1000 40000 0.5 1.0]); 
 axis([1000 600000 0.0 1.0]); 
 set(gca,'FontSize',20)
 % xlim([0, 200]);
