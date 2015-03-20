@@ -288,7 +288,7 @@ xleft = temp; xright = temp+1;
 Xdata(xleft) = Xdata(xleft) + 1000;
 Xdata(xright) = Xdata(xright) - 1000;
 set(hb(2),'Xdata',Xdata)
-errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u,'Color',[0.333, 0.667, 0.0], 'LineWidth', 3);
+errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u,'b', 'LineWidth', 3);
 
 
 
@@ -349,16 +349,17 @@ figure(5);
 clf;
 
 hold on;
-%plot(avg_opt_value,'k','LineWidth',4); 
-% errorbar(avg_random_simp_regret,std_random, 'r', 'LineWidth', 3);
-% errorbar(avg_kehoe_simp,std_kehoe, 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
-% errorbar(avg_git_simp,std_git98, 'Color', [0.66, 0.0, 0.9], 'LineWidth', 3);
-% errorbar(avg_thom_simp+0.00205,std_thomp, 'b', 'LineWidth', 3);
+%plot(avg_opt_value,'k','LineWidth',4);
+indices_plot = 1:1000:size(avg_random_simp_regret, 1);
+errorbar(indices_plot,avg_random_simp_regret(indices_plot),std_random(indices_plot), 'r', 'LineWidth', 3);
+errorbar(indices_plot,avg_kehoe_simp(indices_plot),std_kehoe(indices_plot), 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
+errorbar(indices_plot,avg_git_simp(indices_plot),std_git98(indices_plot), 'Color', [0.66, 0.0, 0.9], 'LineWidth', 3);
+errorbar(indices_plot,avg_thom_simp(indices_plot),std_thomp(indices_plot), 'b', 'LineWidth', 3);
 
-plot(avg_random_simp_regret, 'r', 'LineWidth', 3);
-plot(avg_kehoe_simp, 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
-plot(avg_git_simp, 'Color', [0.33, 0.66, 0.0], 'LineWidth', 3);
-plot(avg_thom_simp, 'g', 'LineWidth', 3);
+% plot(avg_random_simp_regret, 'r', 'LineWidth', 3);
+% plot(avg_kehoe_simp, 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
+% plot(avg_git_simp, 'Color', [0.33, 0.66, 0.0], 'LineWidth', 3);
+% plot(avg_thom_simp, 'g', 'LineWidth', 3);
 
 %plot(avg_bucb_simp, 'g', 'LineWidth', 3);
 
@@ -378,8 +379,8 @@ set(textobj, 'fontsize', 26);
 xlabel('Iterations', 'FontSize', 30);
 ylabel('Normalized Probability of Force Closure', 'FontSize', 30);
 %title('Average Probability of Force Closure', 'FontSize',30);
-%axis([1000 40000 0.5 1.0]); 
-axis([1000 600000 0.0 1.0]); 
+axis([1000 40000 0.5 1.0]); 
+%axis([1000 600000 0.0 1.0]); 
 set(gca,'FontSize',20)
 % xlim([0, 200]);
 % ylim([0, 0.1]);

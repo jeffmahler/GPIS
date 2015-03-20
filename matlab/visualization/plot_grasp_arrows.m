@@ -25,8 +25,8 @@ hold on;
 start1 = x1 - length*grad1;
 start2 = x2 - length*grad2;
 
-arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 5, 'Width', 2, 'TipAngle', 15);
-arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 5, 'Width', 2, 'TipAngle', 15);
+arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 8, 'Width', 2, 'TipAngle', 30);
+arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 8, 'Width', 2, 'TipAngle', 30);
 
 % plot small parallel jaws
 start1 = x1 + plateWidth*tan1/2;
@@ -34,8 +34,8 @@ start2 = x2 + plateWidth*tan2/2;
 end1 = x1 - plateWidth*tan1/2;
 end2 = x2 - plateWidth*tan2/2;
 
-plot(scale*[start1(1); end1(1)], scale*[start1(2); end1(2)], 'r', 'LineWidth', 5);
-plot(scale*[start2(1); end2(1)], scale*[start2(2); end2(2)], 'r', 'LineWidth', 5);
+plot(scale*[start1(1); end1(1)], scale*[start1(2); end1(2)], 'r', 'LineWidth', 3);
+plot(scale*[start2(1); end2(1)], scale*[start2(2); end2(2)], 'r', 'LineWidth', 3);
 
 if use_com
     % plot the center of mass

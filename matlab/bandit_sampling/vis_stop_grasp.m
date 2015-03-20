@@ -48,13 +48,13 @@ for i = 1:num_shapes
  
     img = shape_result.construction_results.newSurfaceImage; 
     shapeParams = shape_result.construction_results.predGrid; 
-%    visualize_value( Value,shapeParams,top_grasp,img);
+    visualize_value( Value,shapeParams,top_grasp,img, i);
 end
 
 end
 
 
-function [ ] = visualize_value( Value,shapeParams,grasp_samples,surface_image)
+function [ ] = visualize_value( Value,shapeParams,grasp_samples,surface_image,ind)
 
 N = size(grasp_samples, 2); 
 
@@ -64,13 +64,21 @@ Names{2} = 'Adaptive';
 Names{3} = 'MAB-Thompson';
 Names{4} = 'MAB-Gittins';
 Names{5} = 'Best in Set';
-figure;
+figure(ind);
 
  for i=1:N
      cp = grasp_samples{i}.cp;
-     visualize_grasp(cp,shapeParams, surface_image, 4, 5,i,N,Value(i,3),Names); 
+     visualize_grasp(cp,shapeParams, surface_image, 4, 9,i,N,Value(i,3),Names); 
      %plot_grasp_arrows( surface_image, cp(1,:)', cp(3,:)', -(cp(1,:)-cp(2,:))', -(cp(3,:)-cp(4,:))', 4,4,i,N,Value(i,3))
  end
 tightfig; 
+
+figure(100 + ind);
+nom_grid = reshape(shapeParams.tsdf, [40, 40]);
+nom_grid = high_res_tsdf(nom_grid, 5);
+nom_grid = nom_grid > 0;
+%nom_grid = imresize(nom_grid, 5);
+imshow(nom_grid);
+
 end
 

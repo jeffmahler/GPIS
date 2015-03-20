@@ -3,7 +3,7 @@ function [] = visualize_grasp(grasp, shapeParams, shapeImage, scale, length,i,N,
 %VISUALIZE_GRASP
 
 if nargin < 10
-   plateWidth = 1; 
+   plateWidth = 2; 
 end
 if nargin < 11
    gripWidth = size(shapeImage,1) / scale; 
