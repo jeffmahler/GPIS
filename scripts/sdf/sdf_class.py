@@ -13,7 +13,7 @@ from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
 import IPython
 
-from random_functions import has_p_and_n
+from random_functions import crosses_threshold
 
 from sys import version_info
 if version_info[0] != 3:
@@ -50,6 +50,8 @@ class SDF:
                     self.values_in_order_[count] = self.data_[i][j][k] 
                     count +=1 
         my_file.close()
+        self.feature_vector_ = None #Kmeans feature representation
+
 
     def file_name(self):
         """ 
@@ -97,13 +99,20 @@ class SDF:
         """
         return self.data_
 
-    def make_windows(self, W, S, target=False): 
+    def set_feature_vector(self, vector):
+        self.feature_vector = vector
+
+    def feature_vector(self):
+        return self.feature_vector
+
+    def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1): 
         """ 
         Function for windowing the SDF grid
         Params: 
             W: the side length of the window (currently assumed to be odd so centering makes sense)
             S: stride length between cubes (x axis "wraps" around)
             target: True for targetted windowing (filters for cubes containing both positive and negative values)
+            filtering_function: function to filter windows out with
         Returns: 
             ([np.array,...,np.array]): contains a list of numpy arrays, each of which is an unrolled window/cube.
                                        window order based on center coordinate (increasing order of x, y, then z)
@@ -128,18 +137,20 @@ class SDF:
             for y in range(window_center, self.ny_ + window_center, S):
                 for x in range(window_center+offset, self.nx_ + window_center, S):
                         #print map(lambda x: x-window_center,[x,y,z])
-                    new_window = np.empty(W**3)
+                    new_window = np.zeros(W**3) 
                     count = 0
                     for k in range(-window_center, window_center+1):    
                         for j in range(-window_center, window_center+1):
                             for i in range(-window_center, window_center+1):
                                 new_window[count] = padded_vals[(x+i) + (y+j)*newx + (z+k)*newx*newy] 
                                 count += 1
-                        windows.append(new_window)
+                    windows.append(new_window)
                 offset = (x+S) - (self.nx_+window_center)
+        #print windows, len(windows), type(windows)
         if target:
-            windows = filter(has_p_and_n, windows)          
+            windows = filter(filtering_function(threshold), windows)          
         return windows       
+     
 
     def add_to_nearpy_engine(self, engine):
         """
@@ -148,8 +159,15 @@ class SDF:
             engine: nearpy.engine.Engine 
         Returns: - 
         """
-        engine.store_vector(self.values_in_order_,self.file_name_)
+        if self.feature_vector is None:
+            to_add = self.values_in_order
+        else:
+            to_add = self.feature_vector
+        #print to_add, type(to_add)
+        engine.store_vector(to_add,self.file_name_)
         #        print "Stored %s as vector" % self.file_name_
+
+
 
     def query_nearpy_engine(self, engine):
         """
@@ -164,7 +182,11 @@ class SDF:
                 string: the match's SDF's file name
                 numpy.float64: the match's distance from this SDF
         """
-        results = engine.neighbours(self.values_in_order_)
+        if self.feature_vector is None:
+            to_query = self.values_in_order
+        else:
+            to_query = self.feature_vector
+        results = engine.neighbours(to_query)
         file_names = [i[1] for i in results]
         return file_names, results
 
