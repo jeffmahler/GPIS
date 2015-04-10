@@ -5,6 +5,10 @@ from PIL import Image, ImageDraw
 import sklearn.decomposition
 import sys
 
+import skimage.morphology as morph
+import matplotlib
+import matplotlib.pyplot as plt
+
 import mesh
 import obj_file
 
@@ -29,7 +33,36 @@ class MeshConverter2D:
         self.upper_bound_ = 255
         # what to do?
 
-    def convert_binary_image_to_mesh(self, binary_img, extrusion = 100):
+    def convert_binary_image_to_sdf(self, binary_img, vis = False):
+        binary_data = np.array(binary_img)
+        skel, sdf_in = morph.medial_axis(binary_data, return_distance = True)
+        useless_skel, sdf_out = morph.medial_axis(self.upper_bound_ - binary_data, return_distance = True)
+        
+        sdf = sdf_out - sdf_in
+
+        # display the sdf and skeleton
+        if vis:
+            dist_on_skel = sdf * skel
+            
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+            ax1.imshow(binary_data, cmap=plt.cm.gray, interpolation='nearest')
+            ax1.axis('off')
+            ax2.imshow(dist_on_skel, cmap=plt.cm.spectral, interpolation='nearest')
+            ax2.contour(binary_data, [0.5], colors='w')
+            ax2.axis('off')
+
+            fig.subplots_adjust(hspace=0.01, wspace=0.01, top=1, bottom=0, left=0, right=1)
+            plt.show()
+
+            plt.imshow(sdf)
+            plt.show()
+
+            plt.imshow(skel)
+            plt.show()
+
+        return sdf, skel
+
+    def convert_binary_image_to_mesh(self, binary_img, extrusion = 1000, min_dim = 5):
         '''
         Converts a binary image in file "filename" to a mesh
         
@@ -37,6 +70,7 @@ class MeshConverter2D:
            binary_img: (2d numpy arry) binary image for silhouette (255 = occupied, 0 = not occupied)
         Returns:
            mesh object with specified depth
+           bool, whether or not triangulation was successful (since it doesn't work for certain topologies)
         '''
         # get occupied indices from binary image
         binary_map = np.array(binary_img)
@@ -52,12 +86,14 @@ class MeshConverter2D:
 
         # todo: connect boundaries
         boundary_img = self.find_boundary(binary_img)
-        self.add_boundary_tris(boundary_img, verts, tris, front_ind_map, back_ind_map)
+        success = self.add_boundary_tris(boundary_img, verts, tris, front_ind_map, back_ind_map)
 
         # convert to mesh and return
         m = mesh.Mesh(verts, tris)
         m.remove_unreferenced_vertices()
-        return m
+#        m.normalize_vertices()
+        # m.rescale_vertices(min_dim)
+        return m, success
 
     def join_vert_tri_lists(self, verts1, tris1, verts2, tris2):
         '''
@@ -97,16 +133,32 @@ class MeshConverter2D:
            front_ind_map: (numpy 2d array) maps vertex coords to the indices of their front face vertex in list  
            back_ind_map: (numpy 2d array) maps vertex coords to the indices of their back face vertex in list  
         '''
-        boundary_ind = np.where(boundary_img == self.upper_bound_)
+        remaining_boundary = np.copy(boundary_img)
+        boundary_ind = np.where(remaining_boundary == self.upper_bound_)
         boundary_coords = zip(boundary_ind[0], boundary_ind[1])
+        if len(boundary_coords) == 0:
+            return False
 
         # setup inital vars
-        cur_coord = boundary_coords[0]
         tris_arr = np.array(tris)
 
         visited_map = np.zeros(boundary_img.shape)
-        visited_map[cur_coord[0], cur_coord[1]] = 1
         another_visit_avail = True
+
+        # make sure to start with a reffed tri
+        reffed = False
+        visited_marker = 128
+        i = 0
+        while not reffed and i < len(boundary_coords):
+            cur_coord = boundary_coords[i]
+            visited_map[cur_coord[0], cur_coord[1]] = 1
+            front_ind = front_ind_map[cur_coord[0], cur_coord[1]]
+            back_ind = back_ind_map[cur_coord[0], cur_coord[1]]
+            ref_tris = np.where(tris_arr == front_ind)
+            ref_tris = ref_tris[0]
+            reffed = (ref_tris.shape[0] > 0)
+            remaining_boundary[cur_coord[0], cur_coord[1]] = visited_marker
+            i = i+1
 
         coord_visits = [cur_coord]
         cur_dir_angle = np.pi / 2 # start straight down
@@ -118,7 +170,7 @@ class MeshConverter2D:
             ref_tris = np.where(tris_arr == front_ind)
             ref_tris = ref_tris[0]
             num_reffing_tris = ref_tris.shape[0]
-
+            
             # get all possible cadidates from neighboring tris
             another_visit_avail = False
             candidate_next_coords = []
@@ -168,6 +220,7 @@ class MeshConverter2D:
             # mark coordinate as visited
             visited_map[cur_coord[0], cur_coord[1]] = 1
             coord_visits.append(cur_coord)
+            remaining_boundary[cur_coord[0], cur_coord[1]] = visited_marker
 
         # add edge back to first coord
         cur_coord = coord_visits[0]
@@ -176,6 +229,10 @@ class MeshConverter2D:
         tris.append([int(front_ind), int(back_ind), int(next_front_ind)])
         tris.append([int(back_ind), int(next_back_ind), int(next_front_ind)])
 
+        # check success 
+        success = (np.sum(remaining_boundary == self.upper_bound_) == 0)
+#        IPython.embed()
+        return success
 
     def find_boundary(self, im):
 
@@ -271,18 +328,59 @@ class MeshConverter2D:
 
         return verts, tris, ind_map
 
+def create_binary_rect(img_height, img_width, rect_height, rect_width):
+    binary_img = np.zeros([img_height, img_width])
+    img_center = np.array([img_height / 2, img_width / 2])
+
+    rect_h_low = img_center[0] - rect_height / 2
+    rect_h_high = img_center[0] + rect_height / 2
+
+    rect_w_low = img_center[1] - rect_width / 2
+    rect_w_high = img_center[1] + rect_width / 2
+ 
+    binary_img[rect_h_low:rect_h_high, rect_w_low:rect_w_high] = 255
+    return binary_img
+    
+
 if __name__ == '__main__':
     filename = sys.argv[1]
-    binary_img = Image.open(filename)
-    m = MeshConverter2D()
-    bin_mesh = m.convert_binary_image_to_mesh(binary_img)
+    dec_filename = sys.argv[2]
+    make_rect = int(sys.argv[3])
 
-    out_filename = 'test.obj'
-    dec_filename = 'test_dec.obj'
+    im_width  = 200.0
+    im_height = 200.0
+    rect_width = 12.0
+    rect_height = 20.0
+
+    if make_rect:
+        binary_img = create_binary_rect(im_height, im_width, rect_height, rect_width)
+        binary_img = Image.fromarray(binary_img)
+        m = MeshConverter2D()
+        sdf, skel = m.convert_binary_image_to_sdf(binary_img, False)
+        bin_mesh, succeeded = m.convert_binary_image_to_mesh(binary_img)    
+
+    else:
+        binary_img = Image.open(filename)
+        binary_img = binary_img.resize([int(im_height), int(im_width)])
+        
+        m = MeshConverter2D()
+        bin_mesh, succeeded = m.convert_binary_image_to_mesh(binary_img)    
+
+        '''
+        cp = mesh.CameraParams(im_height, im_width, 52.5, 52.5)
+        T = np.eye(4)
+        T[:3,3] = np.array([0, 0, 1.5])
+        proj_bin_img = bin_mesh.project_binary(cp, T)
+        '''
+        sdf, skel = m.convert_binary_image_to_sdf(binary_img)
+
+
+    np.savetxt("out.csv", sdf, delimiter=",", header="%d %d"%(sdf.shape[0], sdf.shape[1]))
+
+    out_filename = 'tmp_high_res.obj'
     dec_script_path = 'scripts/meshlab/decimation.mlx'
     of = obj_file.ObjFile(out_filename)
     of.write(bin_mesh)
 
     meshlabserver_cmd = 'meshlabserver -i %s -o %s -s %s' %(out_filename, dec_filename, dec_script_path)
     os.system(meshlabserver_cmd)
-
