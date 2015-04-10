@@ -11,7 +11,7 @@ f = f_grid(:);
 [height, width] = size(f_grid);
 num_points = height * width;
 sigma_kernel = config.sigma_kernel;
-kernel_scale = config.kernel_scale;
+kernel_scale = config.resample_kernel_scale;
 cov_func = config.cov_func;
 mean_grid = config.mean_func; % ONLY SUPPORTS THOSE WITHOUT HYPERS
 lik_func = config.lik_func;
@@ -322,6 +322,7 @@ class_losses = class_losses + path_penalty * path_lengths ./ times';
 if t < num_iters
     class_results{class_result_index} = ...
             lse_class_accuracy(true_above, true_below, pred_above, pred_below);
+    class_results{class_result_index}.iteration = t;  
 end
 
 if config.vis_class_im

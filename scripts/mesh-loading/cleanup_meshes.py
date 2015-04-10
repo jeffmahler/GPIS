@@ -4,8 +4,13 @@ import sys
 import obj_file
 import mesh
 
+argc = len(sys.argv)
 data_folder = sys.argv[1]
-min_dim = float(sys.argv[2])
+
+min_dim = -1
+if argc > 2:
+    min_dim = float(sys.argv[2])
+
 data_list = os.listdir(data_folder)
 
 # walk through the shape directory structure
@@ -16,7 +21,7 @@ for root, sub_folders, files in os.walk(data_folder):
         file_root, file_ext = os.path.splitext(file_name)
 
         # handle only ply files
-        if file_ext == '.obj':
+        if file_ext == '.obj' and file_name.find("_clean") == -1:
             print 'Cleaning ', file_name
 
             # read the mesh
@@ -24,12 +29,16 @@ for root, sub_folders, files in os.walk(data_folder):
             m = of.read()
             
             # clean up mesh
-            m.remove_unreferenced_vertices()
-            m.normalize_vertices()
-            m.rescale_vertices(min_dim)
+            try:
+                m.remove_unreferenced_vertices()
+                m.normalize_vertices()
 
-            # write new file
-            clean_file_name = '%s_clean.obj' %(file_root)
-            oof = obj_file.ObjFile(clean_file_name)
-            oof.write(m)
+                if min_dim > 0:
+                    m.rescale_vertices(min_dim)
 
+                # write new file
+                clean_file_name = '%s_clean.obj' %(file_root)
+                oof = obj_file.ObjFile(clean_file_name)
+                oof.write(m)
+            except ValueError:
+                print 'Failed on', file_name

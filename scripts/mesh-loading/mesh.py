@@ -295,16 +295,16 @@ if __name__ == '__main__':
 
                 m.make_image(filename, T)
 
-                T[:3,:3] = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])
-                m.make_image(filename[:-4] + "_x_axis.jpg", T)
-                
-                T[:3,:3] = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
-                m.make_image(filename[:-4] + "_y_axis.jpg", T)
-
-                T[:3,:3] = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-                m.make_image(filename[:-4] + "_z_axis.jpg", T)
-
-                
+        T = np.eye(4)
+        theta = np.pi / 2
+        R = np.array([[np.cos(theta), 0, -np.sin(theta)],
+                      [0, 1, 0],
+                      [np.sin(theta), 0, np.cos(theta)]])
+        T[:3,:3] = R
+        T[:3,3] = np.array([0, 0, 2.5])
+        min_dim = 0.5
+        
+        m.remove_unreferenced_vertices()
 
 
 #        IPython.embed()

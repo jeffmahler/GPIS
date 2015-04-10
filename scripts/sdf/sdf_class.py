@@ -217,6 +217,9 @@ class SDF:
         fig = plt.figure()  
         ax = fig.add_subplot(111,projection='3d')
         ax.scatter3D(X,Y,Z,c=values, cmap="Blues")
+        ax.set_xlim3d([0,self.nx_])
+        ax.set_ylim3d([0,self.ny_])
+        ax.set_zlim3d([0,self.nz_])
         plt.show()
 
  

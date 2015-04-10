@@ -32,7 +32,7 @@ class ObjFile:
         '''
         numVerts = 0  
         verts = []
-        norms = []
+        norms = None
         faces = []
         tex_coords = []
         face_norms = []
@@ -49,6 +49,8 @@ class ObjFile:
                     verts.append(v)  
                 if vals[0] == 'vn':  
                     # add normal
+                    if norms is None:
+                        norms = []
                     n = map(float, vals[1:4])  
                     norms.append(n)  
                 if vals[0] == 'f':
@@ -60,9 +62,10 @@ class ObjFile:
                         vi = map(int, vals[1:])
                         vi = [i - 1 for i in vi]
                     else:
-                        for val in vals:
+                        for j in range(1, len(vals)):
                             # break up like by / to read vert inds, tex coords, and normal inds
-                            tokens = vals.split('/')
+                            val = vals[j]
+                            tokens = val.split('/')
                             for i in range(len(tokens)):
                                 if i == 0:
                                     vi.append(int(tokens[i]) - 1) # adjust for python 0 - indexing

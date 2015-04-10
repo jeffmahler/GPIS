@@ -6,6 +6,9 @@ from sdf_class import SDF
 from operator import itemgetter
 import sklearn.decomposition as skdec
 
+import math
+import matplotlib.pyplot as plt
+import IPython
 
 UNKNOWN_TAG = 'No Results'
 
@@ -52,7 +55,7 @@ class testing_suite:
 		sdf_files = []
 		for root,dirs,files in walk(dir_to_add):
 			for file_ in files:
-				if file_.endswith(".sdf"):
+				if file_.endswith("25.sdf"):
 					sdf_files.append(path.join(root,file_))
 		self.all_files_+=sdf_files
 
@@ -132,12 +135,33 @@ class testing_suite:
 	decomposition framework
 	"""
 
+        def render_sdf(self, a, thresh = 1e-3):
+                h = plt.figure()
+                ax = h.add_subplot(111, projection = '3d')
+
+                surface_points = np.where(np.abs(a) < thresh)
+
+                x = surface_points[0]
+                y = surface_points[1]
+                z = surface_points[2]
+                ax.scatter(x, y, z)
+
+                ax.set_xlabel('X')
+                ax.set_ylabel('Y')
+                ax.set_zlabel('Z')
+                ax.set_xlim3d(0,a.shape[0])
+                ax.set_ylim3d(0,a.shape[1])
+                ax.set_zlim3d(0,a.shape[2])
+
+                plt.show()
+
+
 	def make_PCA(self):
-		self.PCA_=skdec.PCA(n_components='mle')
+		self.PCA_=skdec.PCA()#n_components='mle')
 
 	def fit_PCA(self,training_vectors):
-		self.PCA_.fit(training_vectors)
-
+		self.PCA_.fit(training_vectors)                
+                
 	def make_FA(self):
 		self.FA_=skdec.FactorAnalysis(n_components=len(list(self.training_)))
 
@@ -145,7 +169,7 @@ class testing_suite:
 		self.FA_.fit(training_vectors)
 
 	def make_KPCA(self,kernel_option="rbf"):
-		self.KPCA_=skdec.KernelPCA(n_components=len(list(self.training_)),kernel=kernel_option)
+		self.KPCA_=skdec.KernelPCA(gamma=0.1, kernel=kernel_option)
 
 	def fit_KPCA(self,training_vectors):
 		self.KPCA_.fit(training_vectors)
@@ -165,13 +189,14 @@ class testing_suite:
 	def load_PCA(self,vector_set):
 		"""reinitializes our engine and loads a numpy set of vectors of dimension (self.biggest,1) 
 		into self.engine_"""
-		rbp = RandomBinaryProjections('rbp',10)
-		self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		rbp = RandomBinaryProjections('rbp', 10)
+		self.engine_ = Engine(self.PCA_.components_.shape[1], lshashes=[rbp])
+                transformed_vectors = self.PCA_.transform(vector_set.T)
 		for i in range(len(list(self.training_))):
-			vector=vector_set[:,i]
-			vector=np.reshape(vector,(self.biggest,1))
-			vector=self.PCA_.transform(vector)
-			self.engine_.store_vector(vector[:,0],self.training_[i])
+			#vector=vector_set[:,i]                        
+			#vector=np.reshape(vector,(self.biggest,1))
+			#vector=self.PCA_.transform(vector)
+			self.engine_.store_vector(transformed_vectors[i,:], self.training_[i])
 
 	def load_FA(self,vector_set):
 		rbp = RandomBinaryProjections('rbp',10)
@@ -184,12 +209,13 @@ class testing_suite:
 
 	def load_KPCA(self,vector_set):
 		rbp = RandomBinaryProjections('rbp',10)
-		self.engine_ = Engine(self.biggest, lshashes=[rbp])
+		self.engine_ = Engine(self.KPCA_.alphas_.shape[1], lshashes=[rbp])
+                transformed_vectors = self.KPCA_.transform(vector_set.T)
 		for i in range(len(list(self.training_))):
-			vector=vector_set[:,i]
-			vector=np.reshape(vector,(self.biggest,1))
-			vector=self.KPCA_.transform(vector)
-			self.engine_.store_vector(vector[:,0],self.training_[i])
+			#vector=vector_set[:,i]
+			#vector=np.reshape(vector,(self.biggest,1))
+			#vector=self.KPCA_.transform(vector)
+			self.engine_.store_vector(transformed_vectors[i,:], self.training_[i])
 
 	def load_FICA(self,vector_set):
 		rbp = RandomBinaryProjections('rbp',10)
@@ -215,9 +241,8 @@ class testing_suite:
 		neighbors and the results
 		"""
 		#print test_vector
-		reshaped=np.reshape(test_vector,(self.biggest,1))
-		
-		results = self.engine_.neighbours(test_vector)
+		#reshaped=np.reshape(test_vector,(self.biggest,1))
+		results = self.engine_.neighbours(test_vector.T)
 		file_names = [i[1] for i in results]
 		return file_names, results
 
@@ -241,7 +266,7 @@ class testing_suite:
 
 	def make_test_vector(self,sdf_array,vector_type):
 		if vector_type=="PCA":
-			return self.make_PCA_test_vector(sdf_array)
+ 			return self.make_PCA_test_vector(sdf_array)
 		elif vector_type=="FA":
 			return self.make_FA_test_vector(sdf_array)
 		elif vector_type=="KPCA":
@@ -263,8 +288,10 @@ class testing_suite:
 
 	def make_KPCA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
-		normalized=self.normalize_vector(reshaped,self.biggest)
-		return self.KPCA_.transform(normalized)[:,0]
+                return self.KPCA_.transform(reshaped.T)
+#		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
+#		normalized=self.normalize_vector(reshaped,self.biggest)
+#		return self.KPCA_.transform(normalized)[:,0]
 
 	def make_FA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
@@ -273,10 +300,12 @@ class testing_suite:
 
 	def make_PCA_test_vector(self,sdf_array):
 		reshaped=np.reshape(sdf_array.data(),(sdf_array.dimensions()[0],1))
+                return self.PCA_.transform(reshaped.T)
+#               IPython.embed()
 		
-		normalized=self.normalize_vector(reshaped,self.biggest)
+#		normalized=self.normalize_vector(reshaped,self.biggest)
 		
-		return self.PCA_.transform(normalized)[:,0]
+#		return self.PCA_.transform(normalized)[:,0]
 
 	"""
 	querys the loaded and trained engine with each of your test vectors from make_train_test
@@ -291,7 +320,7 @@ class testing_suite:
 			print "Querying: %s with category %s "%(file_, query_category)
 			converted = SDF(file_)
 			test_vector=self.make_test_vector(converted,test_type)
-			closest_names, closest_vals=self.engine_query(test_vector)
+			closest_names, closest_vals=self.engine_query(test_vector.T[:,0])
 
 			pred_category=UNKNOWN_TAG
 
@@ -345,6 +374,75 @@ class testing_suite:
 		return accuracy, test_results, recall, tnr, precision,npv,fpr
 
 
+        def vis_pca_components(self, num_comp_vis, thresh = 0.01, method = 'PCA'):
+                PCA = self.PCA_
+                if method == 'KPCA':
+                        PCA = self.KPCA_
+                num_components = PCA.components_.shape[0]
+                num_components = min(num_comp_vis, num_components)
+
+                comp_per_dim = int(math.ceil(math.sqrt(num_components)))
+                h = plt.figure()
+                for i in range(num_components):
+                        ax = h.add_subplot(comp_per_dim, comp_per_dim, i+1, projection = '3d')
+                        components = PCA.components_[i,:]
+                        comp_grid = components.reshape(25, 25, 25)
+                        
+                        surface_points = np.where(np.abs(comp_grid) < thresh)
+                        x = surface_points[0]
+                        y = surface_points[1]
+                        z = surface_points[2]
+
+                        ax.scatter(x, y, z)
+                        ax.set_xlabel('X')
+                        ax.set_ylabel('Y')
+                        ax.set_zlabel('Z')
+                        ax.set_xlim3d(0,25)
+                        ax.set_ylim3d(0,25)
+                        ax.set_zlim3d(0,25)
+                        ax.set_title('Component %d'%(i))
+                plt.show()
+
+        def vis_pca_component_slices(self, num_comp_vis, method = 'PCA'):
+                PCA = self.PCA_
+                if method == 'KPCA':
+                        PCA = self.KPCA_
+                num_components = PCA.components_.shape[0]
+                num_components = min(num_comp_vis, num_components)
+
+                comp_per_dim = int(math.ceil(math.sqrt(num_components)))
+                plt.figure()
+                for i in range(num_components):
+                        plt.subplot(comp_per_dim, comp_per_dim, i+1)
+                        components = PCA.components_[i,:]
+                        comp_grid = components.reshape(25, 25, 25)
+                        comp_slice = comp_grid[:,:,12]
+
+                        plt.imshow(comp_slice)
+                        plt.title('Component %d XY Plane'%(i))
+
+                plt.figure()
+                for i in range(num_components):
+                        plt.subplot(comp_per_dim, comp_per_dim, i+1)
+                        components = PCA.components_[i,:]
+                        comp_grid = components.reshape(25, 25, 25)
+                        comp_slice = comp_grid[:,12,:]
+
+                        plt.imshow(comp_slice)
+                        plt.title('Component %d XZ Plane'%(i))
+
+                plt.figure()
+                for i in range(num_components):
+                        plt.subplot(comp_per_dim, comp_per_dim, i+1)
+                        components = PCA.components_[i,:]
+                        comp_grid = components.reshape(25, 25, 25)
+                        comp_slice = comp_grid[12,:,:]
+
+                        plt.imshow(comp_slice)
+                        plt.title('Component %d YZ Plane'%(i))
+                plt.show()
+
+
 	"""
 	runs perform_tests on a specific type of decomposition after creating that decomposition type 
 	framework with the training vectors and loading those training vectors into the engine
@@ -354,9 +452,14 @@ class testing_suite:
 	def perform_PCA_tests(self,K):
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_PCA()
-		self.fit_PCA(train_vectors)
+                print 'Fitting PCA'
+		self.fit_PCA(train_vectors.T)
+                print 'Loading PCA'
 		self.load_PCA(train_vectors)
+                print 'Setup confusion'
 		self.setup_confusion()
+                print 'Eval accuracy'
+                #IPython.embed()
 		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"PCA")
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
@@ -372,10 +475,13 @@ class testing_suite:
 	def perform_KPCA_tests(self,K,kernel="rbf"):
 		train_vectors=self.get_PCA_training_vectors()
 		self.make_KPCA(kernel_option=kernel)
-		self.fit_KPCA(train_vectors)
+                print 'Fitting KCPA'
+		self.fit_KPCA(train_vectors.T)
+                print 'Loading KPCA'
 		self.load_KPCA(train_vectors)
 		self.setup_confusion()
 		accuracy,test_results, recall, tnr, precision,npv,fpr=self.perform_tests(K,"KPCA")
+                IPython.embed()
 		return accuracy,test_results, recall, tnr, precision,npv,fpr
 
 
