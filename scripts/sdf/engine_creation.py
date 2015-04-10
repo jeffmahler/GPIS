@@ -6,6 +6,10 @@ Author: Sahaana Suri
 from os import walk, path
 from sdf_class import SDF
 from operator import itemgetter
+from SDF_bag_of_words import SDFBagOfWords
+from random_functions import find_sdf
+
+
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -39,33 +43,14 @@ def remove_double_clean(root_dir):
                 num_invalid += 1
 
 
-
-def find_sdf(root_dir):
-    """
-    Function that traverses the directory tree beginning with root_dir, and finds all of the SDF files contained within
-
-    Parameters 
-        root_dir: string that represents the directory in which you want to begin searching (relative to the current directory, or absolute)
-
-    Returns
-        sdf_files: a list of path names (relative to root_dir) to all sdf files found under the root_dir
-
-    Sample Usage
-        >>> sdf_files =  find_sdf("datasets") 
-    """
-    sdf_files = []
-    for root,dirs,files in walk(root_dir):
-        for file_ in files:
-            if file_.endswith(".sdf"):
-                sdf_files.append(path.join(root,file_))
-    return sdf_files
-
-def load_engine(sdf_files):
+def load_engine(sdf_files, feature_matrix, dimension):
     """
     Function that converts the given sdf_files into instances of the sdf_class, then loads them into nearpy Engine.
 
     Parameters
         sdf_files: a list of sdf_files with their pathname from the current directory. Intended to be fed in from `find_sdf(root_dir)`
+        feature_matrix: matrix of training data features to be loaded into engine
+        dimension: dimensionality of the feature vectors used for LSH (here: number of cluster centers)
 
     Returns
         engine: instance of a nearpy engine with all of sdf_files loaded
@@ -73,23 +58,22 @@ def load_engine(sdf_files):
     Sample Usage
         >>> engine = load_engine(sdf_files)
     """
-    #Can be made more general by querying the dimensions of the SDF. Or could even be fed into the function if I make an additional wrapper
-    dimension = 50*50*50
     #dimension here can be altered as well
     rbp = RandomBinaryProjections('rbp',10)
     engine = Engine(dimension, lshashes=[rbp])  
 
     count = 0
-    for file_ in sdf_files:
+    for index,file_ in enumerate(sdf_files):
         #print file_
         if count % 100 == 0:
             print 'Converted %d files' %(count)
         converted = SDF(file_)
+        converted.set_feature_vector(feature_matrix[index])
         converted.add_to_nearpy_engine(engine)
         count += 1
     return engine
 
-def train_and_test_lsh(num_train, num_test, root_dir, K = 1):
+def train_and_test_lsh(num_train, num_test, root_dir, K = 1, clusters=10):
     """
     Function that generates a list of sdf files given a root_dir, and loads a random num_train of them into a nearpy engine. It then queries the LSH engine for a 
     random num_test other sdf files. num_train+num_test must be less than the total number of sdf_files
@@ -110,7 +94,7 @@ def train_and_test_lsh(num_train, num_test, root_dir, K = 1):
     test_results = {}
     confusion = {}
 
-    sdf_files = find_sdf(root_dir)
+    sdf_files = find_sdf(root_dir, 'clean.sdf')
     print 'Found %d SDF files' %(len(sdf_files))
     assert num_train+num_test <= len(sdf_files)
 
@@ -119,12 +103,21 @@ def train_and_test_lsh(num_train, num_test, root_dir, K = 1):
     permuted_indices = np.random.permutation(len(sdf_files))
     get_training = itemgetter(*permuted_indices[:num_train])
     get_testing = itemgetter(*permuted_indices[num_train:num_train+num_test])
-    engine = load_engine(get_training(sdf_files))
-    
+
+    training = get_training(sdf_files)
+    model = SDFBagOfWords(clusters)
+    predictions = model.fit(training, clusters)
+    print "DONE FITTING"
+    #print predictions
+    engine = load_engine(training,predictions, clusters)
+    print "LOADED TO LSH ENGINE"
+
     if num_test > 1:
         test_files = get_testing(sdf_files)
     else:
         test_files = [get_testing(sdf_files)]
+    featurized = model.transform(test_files)
+    print "TRANSFORMED TEST"
 
     # setup confusion matrix
     confusion[UNKNOWN_TAG] = {}
@@ -135,11 +128,12 @@ def train_and_test_lsh(num_train, num_test, root_dir, K = 1):
         for pred_cat in confusion.keys():
             confusion[query_cat][pred_cat] = 0
     
-    for file_ in list(test_files):
-        #NOTE: This is assuming the file structure is: data/<dataset_name>/<category>/... also line 104
+    for index,file_ in enumerate(test_files):
+        #NOTE: This is assuming the file structure is: data/<dataset_name>/<category>/... 
         query_category = cat50_file_category(file_)
         print "Querying: %s with category %s "%(file_, query_category)
         converted = SDF(file_)
+        converted.set_feature_vector(featurized[index])
         closest_names, closest_vals = converted.query_nearpy_engine(engine)
 
         # check if top K items contains the query category
