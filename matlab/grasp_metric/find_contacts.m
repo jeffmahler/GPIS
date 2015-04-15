@@ -1,9 +1,10 @@
-function contacts = find_contacts(loas, tsdf)
+function [contacts, success] = find_contacts(loas, tsdf)
 
 n_loas = size(loas,2);
 dim = size(loas{1},2);
 contacts = zeros(n_loas, dim);
 tsdf_dims = size(tsdf);
+success = true;
 
 for i = 1:n_loas
     cur_tsdf_val = 10.0;
@@ -32,6 +33,8 @@ for i = 1:n_loas
         end
         t = t+1;
     end
-
+    if ~contact_found
+        success = false;
+    end
 end
 
