@@ -119,10 +119,13 @@ for i = 1:num_surf
                     grasp.constrained_2d = constrain_2d;
                     grasp.slice = k;
 
-                    [R_g_obj_list, t_g_obj] = ...
+                    if index == 100
+                        stop = 1;
+                    end
+                    [R_g_obj_list, t_g_obj_list] = ...
                         grasp_points_to_poses(grasp, sdf_centroid, sdf_res, config);
                     grasp.R_g_obj_list = R_g_obj_list;
-                    grasp.t_g_obj = t_g_obj;
+                    grasp.t_g_obj_list = t_g_obj_list;
 
                     grasps{index} = grasp;
                     index = index + 1;

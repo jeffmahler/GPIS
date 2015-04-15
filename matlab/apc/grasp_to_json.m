@@ -9,16 +9,17 @@ for i = 1:num_rots
     grasp_json{i}.gripper_pose = struct();
     
     grasp_json{i}.gripper_pose.position = struct();
-    grasp_json{i}.gripper_pose.position.x = grasp.t_g_obj(1);
-    grasp_json{i}.gripper_pose.position.y = grasp.t_g_obj(2);
-    grasp_json{i}.gripper_pose.position.z = grasp.t_g_obj(3);
+    grasp_json{i}.gripper_pose.position.x = grasp.t_g_obj_list{i}(1);
+    grasp_json{i}.gripper_pose.position.y = grasp.t_g_obj_list{i}(2);
+    grasp_json{i}.gripper_pose.position.z = grasp.t_g_obj_list{i}(3);
     
-    q = dcm2quat(grasp.R_g_obj_list{i});
+    R = grasp.R_g_obj_list{i};
+    q = dcm2quat(R);
     grasp_json{i}.gripper_pose.orientation = struct();
-    grasp_json{i}.gripper_pose.orientation.x = q(1);
-    grasp_json{i}.gripper_pose.orientation.y = q(2);
-    grasp_json{i}.gripper_pose.orientation.z = q(3);
-    grasp_json{i}.gripper_pose.orientation.w = q(4);
+    grasp_json{i}.gripper_pose.orientation.w = q(1);
+    grasp_json{i}.gripper_pose.orientation.x = q(2);
+    grasp_json{i}.gripper_pose.orientation.y = q(3);
+    grasp_json{i}.gripper_pose.orientation.z = q(4);
 end
 
 grasp_json = horzcat(grasp_json{:});
