@@ -1,5 +1,5 @@
 %% read in sdf file
-object_name = 'elmers_washable_no_run_school_glue';
+object_name = 'dove_beauty_bar';
 filename = sprintf('data/apc/%s/completed_tsdf_texture_mapped_mesh_clean_25.sdf', object_name);
 sdf_file = textread(filename);
 sdf_dims = sdf_file(1,:);
@@ -63,7 +63,7 @@ config.grasp_width = pr2_grip_width_grid;
 config.friction_coef = friction_coef;
 config.n_cone_faces = n_cone_faces;
 config.dir_prior = 1.0 / 2.0;
-config.alpha_thresh = pi / 8;
+config.alpha_thresh = pi / 32;
 config.rho_thresh = 0.9 * norm(max(surf_points,[],1) - min(surf_points,[],1));
 
 config.theta_res = 2 * pi / 10;
@@ -76,6 +76,7 @@ config.vis = false;
 config.scale = 10;
 config.plate_width = 2;
 
+rng(100);
 grasps = get_antipodal_grasp_candidates(sdf, config);
 
 %% Thompson Sampling 
@@ -114,13 +115,14 @@ end
 %% convert grasps to json
 all_grasps_json = [];
 figure(1);
-for j = 1:10%num_grasps
+for j = 100:10:200
     grasp_json = grasp_to_json(grasps{j});
     clf;
     plot_grasp_3d(grasps{j}, sdf, sdf_x, sdf_y, sdf_z, config);
-    pause(0.01);
     all_grasps_json = [all_grasps_json, grasp_json];
+    pause(1);
 end
+
 out_filename = sprintf('%s/%s.json', out_dir, object_name);
 savejson([], all_grasps_json, out_filename);
 
