@@ -1,4 +1,5 @@
-function val = surface_and_antipodality_functions(x, gpModel, com, surface_only)
+function val = surface_and_antipodality_functions(x, gpModel, shapeParams, ...
+   gripWidth, plateWidth, com, surface_only)
 % 5 constraints evaluated here:
 %   1,2: Points on surface
 %   3,4: Opposite normals
@@ -6,22 +7,36 @@ function val = surface_and_antipodality_functions(x, gpModel, com, surface_only)
 
 
 use_com = true;
-if nargin < 3
+if nargin < 6
     use_com = false;
 end
-if nargin < 4
+if nargin < 7
     surface_only = true;
 end
 
-
+% nc = 2;
+% loa = create_ap_loa(x, gripWidth);
+% fakeCom = [0,0];
+% vis = false;
+% [xp, ~, ~ ] = ...
+%     find_contact_points(loa, nc, shapeParams.points, ...
+%         shapeParams.tsdf, shapeParams.normals, ...
+%         fakeCom, shapeParams.surfaceThresh, vis, plateWidth);
+% xp = xp';
+%     
 % right now just the surface values
+% x = [contacts(1,:)'; contacts(2,:)'];
 d = size(x,1) / 2;
 val = zeros(5,1);
 xp = [x(1:d,1)'; x(d+1:2*d,1)'];
 
+% [ contacts, normal, bad ] = ...
+%     find_contact_points(contactPoints, nc, allPoints, allTsdf, allNorm, ...
+%         COM, thresh, vis, plateWidth, scale)
+
 % lies on surface
 [mu, Mx, Kxxp] = gp_mean(gpModel, xp, true);    
-val(1:2) = 2*mu(1:2);
+val(1:2) = 1*mu(1:2); % don't need to stay on surface
 
 % antipodality
 % opposite normals

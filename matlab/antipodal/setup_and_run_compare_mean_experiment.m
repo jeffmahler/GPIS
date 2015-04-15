@@ -2,13 +2,13 @@
 % grasp on the mean shape through exhaustive sampling
 
 
-dataDir = 'data/google_objects/scratch';
-shapeNames = {'plane'};%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
-gripScales = {1.2};%{0.4, 0.5, 0.5, 1.2, 0.3, 0.6, 0.75, 0.4};
-outputDir = 'results/mean_vs_predicted_exp/scaling/70';
-scale = 2;
-maxIters = 20;
-dim = 70;
+dataDir = 'data/google_objects/icra';
+shapeNames = {'knob', 'splitter', 'switch'};%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {0.95, 0.95, 0.95};%{0.4, 0.5, 0.5, 1.2, 0.3, 0.6, 0.75, 0.4};
+outputDir = 'results/mean_vs_predicted_exp/new_examples';
+scale = 4;
+maxIters = 1000;
+dim = 25;
 
 %% experiment config
 experimentConfig = struct();

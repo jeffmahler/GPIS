@@ -284,7 +284,3 @@ figure(9);
 hist(pfc, n_bins);
 xlabel('Probability of Force Closure');
 ylabel('Bin Counts');
-
-
-
-

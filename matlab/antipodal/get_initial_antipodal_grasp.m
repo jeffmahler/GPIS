@@ -10,16 +10,25 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
     % choose random point on surface for point 1
     ind1 = uint16(rand * (numSurf-1) + 1);
     x1 = surf_points(ind1,:)' + (0.5 - rand); % small random perturbation
-        
-    % get direction
-    n1 = [xNormGrid(round(x1(2)),round(x1(1))) + 20*(rand - 0.5); ...
-          yNormGrid(round(x1(2)),round(x1(1))) + 20*(rand - 0.5)];
+%    % get direction
+    % noise levels used to be
+    % normals - 20
+    % com - 4
+    % not sure where that came from but it also seemed to work
+    n1 = [xNormGrid(round(x1(2)),round(x1(1))); ...
+          yNormGrid(round(x1(2)),round(x1(1)))];
     v = -n1 / norm(n1); % go in normal opposite direction
     if ~useNormalDirection
-        v = predShape.com' + 4*[rand - 0.5; rand - 0.5] - x1;
+        v = predShape.com' - x1;
         v = v / norm(v);
     end
     
+    theta = atan(v(2) / v(1));
+    if v(1) < 0
+        theta =  theta + pi;
+    end
+    theta_hat = theta + normrnd(0, pi / 8);
+    v = [cos(theta_hat); sin(theta_hat)];
     
     alpha = 1;
     noiseThresh = 5.0;
@@ -112,8 +121,10 @@ function init_grasp = get_initial_antipodal_grasp(predShape, useNormalDirection)
 %     plot(2*x2(1,:), 2*x2(2,:), 'bx-', 'MarkerSize', 20, 'LineWidth', 1.5);
 %         
 
-    init_grasp = [x1(2); x1(1); x2(2); x2(1)];
+    init_grasp = [x1(1); x1(2); x2(1); x2(2)];
     
+%     predGrid(round(x1(2)), round(x1(1)))
+%     predGrid(round(x2(2)), round(x2(1)))
 %     figure(1);
 %     imshow(tsdf_surface);
 %     hold on;

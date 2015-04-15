@@ -1,7 +1,7 @@
 function [ mn_Q, v_Q, success, varargout] = mc_sample_fast(allPoints, coneAngle, cpSamples, ...
                                     numContacts, shapeSamples, gridDim, surfThresh, ...
                                     badContactThresh, plateWidth, gripWidth, ...
-                                    vis, showHist, qScale)
+                                    vis, showHist, qScale, debug)
 %Takes a line not a single contact, add points in the order of [first1;
 %last1; first2; last2]; 
 
@@ -29,9 +29,12 @@ end
 if nargin < 13
     qScale = 1;
 end
+if nargin < 14
+    debug = false;
+end
 
 success = true;
-debug = false;
+%debug = true;
 mn_cp = zeros(2,numContacts); 
 sum_contact = mn_cp; 
 sum_sq = sum_contact; 
@@ -68,9 +71,7 @@ while k <= num_sample
     [contactPts, norms, badContact] = ...
         find_contact_points(cp, numContacts, allPoints, Tsdf, Norm, ...
             sampleCom, surfThresh, vis, plateWidth, scale);
-
-    
-        
+  
     if badContact
         num_bad = num_bad+1;
 
@@ -153,6 +154,7 @@ while k <= num_sample
             scatter(scale*conePtsR(1), scale*conePtsR(2), 50.0, 'r+', 'LineWidth', 2);
             conePtsL = contactPts(:,i) + 3*f_l;
             scatter(scale*conePtsL(1), scale*conePtsL(2), 50.0, 'r+', 'LineWidth', 2);
+            pause(0.1);
         end
         
         % normalize (can only provide as much force as the normal force)
@@ -203,8 +205,10 @@ while k <= num_sample
     
     if vis
         fprintf('Assessing grasp sample %d\n', k);
+        fprintf('Cur quality: %f\n', Q);
         fprintf('Mean of Grasp Quality: %f\n', mn_Q);
         fprintf('Variance of Grasp Quality: %f\n', v_Q);
+        fprintf('Force closure: %f\n', sum(q_vals > 0.001) / k);
     end
     
     k = k+1; % increment loop counter 

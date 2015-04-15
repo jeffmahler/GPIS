@@ -1,11 +1,11 @@
-function [] = plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length,i,N,value, ...
-    Names,com, plateWidth)
+function [] = plot_grasp_arrows( shapeImage, x1, x2, grad1, grad2, scale, length, ...
+    com, plateWidth)
 
-use_com =false;
-if nargin < 12
+use_com = true;
+if nargin < 8
     use_com = false;
 end
-if nargin < 13
+if nargin < 9
    plateWidth = length / 2; 
 end
 
@@ -18,15 +18,14 @@ tan2 = [-grad2(2); grad2(1)];
 plateWidth = scale*double(plateWidth);
 
 %figure(45);
-subplot(1,N,i); 
 imshow(shapeImage);
 hold on;
 % plot arrows
 start1 = x1 - length*grad1;
 start2 = x2 - length*grad2;
 
-arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 8, 'Width', 2, 'TipAngle', 30);
-arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 8, 'Width', 2, 'TipAngle', 30);
+arrow(scale*start1, scale*x1, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 7, 'Width', 4, 'TipAngle', 30);
+arrow(scale*start2, scale*x2, 'FaceColor', 'r', 'EdgeColor', 'r', 'Length', 7, 'Width', 4, 'TipAngle', 30);
 
 % plot small parallel jaws
 start1 = x1 + plateWidth*tan1/2;
@@ -43,9 +42,5 @@ if use_com
 end
 
 hold off;
-val = num2str(value); 
-val = val(1:4); 
-xlabel(strcat('P(Q>0) = ',val)); 
-title(Names{i}); 
-end
 
+end

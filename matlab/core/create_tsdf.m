@@ -1,5 +1,5 @@
 function [shapeParams, shapeImage, points, com] = ...
-    create_tsdf(filename, dataDir, gridDim, varParams, surfaceThresh, useCom) 
+    create_tsdf(filename, dataDir, gridDim, varParams, surfaceThresh, useCom, scale) 
 % Function for running construction experiments with GPIS
 % INSTRUCTIONS:
 %   1. Specify a type of shape
@@ -14,12 +14,10 @@ if nargin < 6
     useCom = false;
 end
 
-
 % param specification
 shape = 'Polygons';
 shapeName = sprintf('%s/%s.mat', dataDir, filename);
 pointsName = sprintf('%s/%s_points.csv', dataDir, filename);
-
 
 % experiment params
 points = csvread(pointsName);
@@ -28,16 +26,14 @@ if size(points,1) > 1
     points = reshape(points', 1, 2*size(points,1));
     csvwrite(pointsName, points);
 end
-pointScale = gridDim / 25;
-points = points * pointScale;
 
 if useCom
     comName = sprintf('%s/%s_com.csv', dataDir, filename);
     com = csvread(comName);
-    com = com * pointScale;
+    com = com / scale;
 end
 [shapeParams, shapeImage] = ...
-    auto_tsdf(shape, gridDim, points, varParams);
+    auto_tsdf(shape, gridDim, points, varParams, com, scale);
 shapeParams.surfaceThresh = surfaceThresh;
 save(shapeName, 'shapeParams');
 

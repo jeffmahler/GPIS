@@ -41,13 +41,17 @@ cfg.plate_width = plateWidth;
 
 if forceAntipodal
     if use_com
-        g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef, com, cfg.com_tol); ...
+        g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef, shapeParams, ...
+                                            gripWidth, plateWidth, com, cfg.com_tol); ...
                    gripper_width_constraint(x, gpModel, cfg.grip_width) ]);
-        h = @(x) (surface_and_antipodality_functions(x, gpModel));%, com));
+        h = @(x) (surface_and_antipodality_functions(x, gpModel, shapeParams, ...
+                  gripWidth, plateWidth));%, com));
     else
-        g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef) ; ...
+        g = @(x) ([friction_cone_constraint(x, gpModel, cfg.fric_coef, shapeParams, ...
+                                            gripWidth, plateWidth) ; ...
                    gripper_width_constraint(x, gpModel, cfg.grip_width) ]);
-        h = @(x) (surface_and_antipodality_functions(x, gpModel));
+        h = @(x) (surface_and_antipodality_functions(x, gpModel, shapeParams, ...
+                  gripWidth, plateWidth));
     end
 else
     % unconstrained
@@ -56,12 +60,15 @@ else
     surfaceOnly = true;
     zeroCom = [0,0];
     if use_com
-        h = @(x) (surface_and_antipodality_functions(x, gpModel, com, surfaceOnly));
+        h = @(x) (surface_and_antipodality_functions(x, gpModel, shapeParams, ...
+                  gripWidth, plateWidth, com, surfaceOnly));
     else
-        h = @(x) (surface_and_antipodality_functions(x, gpModel, zeroCom, surfaceOnly));
+        h = @(x) (surface_and_antipodality_functions(x, gpModel, shapeParams, ...
+                  gripWidth, plateWidth, zeroCom, surfaceOnly));
     end
 end
 
+init = h(x_init);
 [x_grasp, x_all_iters, success] = penalty_sqp(x_init, Q, q, f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg);    
 opt_val = f(x_grasp);
 

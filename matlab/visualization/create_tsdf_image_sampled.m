@@ -1,5 +1,5 @@
 function shapeSurfaceImage = ...
-    create_tsdf_image_sampled(shapeParams, shapeSamples, scale, contrastRatio, black, vis)
+    create_tsdf_image_sampled(shapeParams, shapeSamples, scale, contrastRatio, black, vis, heq)
 
 if nargin < 4
     contrastRatio = 0.7;
@@ -10,7 +10,9 @@ end
 if nargin < 6
     vis = false;
 end
-
+if nargin < 7
+    heq = true;
+end
 % Alpha blend all samples
 sample_dim = shapeParams.gridDim;
 numSamples = size(shapeSamples,2);
@@ -18,6 +20,9 @@ dim = 2 * sample_dim;
 hd_dim = scale / 2 * dim;
 shapeSurfaceImage = zeros(dim, dim);
 alpha = contrastRatio / double(numSamples);
+
+%writerObj = VideoWriter('results/shape_samples/noise_level_010.avi');
+%open(writerObj);
 
 for i = 1:numSamples
     tsdf = shapeSamples{i}.tsdf;
@@ -44,37 +49,19 @@ for i = 1:numSamples
         figure(100);
         H = high_res_surface(double(tsdfSurface), scale / 2);
         imshow(H);
+%         frame = getframe;
+%         for a = 1:20
+%             writeVideo(writerObj,frame);
+%         end
         pause(0.5);
     end
     
     shapeSurfaceImage = shapeSurfaceImage + alpha * tsdfSurface;
 end
 shapeSurfaceImage = shapeSurfaceImage + (1.0 - contrastRatio) * zeros(dim, dim);
+%close(writerObj);
 
-% figure;
-% subplot(1,4,1);
-% w = shapeSurfaceImage.^3;
-% imshow(w);
-% 
-% subplot(1,4,2);
-% f = histeq(shapeSurfaceImage, 100);
-% x = f;
-% x(x == 0) = 5e-3; % remove 0 values
-% G = fspecial('gaussian',[5 5], 0.5);
-% y = imfilter(x, G, 'same');
-% a = y.^0.15;
-% imshow(a);
-% 
-% subplot(1,4,3);
-% G = fspecial('gaussian',[5 5], 0.5);
-% Ig = imfilter(shapeSurfaceImage, G, 'same');
-% fp = histeq(Ig,100);
-% imshow(fp);
-% 
-% subplot(1,4,4);
-% q = 0.6*w + 0.4*a;
-% imshow(q);
-
+if heq
 gamma = 3;
 beta = 0.15;
 sig = 0.5;
@@ -89,6 +76,7 @@ siEqFlat = siEqualizedFilt.^beta;
 
 shapeSurfaceImage = blend * siContrastEnhanced + (1 - blend) * siEqFlat;
 shapeSurfaceImage = high_res_gpis(shapeSurfaceImage, scale / 2);
+end
 % figure;
 % imshow(shapeSurfaceImage);
 

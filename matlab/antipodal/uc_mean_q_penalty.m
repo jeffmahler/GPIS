@@ -4,7 +4,8 @@ function val = uc_mean_q_penalty(x, gpModel, nu, ...
 
     % full covariance penaty if not specified
     d = size(x,1) / 2;
-    Sig = gp_cov(gpModel, [x(1:d,1)'; x(d+1:2*d,1)'], [], false);
+    %a = [x(1:d,1)'; x(d+1:2*d,1)'];
+    Sig = gp_cov(gpModel, [x(1:d,1)'; x(d+1:2*d,1)'], [], true);
     
     numContacts = 2;
     visSampling = false;
@@ -44,14 +45,25 @@ function val = uc_mean_q_penalty(x, gpModel, nu, ...
                                         coneAngle, graspSample, numContacts, ...
                                         meanSample, shapeParams.gridDim, ...
                                         shapeParams.surfaceThresh, ...
-                                        badContactThresh, plateWidth, ...
+                                        badContactThresh, plateWidth, gripWidth,...
                                         visSampling, visHistogram);
         q_estimate = q_estimate + loaWeights(i) * mn_q;
         p_estimate = p_estimate + loaWeights(i) * p_fc;
         w_sum = w_sum + loaWeights(i);
     end
     mn_q = q_estimate / w_sum;
-    p_fc = p_estimate / w_sum;                            
+    p_fc = p_estimate / w_sum; 
+    
+    % get uncertainty at contacts
+%     loa = create_ap_loa(x, gripWidth);
+%     fakeCom = [0,0];
+%     vis = false;
+%     [xp, ~, ~ ] = ...
+%         find_contact_points(loa, numContacts, shapeParams.points, ...
+%             shapeParams.tsdf, shapeParams.normals, ...
+%             fakeCom, shapeParams.surfaceThresh, vis, plateWidth);
+%     xp = xp';
+%     Sig = gp_cov(gpModel, xp, [], false);
     
     % use probability of force closure
     val = nu*sum(diag(Sig)) - p_fc;

@@ -1,12 +1,14 @@
 % script for setting up and running an antipodal experiment
 
-dim = 50;
+dim = 25;
 % CHANGE BELOW WHEN CREATION IS OVER!
-dataDir = 'data/google_objects/scratch';
+dataDir = 'data/google_objects/icra';
 
 % BELOW ARE FINAL CONFIG FOR ICRA
-shapeNames = {'knob'};%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
-gripScales = {0.95};%{0.38, 0.6, 0.8, 1.2, 0.4, 0.6, 0.85, 0.4};
+shapeNames = {'knob', 'marker', 'nail', 'plane', 'squirt_bottle', 'splitter', 'switch', 'tape'};
+%{'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+gripScales = {0.95, 0.75, 0.95, 0.85, 0.4, 1.0, 0.95, 0.85};
+%{0.38, 0.6, 0.8, 1.2, 0.4, 0.6, 0.85, 0.4};
 % TEST CONFIG
 %shapeNames = {'tape'};
 %gripScales = {0.4};
@@ -15,18 +17,20 @@ gripScales = {0.95};%{0.38, 0.6, 0.8, 1.2, 0.4, 0.6, 0.85, 0.4};
 outputDir = 'results/optimization';
 meanCompDir = 'results/mean_vs_predicted_exp/icra_long';
 newShape = false;
-createGpis = true;
+createGpis = false;
 scale = 4;
+sampleIters = 20;
 
 %% experiment config
 experimentConfig = struct();
-experimentConfig.graspIters = 0;
-experimentConfig.frictionCoef = 0.5;
+experimentConfig.trials = 3;
+experimentConfig.graspIters = 20;%10;
+experimentConfig.frictionCoef = 0.4;
 experimentConfig.numSamples = 1000;
 experimentConfig.surfaceThresh = 0.15;
 experimentConfig.arrowLength = 4;
 experimentConfig.loaScale = 1.75;
-experimentConfig.graspSigma = 0.25;
+experimentConfig.graspSigma = 1.5;
 experimentConfig.numBadContacts = 10;
 experimentConfig.visSampling = false;
 experimentConfig.visOptimization = true;
@@ -35,6 +39,7 @@ experimentConfig.rejectUnsuccessfulGrasps = false;
 
 experimentConfig.smoothWin = 1;
 experimentConfig.smoothSig = 0.001;
+experimentConfig.shapeSampleTime = 1.5; % time to sample shapes
 
 experimentConfig.gripWidth = dim; % dimension of grasp when scale = 1.0
 experimentConfig.plateScale = 0.075;
@@ -46,10 +51,10 @@ experimentConfig.evalRandSampleFcGrasps = true;
 
 %% variance parameters
 varParams = struct();
-varParams.y_thresh1_low = 10;
-varParams.y_thresh1_high = 49;
+varParams.y_thresh1_low = 5;
+varParams.y_thresh1_high = 24;
 varParams.x_thresh1_low = 1;
-varParams.x_thresh1_high = 50;
+varParams.x_thresh1_high = 25;
 
 varParams.y_thresh2_low = 25;
 varParams.y_thresh2_high = 24;
@@ -115,7 +120,7 @@ trainingParams.hyp.mean = [0; 0; -1];
 trainingParams.hyp.lik = log(0.1);
 trainingParams.useGradients = true;
 trainingParams.image = ...
-    imread('/Users/jeff/Documents/Research/implicit_surfaces/docs/icra_drafts/new_examples/DSC_0488.JPG');
+    imread('/Users/jeff/Documents/Research/implicit_surfaces/docs/icra_drafts/new_examples/DSC_0491.JPG');
 trainingParams.cdim = scale * dim;
 
 %% optimization parameters
@@ -123,7 +128,7 @@ cf = cos(atan(experimentConfig.frictionCoef));
 
 cfg = struct();
 cfg.max_iter = 10;
-cfg.max_penalty_iter = 5;
+cfg.max_penalty_iter = 6;
 cfg.max_merit_coeff_increases = 5;
 cfg.merit_coeff_increase_ratio = 2.0;
 cfg.initial_penalty_coeff = 0.25;
@@ -136,7 +141,7 @@ cfg.callback = @plot_surface_grasp_points;
 cfg.full_hessian = false;
 cfg.cnt_tolerance = 1e-4;
 cfg.ineq_tolerance = [1-cf; 1-cf; 0.1; 0.1];
-cfg.eq_tolerance = [1e-1; 1e-1; 5e-2; 5e-2; 0.1];
+cfg.eq_tolerance = [10e0; 10e0; 5e-2; 5e-2; 0.1];
 cfg.prog_tolerance = 1.0;
 cfg.com_tol = 2.0;
 cfg.scale = scale;
@@ -152,9 +157,9 @@ cfg.fric_coef = 0; % use no-slip constraint to force antipodality but allow solu
 % cfg.scale = scale;
 % cfg.nu = 1.0;
 %% run experiment
-rng(360);
+%rng(260);
 allShapeResults = cell(1,size(shapeNames,2));
-
+avgSpeedups = zeros(size(shapeNames,2),1);
 for i = 1:size(shapeNames,2)
     filename = shapeNames{i};
     gripScale = gripScales{i};
@@ -162,11 +167,15 @@ for i = 1:size(shapeNames,2)
     
     % Run experiment on next shape
     [experimentResults, gpModel, shapeParams, shapeSamples] = ...
-        run_antipodal_experiment(dim, filename, gripScale, dataDir, ...
-                                 outputDir, meanCompDir, newShape, ...
+        run_compare_sampling_opt(dim, filename, gripScale, dataDir, ...
+                                 outputDir, meanCompDir, sampleIters, newShape, ...
                                  experimentConfig, varParams, ...
                                  trainingParams, cfg, createGpis);
                              
+    
+    avgSpeedups(i) = ...
+        mean(experimentResults.allSampleConvTimes) ./ mean(experimentResults.allOptConvTimes);
+    
     % Store results
     shapeResult = struct();
     shapeResult.experimentResults = experimentResults;

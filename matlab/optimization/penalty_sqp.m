@@ -62,6 +62,8 @@ cfg = load_user_cfg(cfg, user_cfg);
 disp('Optimizer parameters:');
 disp(cfg)
 
+%cvx_solver sedumi
+
 % correct the empty matrices
 if size(A_ineq,1) == 0
    A_ineq = zeros(1,size(x0,1));
@@ -103,11 +105,13 @@ if ~isempty(cfg.callback), cfg.callback(x0, info); end;
 % - If all constraints are satisfied (which in code means if they are satisfied up to tolerance cfg.cnt_tolerance), we're done.
 %
 x_all_iters = x;
+time = 0;
 while penalty_iter <= cfg.max_penalty_iter    
     
-    [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
+    [x, trust_box_size, success, total_time] = minimize_merit_function(x, Q, q, ...
     f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg, penalty_coeff, trust_box_size);
-	
+    time = time + total_time;
+
     x_all_iters = [x_all_iters, x];
     num_iters = size(x_all_iters, 2);
     
@@ -116,10 +120,12 @@ while penalty_iter <= cfg.max_penalty_iter
         trust_box_size = cfg.initial_trust_box_size;
     end
     
-    if (max(A_ineq*x - b_ineq) > cfg.cnt_tolerance) ...
+    constraints_not_sat = (max(A_ineq*x - b_ineq) > cfg.cnt_tolerance) ...
             || (max(abs(A_eq*x - b_eq)) > cfg.cnt_tolerance) ...
             || (sum(g(x) > cfg.ineq_tolerance) > 0) ...
-            || (sum(abs(h(x)) > cfg.eq_tolerance) > 0)% || ...
+            || (sum(abs(h(x)) > cfg.eq_tolerance) > 0);
+    success = ~constraints_not_sat;
+    if constraints_not_sat% || ...
           %  norm(x - x_all_iters(:, num_iters-1)) > cfg.prog_tolerance) % there's at least 1 bad constraint
         max(A_ineq*x - b_ineq)
         max(abs(A_eq*x - b_eq))
@@ -139,6 +145,8 @@ if penalty_iter > cfg.max_penalty_iter
     fprintf('Failed to find a solution that satisfies all of the constraints\n');
     success = false;
 end
+
+fprintf('Total time = %f\n', time);
 end
 
 function full_cfg = load_user_cfg(full_cfg, user_cfg)
@@ -180,12 +188,12 @@ else
 end
 end
 
-function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
+function [x, trust_box_size, success, varargout] = minimize_merit_function(x, Q, q, ...
     f, A_ineq, b_ineq, A_eq, b_eq, g, h, cfg, penalty_coeff, trust_box_size)
     
     dim_x = length(x);
 
-
+    totalTime = 0;
     success = true;
     sqp_iter = 1;
 
@@ -198,7 +206,8 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
         % to the nonlinear part of the objective f and a linear approximation to the nonlinear
         % constraints f and g.
         fprintf('  sqp iter: %i\n', sqp_iter);
-                    
+         
+        gradStart = tic;
         if cfg.f_use_numerical
             fval = f(x);
             fgrad = numerical_jac(f,x);
@@ -212,22 +221,34 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
         else
             [fval, fgrad, fhess] = f(x);
         end
+        gradStop = toc(gradStart);
+        %fprintf('F + Grad time = %.3f\n', gradStop);
+        
+        gStart = tic;
         if cfg.g_use_numerical
             gval = g(x);
             gjac = numerical_jac(g,x);
         else           
             [gval, gjac] = g(x);
         end
+        gStop = toc(gStart);
+        %fprintf('G time = %.3f\n', gStop);
+        
+        hStart = tic;
         if cfg.h_use_numerical
             hval = h(x);
             hjac = numerical_jac(h,x);
         else
             [hval, hjac] = h(x);
         end
+        hStop = toc(hStart);
+        %fprintf('H time = %.3f\n', hStop);
+            
         fval
         gradquadlin = numeric_gradient(fquadlin, x);
         merit = fval + fquadlin(x) + penalty_coeff * ( hinge(gval) + abssum(hval) );
         
+        iteration = 1;
         while true 
             % This is the trust region loop
             % Using the approximations computed above, this loop shrinks
@@ -246,7 +267,7 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
             % You should enforce the linear constraints exactly.
 			% Make sure to include the constant term f(x) in the merit function
 			% objective as the resulting cvx_optval is used further below.
-            
+            optStart = tic;
             cvx_begin quiet
                 variable xp(dim_x, 1);
 
@@ -259,6 +280,10 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
                     A_eq*xp == b_eq;
 				
             cvx_end
+            
+            optStop = toc(optStart);
+            totalTime = totalTime + optStop;
+            fprintf('Opt time for iter %d = %.3f\n', iteration, optStop);
             
             if strcmp(cvx_status,'Failed')
                 fprintf('Failed to solve QP subproblem.\n');
@@ -287,6 +312,9 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
                 fprintf('Converged: y tolerance\n');
                 x = xp;
                 if ~isempty(cfg.callback), cfg.callback(x,info); end
+                if nargout > 0
+                    varargout{1} = totalTime;
+                end
                 return;
             elseif (exact_merit_improve < 0) || (merit_improve_ratio < cfg.improve_ratio_threshold)
                 trust_box_size = trust_box_size * cfg.trust_shrink_ratio;
@@ -299,6 +327,9 @@ function [x, trust_box_size, success] = minimize_merit_function(x, Q, q, ...
             
             if trust_box_size < cfg.min_trust_box_size
                 fprintf('Converged: x tolerance\n');
+                if nargout > 0
+                    varargout{1} = totalTime;
+                end
                 return;
             end
         end % tr

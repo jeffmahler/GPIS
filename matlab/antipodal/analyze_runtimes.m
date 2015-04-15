@@ -3,12 +3,13 @@ offsets = {1.5}; % num seconds to sample shape
 offset = 1.5;
 worstCaseIndex = 753;
 %shapeNames = {'plane'};
-shapeNames = {'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+%shapeNames = {'can_opener', 'deodorant', 'marker', 'plane', 'squirt_bottle', 'stapler', 'tape', 'water'};
+shapeNames = {'knob', 'marker', 'nail', 'plane', 'splitter', 'squirt_bottle', 'switch', 'tape'};
 %gripScales = {1.2};
 gripScales = {0.38, 0.6, 0.8, 1.2, 0.4, 0.6, 0.75, 0.4};
 %hashNums = {953818};
-hashNums = {739510, 48767, 632350, 872635, 327421, 675042, 355060, 37458};%{555647, 163603, 24685, 736205, 241629, 658943, 412912, 34654};
-dataDir = 'results/optimization/runtimes';
+hashNums = {516450, 632350,  833015, 872635, 516450, 327421, 516450, 355060};%{555647, 163603, 24685, 736205, 241629, 658943, 412912, 34654};
+dataDir = 'results/optimization/icra_final';
 meanCompDir = 'results/mean_vs_predicted_exp/icra_long';
 numShapes = size(shapeNames, 2);
 
@@ -61,7 +62,7 @@ for i = 1:numShapes
     sampleTimes = bestSampling.sampleTimes.sampleTimes;
     avgSampleTimes(i) = mean(sampleTimes);
     totalSampleTimes(i) = sum(sampleTimes);
-    trueSampleTimes(i) = sum(sampleTimes(1:worstCaseIndex));
+    trueSampleTimes(i) = sum(sampleTimes(1:min(end,worstCaseIndex)));
     adjustedSampleTimes = offset + cumsum(sampleTimes);
     adjustedSampleTimes = [1, adjustedSampleTimes];
     

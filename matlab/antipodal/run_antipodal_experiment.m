@@ -87,6 +87,7 @@ numContacts = 2;
 coneAngle = atan(experimentConfig.frictionCoef);
 length = experimentConfig.arrowLength;
 surfaceImage = constructionResults.newSurfaceImage;
+meanSurfaceImage = constructionResults.meanSurfaceImage;
 scale = optimizationParams.scale;
 win = experimentConfig.smoothWin;
 sig = experimentConfig.smoothSig;
@@ -187,53 +188,60 @@ while i <= experimentConfig.graspIters
     initialNomP(i) = p_fc;
     
     % evaluate antipodal optimization of just the FC metric
-%     disp('Evaluating FC optimized grasp');
-%     useUncertainty = false;
-%     startTime = tic;
-%     [optGrasp, optVal, allIters, constSatisfaction] = ...
-%         find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
-%             optimizationParams, shapeParams.gridDim, shapeParams.com, ...
-%             predGrid, coneAngle, experimentConfig.numBadContacts, ...
-%             plateWidth, gripWidth, graspSigma, useUncertainty);
-%     optimizationTime = toc(startTime);
-% 
-%     detFcOptTimes(i) = optimizationTime;
-%     detFcOptSatisfy(i) = constSatisfaction;
-%     detFcOptVals(i) = optVal;
-% 
-%     % evaluate quality with MC sampling
-%     bestLoa = create_ap_loa(optGrasp, experimentConfig.gripWidth);
-%     bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
-%     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-%                                     coneAngle, bestGraspSamples, numContacts, ...
-%                                     shapeSamples, shapeParams.gridDim, ...
-%                                     shapeParams.surfaceThresh, ...
-%                                     experimentConfig.numBadContacts, ...
-%                                     plateWidth, gripWidth, ...
-%                                     experimentConfig.visSampling);
-% 
-%     detFcOptGrasps(i,:) = optGrasp';
-%     detFcOptMeanQ(i) = mn_q;
-%     detFcOptVarQ(i) = v_q;
-%     detFcOptSuccesses(i) = success;
-%     detFcOptPfc(i) = p_fc;
-%     
-%     % evaluate quality on nominal shape
-%     nomGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
-%     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
-%                                     coneAngle, nomGraspSamples, numContacts, ...
-%                                     nomShapeSamples, shapeParams.gridDim, ...
-%                                     shapeParams.surfaceThresh, ...
-%                                     experimentConfig.numBadContacts, ...
-%                                     plateWidth, gripWidth, ...
-%                                     experimentConfig.visSampling);
-% 
-%     detFcOptNomQ(i) = mn_q';
-%     detFcOptNomP(i) = p_fc;
-%     
+    % NOTE: changed to uncertainty penalty ONLY temporarily
+    disp('Evaluating FC optimized grasp');
+    useUncertainty = false;
+    startTime = tic;
+    nu = optimizationParams.nu;
+    optimizationParams.nu = 1e4; % so high that PF is ignored
+    [optGrasp, optVal, allIters, constSatisfaction] = ...
+        find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
+            optimizationParams, shapeParams.gridDim, shapeParams.com, ...
+            predGrid, coneAngle, experimentConfig.numBadContacts, ...
+            plateWidth, gripWidth, graspSigma, useUncertainty);
+    optimizationTime = toc(startTime);
+    optimizationParams.nu = nu; % reset to original nu
+
+    detFcOptTimes(i) = optimizationTime;
+    detFcOptSatisfy(i) = constSatisfaction;
+    detFcOptVals(i) = optVal;
+
+    % evaluate quality with MC sampling
+    bestLoa = create_ap_loa(optGrasp, experimentConfig.gripWidth);
+    bestGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
+    [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, bestGraspSamples, numContacts, ...
+                                    shapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, ...
+                                    plateWidth, gripWidth, ...
+                                    experimentConfig.visSampling);
+
+    detFcOptGrasps(i,:) = optGrasp';
+    detFcOptMeanQ(i) = mn_q;
+    detFcOptVarQ(i) = v_q;
+    detFcOptSuccesses(i) = success;
+    detFcOptPfc(i) = p_fc;
+    
+    % evaluate quality on nominal shape
+    nomGraspSamples = sample_grasps(bestLoa, experimentConfig.graspSigma, numSamples);
+    [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
+                                    coneAngle, nomGraspSamples, numContacts, ...
+                                    nomShapeSamples, shapeParams.gridDim, ...
+                                    shapeParams.surfaceThresh, ...
+                                    experimentConfig.numBadContacts, ...
+                                    plateWidth, gripWidth, ...
+                                    experimentConfig.visSampling);
+
+    detFcOptNomQ(i) = mn_q';
+    detFcOptNomP(i) = p_fc;
+    
     % evaluate antipodal optimization w/ uncertainty and FC metric
     disp('Evaluating FC optimized grasp w/ uncertainty');
     startTime = tic;
+    if i == 8
+        stop = 1;
+    end
     [optGrasp, optVal, allIters, constSatisfaction] = ...
         find_uc_mean_q_grasp_points(initGrasp, gpModel, ...
             optimizationParams, shapeParams.gridDim, shapeParams.com, ...
@@ -274,7 +282,7 @@ while i <= experimentConfig.graspIters
     ucFcOptNomQ(i) = mn_q';
     ucFcOptNomP(i) = p_fc;
     
-    % evaluate antipodal optimization of just the FC metric
+    % evaluate optimization of just the FC metric wo antipodal
     disp('Evaluating FC optimized grasp without antipodal constraint');
     useUncertainty = false;
     forceAp = false;
@@ -321,8 +329,8 @@ while i <= experimentConfig.graspIters
     cfDetFcOptNomQ(i) = mn_q';
     cfDetFcOptNomP(i) = p_fc;
     
-    % evaluate antipodal optimization of the FC metric with uncertainty
-    % penalty
+    % evaluate optimization of the FC metric with uncertainty
+    % penalty and without antipodality
     disp('Evaluating FC optimized grasp with uncertainty without antipodal constraint');
     useUncertainty = true;
     forceAp = false;
@@ -531,7 +539,7 @@ print(h, '-depsc', sprintf('%s/%s_comp_opt.eps', outputDir, filename));
 % compare opt grasp with best initial grasp
 h = figure(39);
 subplot(1,3,1);
-visualize_grasp(bestMean.bestGrasp', predGrid, surfaceImage, ...
+visualize_grasp(bestMean.bestGrasp', predGrid, meanSurfaceImage, ...
     scale, length, plateWidth, gripWidth);
 title('Best Grasp Ranked by Q(F) on Mean Shape', 'FontSize', 8);
 xlabel(sprintf('Q(N) = %.03f\n P(FC) = %.03f', ...

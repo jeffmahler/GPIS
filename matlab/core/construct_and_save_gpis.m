@@ -21,7 +21,7 @@ startTime = tic;
         trainingParams.useGradients, trainingParams.downsample);
 samplingTime = toc(startTime);
 
-%fprintf('Sampled %d shapes in %f sec\n', numSamples, samplingTime);
+fprintf('Sampled %d shapes in %f sec\n', numSamples, samplingTime);
 
 % fill in construction results
 constructionResults = struct();
@@ -48,7 +48,7 @@ contrast = 1.0;
 constructionResults.newSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
         shapeSamples, image_scale, contrast, false, false);
-figure(88);
-imshow(constructionResults.newSurfaceImage);
+% figure(88);
+% imshow(constructionResults.newSurfaceImage);
 end
 

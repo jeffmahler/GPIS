@@ -40,7 +40,7 @@ else
     [surf_x, surf_y] = ind2sub(tsdf_dims, surf_ind); 
    
     if nargout > 0
-        varargout{1} = [surf_x(:) surf_y(:)];
+        varargout{1} = [surf_y(:) surf_x(:)];
     end
 
     [inside_x, inside_y] = ind2sub(tsdf_dims, inside_ind);

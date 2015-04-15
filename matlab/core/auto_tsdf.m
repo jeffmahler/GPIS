@@ -1,4 +1,4 @@
-function [shapeParams, shapeIm] = auto_tsdf(shape, dim, pts, varParams, com)
+function [shapeParams, shapeIm] = auto_tsdf(shape, dim, pts, varParams, com, scale)
 % Displays a random item of the specified shape and automatically extracs
 % ALL points on the surface, inside the surface, and outside the surface
 % using simple image processing ops.
@@ -15,12 +15,14 @@ if nargin < 3
    pts = [];
 end
 
-useCom = true;
-if nargin < 5
-   useCom = false;
-    com = [];
+useCom = false;
+if nargin > 5 && ndims(com) > 1
+   useCom = true;
+else
+   com = [];
 end
 
+dim = dim * scale;
 I = 255*ones(dim, dim);
 S = vision.ShapeInserter;
 S.Shape = shape;
@@ -130,39 +132,15 @@ nomIm = imfilter(nomIm, G);
 nomIm = imsharpen(nomIm, 'Amount', 10);
 imshow(shapeIm);
 
-% dilate / erode to get borders
-SE = strel('square', 3);
-J_d = imdilate(shapeIm, SE);
-J_e = imerode(shapeIm, SE);
-J_2d = imdilate(J_d, SE);
-
-% create border masks
-outsideMaskOrig = (shapeIm == 255);
-insideMaskOrig = (shapeIm == 102);
-outsideMaskEr = (J_e == 255);
-insideMaskEr = (J_e == 102);
-outsideMaskDi = (J_d == 255);
-insideMaskDi = (J_d == 102);
-outsideMaskDi2 = (J_2d == 255);
-insideMaskDi2 = (J_2d == 102);
-
-surfaceMask = outsideMaskDi & insideMaskOrig;
-surfaceMaskOut = outsideMaskOrig & insideMaskEr;
-surfaceMaskIn = outsideMaskDi2 & insideMaskDi;
-insideMask = insideMaskDi2;
-outsideMask = outsideMaskEr; 
-
-% generate tsdf values
-tsdf = zeros(dim, dim);
-tsdf(surfaceMask) = 0;
-tsdf(surfaceMaskIn) = -0.5;
-tsdf(surfaceMaskOut) = 0.5;
-tsdf(insideMask) = -1;
-tsdf(outsideMask) = 1;
-
+occMap = shapeIm;
+occMap(shapeIm == 255) = 0;
+occMap(shapeIm == 102) = 1;
+tsdf = trunc_signed_distance(occMap, 2);
+tsdf = imresize(tsdf, 1.0 / scale);
 measuredTsdf = tsdf;
 
 % create noise with user-specified parameters
+dim = dim / scale; % now dim is that of new grid
 noise = ones(dim, dim);
 for i = 1:dim
     for j = 1:dim
@@ -183,7 +161,7 @@ for i = 1:dim
                 noise(i,j) = varParams.transpScale;
             end
         
-        elseif tsdf(i,j) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high && ...
+        elseif min(min(tsdfWin)) < 0.6 && ((i > varParams.y_thresh1_low && i <= varParams.y_thresh1_high && ...
                 j > varParams.x_thresh1_low && j <= varParams.x_thresh1_high) || ...
                 (i > varParams.y_thresh2_low && i <= varParams.y_thresh2_high && ... 
                 j > varParams.x_thresh2_low && j <= varParams.x_thresh2_high) || ...
@@ -240,6 +218,9 @@ for i = 1:dim
         end
     end
 end
+
+figure(4);
+imagesc(noise);
 
 % get gradients and points
 [Gx, Gy] = imgradientxy(measuredTsdf, 'CentralDifference');

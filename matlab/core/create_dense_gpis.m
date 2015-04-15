@@ -30,12 +30,12 @@ normalError = struct();%...
 [testImageDarkened, combImageBig] = create_tsdf_image(predGrid, scale);
 surfaceImage = combImageBig;
 
-% figure;
-% imshow(combImageBig);
-% hold on;
-% scatter(scale*gpModel.training_x(1,1), scale*gpModel.training_x(1,2), 150.0, 'x', 'LineWidth', 1.5);
-% scatter(scale*gpModel.training_x(:,1), scale*gpModel.training_x(:,2), 50.0, 'x', 'LineWidth', 1.5);
-% hold off;
+figure(30);
+imshow(combImageBig);
+hold on;
+scatter(scale*gpModel.training_x(1,1), scale*gpModel.training_x(1,2), 150.0, 'x', 'LineWidth', 1.5);
+scatter(scale*gpModel.training_x(:,1), scale*gpModel.training_x(:,2), 50.0, 'x', 'LineWidth', 1.5);
+hold off;
 
 end
 

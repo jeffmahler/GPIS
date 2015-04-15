@@ -27,13 +27,16 @@ constructionResults.predGrid.com = ...
 meanSamples = {constructionResults.predGrid};
 meanSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
-        meanSamples, scale, 1.0, false, false);
+        meanSamples, scale, 1.0, false, true);
 figure(49);
+meanSurfaceImage = high_res_surface(imresize(double(meanSurfaceImage), 0.5), scale / 2);
+%meanSurfaceImage = imresize(meanSurfaceImage, 0.5);
 imshow(meanSurfaceImage);
 
 constructionResults.newSurfaceImage = ...
     create_tsdf_image_sampled(constructionResults.predGrid, ...
         shapeSamples, scale, 1.0, false, false);
+constructionResults.meanSurfaceImage = meanSurfaceImage;
     
 figure(50);
 imshow(constructionResults.newSurfaceImage);

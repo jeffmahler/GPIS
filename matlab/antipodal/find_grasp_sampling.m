@@ -26,6 +26,7 @@ maxP = [];
 nomQ = [];
 gs = [];
 sampleTimes = [];
+sampleSources = [];
 k = 0;
 
 d = 2;
@@ -35,7 +36,7 @@ length = experimentConfig.arrowLength;
 numSamples = size(shapeSamples, 2);
 
 while k < maxIters
-    fprintf('%d\n', k);
+    fprintf('Iter %d\n', k);
     
     if rand() > 0.5
         useNormsForInit = true;
@@ -44,6 +45,7 @@ while k < maxIters
     end
     
     % get random grasp
+    startTime = tic;
     randGrasp = get_initial_antipodal_grasp(predGrid, useNormsForInit);
     %randGrasp = [12; 12; 24; 12];
     
@@ -61,7 +63,6 @@ while k < maxIters
     end
     
     % evaluate FC on mean shape
-    startTime = tic;
     [mn_q, v_q, success, p_fc] = mc_sample_fast(predGrid.points, ...
                                     coneAngle, randGraspSamples, numContacts, ...
                                     shapeSamples, shapeParams.gridDim, ...
@@ -101,6 +102,7 @@ while k < maxIters
         
         gs = [gs; randGraspSamples];
         sampleTimes = [sampleTimes, duration];
+        sampleSources = [sampleSources; useNormsForInit];
         
         k = k+1;
         
@@ -153,6 +155,7 @@ expResults.maxQ = maxQ;
 expResults.maxP = maxP;
 expResults.nomQ = nomQ;
 expResults.sampleTimes = sampleTimes;
+expResults.sampleSource = sampleSources;
 
 end
 
