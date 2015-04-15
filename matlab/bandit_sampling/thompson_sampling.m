@@ -23,6 +23,7 @@ function [ best_grasp, regret, Value,bounds ] = ...
     t = 1;
     for i = 1:num_grasps
         grasp_samples{i}.current_iter = 1; 
+        
         [Q] = evaluate_grasp(i,grasp_samples,shapeParams,experimentConfig);
        
 

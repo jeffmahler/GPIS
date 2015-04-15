@@ -1,7 +1,7 @@
 function [Q, grasp_samples] = evaluate_grasp(grasp,grasp_samples,shapeParams,experimentConfig)
     
         
-        c = zeros(3,2);
+       
         grasp_stor = grasp; 
         num_samples = grasp_samples{grasp_stor}.num_samples; 
         iter = grasp_samples{grasp_stor}.current_iter;

@@ -78,6 +78,19 @@ config.plate_width = 2;
 
 grasps = get_antipodal_grasp_candidates(sdf, config);
 
+%% Thompson Sampling 
+num_grasps = size(grasps,2); 
+set_size = num_grasps/10; 
+i_p = 1; 
+top_grasps = {}; 
+for i = 1:set_size:num_grasps
+    grasp_set = grasps(i_p:i); 
+    i_p = i; 
+    best_grasp = thompson_apc(grasp_set,poses,config); 
+    top_grasp{idx} = best_grasp; 
+end
+
+
 %% plot 2d
 num_grasps = size(grasps, 2);
 figure(1);
