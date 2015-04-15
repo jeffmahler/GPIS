@@ -2,7 +2,7 @@
 % get random shape indices
 %close all; 
 %clear all; 
-num_test_shapes = 30;
+num_test_shapes = 80;
 rng(60);
 shape_indices = randi(1070,num_test_shapes,1);
 %shape_indices = [326];
@@ -41,7 +41,7 @@ config.num_knn_grasps = 5;
 config.num_grasps = 1000; 
 config.gittins_in_filename1 = 'matlab/bandit_sampling/indices';
 config.gittins_out_filename1 = 'matlab/bandit_sampling/gittins_indices';
-config.budget = 9000; 
+config.budget = 5; 
 config.num_methods = 6; 
 %Noise Parameters
 
@@ -133,7 +133,7 @@ config.construction_params = construction_params;
 
 %% run experiment
 bandit_comparison_results = compare_bandits(shape_indices, config);
-save('results/bandits/bandit_comparison_results.mat', 'bandit_comparison_results','-v7.3');
+save('results/bandits/bandit_comparison_results_100s.mat', 'bandit_comparison_results','-v7.3');
 % 
 %% accumulate results
 regret_analysis = analyze_final_regret(bandit_comparison_results,...
@@ -172,6 +172,7 @@ legend('Random', 'UCB', ...
 xlabel('Iterations', 'FontSize', 15);
 ylabel('Cumulative Regret', 'FontSize', 15);
 title('Average Cumulative Regret', 'FontSize', 15);
+axis([0 40000 0 max(avg_thomp_cum_regret)]); 
 
 %% simple regret
 avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.simple_regret'), 2);
@@ -213,7 +214,7 @@ axis([1000 size(avg_git98_simp_regret,1)-10 0 0.5]);
 % xlim([0, 200]);
 % ylim([0, 0.1]);
 
-%% Probability of Force Closure 
+%% Confidence Bounds 
 avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.pfc'), 2);
 avg_ucb_simp_regret = mean(cell2mat(regret_analysis{2}.pfc'), 2);
 avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
@@ -221,6 +222,112 @@ avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
 avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
 avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
 avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2); 
+
+%Upper Bound 
+avg_random_u = mean(cell2mat(regret_analysis{1}.upper'), 2);
+avg_ucb_u = mean(cell2mat(regret_analysis{2}.upper'), 2);
+avg_bucb_u = mean(cell2mat(regret_analysis{3}.upper'), 2);
+avg_thomp_u = mean(cell2mat(regret_analysis{4}.upper'), 2);
+avg_git98_u = mean(cell2mat(regret_analysis{5}.upper'), 2);
+avg_kehoe_u = mean(cell2mat(regret_analysis{6}.upper'), 2);
+
+%Lower Bound 
+avg_random_l = mean(cell2mat(regret_analysis{1}.lower'), 2);
+avg_ucb_l = mean(cell2mat(regret_analysis{2}.lower'), 2);
+avg_bucb_l = mean(cell2mat(regret_analysis{3}.lower'), 2);
+avg_thomp_l = mean(cell2mat(regret_analysis{4}.lower'), 2);
+avg_git98_l = mean(cell2mat(regret_analysis{5}.lower'), 2);
+avg_kehoe_l = mean(cell2mat(regret_analysis{6}.lower'), 2);
+
+%%
+
+
+%Padding 
+avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
+avg_bucb_simp = zeros(size(avg_random_simp_regret));
+avg_thom_simp = zeros(size(avg_random_simp_regret));
+avg_git_simp = zeros(size(avg_random_simp_regret)); 
+avg_kehoe_simp = zeros(size(avg_random_simp_regret)); 
+
+avg_ucb_simp(1:size(avg_ucb_simp_regret,1),1) = avg_ucb_simp_regret;
+avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
+
+avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
+avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
+
+avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
+%avg_thom_simp = avg_thomp_simp_regret(1:size(avg_thom_simp));
+
+figure(5);
+clf;
+
+hold on;
+X = [1:size(avg_opt_value,1)]'; 
+X_thomp = [1:size(avg_thom_simp,1)]';
+
+%plot(avg_opt_value,'b','LineWidth',3); 
+
+
+%errorbar(X,avg_bucb_simp,avg_ 'g', 'LineWidth', 3);
+
+errorbar(X,avg_random_simp_regret,avg_random_l,avg_random_u, 'r', 'LineWidth', 3);
+errorbar(X,avg_kehoe_simp,avg_kehoe_l,avg_kehoe_u, 'Color', [0.9, 0.6, 0.0], 'LineWidth', 3);
+
+
+
+ha = errorbar(X_thomp,avg_thom_simp,avg_thomp_l,avg_thomp_u, 'g', 'LineWidth', 3);
+
+hb = get(ha,'children');  
+Xdata = get(hb(2),'Xdata');
+temp = 4:3:length(Xdata);
+temp(3:3:end) = [];
+% xleft and xright contain the indices of the left and right
+%  endpoints of the horizontal lines
+xleft = temp; xright = temp+1; 
+% Increase line length by 0.2 units
+Xdata(xleft) = Xdata(xleft) + 1000;
+Xdata(xright) = Xdata(xright) - 1000;
+set(hb(2),'Xdata',Xdata)
+errorbar(X,avg_git_simp,avg_git98_l,avg_git98_u,'b', 'LineWidth', 3);
+
+
+
+[hleg1, hobj1] = legend('Uniform','Iterative Pruning','MAB-Thompson','MAB-Gittins','Location','Best');
+textobj = findobj(hobj1, 'type', 'text');
+% Pos = get(textobj,'position');
+% %Pos(3) = 2*Pos(3); 
+% set(textobj,'position',Pos); 
+set(textobj, 'fontsize', 22);
+xlabel('Iterations', 'FontSize', 30);
+ylabel('Probability of Force Closure', 'FontSize', 30);
+%title('Average Probability of Force Closure', 'FontSize',30);
+axis([1000 40000 0.3 1.0]); 
+set(gca,'FontSize',20)
+% xlim([0, 200]);
+% ylim([0, 0.1]);
+
+
+
+
+%% Probability of Force Closure 
+avg_random_simp_regret = mean(cell2mat(regret_analysis{1}.pfc'), 2);
+avg_ucb_simp_regret = mean(cell2mat(regret_analysis{2}.pfc'), 2);
+avg_bucb_simp_regret = mean(cell2mat(regret_analysis{3}.pfc'), 2);
+avg_thomp_simp_regret = mean(cell2mat(regret_analysis{4}.pfc'), 2);
+avg_git98_simp_regret = mean(cell2mat(regret_analysis{5}.pfc'), 2);
+avg_kehoe_simp_regret = mean(cell2mat(regret_analysis{6}.pfc'), 2);
+
+std_random = sqrt(var(cell2mat(regret_analysis{1}.pfc')'));
+std_ucb = sqrt(var(cell2mat(regret_analysis{2}.pfc')));
+std_bucb = sqrt(var(cell2mat(regret_analysis{3}.pfc')));
+std_thomp = sqrt(var(cell2mat(regret_analysis{4}.pfc')'));
+std_git98 = sqrt(var(cell2mat(regret_analysis{5}.pfc')'));
+std_kehoe = sqrt(var(cell2mat(regret_analysis{6}.pfc')'));
+
+
+
+
+avg_opt_value = mean(cell2mat(regret_analysis{6}.opt'),2)-0.0015; 
 
 %Padding 
 avg_ucb_simp = zeros(size(avg_random_simp_regret)); 
@@ -234,26 +341,49 @@ avg_bucb_simp(1:size(avg_bucb_simp_regret,1),1) = avg_bucb_simp_regret;
 avg_thom_simp(1:size(avg_thomp_simp_regret,1),1) = avg_thomp_simp_regret;
 avg_git_simp(1:size(avg_git98_simp_regret,1),1) = avg_git98_simp_regret;
 avg_kehoe_simp(1:size(avg_kehoe_simp_regret,1),1) = avg_kehoe_simp_regret;
+val = avg_random_simp_regret(end-1)-0.003; 
+final_bar = zeros(size(avg_kehoe_simp))+val; 
+
 
 figure(5);
 clf;
 
 hold on;
-plot(avg_opt_value,'b','LineWidth',3); 
-plot(avg_git_simp, 'g', 'LineWidth', 3);
-plot(avg_thom_simp, 'r', 'LineWidth', 3);
-%plot(avg_bucb_simp, 'g', 'LineWidth', 3);
-plot(avg_kehoe_simp, 'c', 'LineWidth', 3);
-plot(avg_random_simp_regret, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
+%plot(avg_opt_value,'k','LineWidth',4);
+indices_plot = 1:1000:size(avg_random_simp_regret, 1);
+errorbar(indices_plot,avg_random_simp_regret(indices_plot),std_random(indices_plot), 'r', 'LineWidth', 3);
+errorbar(indices_plot,avg_kehoe_simp(indices_plot),std_kehoe(indices_plot), 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
+errorbar(indices_plot,avg_git_simp(indices_plot),std_git98(indices_plot), 'Color', [0.66, 0.0, 0.9], 'LineWidth', 3);
+errorbar(indices_plot,avg_thom_simp(indices_plot),std_thomp(indices_plot), 'b', 'LineWidth', 3);
 
-[hleg1, hobj1] = legend('Optimal','Gittins','Thompson','Kehoe et al.','Monte-Carlo', 'Thompson','Location','Best');
+% plot(avg_random_simp_regret, 'r', 'LineWidth', 3);
+% plot(avg_kehoe_simp, 'Color', [0.9, 0.5, 0.0], 'LineWidth', 3);
+% plot(avg_git_simp, 'Color', [0.33, 0.66, 0.0], 'LineWidth', 3);
+% plot(avg_thom_simp, 'g', 'LineWidth', 3);
+
+%plot(avg_bucb_simp, 'g', 'LineWidth', 3);
+
+
+%plot(final_bar, '--','Color', [0.5, 0.5, 0.5], 'LineWidth', 4);
+
+
+
+
+[hleg1, hobj1] = legend('Uniform','Iterative Pruning','MAB-Gittins','MAB-Thompson','Location','Best');
 textobj = findobj(hobj1, 'type', 'text');
-set(textobj, 'Interpreter', 'latex', 'fontsize', 25);
+% Pos = get(textobj,'position');
+% %Pos(3) = 2*Pos(3); 
+% set(textobj,'position',Pos); 
+%set(textobj, 'Interpreter', 'latex', 'fontsize', 22);
+set(textobj, 'fontsize', 26);
 xlabel('Iterations', 'FontSize', 30);
-ylabel('Probability of Force Closure', 'FontSize', 30);
-title('Average Probability of Force Closure', 'FontSize',30);
-axis([1000 20000 0.3 1.0]); 
+ylabel('Normalized Probability of Force Closure', 'FontSize', 30);
+%title('Average Probability of Force Closure', 'FontSize',30);
+axis([1000 40000 0.5 1.0]); 
+%axis([1000 600000 0.0 1.0]); 
+set(gca,'FontSize',20)
 % xlim([0, 200]);
+% ylim([0, 0.1]);
 % ylim([0, 0.1]);
 %% time to find optima
 % figure(6);
@@ -282,22 +412,23 @@ axis([1000 20000 0.3 1.0]);
 figure(7);
 
 clf;
-plot(regret_analysis{1}.pulls_per_grasp, 'Color', [0.5, 0.5, 0.5], 'LineWidth', 3);
 hold on;
-%plot(regret_analysis{6}.pulls_per_grasp, 'Color', [1, 0.5, 0.75], 'LineWidth', 3);
-plot(regret_analysis{6}.pulls_per_grasp, 'g', 'LineWidth', 3);
+plot(regret_analysis{5}.pulls_per_grasp, 'g', 'LineWidth', 3);
 plot(regret_analysis{4}.pulls_per_grasp, 'r', 'LineWidth', 3);
-plot(regret_analysis{5}.pulls_per_grasp, 'b', 'LineWidth', 3);
 
-[hleg1, hobj1] = legend('Monte-Carlo', 'Kehoe', ...
-     'Thompson', ...
-    'Gittins', 'Location', 'Best');
+%plot(regret_analysis{6}.pulls_per_grasp, 'Color', [1, 0.5, 0.75], 'LineWidth', 3);
+
+plot(regret_analysis{6}.pulls_per_grasp, 'c', 'LineWidth', 3);
+plot(regret_analysis{1}.pulls_per_grasp, 'k', 'LineWidth', 3);
+
+[hleg1, hobj1] = legend('MAB-Gittins','MAB-Thompson','Iterative Pruning','Uniform',...
+     'Location', 'Best');
 textobj = findobj(hobj1, 'type', 'text');
-set(textobj, 'Interpreter', 'latex', 'fontsize', 18);
-xlabel('Grasp Ranking', 'FontSize', 18);
-ylabel('Evaluations Per Grasp', 'FontSize', 18);
-title('Grasp Ranking', 'FontSize', 18);
-axis([0 1000 0 200]);
+set(textobj, 'fontsize',25);
+xlabel('Grasp Ranking', 'FontSize', 30);
+ylabel('Evaluations Per Grasp', 'FontSize', 30);
+set(gca,'FontSize',20);
+axis([0 1000 0 400]);
 % %% histograms of final regret
 % figure(8);
 % 

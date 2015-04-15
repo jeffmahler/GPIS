@@ -13,7 +13,7 @@ end
 
 load(in_filename); 
 
-Indices(1:199,1:199) = 0.1*indices(2:200,2:200); 
+Indices(1:199,1:199) = 0.02*indices(2:200,2:200); 
 
 for i=1:T
     for j=200:T

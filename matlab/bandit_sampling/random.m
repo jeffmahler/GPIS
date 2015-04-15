@@ -1,13 +1,15 @@
-function [ best_grasp,regret,Value, stop_grasp ] = random(grasp_samples,num_grasps,...
+function [ best_grasp,regret,Value,bounds, stop_grasp ] = random(grasp_samples,num_grasps,...
     shapeParams,experimentConfig, surface_image, vis_bandits)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
 
-    Total_Iters = 600000; 
+    Total_Iters = 40000; 
     i = 1; 
     ts = false; 
     prune = false; 
-    regret = zeros(Total_Iters+num_grasps,1); 
+    regret = zeros(Total_Iters+num_grasps,1);  
+    bounds = zeros(Total_Iters+num_grasps,2); 
+    
     not_sat = true; 
 
     for interval = 1:1
@@ -35,6 +37,10 @@ function [ best_grasp,regret,Value, stop_grasp ] = random(grasp_samples,num_gras
             [v best_grasp] = max(Value(:,3));
             
             regret(t) = (interval-1)/interval*regret(t) + (1/interval)*compute_regret_pfc(best_grasp);
+            alpha = Value(best_grasp,1)+1; 
+            beta = Value(best_grasp,2) - Value(best_grasp,1)+1; 
+            bounds(t,1) = betainv(0.95,alpha,beta); 
+            bounds(t,2) = betainv(0.05,alpha,beta); 
             
             t=t+1; 
         end
@@ -81,7 +87,10 @@ function [ best_grasp,regret,Value, stop_grasp ] = random(grasp_samples,num_gras
                 stop_grasp = best_grasp; 
             end
             regret(t) = (interval-1)/interval*regret(t) + (1/interval)*compute_regret_pfc(best_grasp);
-           
+            alpha = Value(best_grasp,1)+1; 
+            beta = Value(best_grasp,2) - Value(best_grasp,1)+1; 
+            bounds(t,1) = betainv(0.95,alpha,beta); 
+            bounds(t,2) = betainv(0.05,alpha,beta); 
             i = i+1; 
             t=t+1; 
 

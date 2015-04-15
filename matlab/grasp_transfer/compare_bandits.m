@@ -72,7 +72,7 @@ end
 
 
 for i = 1:num_shapes
-    
+    i
     shape_index = shape_indices(i);
     class_name = caltech_data.classnames{caltech_data.Y(shape_index)};
     
@@ -139,7 +139,7 @@ for i = 1:num_shapes
    tic
     % random
     random_results = struct();
-    [random_results.best_grasp, random_results.regret, random_results.values] = ...
+    [random_results.best_grasp, random_results.regret, random_results.values, random_results.bounds] = ...
         random(grasp_samples, num_grasp_candidates, ...
                shape_params, config, tsdf, config.vis_bandits);
     transfer_results.random = random_results;
@@ -147,11 +147,11 @@ for i = 1:num_shapes
     
     % ucb
     tic
-    ucb_results = struct();
-    [ucb_results.best_grasp, ucb_results.regret, ucb_results.values] = ...
-        ucb(grasp_samples, num_grasp_candidates, ...
-            shape_params, config, tsdf, config.vis_bandits);
-    transfer_results.ucb = ucb_results;
+%     ucb_results = struct();
+%     [ucb_results.best_grasp, ucb_results.regret, ucb_results.values,ucb_results.bounds] = ...
+%         ucb(grasp_samples, num_grasp_candidates, ...
+%             shape_params, config, tsdf, config.vis_bandits);
+    transfer_results.ucb =random_results;
     toc
    
     
@@ -162,28 +162,33 @@ for i = 1:num_shapes
 %     [bayes_ucb_results.best_grasp, bayes_ucb_results.regret, bayes_ucb_results.values] = ...
 %        bayes_ucb(grasp_samples, num_grasp_candidates, ...
 %                 shape_params, config, tsdf, samples_table, config.vis_bandits);
-    transfer_results.bayes_ucbs =  ucb_results;
+    transfer_results.bayes_ucbs =  random_results;
     toc
     tic
     % thompson sampling
     thompson_results = struct();
-    [thompson_results.best_grasp, thompson_results.regret, thompson_results.values] = ...
+    [thompson_results.best_grasp, thompson_results.regret, thompson_results.values, thompson_results.bounds] = ...
         thompson_sampling(grasp_samples, num_grasp_candidates, ...
             shape_params, config, tsdf, config.vis_bandits);
     transfer_results.thompson = thompson_results; 
     toc
     tic
+
+    
     % gittins index policy gamma = 0.98
     gittins98_results = struct();
-    [gittins98_results.best_grasp, gittins98_results.regret, gittins98_results.values] = ...
-        gittins_index(grasp_samples, num_grasp_candidates, ...
-            shape_params, config, tsdf, config.vis_bandits, config.gittins_out_filename1);
+    [gittins98_results.best_grasp, gittins98_results.regret, gittins98_results.values, gittins98_results.bounds] = ...
+    gittins_index(grasp_samples, num_grasp_candidates, ...
+             shape_params, config, tsdf,config.vis_bandits);
     transfer_results.gittins98 = gittins98_results;
     toc
     
+    
+    
+    
      %kehoe Method 
     kehoe_results = struct();
-    [kehoe_results.best_grasp, kehoe_results.regret, kehoe_results.values] = ...
+    [kehoe_results.best_grasp, kehoe_results.regret, kehoe_results.values, kehoe_results.bounds] = ...
         kehoe(grasp_samples, num_grasp_candidates, ...
             shape_params, config, tsdf, config.vis_bandits);
     transfer_results.kehoe = kehoe_results;
