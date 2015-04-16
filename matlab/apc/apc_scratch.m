@@ -1,7 +1,8 @@
 %% read in sdf file
 object_name = 'dove_beauty_bar';
-filename = sprintf('data/apc/%s/completed_tsdf_texture_mapped_mesh_clean_25.sdf', object_name);
-sdf_file = textread(filename);
+sdf_filename = sprintf('data/apc/%s/optimized_poisson_texture_mapped_mesh_clean_25.sdf', object_name);
+obj_filename = sprintf('data/apc/%s/optimized_poisson_texture_mapped_mesh_clean.obj', object_name);
+sdf_file = textread(sdf_filename);
 sdf_dims = sdf_file(1,:);
 sdf_origin = sdf_file(2,:);
 sdf_res = sdf_file(3,1);
@@ -18,13 +19,14 @@ step_size = 1;
 out_dir = 'results/apc';
 
 plot_grasps = 1;
-friction_coef = 0.5;
+friction_coef = 1;
 n_cone_faces = 2;
 n_contacts = 2;
 eps = 0;
 theta_res = 0.25;
 K = 10;
 dist_thresh = 0.1;
+surf_thresh = 0.004;
 
 pr2_grip_width_m = 0.15;
 pr2_grip_width_grid = pr2_grip_width_m / sdf_res;
@@ -32,10 +34,8 @@ pr2_grip_offset = [-0.0375, 0, 0]'; % offset from points at which pr2 contacts o
 
 
 %% display raw sdf points
-% sdf_thresh = 0.001;
-% sdf_zc = find(abs(sdf) < sdf_thresh);
-% [sdf_x, sdf_y, sdf_z] = ind2sub(sdf_dims, sdf_zc);
-[sdf_surf_mask, surf_points, inside_points] = compute_tsdf_surface(sdf);
+[sdf_surf_mask, surf_points, inside_points] = ...
+    compute_tsdf_surface_thresholding(sdf, surf_thresh);
 sdf_x = surf_points(:,1);
 sdf_y = surf_points(:,2);
 sdf_z = surf_points(:,3);
@@ -55,14 +55,19 @@ zlim([1, sdf_dims(3)]);
 % get sdf gradients
 [Gx, Gy, Gz] = gradient(sdf);
 
+%% read mesh
+OBJ = read_wobj(obj_filename);
+FV.vertices = OBJ.vertices;
+FV.faces = OBJ.objects(3).data.vertices;
+
 %% run grasps
 config = struct();
 
 config.num_samples = 2;
 config.grasp_width = pr2_grip_width_grid;
-config.friction_coef = friction_coef;
+config.friction_coef = 0.5;
 config.n_cone_faces = n_cone_faces;
-config.dir_prior = 1.0 / 2.0;
+config.dir_prior = 1.0;
 config.alpha_thresh = pi / 32;
 config.rho_thresh = 0.9 * norm(max(surf_points,[],1) - min(surf_points,[],1));
 
@@ -76,20 +81,13 @@ config.vis = false;
 config.scale = 10;
 config.plate_width = 2;
 
+config.num_candidate_grasps = 1;
+config.num_bins = 10;
+config.epsilon = 1e-2;
+config.max_iters = 10000;
+
 rng(100);
 grasps = get_antipodal_grasp_candidates(sdf, config);
-
-%% Thompson Sampling 
-num_grasps = size(grasps,2); 
-set_size = num_grasps/10; 
-i_p = 1; 
-top_grasps = {}; 
-for i = 1:set_size:num_grasps
-    grasp_set = grasps(i_p:i); 
-    i_p = i; 
-    best_grasp = thompson_apc(grasp_set,poses,config); 
-    top_grasp{idx} = best_grasp; 
-end
 
 
 %% plot 2d
@@ -125,5 +123,80 @@ end
 
 out_filename = sprintf('%s/%s.json', out_dir, object_name);
 savejson([], all_grasps_json, out_filename);
+
+%% pose sampling
+sdf_samples = pose_sample_apc(num_perturbations, sdf, centroid, ...
+    sigma_trans, sigma_rot, false, true);
+
+%% uniformly partition grasps into regions
+grasp_bins = uniformly_partition_grasps(grasps, config.num_bins);
+
+best_grasps = cell(1, config.num_bins);
+best_qualities= zeros(1, config.num_bins);
+
+for i = 1:config.num_bins
+    fprintf('Iteration %d\n', i);
+    [mab_grasps, mab_qualities, ~] = ...
+        thompson_apc(grasp_bins{i}, sdf_samples, grasp_eval_fn, config);
+    best_grasps{i} = mab_grasps{1};
+    best_qualities(i) = mab_qualities(1);
+end
+
+%% space binning for grasps
+grasp_bins = space_partition_grasps(grasps, config.num_bins);
+
+best_grasps = cell(1, config.num_bins);
+best_qualities= zeros(1, config.num_bins);
+
+for i = 1:config.num_bins
+    fprintf('Iteration %d\n', i);
+    [mab_grasps, mab_qualities, ~] = ...
+        thompson_apc(grasp_bins{i}, sdf_samples, grasp_eval_fn, config);
+    best_grasps{i} = mab_grasps{1};
+    best_qualities(i) = mab_qualities(1);
+end
+
+%% run bandits
+grasp_eval_fn = @(x, y, z) grasp_quality_apc(x, y, z, step_size);
+
+[best_grasps, qualities, grasp_values] = ...
+    thompson_apc(grasps, sdf_samples, grasp_eval_fn, config);
+
+%% plot best
+figure(1);
+for i = 1:config.num_bins
+    clf;
+    plot_grasp_3d(best_grasps{i}, sdf, sdf_x, sdf_y, sdf_z, config);
+    pause(0.5);
+end
+
+%% plot best on mesh...
+config.arrow_length = 0.05;
+
+% get max extent
+min_v = min(FV.vertices, [], 1);
+max_v = max(FV.vertices, [], 1);
+center_v = (max_v + min_v) / 2;
+max_extent = max(max_v - min_v);
+limits = [center_v - max_extent / 2;
+          center_v + max_extent / 2];
+
+figure('Color',[1 1 1], 'Position',[100 100 900 600]);
+for j = 1:config.num_bins
+    clf;
+    patch(FV, 'facecolor',[1 0 0]); % red color
+    hold off;
+    camlight;
+    axis off;
+
+    plot_grasp_3d_arrows(best_grasps{j}, centroid, sdf_res, config );
+
+    xlim(limits(:,1));
+    ylim(limits(:,2));
+    zlim(limits(:,3));
+    view(-45, 30);
+
+    pause(5);
+end
 
     

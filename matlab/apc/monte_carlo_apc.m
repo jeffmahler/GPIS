@@ -1,5 +1,5 @@
 function [ best_grasps, qualities, Value] = ...
-    thompson_apc(grasp_set, pose_samples, grasp_eval, config)
+    monte_carlo_apc(grasp_set, pose_samples, grasp_eval, config)
 %THOMPSON_SAMPLING Summary of this function goes here
 %   Detailed explanation goes here
     num_grasps = size(grasp_set,2); 
@@ -29,8 +29,8 @@ function [ best_grasps, qualities, Value] = ...
     i = 1;
     not_sat = true; 
     while i < config.max_iters
-        %grasp_idx = mod(i, num_grasps) + 1;
-        grasp_idx = get_grasp(Value);
+        grasp_idx = mod(i, num_grasps) + 1;
+        
         %fprintf('Sampling grasp %d\n', grasp_idx);
         grasp = grasp_set{grasp_idx}; 
         

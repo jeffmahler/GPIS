@@ -1,4 +1,4 @@
-function [Q, varargout] = ferrari_canny_3d(center_of_mass, contacts, forces)
+function [Q, varargout] = ferrari_canny_3d(center_of_mass, contacts, friction_forces, normal_force)
 %FERRARI_CANNY Summary of this function goes here
 %   Detailed explanation goes here
 dim = size(contacts, 1);
@@ -20,22 +20,25 @@ f_end = 1;
 
 for i = 1:num_contacts
     %Compute r x f via Skew Symmetric Matrix
-    torques{i} = zeros(size(forces{i}));
-    num_forces = size(forces{i}, 2);
+    torques{i} = zeros(size(friction_forces{i}));
+    num_forces = size(friction_forces{i}, 2);
     f_end = f_start + num_forces - 1;
     
     R(1,1) = 0;       R(1,2) = -r(3,i); R(1,3) = r(2,i); 
     R(2,1) = r(3,i);  R(2,2) = 0;       R(2,3) = -r(1,i); 
     R(3,1) = -r(2,i); R(3,2) = r(1,i);  R(3,3) = 0; 
     
-    W(1:3,f_start:f_end) = forces{i};
+    W(1:3,f_start:f_end) = friction_forces{i};
     
     for j = 1:num_forces
-        torques{i}(:,j) = R*forces{i}(:,j);
+        torques{i}(:,j) = R*friction_forces{i}(:,j);
     end
     W(4:6,f_start:f_end) = torques{i};
     f_start = f_end+1;
 end
+
+% add soft contact model
+W(:,end+1) = [zeros(3,1); normal_force];
 
 % check unique wrenches
 wrenches_invalid = false;
@@ -86,7 +89,7 @@ end
 % end
 
 [min_b, in] = get_min_dist(W, eps);
-Q = min_b;
+Q = in; % FORCE CLOSURE
 
 if ~in
     Q = -Q;
@@ -113,29 +116,32 @@ function [d, in] = get_min_dist(W, eps)
 n = size(W,2);
 
 % LP to check whether 0 is in the convex hull of the wrenches
-cvx_begin quiet
-    variable z(n);
-    minimize( z' * (W' * W) * z )
-    subject to
-        z >= 0;
-        sum(z) == 1;
-cvx_end
+% cvx_begin quiet
+%     variable z(n);
+%     minimize( z' * (W' * W) * z )
+%     subject to
+%         z >= 0;
+%         sum(z) == 1;
+% cvx_end
 
 % alternative solution method (see if null vector of W^T W can have all
-% positive or negative weights)
-% [U, S, V] = svd(W'*W);
-% nullVec = U(:,n);
-% numPositive = sum(nullVec > 0);
-% in = false;
-% if numPositive == size(nullVec,1) || numPositive == 0
-%     in = true;
-% end
-    
-d = sqrt(cvx_optval); % smallest dist
+% positive or negative weights, which means it could be scaled to satisfy
+% the convex hull)
+[U, S, V] = svd(W);
+m = size(S, 1);
+sig_min = S(m,m);
 in = false;
-if d < eps  
+if sig_min > 0.1
     in = true;
 end
+
+d = 0;
+
+% d = sqrt(cvx_optval); % smallest dist
+% in = false;
+% if d < eps  
+%     in = true;
+% end
 
 % if in_alt ~= in
 %    wrong = 1; 

@@ -1,4 +1,4 @@
-function [forces, forces_failed] = compute_forces(contacts, Gx, Gy, Gz, ...
+function [forces, normal, forces_failed] = compute_forces(contacts, Gx, Gy, Gz, ...
     friction_coef, n_cone_faces)
 %COMUTE_FORCES Summary of this function goes here
 %   Detailed explanation goes here
@@ -28,6 +28,7 @@ for i = 1:n_contacts
         break;
     end
     force = grad' / norm(grad);
+    normal = -force;
 
     % get extrema of friction cone, negative to point into object
     [U, S, V] = svd(force); % used to get tangent plane to object

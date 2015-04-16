@@ -39,6 +39,7 @@ for i = 1:num_surf
         num_faces = size(cone_support_x1, 2);
         contact = [0, 0, 0];
         figure(2);
+        clf;
         for j = 1:num_faces
             line_f = [contact(1), contact(2), contact(3);
                       cone_support_x1(:,j)' / norm(cone_support_x1(:,j))];
@@ -74,7 +75,7 @@ for i = 1:num_surf
                     v / norm(v)];
                 plot3(line_f(:,1), line_f(:,2), line_f(:,3), 'b', 'LineWidth', 5);
             end
-
+            
             % start searching for contacts
             [contacts, contact_found] = ...
                 antipodal_grasp_contacts(x1, v, sdf, grasp_width);
@@ -119,13 +120,12 @@ for i = 1:num_surf
                     grasp.constrained_2d = constrain_2d;
                     grasp.slice = k;
 
-                    if index == 100
-                        stop = 1;
-                    end
-                    [R_g_obj_list, t_g_obj_list] = ...
+                    [R_g_obj_list, t_g_obj_list, g1_obj, g2_obj] = ...
                         grasp_points_to_poses(grasp, sdf_centroid, sdf_res, config);
                     grasp.R_g_obj_list = R_g_obj_list;
                     grasp.t_g_obj_list = t_g_obj_list;
+                    grasp.g1_obj = g1_obj;
+                    grasp.g2_obj = g2_obj;
 
                     grasps{index} = grasp;
                     index = index + 1;

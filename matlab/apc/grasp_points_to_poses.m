@@ -1,4 +1,5 @@
-function [R_grasp_obj_list, t_grasp_obj_list] = grasp_points_to_poses(grasp, sdf_centroid, sdf_res, config)
+function [R_grasp_obj_list, t_grasp_obj_list, g1_obj, g2_obj] = ...
+    grasp_points_to_poses(grasp, sdf_centroid, sdf_res, config)
 %GRASP_POINTS_TO_POSES 
 
 % get grasp params
@@ -17,7 +18,7 @@ centroid_m_vol = grid_to_m(sdf_centroid', sdf_res);
 R_vol_obj = ...
     [-1, 0, 0;
       0, 0, 1;
-      0, 1, 0]; % check jeff's diagrams
+      0, 1, 0]; % check jeff's diagrams (for rviz ONLY)
 t_vol_obj = -centroid_m_vol;
 
 % convert grasp to obj frame in meters
