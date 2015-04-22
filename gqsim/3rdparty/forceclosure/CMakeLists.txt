@@ -1,0 +1,5 @@
+file(GLOB forceclosure_files "*.cpp" "*.h")
+include_directories("${CMAKE_SOURCE_DIR}/3rdparty")
+add_library(forceclosure ${forceclosure_files})
+add_dependencies(forceclosure qhull)
+set_target_properties(forceclosure PROPERTIES OUTPUT_NAME forceclosure)

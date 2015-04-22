@@ -1,0 +1,8 @@
+file(GLOB util_SRC "src/*.cpp" "include/*.h" "include/*.inl")
+include_directories(${OPENGL_INCLUDE_DIR} ${GLUT_INCLUDE_DIR})
+include_directories("${CMAKE_SOURCE_DIR}/3rdparty/gear/include")
+include_directories("${CMAKE_SOURCE_DIR}/3rdparty/tinyxml")
+include_directories("include")
+add_library(util ${util_SRC})
+add_dependencies(util gear tinyxml)
+set_target_properties(util PROPERTIES OUTPUT_NAME util)
