@@ -19,7 +19,16 @@
 class World//: public GElement
 {
 public:
-	enum SimulPhase { SS_START, SS_REST, SS_CLOSE_FINGER, SS_LIFTUP, SS_NO_APPLY_FORCE, SS_APPLY_FORCE, SS_DONE };
+	enum SimulPhase {
+		SS_START,
+		SS_REST,
+		SS_CLOSE_FINGER,
+		SS_LIFTUP,
+		SS_SHAKE, SS_SHAKE_LEFT, SS_SHAKE_RIGHT,
+		SS_NO_APPLY_FORCE,
+		SS_APPLY_FORCE,
+		SS_DONE
+        };
 	//enum ForceApplyType { FA_FORCE_X, FA_FORCE_Y, FA_FORCE_Z, FA_MOMENT_X, FA_MOMENT_Y, FA_MOMENT_Z };
 	//enum ForceApplyDir { FA_POSITIVE, FA_NEGATIVE };
 
@@ -122,6 +131,7 @@ public:
 	}
 	~World() { _delete_elements(); }
 
+	bool loadShake(const char *filepath);
 	bool loadFromXML(const char *filepath);
 
 	void setGravity(Vec3 g) { _gravity = g; }

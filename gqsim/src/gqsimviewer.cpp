@@ -109,6 +109,7 @@ int counter_save=0;
 bool bshowmotormsg = false;
 double start_simul_time=0, end_simul_time=0;
 bool bdatasavecontact;
+bool bshake = true;
 
 // replay simulated motion
 int current_frame_idx=0; // current replay frame index
@@ -711,6 +712,10 @@ void LoadModel(const char *filepath)
 		cerr << "failed in loading file: " << filepath << endl;
 		delete pworld;
 		pworld = NULL;
+	}
+
+	if (bshake) {
+		pworld->loadShake("shake.config");
 	}
 
 	mvmatrix.SetRotation(SO3(-0.798338, -0.408694, 0.442296, 0.600147, -0.479198, 0.640463, -0.0498058, 0.776748, 0.627839));

@@ -26,6 +26,20 @@ static double s_rest_time;
 static World::SimulPhase s_next_state_after_rest;
 static int s_idx_force = 0, s_idx_moment = 0;
 
+// shaking
+static double s_shake_time;
+static double _shake_d, _shake_a, _shake_vm;
+static int _num_shakes;
+
+bool World::loadShake(const char *filepath)
+{
+	_shake_d = 0.1, _shake_a = 5.0, _shake_vm = 5.0, _num_shakes = 1;
+	std::ifstream fin(filepath);
+	if ( !fin.is_open() ) return false;
+	fin >> _shake_d >> _shake_a >> _shake_vm >> _num_shakes;
+	fin.close();
+	return true;
+}
 
 bool World::loadFromXML(const char *filepath)
 {
@@ -473,8 +487,18 @@ bool World::stepSimulation(double t)
 			// lift up the hand along z-direction when 0 <= s_timer <= tf
 			s_liftup_time = _phand->Move(_stepsize, s_timer, Vec3(0,0,1), 0, _liftup_d, _liftup_vm, _liftup_a); 
 			s_timer += _stepsize;
-			// if liftup is done, have a rest and set SS_APPLY_FORCE as the next state
+			// if liftup is done, have a rest and set SS_SHAKE as the next state
 			if (s_timer >= s_liftup_time ) {
+				_simul_phase = SS_REST;
+				s_timer = 0;
+				s_rest_time = 0.5;
+				s_next_state_after_rest = SS_SHAKE;
+			}
+			break;
+
+		case SS_SHAKE:
+			if (!_num_shakes--) {
+				// done shaking! rest
 				_simul_phase = SS_REST;
 				s_timer = 0;
 				s_rest_time = 0.5;
@@ -483,6 +507,32 @@ bool World::stepSimulation(double t)
 				} else {
 					s_next_state_after_rest = SS_APPLY_FORCE;
 				}
+			} else {
+				_simul_phase = SS_SHAKE_LEFT;
+			}
+			break;
+
+		case SS_SHAKE_LEFT:
+			// shake left when 0 <= s_timer <= tf
+			s_shake_time = _phand->Move(_stepsize, s_timer, Vec3(1, 0, 0), 0, _shake_d, _shake_vm, _shake_a);
+			s_timer += _stepsize;
+			// if done shaking left, rest and set SS_SHAKE_RIGHT as next state
+			if (s_timer >= s_shake_time) {
+				_simul_phase = SS_SHAKE_RIGHT;
+				s_timer = 0;
+				s_rest_time = 0;
+			}
+			break;
+
+		case SS_SHAKE_RIGHT:
+			// shake right when 0 <= s_timer <= tf
+			s_shake_time = _phand->Move(_stepsize, s_timer, Vec3(-1, 0, 0), 0, _shake_d, _shake_vm, _shake_a);
+			s_timer += _stepsize;
+			// if done shaking right, rest and set SS_SHAKE as next state
+			if (s_timer >= s_shake_time) {
+				_simul_phase = SS_SHAKE;
+				s_timer = 0;
+				s_rest_time = 0;
 			}
 			break;
 
