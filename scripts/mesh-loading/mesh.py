@@ -188,18 +188,45 @@ class Mesh:
                 reffed_v_old_ind = reffed_v_old_ind[0]
                 reffed_v_new_ind = np.cumsum(reffed_array).astype(np.int) - 1 # counts number of reffed v before each ind
 
-                self.vertices_ = vertex_array[reffed_v_old_ind, :].tolist()
-                if self.normals_:
-                        normals_array = np.array(self.normals_)
-                        self.normals_ = normals_array[reffed_v_old_ind, :].tolist()
+                try:
+                        self.vertices_ = vertex_array[reffed_v_old_ind, :].tolist()
+                        if self.normals_:
+                                normals_array = np.array(self.normals_)
+                                self.normals_ = normals_array[reffed_v_old_ind, :].tolist()
+                except IndexError:
+                        return False
 
                 # create new face indices
                 new_triangles = []
                 for f in self.triangles_:
                         new_triangles.append([reffed_v_new_ind[f[0]], reffed_v_new_ind[f[1]], reffed_v_new_ind[f[2]]] )
                 self.triangles_ = new_triangles
+                return True
 
+        def image_to_3d_coords(self):
+                '''
+                Flip x and y axes (if created from image this might help)
+                '''
+                if len(self.vertices_) > 0:
+                        vertex_array = np.array(self.vertices_)
+                        new_vertex_array = np.zeros(vertex_array.shape)
+                        new_vertex_array[:,0] = vertex_array[:,1]
+                        new_vertex_array[:,1] = vertex_array[:,0]
+                        new_vertex_array[:,2] = vertex_array[:,2]
+                        self.vertices_ = new_vertex_array.tolist()
+                        return True
+                else:
+                        return False
         
+        def center_vertices(self):
+                '''
+                Simple vertex centering
+                '''
+                vertex_array = np.array(self.vertices_)
+                centroid = np.mean(vertex_array, axis = 0)
+                vertex_array_cent = vertex_array - centroid
+                self.vertices_ = vertex_array_cent.tolist()
+
         def normalize_vertices(self):
                 '''
                 Transforms the vertices and normals of the mesh such that the origin of the resulting mesh's coordinate frame is at the

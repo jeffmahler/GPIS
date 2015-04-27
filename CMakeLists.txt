@@ -9,7 +9,10 @@ set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} " -g ")
 # Dependencies
 # Boost
 find_package (Boost COMPONENTS filesystem system thread REQUIRED)
-  include_directories (${Boost_INCLUDE_DIRS})
+include_directories (${Boost_INCLUDE_DIRS})
+
+find_package(PCL 1.7 REQUIRED)
+include_directories(${PCL_INCLUDE_DIRS})
 
 # CUDA
 find_package (CUDA REQUIRED)
@@ -22,6 +25,10 @@ set(CULA_LIBRARIES "/usr/local/cula/lib64/libcula_lapack.so")
 include_directories (${CULA_INCLUDE_DIRS})
 
 set (DEPENDENCY_LIBS ${Boost_LIBRARIES} ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CMAKE_DL_LIBS} ${CULA_LIBRARIES})
+set (FEATURE_DEPENDENCY_LIBS
+  ${PCL_LIBRARIES}
+)
+
 #message(${DEPENDENCY_LIBS})
 
 # Output flags

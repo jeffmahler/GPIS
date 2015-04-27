@@ -13,7 +13,7 @@ import triangulate_silhouette as ts
 import IPython
 
 formats = ['_clean.obj']
-bad_categories = ['helicopter', 'clothes_hanger']
+bad_categories = ['helicopter', 'clothes_hanger', 'mnt', 'terastation', 'shape_data', 'YCB', 'meshes', 'textured_meshes', 'kinbody', '']
 
 #global transforms
 theta = np.pi / 2
@@ -31,6 +31,13 @@ Rxp = Rx.T
 Ryp = Ry.T
 Rzp = Rz.T
 R_list = [Rx, Rxp, Ry, Ryp, Rz, Rzp]
+
+def extract_category(root):
+    head, tail = os.path.split(root)
+    while head != '/' and tail in bad_categories:
+        head, tail = os.path.split(head)
+    success = (tail not in bad_categories)
+    return success, tail
 
 def create_parallel_jaw_grippers(img_height, img_width, rect_height, rect_width, div = 4):
     binary_img = np.zeros([img_height, img_width])
@@ -189,11 +196,12 @@ if __name__ == '__main__':
     train_list_filename = 'train_filenames.txt'
     val_list_filename = 'val_filenames.txt'
     test_list_filename = 'test_filenames.txt'
+    template = 'poisson'
 
     # camera params
     cam_height = 500
     cam_width  = 500 
-    cam_focal  = 525.
+    cam_focal  = 10000.
     camera_params = mesh.CameraParams(cam_height, cam_width, cam_focal, cam_focal)    
 
     cat_counts = {}
@@ -217,11 +225,12 @@ if __name__ == '__main__':
     # loop through files from root dir and create cage data for each
     for root, dirs, files in os.walk(root_dir):
         # extract category, and skip ones known to cause issues
-        head, category = os.path.split(root)
-        if category in bad_categories:
+        extract_success, category = extract_category(root)
+        if not extract_success:
             continue
 
         # set counts to zero
+        print 'Category', category
         if category not in cat_counts.keys():
             cat_counts[category] = 0
         
@@ -231,7 +240,7 @@ if __name__ == '__main__':
         while i < len(files) and cat_counts[category] < shapes_per_cat:
             name = files[i]
             for format in formats:
-                if name.endswith(format):
+                if name.endswith(format) and name.find(template) > 0:
                     filename = os.path.join(root, name)
                     print 'Processing ', filename
 

@@ -75,7 +75,7 @@ class MeshConverter2D:
         # get occupied indices from binary image
         binary_map = np.array(binary_img)
         occ_ind = np.where(binary_map > self.occupied_thresh_)
-        occ_coords = zip(occ_ind[0], occ_ind[1])
+        occ_coords = zip(occ_ind[0], occ_ind[1]) 
 
         # todo: duplicate at multiple depths
         front_verts, front_tris, front_ind_map = self.create_mesh_face(occ_coords, extrusion / 2, binary_map.shape, cw = True)
@@ -90,7 +90,10 @@ class MeshConverter2D:
 
         # convert to mesh and return
         m = mesh.Mesh(verts, tris)
-        m.remove_unreferenced_vertices()
+        unreffed_success = m.remove_unreferenced_vertices()
+        succcess = success and unreffed_success
+        coord_conversion = m.image_to_3d_coords()
+        success = success and coord_conversion
 #        m.normalize_vertices()
         # m.rescale_vertices(min_dim)
         return m, success
@@ -210,17 +213,16 @@ class MeshConverter2D:
                 cur_coord = candidate_next_coords[next_ind[0]]
                 cur_dir_angle = new_angles[next_ind[0]]
 
+                # add triangles (only add if there is a new candidate)
+                next_front_ind = front_ind_map[cur_coord[0], cur_coord[1]]
+                next_back_ind = back_ind_map[cur_coord[0], cur_coord[1]]
+                tris.append([int(front_ind), int(back_ind), int(next_front_ind)])
+                tris.append([int(back_ind), int(next_back_ind), int(next_front_ind)])
 
-            # add triangles
-            next_front_ind = front_ind_map[cur_coord[0], cur_coord[1]]
-            next_back_ind = back_ind_map[cur_coord[0], cur_coord[1]]
-            tris.append([int(front_ind), int(back_ind), int(next_front_ind)])
-            tris.append([int(back_ind), int(next_back_ind), int(next_front_ind)])
-
-            # mark coordinate as visited
-            visited_map[cur_coord[0], cur_coord[1]] = 1
-            coord_visits.append(cur_coord)
-            remaining_boundary[cur_coord[0], cur_coord[1]] = visited_marker
+                # mark coordinate as visited
+                visited_map[cur_coord[0], cur_coord[1]] = 1
+                coord_visits.append(cur_coord)
+                remaining_boundary[cur_coord[0], cur_coord[1]] = visited_marker
 
         # add edge back to first coord
         cur_coord = coord_visits[0]
