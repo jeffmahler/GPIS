@@ -108,7 +108,7 @@ class Sdf3D(Sdf):
         Gets the indices of the flattened array
         """
         [x_ind, y_ind, z_ind] = np.indices(self.dims_)
-        self.pts_ = np.array([x_ind.flatten(), y_ind.flatten(), z_ind.flatten()]);
+        self.pts_ = np.c_[x_ind.flatten().T, np.c_[y_ind.flatten().T, z_ind.flatten().T]]
 
     def __getitem__(self, coords):
         """
@@ -317,7 +317,7 @@ class Sdf2D(Sdf):
         Gets the indices of the flattened array
         """
         [x_ind, y_ind] = np.indices(self.dims_)
-        self.pts_ = np.array([x_ind.flatten(), y_ind.flatten()]);
+        self.pts_ = np.c_[x_ind.flatten().T, y_ind.flatten().T];
 
     def __getitem__(self, coords):
         """
@@ -455,9 +455,9 @@ class Sdf2D(Sdf):
         """
         Displays the SDF as an image
         """
-        plt.figure()
-        plt.imshow(self.data_)
-        plt.show()
+        #plt.figure()
+        plt.imshow(self.data_ < 0)
+        #plt.show()
  
 def test_function():
     test_sdf = "aunt_jemima_original_syrup/processed/textured_meshes/optimized_tsdf_texture_mapped_mesh.sdf"
