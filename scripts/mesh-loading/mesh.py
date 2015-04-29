@@ -218,12 +218,23 @@ class Mesh:
                 else:
                         return False
         
-        def center_vertices(self):
+        def center_vertices_avg(self):
                 '''
-                Simple vertex centering
+                Centers vertices at average vertex
                 '''
                 vertex_array = np.array(self.vertices_)
                 centroid = np.mean(vertex_array, axis = 0)
+                vertex_array_cent = vertex_array - centroid
+                self.vertices_ = vertex_array_cent.tolist()
+
+        def center_vertices_bb(self):
+                '''
+                Centers vertices at center of bounding box
+                '''
+                vertex_array = np.array(self.vertices_)
+                min_vertex = np.min(vertex_array, axis = 0)
+                max_vertex = np.max(vertex_array, axis = 0)
+                centroid = (max_vertex + min_vertex) / 2
                 vertex_array_cent = vertex_array - centroid
                 self.vertices_ = vertex_array_cent.tolist()
 
@@ -235,11 +246,8 @@ class Mesh:
                 Returns:
                    Nothing. Modified the mesh in place (for now)
                 '''
-                vertex_array = np.array(self.vertices_)
-
-                # get centroid
-                centroid = np.mean(vertex_array, axis = 0)
-                vertex_array_cent = vertex_array - centroid
+                self.center_vertices_bb()
+                vertex_array_cent = np.array(self.vertices_)
                 
                 # find principal axes
                 pca = sklearn.decomposition.PCA(n_components = 3)
@@ -247,7 +255,7 @@ class Mesh:
 
                 # count num vertices on side of origin wrt principal axes
                 comp_array = pca.components_
-                norm_proj = vertex_array.dot(comp_array.T)
+                norm_proj = vertex_array_cent.dot(comp_array.T)
                 opposite_aligned = np.sum(norm_proj < 0, axis = 0)
                 same_aligned = np.sum(norm_proj >= 0, axis = 0)
                 pos_oriented = 1 * (same_aligned > opposite_aligned) # trick to turn logical to int
@@ -266,7 +274,7 @@ class Mesh:
 
                 if self.normals_:
                         normals_array = np.array(self.normals_)
-                        normals_array_rot = R.dot(vertex_array.T)
+                        normals_array_rot = R.dot(vertex_array_cent.T)
                         self.normals_ = normals_array_rot.tolist()
 
         def rescale_vertices(self, min_scale):
