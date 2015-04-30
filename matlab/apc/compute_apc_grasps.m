@@ -9,7 +9,7 @@ num_files = size(files, 1);
 all_grasp_results = {};
 ind = 1;
 
-for i = 1:num_files
+for i = 26:num_files
     cur_file = files(i);
     if cur_file.isdir && strcmp(cur_file.name, '.') == 0 && ...
         strcmp(cur_file.name, '..') == 0
@@ -23,9 +23,9 @@ for i = 1:num_files
         all_grasp_results{ind} = grasp_results;
         ind = ind + 1;
 
-        if ind > 1
-            break;
-        end
+%         if ind > 1
+%             break;
+%         end
     end
 end
 

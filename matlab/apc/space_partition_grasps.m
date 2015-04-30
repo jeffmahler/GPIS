@@ -6,6 +6,7 @@ max_dim = realmin * ones(1, 5);
 
 grasp_centers = zeros(3, num_grasps);
 grasp_angles = zeros(2, num_grasps);
+grasp_dirs = zeros(3, num_grasps);
 grasp_bins = cell(1, num_bins);
 
 for i = 1:num_grasps
@@ -18,6 +19,7 @@ for i = 1:num_grasps
     if g_dir(1) < 0
         g_dir = -g_dir;
     end
+    grasp_dirs(:,i) = g_dir;
 
     % put in the grasp pose buffers
     grasp_centers(:,i) = g_center';
@@ -32,8 +34,11 @@ for i = 1:num_grasps
     max_dim(4:5) = max([max_dim(4:5); az, elev]);
 end
 
-grasp_vecs = [grasp_centers; grasp_angles];
-cluster_ind = kmeans(grasp_vecs', num_bins, 'Distance', 'cosine', ...
+grasp_vecs = [grasp_centers; grasp_angles]';
+Sig = cov(grasp_vecs);
+Sig_sqrt = sqrtm(Sig);
+grasp_vecs_whitened = inv(Sig_sqrt) * grasp_vecs';
+cluster_ind = kmeans(grasp_vecs_whitened', num_bins, 'Distance', 'sqeuclidean', ...
     'Replicates', 5);
 
 for i = 1:num_bins

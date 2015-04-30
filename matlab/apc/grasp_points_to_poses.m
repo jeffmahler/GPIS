@@ -15,10 +15,14 @@ t_grasp_center = pr2_grasp_offset;
 centroid_m_vol = grid_to_m(sdf_centroid', sdf_res);
 
 % get tf from vol to obj 
+% R_vol_obj = ...
+%     [-1, 0, 0;
+%       0, 0, -1;
+%       0, -1, 0]; % check jeff's diagrams (for rviz ONLY)
 R_vol_obj = ...
-    [-1, 0, 0;
-      0, 0, 1;
-      0, 1, 0]; % check jeff's diagrams (for rviz ONLY)
+    [1, 0, 0;
+     0, 1, 0;
+     0, 0, 1];
 t_vol_obj = -centroid_m_vol;
 
 % convert grasp to obj frame in meters

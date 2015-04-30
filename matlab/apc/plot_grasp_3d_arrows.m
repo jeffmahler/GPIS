@@ -30,7 +30,7 @@ rad2 = 2 * rad1;
 h = arrow3d([start1(1), g1(1)], [start1(2), g1(2)], [start1(3), g1(3)], head_frac, rad1, rad2);
 set(h,'facecolor',[0 1 0]);
 h = arrow3d([start2(1), g2(1)], [start2(2), g2(2)], [start2(3), g2(3)], head_frac, rad1, rad2);
-set(h,'facecolor',[0 1 0]);
+set(h,'facecolor',[0 0 1]);
 
 xlabel('X');
 ylabel('Y');

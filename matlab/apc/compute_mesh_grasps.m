@@ -13,6 +13,12 @@ sdf_res = sdf_file(3,1);
 sdf_vals = sdf_file(4:end,1);
 sdf = reshape(sdf_vals, sdf_dims);
 
+sigma_trans_old = config.sigma_trans;
+config.sigma_trans = (1.0 / sdf_res) * config.sigma_trans;
+
+pr2_grip_width_grid = config.pr2_grasp_width_m / sdf_res;
+config.grasp_width = pr2_grip_width_grid;
+
 % get sdf surface points
 [~, surf_points, ~] = ...
     compute_tsdf_surface_thresholding(sdf, config.surf_thresh);
@@ -44,6 +50,15 @@ config.rho_thresh = config.rho_scale * norm(max(surf_points,[],1) - min(surf_poi
 grasps = get_antipodal_grasp_candidates(sdf, config);
 num_grasps = size(grasps, 2);
 
+% exit if no grasps found
+if num_grasps == 0
+    results = struct();
+    results.object_name = object_name;
+    results.mc = struct();
+    results.thompson = struct();
+    return;
+end
+
 % plot 2d
 if config.plot_all_grasps_2d
     figure(1);
@@ -74,10 +89,16 @@ sdf_samples = pose_sample_apc(config.num_perturbations, sdf, ...
 
 % bin grasps
 fprintf('Partitioning grasps\n');
-if config.use_uniform_space_part
-    grasp_bins = space_partition_grasps(grasps, config.num_bins);
-else
-    grasp_bins = space_partition_grasps(grasps, config.num_bins);
+old_num_bins = config.num_bins;
+if num_grasps < config.num_bins
+    config.num_bins = num_grasps-1;
+end
+if num_grasps  > 5 % need more bins than vectors
+    if config.use_uniform_space_part
+        grasp_bins = uniformly_partition_grasps(grasps, config.num_bins);
+    else
+        grasp_bins = space_partition_grasps(grasps, config.num_bins);
+    end
 end
 
 grasp_eval_fn = @(x, y, z) grasp_quality_apc(x, y, z, config.step_size);
@@ -112,13 +133,13 @@ if config.vis_best_grasps
     limits = [center_v - max_extent / 2;
               center_v + max_extent / 2];
 
-    figure('Color',[1 1 1], 'Position',[100 100 900 600]);
+    figure;%('Color',[1 1 1], 'Position',[100 100 900 600]);
     for j = 1:config.num_bins
         clf;
         patch(mesh, 'facecolor',[1 0 0]); % red color
         hold off;
         camlight;
-        axis off;
+        %axis off;
 
         plot_grasp_3d_arrows(best_grasps_thomp{j}, centroid, sdf_res, config );
 
@@ -127,7 +148,7 @@ if config.vis_best_grasps
         zlim(limits(:,3));
         view(-45, 30);
 
-        pause(0.1);
+        pause(1);
     end
 end
 
@@ -135,7 +156,7 @@ end
 fprintf('Saving mc json\n');
 grasps_json_mc = [];
 for j = 1:config.num_bins
-    grasp_json = grasp_to_json(best_grasps_mc{j});
+    grasp_json = grasp_to_json(best_grasps_mc{j}, best_qualities_mc(j));
     grasps_json_mc = [grasps_json_mc, grasp_json];
 end
 out_filename_mc = sprintf('%s/%s_mc.json', config.out_dir, object_name);
@@ -145,7 +166,7 @@ savejson([], grasps_json_mc, out_filename_mc);
 fprintf('Saving bandits json\n');
 grasps_json_thomp = [];
 for j = 1:config.num_bins
-    grasp_json = grasp_to_json(best_grasps_thomp{j});
+    grasp_json = grasp_to_json(best_grasps_thomp{j}, best_qualities_thomp(j));
     grasps_json_thomp = [grasps_json_thomp, grasp_json];
 end
 out_filename_thomp = sprintf('%s/%s.json', config.out_dir, object_name);
@@ -164,6 +185,10 @@ results.mc = struct();
 results.mc.grasps = best_grasps_mc;
 results.mc.qualities = best_qualities_mc;
 results.mc.values= all_values_mc;
+
+% reset num bins
+config.num_bins = old_num_bins;
+config.sigma_trans = sigma_trans_old;
 
 end
 

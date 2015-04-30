@@ -1,4 +1,4 @@
-function grasp_json = grasp_to_json(grasp)
+function grasp_json = grasp_to_json(grasp, quality)
 %GRASP_TO_JSON
 num_rots = size(grasp.R_g_obj_list, 2);
 grasp_json = {};
@@ -20,6 +20,8 @@ for i = 1:num_rots
     grasp_json{i}.gripper_pose.orientation.x = q(2);
     grasp_json{i}.gripper_pose.orientation.y = q(3);
     grasp_json{i}.gripper_pose.orientation.z = q(4);
+    
+    grasp_json{i}.quality = quality;
 end
 
 grasp_json = horzcat(grasp_json{:});
