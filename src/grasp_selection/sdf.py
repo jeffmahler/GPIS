@@ -9,9 +9,17 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import scipy.io
 
+from PIL import Image
+import scipy.io
+import scipy.ndimage
+import scipy.signal
+from skimage import feature
+import skimage.filters
+
+import sdf_file as sf
 import tfx
+import time
 
 from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
@@ -21,6 +29,7 @@ from sys import version_info
 if version_info[0] != 3:
     range = xrange
 
+MAX_CHAR = 255
 DEF_SURFACE_THRESH = 0.05
 
 def crosses_threshold(threshold):
@@ -87,17 +96,33 @@ class Sdf:
         Returns the signed distance at the given coordinates
         Params: numpy 2 or 3 array
         Returns:
-            float: the signed distance and the given coors (interpolated)
+            float: the signed distance and the given coorss (interpolated)
         """
         pass
 
+    @abstractmethod
+    def surface_points(self, surf_thresh):
+        """
+        Returns the points on the surface
+        Params: (float) sdf value to threshold
+        Returns:
+            numpy arr: the points on the surfaec
+            numpy arr: the sdf values on the surface
+        """
+        pass        
+
 class Sdf3D(Sdf):
-    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world")):
+    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world"), use_abs = True):
         self.data_ = sdf_data
         self.origin_ = origin
         self.resolution_ = resolution
         self.dims_ = self.data_.shape
         self.pose_ = pose
+        self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2, self.dims_[2] / 2]
+
+        # optionally use only the absolute values (useful for non-closed meshes in 3D)
+        if use_abs:
+            self.data_ = np.abs(self.data_)
 
         self._compute_flat_indices()
 
@@ -126,9 +151,9 @@ class Sdf3D(Sdf):
 
         # snap to grid dims
         new_coords = np.zeros([3,])
-        new_coords[0] = max(0, min(coords[0], self.dims_[0]))
-        new_coords[1] = max(0, min(coords[1], self.dims_[1]))
-        new_coords[2] = max(0, min(coords[2], self.dims_[2]))
+        new_coords[0] = max(0, min(coords[0], self.dims_[0] - 1))
+        new_coords[1] = max(0, min(coords[1], self.dims_[1] - 1))
+        new_coords[2] = max(0, min(coords[2], self.dims_[2] - 1))
 
         # regular indexing if integers
         if type(coords[0]) is int and type(coords[1]) is int and type(coords[2]) is int:
@@ -160,7 +185,84 @@ class Sdf3D(Sdf):
         if np.sum(weights) == 0:
             weights = np.ones([num_interpolants,])
         weights = weights / np.sum(weights)
+
         return weights.dot(values)
+
+    def surface_points(self, surface_thresh = DEF_SURFACE_THRESH):
+        """
+        Returns the points on the surface
+        Params: (float) sdf value to threshold
+        Returns:
+            numpy arr: the points on the surfaec
+            numpy arr: the sdf values on the surface
+        """
+        surface_points = np.where(np.abs(self.data_) < surface_thresh)
+        x = surface_points[0]
+        y = surface_points[1]
+        z = surface_points[2]
+        surface_points = np.c_[x, np.c_[y, z]]
+        surface_vals = self.data_[surface_points[:,0], surface_points[:,1], surface_points[:,2]]
+        return surface_points, surface_vals
+
+    def transform(self, T, scale = 1.0, detailed = False):
+        """
+        Transform the grid by pose T and scale with canonical reference frame at the SDF center with axis alignment
+        Params:
+            (tfx pose): Pose T
+            (float): scale of transform
+            (boo): detailed - whether or not to do the dirty, fast method
+        Returns:
+            (SDF): new sdf with grid warped by T
+        """
+        # map all surface points to their new location
+        start_t = time.clock()
+        num_pts = self.pts_.shape[0]
+        pts_centered = self.pts_ - self.center_
+        pts_homog = np.r_[pts_centered.T, np.ones([1, num_pts])]
+        pts_homog_tf = T.matrix.dot(pts_homog)
+        pts_tf_centered = (1.0 / scale) * pts_homog_tf[0:3,:].T
+        pts_tf = pts_tf_centered + self.center_
+        all_points_t = time.clock()
+
+        # transform the center
+        origin_centered = self.origin_ - self.center_
+        origin_homog = np.r_[origin_centered.T, 1]
+        origin_homog_tf = T.matrix.dot(origin_homog)
+        origin_tf_centered = (1.0 / scale) * origin_homog_tf[0:3,:].T
+        origin_tf = origin_tf_centered + self.center_
+
+        # rescale the resolution
+        resolution_tf = scale * self.resolution_
+        origin_res_t = time.clock()
+
+        # add each point to the new pose
+        if detailed:
+            sdf_data_tf = np.zeros([num_pts, 1])
+            for i in range(num_pts):
+                sdf_data_tf[i] = self[pts_tf[i,0], pts_tf[i,1], pts_tf[i,2]]
+        else:
+            pts_tf_round = np.round(pts_tf).astype(np.int64)
+            
+            # snap to closest boundary
+            pts_tf_round[:,0] = np.max(np.c_[np.zeros([num_pts, 1]), pts_tf_round[:,0]], axis=1)
+            pts_tf_round[:,0] = np.min(np.c_[(self.dims_[0] - 1) * np.ones([num_pts, 1]), pts_tf_round[:,0]], axis=1)
+
+            pts_tf_round[:,1] = np.max(np.c_[np.zeros([num_pts, 1]), pts_tf_round[:,1]], axis=1)
+            pts_tf_round[:,1] = np.min(np.c_[(self.dims_[1] - 1) * np.ones([num_pts, 1]), pts_tf_round[:,1]], axis=1)
+
+            pts_tf_round[:,2] = np.max(np.c_[np.zeros([num_pts, 1]), pts_tf_round[:,2]], axis=1)
+            pts_tf_round[:,2] = np.min(np.c_[(self.dims_[2] - 1) * np.ones([num_pts, 1]), pts_tf_round[:,2]], axis=1)
+
+            sdf_data_tf = self.data_[pts_tf_round[:,0], pts_tf_round[:,1], pts_tf_round[:,2]]
+            
+        sdf_data_tf_grid = sdf_data_tf.reshape(self.dims_)
+        tf_t = time.clock()
+
+        logging.info('Sdf3D: Time to transform coords: %f' %(all_points_t - start_t))
+        logging.info('Sdf3D: Time to transform origin: %f' %(origin_res_t - all_points_t))
+        logging.info('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
+
+        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf, pose = T * self.pose_)
 
     def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1): 
         """ 
@@ -283,12 +385,11 @@ class Sdf3D(Sdf):
         h = plt.figure()
         ax = h.add_subplot(111, projection = '3d')
 
-        surface_points = np.where(np.abs(self.data_) < surface_thresh)
-
-        # get the points on the surface
-        x = surface_points[0]
-        y = surface_points[1]
-        z = surface_points[2]
+        # surface points
+        surface_points, surface_vals = self.surface_points(surface_thresh)
+        x = surface_points[:,0]
+        y = surface_points[:,1]
+        z = surface_points[:,2]
 
         # scatter the surface points
         ax.scatter(x, y, z, cmap="Blues")
@@ -298,7 +399,6 @@ class Sdf3D(Sdf):
         ax.set_xlim3d(0, self.dims_[0])
         ax.set_ylim3d(0, self.dims_[1])
         ax.set_zlim3d(0, self.dims_[2])
-        plt.show()
 
 class Sdf2D(Sdf):
     def __init__(self, sdf_data, origin = np.array([0,0]), resolution = 1.0, pose = tfx.identity_tf(frame="world")):
@@ -307,6 +407,8 @@ class Sdf2D(Sdf):
         self.resolution_ = resolution
         self.dims_ = self.data_.shape
         self.pose_ = pose
+        self.surface_thresh_ = np.percentile(np.abs(self.data_), 5)
+        self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2]
 
         self._compute_flat_indices()
 
@@ -335,8 +437,8 @@ class Sdf2D(Sdf):
 
         # snap to grid dims
         new_coords = np.zeros([2,])
-        new_coords[0] = max(0, min(coords[0], self.dims_[0]))
-        new_coords[1] = max(0, min(coords[1], self.dims_[1]))
+        new_coords[0] = max(0, min(coords[0], self.dims_[0]-1))
+        new_coords[1] = max(0, min(coords[1], self.dims_[1]-1))
 
         # regular indexing if integers
         if type(coords[0]) is int and type(coords[1]) is int:
@@ -365,6 +467,64 @@ class Sdf2D(Sdf):
             weights = np.ones([num_interpolants,])
         weights = weights / np.sum(weights)
         return weights.dot(values)
+
+    def surface_points(self, surface_thresh = DEF_SURFACE_THRESH):
+        """
+        Returns the points on the surface
+        Params: (float) sdf value to threshold
+        Returns:
+            numpy arr: the points on the surfaec
+            numpy arr: the sdf values on the surface
+        """
+        surface_points = np.where(np.abs(self.data_) < self.surface_thresh_)
+        x = surface_points[0]
+        y = surface_points[1]
+        surface_points = np.c_[x, y]
+        surface_vals = self.data_[surface_points[:,0], surface_points[:,1]]
+        return surface_points, surface_vals
+
+    def surface_image_thresh(self, surface_thresh = DEF_SURFACE_THRESH, alpha = 0.5, scale = 4):
+        """
+        Returns an image that is zero on the shape surface and one otherwise
+        """
+        surface_points, surface_vals = self.surface_points(self.surface_thresh_)
+        surface_image = np.zeros(self.dims_).astype(np.uint8)
+        surface_image[surface_points[:,0], surface_points[:,1]] = MAX_CHAR
+
+        # laplacian
+        surface_image = np.array(Image.fromarray(surface_image).resize((scale*self.dims_[0], scale*self.dims_[1]), Image.ANTIALIAS))
+        surface_image = scipy.ndimage.gaussian_filter(surface_image, 2)
+        filter_blurred_l = scipy.ndimage.gaussian_filter(surface_image, 0.1)
+        surface_image = surface_image + alpha * (surface_image - filter_blurred_l)
+
+        # take only points higher than a certain value
+        surface_image = MAX_CHAR * (surface_image > 70)
+        return surface_image
+
+    def transform(self, T, scale = 1.0):
+        """
+        Transform the grid by pose T and scale with canonical reference frame at the SDF center with axis alignment
+        Params:
+            (tfx pose): Pose T
+            (float): scale of transform
+        Returns:
+            (SDF): new sdf with grid warped by T
+        """
+        # map all surface points to their new location
+        num_pts = self.pts_.shape[0]
+        pts_centered = self.pts_ - self.center_
+        pts_homog = np.r_[pts_centered.T, np.r_[np.zeros([1, num_pts]), np.ones([1, num_pts])]]
+        pts_homog_tf = T.matrix.dot(pts_homog)
+        pts_tf_centered = (1.0 / scale) * pts_homog_tf[0:2,:].T
+        pts_tf = pts_tf_centered + self.center_
+
+        # add each point to the new pose
+        sdf_data_tf = np.zeros([num_pts, 1])
+        for i in range(num_pts):
+            sdf_data_tf[i] = self[pts_tf[i,0], pts_tf[i,1]]
+        sdf_data_tf_grid = sdf_data_tf.reshape(self.dims_)
+
+        return Sdf2D(sdf_data_tf_grid, pose = T * self.pose_)
 
     def set_feature_vector(self, vector):
         """
@@ -428,37 +588,39 @@ class Sdf2D(Sdf):
 #        scipy.io.savemat(out_file, mdict={'X':self.xlist_, 'Y': self.ylist_, 'Z': self.zlist_, 'vals': self.values_in_order_})
         logging.info("SDF information saved to %s" % out_file)
 
-    def scatter(self, surface_thresh = DEF_SURFACE_THRESH):
+    def scatter(self):
         """
-        Plots the SDF as a matplotlib 3D scatter plot, and displays the figure
+        Plots the SDF as a matplotlib 2D scatter plot, and displays the figure
         Params: - 
         Returns: - 
         """
         h = plt.figure()
         ax = h.add_subplot(111)
 
-        surface_points = np.where(np.abs(self.data_) < surface_thresh)
-
         # get the points on the surface
-        x = surface_points[0]
-        y = surface_points[1]
+        surface_points, surface_vals = self.surface_points(self.surface_thresh_)
+        x = surface_points[:,0]
+        y = surface_points[:,1]
 
         # scatter the surface points
-        ax.scatter(x, y, cmap="Blues")
+        ax.scatter(y, x, cmap="Blues")
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_xlim(0, self.dims_[0])
         ax.set_ylim(0, self.dims_[1])
-        plt.show()
 
     def imshow(self):
         """
         Displays the SDF as an image
         """
-        #plt.figure()
-        plt.imshow(self.data_ < 0)
-        #plt.show()
- 
+        plt.imshow(self.data_ < 0, cmap=plt.get_cmap('Greys'))
+
+    def vis_surface(self):
+        """
+        Displays the SDF surface image
+        """
+        plt.imshow(self.surface_image_thresh(), cmap=plt.get_cmap('Greys'))
+
 def test_function():
     test_sdf = "aunt_jemima_original_syrup/processed/textured_meshes/optimized_tsdf_texture_mapped_mesh.sdf"
     matlab_file = "data.mat"
@@ -480,4 +642,68 @@ def test_function():
     teatime.send_to_matlab(matlab_file)
     teatime.make_plot()
 
+def test_3d_transform():
+    sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
+    s = sf.SdfFile(sdf_3d_file_name)
+    sdf_3d = s.read()
+
+    # transform
+    pose_mat = np.matrix([[0, 1, 0, 0],[-1, 0, 0, 0],[0, 0, 1, 0],[0, 0,0,1]])
+    tf = tfx.transform(pose_mat, frame='world')
+    tf = tfx.random_tf()
+
+    start_t = time.clock()
+    sdf_tf = sdf_3d.transform(tf, scale = 1.5)
+    end_t = time.clock()
+    duration = end_t - start_t
+    logging.info('3D Transform took %f sec' %(duration))
+    logging.info('Transformed resolution %f' %(sdf_tf.resolution()))
+
+    start_t = time.clock()
+    sdf_tf_d = sdf_3d.transform(tf, scale = 1.5, detailed = True)
+    end_t = time.clock()
+    duration = end_t - start_t
+    logging.info('Detailed 3D Transform took %f sec' %(duration))
+    logging.info('Transformed detailed resolution %f' %(sdf_tf_d.resolution()))
+
+    # display
+    sdf_3d.scatter()
+    plt.title('Original')
+    sdf_tf.scatter()
+    plt.title('Transformed')
+    sdf_tf_d.scatter()
+    plt.title('Detailed Transformed')
+    plt.show()
+    
+def test_2d_transform():
+    sdf_2d_file_name = 'data/test/sdf/medium_black_spring_clamp_optimized_poisson_texture_mapped_mesh_clean_0.csv'
+    sf2 = sf.SdfFile(sdf_2d_file_name)
+    sdf_2d = sf2.read()
+
+    # transform
+    pose_mat = np.matrix([[0, 1, 0, 0],[-1, 0, 0, 0],[0, 0, 1, 0],[0, 0,0,1]])
+    tf = tfx.transform(pose_mat, frame='world')
+
+    start_t = time.clock()
+    sdf_tf = sdf_2d.transform(tf, scale = 1.5)
+    end_t = time.clock()
+    duration = end_t - start_t
+    logging.info('2D Transform took %f sec' %(duration))
+
+    # display
+    plt.figure()
+    plt.subplot(1,2,1)
+    sdf_2d.imshow()
+    plt.title('Original')
+
+    plt.subplot(1,2,2)
+    sdf_tf.imshow()
+    plt.title('Transformed')
+
+    plt.show()
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
+#    test_2d_transform()
+    test_3d_transform()
 

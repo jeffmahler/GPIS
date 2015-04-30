@@ -5,7 +5,9 @@ Author: Jeff Mahler
 import logging
 import numpy as np
 import os
+import tfx
 
+import matplotlib.pyplot as plt
 import sdf
 import IPython
 
@@ -80,10 +82,10 @@ def test_3d():
     sf = SdfFile(sdf_3d_file_name)
     sdf_3d = sf.read()
 
-    print 'Loaded 3D SDF', sdf_3d_file_name
-    print "Dimension: x: %d, y: %d, z: %d" % sdf_3d.dimensions()
-    print "Origin: (%f, %f, %f)" %(sdf_3d.origin()[0], sdf_3d.origin()[1], sdf_3d.origin()[2])
-    print "Resolution: %f" % sdf_3d.resolution()
+    logging.info('Loaded 3D SDF %s'  %(sdf_3d_file_name))
+    logging.info('Dimension: x: %d, y: %d, z: %d' % sdf_3d.dimensions())
+    logging.info('Origin: (%f, %f, %f)' %(sdf_3d.origin()[0], sdf_3d.origin()[1], sdf_3d.origin()[2]))
+    logging.info('Resolution: %f' % sdf_3d.resolution())
 
     # tests
     assert sdf_3d.dimensions()[0] == 25
@@ -95,24 +97,32 @@ def test_3d():
     assert sdf_3d.origin()[2] == -1.01391
 
     assert sdf_3d.resolution() == 0.0852112
+
+    sdf_3d.surface_points()
     sdf_3d.scatter()
+    plt.show()
     
 def test_2d():
-    sdf_2d_file_name = 'data/test/sdf/brine_mini_soccer_ball_optimized_poisson_texture_mapped_mesh_clean_0.csv'
+    sdf_2d_file_name = 'data/test/sdf/medium_black_spring_clamp_optimized_poisson_texture_mapped_mesh_clean_0.csv'
+#    sdf_2d_file_name = 'data/test/sdf/brine_mini_soccer_ball_optimized_poisson_texture_mapped_mesh_clean_0.csv'
     sf2 = SdfFile(sdf_2d_file_name)
     sdf_2d = sf2.read()
 
-    print 'Loaded 2D SDF', sdf_2d_file_name
-    print "Dimension: x: %d, y: %d" % sdf_2d.dimensions()
-    print "Origin: (%f, %f)" %(sdf_2d.origin()[0], sdf_2d.origin()[1])
-    print "Resolution: %f" % sdf_2d.resolution()
+    logging.info('Loaded 2D SDF %s'  %(sdf_2d_file_name))
+    logging.info('Dimension: x: %d, y: %d' % sdf_2d.dimensions())
+    logging.info('Origin: (%f, %f)' %(sdf_2d.origin()[0], sdf_2d.origin()[1]))
+    logging.info('Resolution: %f' % sdf_2d.resolution())
 
     assert sdf_2d.dimensions()[0] == 50
     assert sdf_2d.dimensions()[1] == 50
-    sdf_2d.imshow()
+
+    plt.figure()
+    sdf_2d.vis_surface()
+    plt.show()
 
 if __name__ == '__main__':
-    test_3d()
+    logging.getLogger().setLevel(logging.DEBUG)
     test_2d()
+    test_3d()
     
 
