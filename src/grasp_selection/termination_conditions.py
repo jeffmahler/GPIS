@@ -1,6 +1,11 @@
 from abc import ABCMeta, abstractmethod
 
+import models
+
 class TerminationCondition:
+    """
+    Returns true when a condition is satisfied
+    """
     __metaclass__ = ABCMeta
 
     @abstractmethod
