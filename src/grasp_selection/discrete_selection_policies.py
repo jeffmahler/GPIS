@@ -14,9 +14,7 @@ import models
 class DiscreteSelectionPolicy:
     __metaclass__ = ABCMeta
 
-    def __init__(self, model):
-        if not isinstance(model, models.DiscreteModel):
-            raise ValueError('Must supply a discrete predictive model')
+    def __init__(self, model = None):
         self.model_ = model
 
     @abstractmethod
@@ -26,9 +24,16 @@ class DiscreteSelectionPolicy:
         """
         pass
 
+    def set_model(self, model):
+        if not isinstance(model, models.DiscreteModel):
+            raise ValueError('Must supply a discrete predictive model')
+        self.model_ = model
+
 class UniformSelectionPolicy(DiscreteSelectionPolicy):
     def choose_next(self):
         """ Returns an index uniformly at random"""
+        if self.model_ is None:
+            raise ValueError('Must set predictive model')
         num_vars = self.model_.num_vars()
         next_index = np.random.choice(num_vars)
         return next_index
@@ -36,6 +41,8 @@ class UniformSelectionPolicy(DiscreteSelectionPolicy):
 class MaxDiscreteSelectionPolicy(DiscreteSelectionPolicy):
     def choose_next(self):
         """ Returns the index of the maximal variable, breaking ties uniformly at random"""
+        if self.model_ is None:
+            raise ValueError('Must set predictive model')
         max_indices, max_mean_vals, max_var_vals = self.model_.max_prediction()
         num_max_indices = max_indices.shape[0]
         next_index = np.random.choice(num_max_indices)
@@ -45,6 +52,8 @@ class ThompsonSelectionPolicy(DiscreteSelectionPolicy):
     """ Chooses the next point using the Thompson sampling selection policy"""
     def choose_next(self, stop = False):
         """ Returns the index of the maximal random sample, breaking ties uniformly at random"""
+        if self.model_ is None:
+            raise ValueError('Must set predictive model')
         sampled_values = self.model_.sample()
         if stop:
             IPython.embed()

@@ -98,28 +98,13 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
                                       iters, iter_indices, iter_vals, iter_models)        
 
 
-class UniformAllocationMean(DiscreteAdaptiveSampler):
+class BetaBernoulliBandit(DiscreteAdaptiveSampler):
     """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
-    def __init__(self, objective, candidates, mean_prior = 0.5):
-        self.num_candidates_ = len(candidates)
-        self.model_ = models.BernoulliModel(self.num_candidates_, mean_prior)
-        self.selection_policy_ = dcsp.UniformSelectionPolicy(self.model_)
-
-        DiscreteAdaptiveSampler.__init__(self, objective, candidates, self.model_, self.selection_policy_)
-
-    def reset_model(self, candidates):
-        """ Needed to independently maximize over subsets of data """
-        num_subcandidates = len(candidates)
-        self.model_ = models.BernoulliModel(self.num_candidates_, self.model_.mean_prior_)        
-        self.selection_policy_ = dcsp.UniformSelectionPolicy(self.model_)
-        # always update the selection policy!
-
-class ThompsonSampling(DiscreteAdaptiveSampler):
-    """ Performs thompson sampling to get the candidate that maximizes the mean value of the objective"""
-    def __init__(self, objective, candidates, alpha_prior = 1.0, beta_prior = 1.0):
+    def __init__(self, objective, candidates, policy, alpha_prior = 1.0, beta_prior = 1.0):
         self.num_candidates_ = len(candidates)
         self.model_ = models.BetaBernoulliModel(self.num_candidates_, alpha_prior, beta_prior)
-        self.selection_policy_ = dcsp.ThompsonSelectionPolicy(self.model_)
+        self.selection_policy_ = policy
+        self.selection_policy_.set_model(self.model_)
 
         DiscreteAdaptiveSampler.__init__(self, objective, candidates, self.model_, self.selection_policy_)
 
@@ -127,7 +112,20 @@ class ThompsonSampling(DiscreteAdaptiveSampler):
         """ Needed to independently maximize over subsets of data """
         num_subcandidates = len(candidates)
         self.model_ = models.BetaBernoulliModel(self.num_candidates_, self.model_.alpha_prior_, self.model_.beta_prior_)        
-        self.selection_policy_ = dcsp.ThompsonSelectionPolicy(self.model_)
+        self.selection_policy_.set_model(self.model_)
+        # always update the selection policy!    
+
+class UniformAllocationMean(BetaBernoulliBandit):
+    """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
+    def __init__(self, objective, candidates, alpha_prior = 1.0, beta_prior = 1.0):
+        self.selection_policy_ = dcsp.UniformSelectionPolicy()
+        BetaBernoulliBandit.__init__(self, objective, candidates, self.selection_policy_, alpha_prior, beta_prior)
+
+class ThompsonSampling(BetaBernoulliBandit):
+    """ Performs thompson sampling to get the candidate that maximizes the mean value of the objective"""
+    def __init__(self, objective, candidates, alpha_prior = 1.0, beta_prior = 1.0):
+        self.selection_policy_ = dcsp.ThompsonSelectionPolicy()
+        BetaBernoulliBandit.__init__(self, objective, candidates, self.selection_policy_, alpha_prior, beta_prior)
 
 class AdaptiveSamplingResult:
     """
