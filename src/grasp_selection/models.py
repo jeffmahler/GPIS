@@ -193,6 +193,14 @@ class BetaBernoulliModel(DiscreteModel):
         """ Mean of the beta distribution with params alpha and beta """
         return (alpha * beta) / ( (alpha + beta)**2 * (alpha + beta + 1)) 
 
+    @property
+    def posterior_alphas(self):
+        return self.posterior_alphas_
+
+    @property
+    def posterior_betas(self):
+        return self.posterior_betas_
+
     def predict(self, index):
         """
         Predicts the probability of success for the variable indexed by |index|
