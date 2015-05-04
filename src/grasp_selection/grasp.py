@@ -2,8 +2,33 @@
 Grasp class that implements gripper endpoints and grasp functions
 Author: Nikhil Sharma
 """
+from abc import ABCMeta, abstractmethod
+
+import numpy as np
+import IPython
+
+import graspable_object as go
+import sdf_file as sf
+import sdf
 
 class Grasp:
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def find_contacts(self, obj):
+        '''
+        Finds the contact points on an object
+        '''
+        pass
+
+    #@abstractmethod
+    def to_json(self):
+        '''
+        Converts a grasp to json
+        '''
+        return None
+
+class ParallelJawPtGrasp2D(Grasp):
 	"""A grasp possesses gripper endpoints g1 and g2"""
 	import numpy as np
 
@@ -19,13 +44,14 @@ class Grasp:
 		self.g1 = g1
 		self.g2 = g2
 
-	def compute_contacts(self, sdf, num_samples=500):
+	def find_contacts(self, obj, num_samples=500):
 		"""
 		Steps along grasp directions to find the locations of contact
 
-		sdf - input SDF
+		obj - graspable object class
 		num_samples - number of sample points between g1 and g2 to find contact points
 		"""
+                sdf = obj.sdf
 		axis = self.grasp_axis()
 		sample_points = [[self.g1[0] + axis[0]*t, self.g1[1] + axis[1]*t, self.g1[2] + axis2*t] for x in list(np.linspace(0, 1, num_samples))]
 		contact_found = False
@@ -57,8 +83,9 @@ class Grasp:
 
 if __name__ == '__main__':
 	sdf_2d_file_name = 'data/test/sdf/brine_mini_soccer_ball_optimized_poisson_texture_mapped_mesh_clean_0.csv'
-	sf2 = SdfFile(sdf_2d_file_name)
+	sf2 = sf.SdfFile(sdf_2d_file_name)
 	sdf_2d = sf2.read()
-	grasp = Grasp([25, 0, 0], [25, 49, 0])
-	grasp.compute_contacts(sdf_2d)
+        obj_2d = go.GraspableObject2D(sdf_2d)
+	grasp = ParallelJawPtGrasp2D([25, 0, 0], [25, 49, 0])
+	grasp.find_contacts(obj_2d)
 

@@ -46,10 +46,10 @@ def crosses_threshold(threshold):
         return (elems>threshold).any() and (elems<threshold).any()
     return crosses
 
-
 class Sdf:
     __metaclass__ = ABCMeta
 
+    @property
     def dimensions(self):
         """ 
         SDF dimension information
@@ -58,6 +58,7 @@ class Sdf:
         """
         return self.dims_
 
+    @property
     def origin(self):
         """
         Object origin
@@ -66,6 +67,7 @@ class Sdf:
         """
         return self.origin_
 
+    @property
     def resolution(self):
         """
         Object resolution (how wide each grid cell is)
@@ -74,6 +76,7 @@ class Sdf:
         """
         return self.resolution_
 
+    @property
     def data(self):
         """
         Returns the SDF data
@@ -82,6 +85,7 @@ class Sdf:
         """
         return self.data_
 
+    @property
     def pose(self):
         """
         Returns the pose of the sdf wrt world frame
@@ -89,6 +93,30 @@ class Sdf:
             tfx pose: sdf pose
         """
         return self.pose_
+
+    @pose.setter
+    def pose(self, pose):
+        self.pose_ = pose
+
+    @property
+    def scale(self):
+        """ Returns scale of SDF wrt world frame """
+        return self.scale_
+
+    @pose.setter
+    def scale(self, scale):
+        self.scale_ = scale
+
+    @abstractmethod
+    def transform(self, T, scale):
+        """
+        Returns a new SDF transformed by similarity tf specified in tfx canonical pose |T| and scale |scale|
+        """
+        pass
+
+    def transform_world_frame(self):
+        """ Returns an sdf object with center in the world frame of reference """
+        return self.transform(self.pose_, scale=self.scale_)
 
     @abstractmethod
     def __getitem__(self, coords):
@@ -112,12 +140,15 @@ class Sdf:
         pass        
 
 class Sdf3D(Sdf):
-    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world"), use_abs = True):
+    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world"), scale = 1.0, use_abs = True):
         self.data_ = sdf_data
         self.origin_ = origin
         self.resolution_ = resolution
         self.dims_ = self.data_.shape
         self.pose_ = pose
+        self.scale_ = scale
+
+        self.surface_thresh_ = self.resolution_ * np.sqrt(2) / 2 # resolution is max dist from surface when surf is orthogonal to diagonal grid cells
         self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2, self.dims_[2] / 2]
 
         # optionally use only the absolute values (useful for non-closed meshes in 3D)
@@ -188,7 +219,7 @@ class Sdf3D(Sdf):
 
         return weights.dot(values)
 
-    def surface_points(self, surface_thresh = DEF_SURFACE_THRESH):
+    def surface_points(self):
         """
         Returns the points on the surface
         Params: (float) sdf value to threshold
@@ -196,7 +227,7 @@ class Sdf3D(Sdf):
             numpy arr: the points on the surfaec
             numpy arr: the sdf values on the surface
         """
-        surface_points = np.where(np.abs(self.data_) < surface_thresh)
+        surface_points = np.where(np.abs(self.data_) < self.surface_thresh_)
         x = surface_points[0]
         y = surface_points[1]
         z = surface_points[2]
@@ -376,7 +407,7 @@ class Sdf3D(Sdf):
 #        scipy.io.savemat(out_file, mdict={'X':self.xlist_, 'Y': self.ylist_, 'Z': self.zlist_, 'vals': self.values_in_order_})
         logging.info("SDF information saved to %s" % out_file)
 
-    def scatter(self, surface_thresh = DEF_SURFACE_THRESH):
+    def scatter(self):
         """
         Plots the SDF as a matplotlib 3D scatter plot, and displays the figure
         Params: - 
@@ -386,7 +417,7 @@ class Sdf3D(Sdf):
         ax = h.add_subplot(111, projection = '3d')
 
         # surface points
-        surface_points, surface_vals = self.surface_points(surface_thresh)
+        surface_points, surface_vals = self.surface_points()
         x = surface_points[:,0]
         y = surface_points[:,1]
         z = surface_points[:,2]
@@ -401,13 +432,15 @@ class Sdf3D(Sdf):
         ax.set_zlim3d(0, self.dims_[2])
 
 class Sdf2D(Sdf):
-    def __init__(self, sdf_data, origin = np.array([0,0]), resolution = 1.0, pose = tfx.identity_tf(frame="world")):
+    def __init__(self, sdf_data, origin = np.array([0,0]), resolution = 1.0, pose = tfx.identity_tf(frame="world"), scale = 1.0):
         self.data_ = sdf_data
         self.origin_ = origin
         self.resolution_ = resolution
         self.dims_ = self.data_.shape
         self.pose_ = pose
-        self.surface_thresh_ = np.percentile(np.abs(self.data_), 5)
+        self.scale_ = scale
+
+        self.surface_thresh_ = self.resolution_ * np.sqrt(2) / 2 # resolution is max dist from surface when surf is orthogonal to diagonal grid cells
         self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2]
 
         self._compute_flat_indices()
@@ -468,10 +501,9 @@ class Sdf2D(Sdf):
         weights = weights / np.sum(weights)
         return weights.dot(values)
 
-    def surface_points(self, surface_thresh = DEF_SURFACE_THRESH):
+    def surface_points(self):
         """
         Returns the points on the surface
-        Params: (float) sdf value to threshold
         Returns:
             numpy arr: the points on the surfaec
             numpy arr: the sdf values on the surface
@@ -483,7 +515,7 @@ class Sdf2D(Sdf):
         surface_vals = self.data_[surface_points[:,0], surface_points[:,1]]
         return surface_points, surface_vals
 
-    def surface_image_thresh(self, surface_thresh = DEF_SURFACE_THRESH, alpha = 0.5, scale = 4):
+    def surface_image_thresh(self, alpha = 0.5, scale = 4):
         """
         Returns an image that is zero on the shape surface and one otherwise
         """
