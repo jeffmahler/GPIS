@@ -24,7 +24,6 @@ class Solver:
         '''
         pass
 
-
 class TopKSolver(Solver):
     def __init__(self, objective):
         Solver.__init__(self, objective)
@@ -37,11 +36,11 @@ class TopKSolver(Solver):
         '''
         pass
 
-class SamplingSolver(Solver):
+class SamplingSolver(TopKSolver):
     """ Optimization methods based on a sampling strategy"""
     __metaclass__ = ABCMeta
 
-class DiscreteSamplingSolver(TopKSolver):
+class DiscreteSamplingSolver(SamplingSolver):
     __metaclass__ = ABCMeta
     def __init__(self, objective, candidates):
         """
@@ -100,6 +99,33 @@ class DiscreteSamplingSolver(TopKSolver):
             top_K_results.append(self.discrete_maximize(candidate_bins[k], termination_condition, snapshot_rate))
         return top_K_results
 
-# TODO: make this work someday...
+
 class OptimizationSolver(Solver):
-    pass
+    def __init__(self, objective, ineq_constraints = None, eq_constraints = None, eps_i = 1e-2, eps_e = 1e-2):
+        """
+        Inequality constraints: g_i(x) <= 0
+        Equality constraints: h_i(x) <= 0
+        """
+        self.ineq_constraints_ = ineq_constraints
+        self.eq_constraints_ = eq_constraints        
+        self.eps_i_ = eps_i
+        self.eps_e_ = eps_e
+        Solver.__init__(self, objective)
+
+    def is_feasible(self, x):
+        """ Check feasibility of a given point """
+        try:
+            self.objective_.check_valid_input(x)
+        except ValueError as e:
+            return False
+
+        if self.ineq_constraints_ is not None:
+            for g in self.ineq_constraints_:
+                if np.sum(g(x) > eps_i * np.ones(g.num_outputs())) > 0:
+                    return False
+
+        if self.eq_constraints_ is not None:
+            for h in self.eq_constraints_:
+                if np.sum(np.abs(h(x)) > eps_e * np.ones(h.num_outputs())) > 0:
+                    return False            
+        return True

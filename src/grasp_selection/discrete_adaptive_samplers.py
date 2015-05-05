@@ -90,11 +90,9 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
 
             # snapshot the model and whatnot
             if (k % snapshot_rate) == 0:
-#                self.selection_policy_.choose_next(stop=True)
-#                s = self.model_.sample(vis=True, stop=True)
-#                IPython.embed()
                 logging.info('Iteration %d' %(k))
-
+                
+                # log time and stuff
                 checkpt = time.clock()
                 times.append(checkpt - start_time)
                 iters.append(k)
@@ -106,7 +104,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
             self.model_.update(next_ind, next_ind_val)
 
             # check termination condiation
-            terminate = termination_condition(k, self.objective_, self.model_)            
+            terminate = termination_condition(k, model = self.model_)            
             k = k + 1
 
         # log total runtime
