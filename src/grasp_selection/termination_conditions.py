@@ -9,7 +9,7 @@ class TerminationCondition:
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def __call__(self, k, cur_val, prev_val, cur_grad, cur_hess, model):
+    def __call__(self, k, cur_val = None, prev_val = None, cur_grad = None, cur_hess = None, model = None):
         """
         Returns true or false based on whether or not a termination condition was met
         """

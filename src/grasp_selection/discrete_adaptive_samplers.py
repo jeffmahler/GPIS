@@ -80,12 +80,14 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
         iter_vals = []
         iter_models = []
         start_time = time.clock()
+        next_ind_val = 0
 
         while not terminate:
             # get next point to sample    
             next_ind = self.selection_policy_.choose_next()
 
             # evaluate the function at the given point (can be nondeterministic)
+            prev_ind_val = next_ind_val
             next_ind_val = self.objective_.evaluate(candidates[next_ind])
 
             # snapshot the model and whatnot
@@ -104,7 +106,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
             self.model_.update(next_ind, next_ind_val)
 
             # check termination condiation
-            terminate = termination_condition(k, model = self.model_)            
+            terminate = termination_condition(k, cur_val = next_ind_val, prev_val = prev_ind_val, model = self.model_)            
             k = k + 1
 
         # log total runtime
@@ -118,8 +120,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
         for i in range(num_best):
             best_candidates.append(candidates[best_indices[i]])
         return AdaptiveSamplingResult(best_candidates, best_pred_means, best_pred_vars, total_duration,
-                                      times, iters, iter_indices, iter_vals, iter_models)        
-
+                                      times, iters, iter_indices, iter_vals, iter_models)
 
 class BetaBernoulliBandit(DiscreteAdaptiveSampler):
     """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
