@@ -9,6 +9,7 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import numbers
 
 from PIL import Image
 import scipy.io
@@ -30,7 +31,6 @@ if version_info[0] != 3:
     range = xrange
 
 MAX_CHAR = 255
-DEF_SURFACE_THRESH = 0.05
 
 def crosses_threshold(threshold):
     def crosses(elems):
@@ -45,49 +45,6 @@ def crosses_threshold(threshold):
         """
         return (elems>threshold).any() and (elems<threshold).any()
     return crosses
-
-def find_zero_crossing_linear(x1, y1, x2, y2):
-    """ Find zero crossing using linear approximation"""
-    m = (y2 - y1) / (x2 - x1)
-    b = y1 - m.dot(x1)
-    x_zc = -b / m
-    return x_zc
-
-def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
-    """ Find zero crossing using quadratic approximation along 1d line"""
-    # compute coords along 1d line
-    v = x2 - x1
-    v = v / np.linalg.norm(v)
-    t1 = 0
-    t2 = (x2 - x1) / v
-    t2 = t2[0]
-    t3 = (x3 - x1) / v
-    t3 = t3[0]
-
-    # solve for quad approx
-    x1_row = np.array([t1**2, t1, 1])
-    x2_row = np.array([t2**2, t2, 1])
-    x3_row = np.array([t3**2, t3, 1])
-    X = np.array([x1_row, x2_row, x3_row])
-    y_vec = np.array([y1, y2, y3])
-    try:
-        w = np.linalg.solve(X, y_vec)
-    except np.linalg.LinAlgError:
-        logging.error('Singular matrix. Probably a bug')
-
-    # get positive roots
-    possible_t = np.roots(w)
-    t_zc = None
-    for i in range(possible_t.shape[0]):
-        if possible_t[i] >= 0 and possible_t[i] <= 10 and not np.iscomplex(possible_t[i]):
-            t_zc = possible_t[i]
-
-    # if no positive roots find min
-    if t_zc is None:
-        t_zc = -w[1] / (2 * w[0])
-
-    x_zc = x1 + t_zc * v
-    return x_zc
 
 class Sdf:
     __metaclass__ = ABCMeta
@@ -165,15 +122,19 @@ class Sdf:
         """
         pass
 
-    def transform_world_frame(self):
+    def transform_to_world(self):
         """ Returns an sdf object with center in the world frame of reference """
         return self.transform(self.pose_, scale=self.scale_)
 
-    def transform_grid_basis(self, x_world):
-        """ Converts a point in world coords to the grid basis """
-        x_sdf = self.scale_ * np.array(self.pose_.apply(x_world)).T[0]
-        x_sdf_grid = (1.0 / self.resolution_) * x_sdf + self.center_
-        return x_sdf_grid
+    @abstractmethod
+    def transform_pt_world_to_grid(self, x_world, direction = False):
+        """ Transform points from world frame to grid frame """
+        pass
+
+    @abstractmethod
+    def transform_pt_grid_to_world(self, x_grid, direction = False):
+        """ Transform points from grid frame to world frame """
+        pass
 
     @abstractmethod
     def __getitem__(self, coords):
@@ -186,7 +147,7 @@ class Sdf:
         pass
 
     @abstractmethod
-    def surface_points(self, surf_thresh=DEF_SURFACE_THRESH):
+    def surface_points(self):
         """
         Returns the points on the surface
         Params: (float) sdf value to threshold
@@ -375,6 +336,32 @@ class Sdf3D(Sdf):
         logging.info('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
 
         return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf, pose = T * self.pose_)
+
+    def transform_pt_world_to_grid(self, x_world, direction = False):
+        """ Converts a point in world coords to the grid basis. If direction then don't translate """
+        if isinstance(x_world, np.ndarray) and x_world.shape[0] == 3 and not direction: 
+            x_sdf = self.scale_ * np.array(self.pose_.apply(x_world)).T[0]
+            x_sdf_grid = (1.0 / self.resolution_) * x_sdf + self.center_
+            return x_sdf_grid
+        elif isinstance(x_world, np.ndarray) and x_world.shape[0] == 3: 
+            x_sdf = np.array(self.pose_.rotation.apply(x_world)).T[0]
+            x_sdf = x_sdf / np.linalg.norm(x_sdf)
+            return x_sdf
+        elif (isinstance(x_world, np.ndarray) and x_world.shape[0] == 0) or isinstance(x_world, numbers.Number):
+            return (1.0 / self.resolution_) * x_world
+
+    def transform_pt_grid_to_world(self, x_grid, direction = False):
+        """ Converts a point in grid coords to the world basis. If direction then don't translate """
+        if isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 3 and not direction: 
+            x_world_grid = (1.0 / self.scale_) * np.array(self.pose_.inverse().apply(x_grid)).T[0]
+            x_world = self.resolution_ * (x_world_grid - self.center_)
+            return x_world
+        elif isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 3: 
+            x_world = np.array(self.pose_.inverse().rotation.apply(x_grid)).T[0]
+            x_world = x_world / np.linalg.norm(x_world)
+            return x_world
+        elif (isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 0) or isinstance(x_grid, numbers.Number):
+            return self.resolution_ * x_grid
 
     def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1): 
         """ 
@@ -734,6 +721,49 @@ class Sdf2D(Sdf):
         Displays the SDF surface image
         """
         plt.imshow(self.surface_image_thresh(), cmap=plt.get_cmap('Greys'))
+
+def find_zero_crossing_linear(x1, y1, x2, y2):
+    """ Find zero crossing using linear approximation"""
+    m = (y2 - y1) / (x2 - x1)
+    b = y1 - m.dot(x1)
+    x_zc = -b / m
+    return x_zc
+
+def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
+    """ Find zero crossing using quadratic approximation along 1d line"""
+    # compute coords along 1d line
+    v = x2 - x1
+    v = v / np.linalg.norm(v)
+    t1 = 0
+    t2 = (x2 - x1) / v
+    t2 = t2[0]
+    t3 = (x3 - x1) / v
+    t3 = t3[0]
+
+    # solve for quad approx
+    x1_row = np.array([t1**2, t1, 1])
+    x2_row = np.array([t2**2, t2, 1])
+    x3_row = np.array([t3**2, t3, 1])
+    X = np.array([x1_row, x2_row, x3_row])
+    y_vec = np.array([y1, y2, y3])
+    try:
+        w = np.linalg.solve(X, y_vec)
+    except np.linalg.LinAlgError:
+        logging.error('Singular matrix. Probably a bug')
+
+    # get positive roots
+    possible_t = np.roots(w)
+    t_zc = None
+    for i in range(possible_t.shape[0]):
+        if possible_t[i] >= 0 and possible_t[i] <= 10 and not np.iscomplex(possible_t[i]):
+            t_zc = possible_t[i]
+
+    # if no positive roots find min
+    if t_zc is None:
+        t_zc = -w[1] / (2 * w[0])
+
+    x_zc = x1 + t_zc * v
+    return x_zc
 
 def test_function():
     test_sdf = "aunt_jemima_original_syrup/processed/textured_meshes/optimized_tsdf_texture_mapped_mesh.sdf"
