@@ -129,7 +129,7 @@ class Sdf:
         pass
 
     @abstractmethod
-    def surface_points(self, surf_thresh):
+    def surface_points(self, surf_thresh=DEF_SURFACE_THRESH):
         """
         Returns the points on the surface
         Params: (float) sdf value to threshold
@@ -138,6 +138,22 @@ class Sdf:
             numpy arr: the sdf values on the surface
         """
         pass        
+
+    def _compute_gradients(self):
+        """
+        Computes the gradients of the SDF.
+        """
+        self.gradients_ = np.gradient(self.data_)
+
+    @property
+    def gradients(self):
+        """
+        Gradients of the SDF.
+        Returns:
+            list of gradients, where the nth element is an array of the
+            derivative of the SDF with respect to the nth dimension
+        """
+        return self.gradients_
 
 class Sdf3D(Sdf):
     def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world"), scale = 1.0, use_abs = True):
@@ -156,6 +172,7 @@ class Sdf3D(Sdf):
             self.data_ = np.abs(self.data_)
 
         self._compute_flat_indices()
+        self._compute_gradients()
 
         self.feature_vector_ = None #Kmeans feature representation
 
@@ -444,6 +461,7 @@ class Sdf2D(Sdf):
         self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2]
 
         self._compute_flat_indices()
+        self._compute_gradients()
 
         self.feature_vector_ = None #Kmeans feature representation
 
