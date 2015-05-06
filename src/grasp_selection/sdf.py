@@ -570,14 +570,16 @@ class Sdf2D(Sdf):
         weights = weights / np.sum(weights)
         return weights.dot(values)
 
-    def surface_points(self):
+    def surface_points(self, surf_thresh=None):
         """
         Returns the points on the surface
         Returns:
             numpy arr: the points on the surfaec
             numpy arr: the sdf values on the surface
         """
-        surface_points = np.where(np.abs(self.data_) < self.surface_thresh_)
+        if surf_thresh is None:
+            surf_thresh = self.surface_thresh_
+        surface_points = np.where(np.abs(self.data_) < surf_thresh)
         x = surface_points[0]
         y = surface_points[1]
         surface_points = np.c_[x, y]

@@ -83,20 +83,20 @@ def test_3d():
     sdf_3d = sf.read()
 
     logging.info('Loaded 3D SDF %s'  %(sdf_3d_file_name))
-    logging.info('Dimension: x: %d, y: %d, z: %d' % sdf_3d.dimensions())
-    logging.info('Origin: (%f, %f, %f)' %(sdf_3d.origin()[0], sdf_3d.origin()[1], sdf_3d.origin()[2]))
-    logging.info('Resolution: %f' % sdf_3d.resolution())
+    logging.info('Dimension: x: %d, y: %d, z: %d' % sdf_3d.dimensions)
+    logging.info('Origin: (%f, %f, %f)' %(sdf_3d.origin[0], sdf_3d.origin[1], sdf_3d.origin[2]))
+    logging.info('Resolution: %f' % sdf_3d.resolution)
 
     # tests
-    assert sdf_3d.dimensions()[0] == 25
-    assert sdf_3d.dimensions()[1] == 25
-    assert sdf_3d.dimensions()[2] == 25
+    assert sdf_3d.dimensions[0] == 25
+    assert sdf_3d.dimensions[1] == 25
+    assert sdf_3d.dimensions[2] == 25
 
-    assert sdf_3d.origin()[0] == -1.04021
-    assert sdf_3d.origin()[1] == -1.1007
-    assert sdf_3d.origin()[2] == -1.01391
+    assert sdf_3d.origin[0] == -1.04021
+    assert sdf_3d.origin[1] == -1.1007
+    assert sdf_3d.origin[2] == -1.01391
 
-    assert sdf_3d.resolution() == 0.0852112
+    assert sdf_3d.resolution == 0.0852112
 
     sdf_3d.surface_points()
     sdf_3d.scatter()
@@ -109,12 +109,12 @@ def test_2d():
     sdf_2d = sf2.read()
 
     logging.info('Loaded 2D SDF %s'  %(sdf_2d_file_name))
-    logging.info('Dimension: x: %d, y: %d' % sdf_2d.dimensions())
-    logging.info('Origin: (%f, %f)' %(sdf_2d.origin()[0], sdf_2d.origin()[1]))
-    logging.info('Resolution: %f' % sdf_2d.resolution())
+    logging.info('Dimension: x: %d, y: %d' % sdf_2d.dimensions)
+    logging.info('Origin: (%f, %f)' %(sdf_2d.origin[0], sdf_2d.origin[1]))
+    logging.info('Resolution: %f' % sdf_2d.resolution)
 
-    assert sdf_2d.dimensions()[0] == 50
-    assert sdf_2d.dimensions()[1] == 50
+    assert sdf_2d.dimensions[0] == 50
+    assert sdf_2d.dimensions[1] == 50
 
     plt.figure()
     sdf_2d.vis_surface()
