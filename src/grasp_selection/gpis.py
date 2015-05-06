@@ -8,6 +8,13 @@ import GPy as gpy
 import sdf
 import sdf_file
 
+from PIL import Image
+import scipy.io
+import scipy.ndimage
+import scipy.signal
+from skimage import feature
+import skimage.filters
+
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
@@ -114,6 +121,16 @@ class Gpis3D(Gpis):
             numpy array (num_pts x 1) containing predictions
         """        
         return self.gp_.predict(points, full_cov=full_cov)
+
+    def surface_points(self, surface_thresh = sdf.DEF_SURFACE_THRESH):
+        """
+        Returns the points on the surface of the mean sdf
+        Params: (float) sdf value to threshold
+        Returns:
+            numpy arr: the points on the surfaec
+            numpy arr: the sdf values on the surface
+        """
+        return self.mean_sdf().surface_points()
 
     def __getitem__(self, coords):
         """
@@ -266,6 +283,25 @@ class Gpis2D(Gpis):
         """        
         return self.gp_.predict(points, full_cov=full_cov)
 
+    def mean_sdf(self):
+        """
+        Returns an SDF of the mean surface
+        Params: none
+        Returns:
+            SDF: mean surface
+        """
+        return sdf.Sdf2D(self.mean_pred_.reshape(self.dims_))
+
+    def surface_points(self, surface_thresh = sdf.DEF_SURFACE_THRESH):
+        """
+        Returns the points on the surface of the mean sdf
+        Params: (float) sdf value to threshold
+        Returns:
+            numpy arr: the points on the surfaec
+            numpy arr: the sdf values on the surface
+        """
+        return self.mean_sdf().surface_points()
+
     def __getitem__(self, coords):
         """
         Returns the signed distance at the given coordinates, interpolating if necessary
@@ -313,15 +349,62 @@ class Gpis2D(Gpis):
         weights = weights / np.sum(weights)
         return weights.dot(values)
 
+    def scatter(self, surface_thresh = sdf.DEF_SURFACE_THRESH):
+        """
+        Plots the GPIS mean shape as a matplotlib 2D scatter plot, and displays the figure
+        Params: - 
+        Returns: - 
+        """
+        h = plt.figure()
+        ax = h.add_subplot(111)
+
+        # get the points on the surface
+        surface_points, surface_vals = self.mean_sdf().surface_points(surface_thresh)
+        x = surface_points[:,0]
+        y = surface_points[:,1]
+
+        # scatter the surface points
+        ax.scatter(x, y, cmap="Blues")
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_xlim(0, self.dims_[0])
+        ax.set_ylim(0, self.dims_[1])
+        plt.show()
+
+
     def imshow(self):
         """
         Displays the SDF as an image
         """
         plt.figure()
         plt.imshow(self.mean_pred_.reshape(self.dims_))
-        plt.scatter(self.pts_[:,0], self.pts_[:,1])
+        plt.scatter(self.pts_[:,1], self.pts_[:,0])
         
         plt.show()
+
+    def gpis_blur(self, shape_samples = None, scale = 4, contrast = 0.7):
+        """
+        GPIS blur visualization
+        """
+        # sample shapes if necessary
+        if shape_samples is None:
+            shape_samples = self.sample_sdfs(100)
+           
+        # sample surfaces and sum up
+        num_samples = len(shape_samples)
+        surface_image = np.zeros([scale*self.dims_[0], scale*self.dims_[1]])
+        for i in range(num_samples):
+            sdf_im = shape_samples[i].surface_image_thresh(scale=scale)
+            surface_image = surface_image + sdf_im.astype(np.float)
+
+        # sample the surfaces
+        surface_image = (contrast / num_samples) * surface_image
+        surface_image = scipy.ndimage.gaussian_filter(surface_image, 1)
+
+        plt.figure()
+        plt.imshow(surface_image, cmap=plt.get_cmap('Greys'))
+        plt.show() 
+
 
 def test_3d():
     sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
@@ -352,7 +435,7 @@ def test_2d():
     all_points = sdf_2d.pts_
     all_sdf = sdf_2d.data_.flatten()
     num_points = all_points.shape[0]
-    num_rand_samples = 200
+    num_rand_samples = 100
 
     # choose a random subset of points for construction
     random_ind = np.random.choice(num_points, num_rand_samples)
@@ -362,6 +445,14 @@ def test_2d():
     # create fp
     gp = Gpis2D(rand_points, rand_sdf, sdf_2d.dimensions())
     gp.imshow()
+
+    gp.gpis_blur()
+    exit(0)
+
+    mean_surf_image = gp.mean_sdf().surface_image_thresh()
+    plt.figure()
+    plt.imshow(mean_surf_image, cmap=plt.get_cmap('Greys'))
+    plt.show()
 
     num_shape_samp = 10
     sdf_samples = gp.sample_sdfs(num_shape_samp)
