@@ -13,6 +13,9 @@ import tfx
 import camera_params as cp
 import obj_file
 
+import mayavi.mlab as mv
+import pyhull.convex_hull as cvh
+
 class Mesh3D:
 	"""
         A Mesh is a three-dimensional shape representation
@@ -32,6 +35,11 @@ class Mesh3D:
 		self.metadata_ = metadata
                 self.pose_ = pose
                 self.scale_ = scale
+
+                # compute mesh properties
+                self.compute_bb_center()
+                self.compute_centroid()
+                self.compute_com_uniform()
 
 	def vertices(self):
 		return self.vertices_
@@ -77,6 +85,41 @@ class Mesh3D:
 	def set_metadata(self, metadata):
 		self.metadata_ = metadata
 
+        def compute_bb_center(self):
+                """ Get the bounding box center of the mesh  """
+                vertex_array = np.array(self.vertices_)
+                min_vertices = np.min(vertex_array, axis=0)
+                max_vertices = np.max(vertex_array, axis=0)
+                self.bb_center_ = (max_vertices + min_vertices) / 2 
+
+        def _signed_volume_of_tri(self, tri, vertex_array):
+                """ Get the bounding box center of the mesh  """
+                v1 = vertex_array[tri[0], :]
+                v2 = vertex_array[tri[1], :]
+                v3 = vertex_array[tri[2], :]
+
+                volume = (1.0 / 6.0) * (v1.dot(np.cross(v3, v2)))
+                center = (1.0 / 3.0) * (v1 + v2 + v3)
+                return volume, center
+
+        def compute_com_uniform(self):
+                """ Computes the center of mass using a uniform mass distribution assumption """
+                total_volume = 0
+                weighted_point_sum = np.zeros([1, 3])
+                vertex_array = np.array(self.vertices_)
+                i = 0
+                for tri in self.triangles_:
+                        volume, center = self._signed_volume_of_tri(tri, vertex_array)
+                        weighted_point_sum = weighted_point_sum + volume * center
+                        total_volume = total_volume + volume
+                        i = i+1
+                self.center_of_mass_ = weighted_point_sum / total_volume
+                self.center_of_mass_ = np.abs(self.center_of_mass_[0])
+
+        def compute_centroid(self):
+                vertex_array = np.array(self.vertices_)
+                self.vertex_mean_ = np.mean(vertex_array, axis=0)
+        
         def project_binary(self, camera_params):
                 '''
                 Project the triangles of the mesh into a binary image which is 1 if the mesh is
@@ -251,6 +294,14 @@ class Mesh3D:
                 vertex_array = scale_factor * vertex_array
                 self.vertices_ = vertex_array.tolist()
 
+        def convex_hull(self):
+                """ Returns the convex hull of a mesh as a new mesh """
+                hull = cvh.ConvexHull(self.vertices_)
+                hull_tris = hull.vertices
+                cvh_mesh = Mesh3D(self.vertices_, hull_tris, self.normals_)
+                cvh_mesh.remove_unreferenced_vertices()
+                return cvh_mesh
+
         def make_image(self, filename, rot):
             proj_img = self.project_binary(cp, T)
             file_root, file_ext = os.path.splitext(filename)
@@ -258,3 +309,14 @@ class Mesh3D:
 
             oof = obj_file.ObjFile(filename)
             oof.write(self)
+
+        def visualize(self):
+                """ Plots visualization """
+                vertex_array = np.array(self.vertices_)
+                mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe')
+
+        def num_connected_components(self):
+                vert_labels = np.linspace(0, len(self.vertices_)-1, num=len(self.vertices_)).astype(np.uint32)
+                for t in self.triangles_:
+                        vert_labels[t[1]] = vert_labels[t[0]]
+                        vert_labels[t[2]] = vert_labels[t[0]]

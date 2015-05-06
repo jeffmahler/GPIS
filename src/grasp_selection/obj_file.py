@@ -78,7 +78,7 @@ class ObjFile:
                     tex_coords.append(vti)
                     face_norms.append(nti)
 
-        return mesh.Mesh(verts, faces, norms)
+        return mesh.Mesh3D(verts, faces, norms)
 
     def write(self, mesh):
         '''

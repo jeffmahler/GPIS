@@ -8,12 +8,13 @@ import os
 from PIL import Image, ImageDraw
 import sklearn.decomposition
 import sys
+import tfx
 
 class CameraParams:
         '''
         Encapsulates camera parameters and the operations we want to do with them
         '''
-        def __init__(self, height, width, fx, fy=None, cx=None, cy=None):
+        def __init__(self, height, width, fx, fy=None, cx=None, cy=None, pose=tfx.identity_tf()):
                 '''
                 Init camera parameters
                 
@@ -28,6 +29,7 @@ class CameraParams:
                 self.height_ = height
                 self.width_ = width
                 self.fx_ = fx
+                self.pose_ = pose
 
                 # set focal, camera center automatically if under specified
                 if fy is None:
@@ -47,15 +49,18 @@ class CameraParams:
                                     [       0, self.fy_, self.cy_],
                                     [       0,        0,        1]])
 
-        def get_height(self):
+        def height(self):
                 return self.height_
 
-        def get_width(self):
+        def width(self):
                 return self.width_
 
-        def get_proj_matrix(self):
+        def proj_matrix(self):
                 return self.K_
         
+        def pose(self):
+                return self.pose_
+
         def project(self, points):
                 '''
                 Projects a set of points into the camera given by these parameters
