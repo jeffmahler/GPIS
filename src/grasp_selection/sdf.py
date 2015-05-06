@@ -46,6 +46,49 @@ def crosses_threshold(threshold):
         return (elems>threshold).any() and (elems<threshold).any()
     return crosses
 
+def find_zero_crossing_linear(x1, y1, x2, y2):
+    """ Find zero crossing using linear approximation"""
+    m = (y2 - y1) / (x2 - x1)
+    b = y1 - m.dot(x1)
+    x_zc = -b / m
+    return x_zc
+
+def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
+    """ Find zero crossing using quadratic approximation along 1d line"""
+    # compute coords along 1d line
+    v = x2 - x1
+    v = v / np.linalg.norm(v)
+    t1 = 0
+    t2 = (x2 - x1) / v
+    t2 = t2[0]
+    t3 = (x3 - x1) / v
+    t3 = t3[0]
+
+    # solve for quad approx
+    x1_row = np.array([t1**2, t1, 1])
+    x2_row = np.array([t2**2, t2, 1])
+    x3_row = np.array([t3**2, t3, 1])
+    X = np.array([x1_row, x2_row, x3_row])
+    y_vec = np.array([y1, y2, y3])
+    try:
+        w = np.linalg.solve(X, y_vec)
+    except np.linalg.LinAlgError:
+        logging.error('Singular matrix. Probably a bug')
+
+    # get positive roots
+    possible_t = np.roots(w)
+    t_zc = None
+    for i in range(possible_t.shape[0]):
+        if possible_t[i] >= 0 and possible_t[i] <= 10 and not np.iscomplex(possible_t[i]):
+            t_zc = possible_t[i]
+
+    # if no positive roots find min
+    if t_zc is None:
+        t_zc = -w[1] / (2 * w[0])
+
+    x_zc = x1 + t_zc * v
+    return x_zc
+
 class Sdf:
     __metaclass__ = ABCMeta
 
@@ -77,6 +120,13 @@ class Sdf:
         return self.resolution_
 
     @property
+    def center(self):
+        """
+        Center of grid (basically transforms world frame to grid center
+        """
+        return self.center_
+
+    @property
     def data(self):
         """
         Returns the SDF data
@@ -94,6 +144,7 @@ class Sdf:
         """
         return self.pose_
 
+
     @pose.setter
     def pose(self, pose):
         self.pose_ = pose
@@ -103,7 +154,7 @@ class Sdf:
         """ Returns scale of SDF wrt world frame """
         return self.scale_
 
-    @pose.setter
+    @scale.setter
     def scale(self, scale):
         self.scale_ = scale
 
@@ -117,6 +168,12 @@ class Sdf:
     def transform_world_frame(self):
         """ Returns an sdf object with center in the world frame of reference """
         return self.transform(self.pose_, scale=self.scale_)
+
+    def transform_grid_basis(self, x_world):
+        """ Converts a point in world coords to the grid basis """
+        x_sdf = self.scale_ * np.array(self.pose_.apply(x_world)).T[0]
+        x_sdf_grid = (1.0 / self.resolution_) * x_sdf + self.center_
+        return x_sdf_grid
 
     @abstractmethod
     def __getitem__(self, coords):
@@ -138,6 +195,13 @@ class Sdf:
             numpy arr: the sdf values on the surface
         """
         pass        
+
+    def on_surface(self, coords):
+        """ Determines whether or not a point is on the object surface """
+        sdf_val = self[coords]
+        if np.abs(sdf_val) < self.surface_thresh_:
+            return True, sdf_val
+        return False, sdf_val
 
 class Sdf3D(Sdf):
     def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world"), scale = 1.0, use_abs = True):
@@ -733,6 +797,17 @@ def test_2d_transform():
     plt.title('Transformed')
 
     plt.show()
+
+def test_quad_zc():
+    x1 = np.array([1, 1, 1])
+    x2 = np.array([0, 0, 0])
+    x3 = np.array([-1, -1, -1])
+    y1 = 3
+    y2 = 1
+    y3 = -1.5
+    x_zc = find_zero_crossing(x1, y1, x2, y2, x3, y3)
+    true_x_zc = -0.4244289 * np.ones(3)
+    assert(np.linalg.norm(x_zc - true_x_zc) < 1e-2)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
