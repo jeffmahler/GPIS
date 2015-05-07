@@ -1,8 +1,11 @@
-#!/usr/bin/env python
+"""
+YAML Configuration Parser - basically reads everything into a dictionary
 
+Author : Jeff Mahler
+"""
 import argparse
 import gc
-import logging as log
+import logging
 import math
 import numpy as np
 import os
@@ -45,23 +48,14 @@ OBSERVATION_DIM_EXPR = 'config[\'width\']*config[\'height\']' # hanrcoded param
 class ExperimentConfig(object):
     """
     Class to load a configuration file, parse config, fill templates, and create necessary I/O dirs / databases
-
     All configs may have a comon root_dir key for easy file access
     """
-    def __init__(self, filename = None, use_templates=False, create_dbs = False):
+    def __init__(self, filename = None, use_templates=False, create_dbs=False):
         self.config = None # initialize empty config
         self.use_templates = use_templates
 
         if filename is not None:
             self.load_config(filename)
-
-        if create_dbs:
-            self.create_leveldbs()
-
-    def __convert_key(self, expression):
-        if type(expression) is str and len(expression) > 2 and expression[1] == '!':
-            expression = eval(expression[2:-1])
-        return expression
 
     def load_config(self, filename):
         """
@@ -77,7 +71,7 @@ class ExperimentConfig(object):
 
             # convert functions of other params to true expressions
             for k in self.config.keys():
-                self.config[k] = self.__convert_key(self.config[k])
+                self.config[k] = ExperimentConfig.__convert_key(self.config[k])
 
             # load core configuration
             try:
@@ -85,13 +79,14 @@ class ExperimentConfig(object):
             except KeyError:
                 self.root_dir = '' # relative paths
 
+            """ TODO: reinstate template filling if useful
             try:
                 self.templates = self.config['templates']
                 if self.use_templates:
                     self.fill_templates()
             except KeyError:
                 self.templates = None
-
+            """
         return self.config
 
     def __getitem__(self, key):
@@ -104,6 +99,13 @@ class ExperimentConfig(object):
             log.warning('Key %s does not exist. Returning None.' %(key))
             return None
         return retval
+
+    @staticmethod
+    def __convert_key(expression):
+        """ Converts keys in YAML that reference other keys """
+        if type(expression) is str and len(expression) > 2 and expression[1] == '!':
+            expression = eval(expression[2:-1])
+        return expression
 
     def __ordered_load(self, stream, Loader=yaml.Loader, object_pairs_hook=OrderedDict):
         """
@@ -169,7 +171,8 @@ class ExperimentConfig(object):
     
     def create_leveldbs(self):
         """
-        Creates all leveldbs specified in the configuration
+        Creates all leveldbs specified in the configuration for Caffe.
+        Currentl deprecated but could be reinstated if useful in future experiments
         """
         try:
             leveldbs = self.config[LEVELDB_KEY] 
@@ -232,33 +235,20 @@ class ExperimentConfig(object):
         os.system(data_to_leveldb_command)
 
 def test_load():
-    log.getLogger().setLevel(log.DEBUG)
-
-    filename = 'test_config.yaml'
+    filename = 'data/test/test_config.yaml'
     ec = ExperimentConfig(filename)
 
-    if ec.config['name'] != 'mytest':
-        print 'FAILED'
-    elif ec.root_dir != '/home/jmahler/projects/abinitio_learning':
-        print 'FAILED'
-    else:
-        print 'PASSED'
-
-    print 'Root:', ec.root_dir
-    print 'Name:', ec.config['name']
-
-#    ec.create_leveldbs()
-
-def test_load2():
-    log.getLogger().setLevel(log.DEBUG)
-
-    filename = '/home/jmahler/projects/abinitio_learning/src/caffe/Test_Squares/test_config.yaml'
-    ec = ExperimentConfig(filename)
-
-    print 'Root:', ec.root_dir
-    print 'Name:', ec.config['net_name']
-
-    ec.create_leveldbs()
+    logging.debug('Data directory: %s' %(ec['data_dir']))
+    logging.debug('Num pose samples: %d' %(ec['num_pose_samples']))
+    logging.debug('Translation sigma: %f' %(ec['translation_sigma']))
+    logging.debug('Rotation sigma: %f' %(ec['rotation_sigma']))
+    
+    assert(ec['data_dir'] == '/mnt/terastation/shape_data')
+    assert(ec['num_pose_samples'] == 100)
+    assert(ec['translation_sigma'] == 0.1)
+    assert(ec['rotation_sigma'] == 0.01)
+    logging.debug('TEST PASSED!')
 
 if __name__ == '__main__':
-    test_load2()
+    logging.getLogger().setLevel(logging.DEBUG)
+    test_load()
