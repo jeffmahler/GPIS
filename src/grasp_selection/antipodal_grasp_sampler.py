@@ -19,18 +19,62 @@ class AntipodalGraspSampler(object):
         self.vis = config['vis_antipodal']
 
     def compute_friction_cone(self, contact, graspable):
-        """Returns the cone support and normal."""
+        """Returns the cone support, normal, and success."""
+        contact = tuple(np.around(contact))
         gx, gy, gz = graspable.sdf.gradients
-        todo = np.ones(3)
-        return todo, todo, False
+
+        grad = np.reshape([gx[contact], gy[contact], gz[contact]], (3, 1))
+        if np.all(grad == 0):
+            return None, None, False
+
+        normal = grad / np.linalg.norm(grad)
+        U, _, _ = np.linalg.svd(normal)
+
+        # U[:, 1:] spans the tanget plane at the contact
+        t1, t2 = U[:, 1], U[:, 2]
+        tan_len = self.friction_coef
+        force = np.squeeze(normal) # shape of (3,) rather than (3, 1)
+
+        cone_support = np.zeros((3, 4 * self.n_cone_faces))
+        support_index = 0
+        ts = np.linspace(0, 1, self.n_cone_faces + 1)
+
+        for t in ts:
+            # find convex combinations of tangent vectors
+            tan_dir = t * t1 + (1 - t) * t2
+            tan_dir = tan_dir / np.linalg.norm(tan_dir)
+            tan_vec = tan_len * tan_dir
+
+            cone_support[:, support_index] = -(force + tan_vec)
+            support_index += 1
+            cone_support[:, support_index] = -(force - tan_vec)
+            support_index += 1
+
+        for t in ts[1:-1]:
+            tan_dir = t * t1 - (1 - t) * t2
+            tan_dir = tan_dir / np.linalg.norm(tan_dir)
+            tan_vec = tan_len * tan_dir
+
+            cone_support[:, support_index] = -(force + tan_vec)
+            support_index += 1
+            cone_support[:, support_index] = -(force - tan_vec)
+            support_index += 1
+
+        return cone_support, normal, False
 
     def sample_from_cone(self, cone):
         """Returns a list of points in the cone."""
-        todo = 1
-        return [todo]
+        num_faces = cone.shape[1]
+        v_samples = np.empty((self.num_samples, 3))
+        for i in range(self.num_samples):
+            lambdas = np.random.gamma(self.dir_prior, self.dir_prior, num_faces)
+            lambdas = lambdas / sum(lambdas)
+            v_sample = lambdas * cone
+            v_samples[i, :] = np.sum(v_sample, 1)
+        return v_samples
 
     def within_cone(self, cone, n, v):
-        theta = max(np.arccos(n.T * cone))
+        theta = np.atan(self.friction_coef)
         alpha = np.arcos(n.T * v)
         return alpha <= theta, alpha
 
@@ -49,7 +93,6 @@ class AntipodalGraspSampler(object):
             if failed:
                 continue
 
-            # sample dirichlet
             v_samples = self.sample_from_cone(cone1)
             for v in v_samples:
                 # start searching for contacts
@@ -62,7 +105,7 @@ class AntipodalGraspSampler(object):
                 if not found:
                     continue
 
-                v_true = ParallelJawPtGrasp3D(x1, x2)
+                v_true = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(x1, x2)
 
                 # compute friction cone for contact 2
                 cone2, n2, failed = self.compute_friction_cone(x2, graspable)
@@ -82,6 +125,7 @@ class AntipodalGraspSampler(object):
                             graspable, x1, v_true, self.grasp_width
                         )
                         grasps.append(sample)
+        # import IPython; IPython.embed()
         return grasps
 
 
@@ -93,9 +137,9 @@ def main():
     graspable = graspable_object.GraspableObject3D(sdf_3d)
 
     config = {
-        'grasp_width': 0.15,
+        'grasp_width': 5.0,
         'friction_coef': 0.5,
-        'n_cone_faces': 2,
+        'n_cone_faces': 3,
         'num_samples': 2,
         'dir_prior': 1.0,
         'alpha_thresh': np.pi / 32,
