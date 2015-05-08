@@ -79,8 +79,8 @@ class GraspableObject3D(GraspableObject):
     def __init__(self, sdf, mesh = None, pose = tfx.identity_tf(), scale = 1.0):
         """ 2D objects are initialized with sdfs only"""
         if not isinstance(sdf, s.Sdf3D):
-            raise ValueError('Must initialize graspable object 3D with 2D sdf')
+            raise ValueError('Must initialize graspable object 3D with 3D sdf')
         if mesh is not None and not isinstance(mesh, m.Mesh3D):
-            raise ValueError('Must initialize graspable object 2D with 2D sdf')
+            raise ValueError('Must initialize graspable object 3D with 3D sdf')
         GraspableObject.__init__(self, sdf, mesh=mesh, pose=pose, scale = scale)
         
