@@ -18,7 +18,7 @@ class AntipodalGraspSampler(object):
         self.rho_thresh = config['rho_thresh']
         self.vis = config['vis_antipodal']
 
-   def compute_friction_cone(self, contact, graspable):
+    def compute_friction_cone(self, contact, graspable):
         """
         Computes the friction cone and normal for a contact point.
         Params:
