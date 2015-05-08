@@ -18,8 +18,17 @@ class AntipodalGraspSampler(object):
         self.rho_thresh = config['rho_thresh']
         self.vis = config['vis_antipodal']
 
-    def compute_friction_cone(self, contact, graspable):
-        """Returns the cone support, normal, and success."""
+   def compute_friction_cone(self, contact, graspable):
+        """
+        Computes the friction cone and normal for a contact point.
+        Params:
+            contact - numpy 3 array of the start point
+            graspable - a GraspableObject3D
+        Returns:
+            cone_support - numpy array where each column is a vector on the cone
+            normal - direction vector
+            success - False when cone can't be computed
+        """
         contact = tuple(np.around(contact))
         gx, gy, gz = graspable.sdf.gradients
 
@@ -63,7 +72,13 @@ class AntipodalGraspSampler(object):
         return cone_support, normal, False
 
     def sample_from_cone(self, cone):
-        """Returns a list of points in the cone."""
+        """
+        Samples points from within the cone.
+        Params:
+            cone - friction cone's supports
+        Returns:
+            v_samples - list of self.num_samples vectors in the cone
+        """
         num_faces = cone.shape[1]
         v_samples = np.empty((self.num_samples, 3))
         for i in range(self.num_samples):
@@ -74,7 +89,17 @@ class AntipodalGraspSampler(object):
         return v_samples
 
     def within_cone(self, cone, n, v):
-        theta = np.atan(self.friction_coef)
+        """
+        Returns True if a grasp will not slip due to friction.
+        Params:
+            cone - friction cone's supports
+            n - normal vector at c1
+            v - direction vector between c1 and c2
+        Returns:
+            in_cone - True if alpha is within the cone
+            alpha - the angle between the normal and v
+        """
+        theta = np.max(np.arcos(n.T * cone));
         alpha = np.arcos(n.T * v)
         return alpha <= theta, alpha
 
