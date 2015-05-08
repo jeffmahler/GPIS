@@ -121,7 +121,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         Returns:
             line_of_action - list of numpy 3-arrays in grid coords to check surface contacts
         """
-        line_of_action = [g + t * width * axis for t in np.linspace(0, 1, num = num_samples)]
+        line_of_action = [g + t * axis for t in np.linspace(0, width, num = num_samples)]
         if convert_grid:
             line_of_action = [obj.sdf.transform_pt_world_to_grid(g) for g in line_of_action]
         return line_of_action
