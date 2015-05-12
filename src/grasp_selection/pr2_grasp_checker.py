@@ -14,36 +14,28 @@ from message_wrappers import GraspWrapper
 
 import IPython
 
-APC_DIRECTORY = os.path.abspath(os.path.join(__file__, "../.."))
-DATA_DIRECTORY = os.path.join(APC_DIRECTORY, "data")
-
-PR2_MODEL_FILE = "data/models/pr2.robot.xml"
-OBJECT_MESH_DIR = "data/meshes/objects"
+PR2_MODEL_FILE = 'data/models/pr2.robot.xml'
 
 class PR2GraspChecker(object):
-    def __init__(self, env, robot, object_name, win_height = 1200, win_width = 1200, cam_dist = 0.5):
+    def __init__(self, env, robot, object_mesh_filename, win_height = 1200, win_width = 1200, cam_dist = 0.5):
         self.env = env
         self.robot = robot
 
-        self.loadObject(object_name)
-        self.initRobot()        
-        self.initPoses()
-        self.initViewer(win_height, win_width, cam_dist)
+        self._load_object(object_mesh_filename)
+        self._init_robot()        
+        self._init_poses()
+        self._init_viewer(win_height, win_width, cam_dist)
 
-    def loadObject(self, object_name):
-        # construct object filename
-        object_filename = os.path.join(OBJECT_MESH_DIR, object_name + '.stl')
-        object_grasps_filename = os.path.join(DATA_DIRECTORY, 'grasps',
-                                              "{}.json".format(object_name))
-
+    def _load_object(self, object_mesh_filename):
+        """ Load the object model into OpenRave """ 
         # load object model
-        e.Load(object_filename)
+        self.env.Load(object_mesh_filename)
 
         # intialize object, grasps
-        self.object = e.GetBodies()[1]
-        self.object_grasps = GraspWrapper.grasps_from_file(object_grasps_filename)
+        self.object = self.env.GetBodies()[1]
         
-    def initRobot(self):
+    def _init_robot(self):
+        """ Initialize the robot """
         # set initial pose
         self.robot.SetTransform(rave.matrixFromPose(np.array([1,0,0,0,0,0,0])))
         self.robot.SetDOFValues([0.54,-1.57, 1.57, 0.54],[22,27,15,34])
@@ -54,7 +46,8 @@ class PR2GraspChecker(object):
         self.taskprob = rave.interfaces.TaskManipulation(self.robot) # create the interface for task manipulation programs
         self.finger_joint = self.robot.GetJoint('l_gripper_l_finger_joint')
         
-    def initPoses(self):
+    def _init_poses(self):
+        """ Load the poses necessary for computing pregrasp poses """
         # pose from gripper to world frame
         self.T_gripper_world = self.robot.GetManipulator("leftarm_torso").GetTransform()
 
@@ -62,11 +55,12 @@ class PR2GraspChecker(object):
         R_fix = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
         T_fix = np.eye(4)
         T_fix[:3,:3] = R_fix
-        T_fix[1,3] = 0.008
+        T_fix[1,3] = 0
         T_fix[2,3] = -0.0375
-        self.T_fix = T_fix
+        self.T_rviz_or = T_fix
 
-    def initViewer(self, height, width, cam_dist):
+    def _init_viewer(self, height, width, cam_dist):
+        """ Initialize the OpenRave viewer """
         # set OR viewer
         viewer = self.env.GetViewer()
         viewer.SetSize(width, height)
@@ -93,15 +87,16 @@ class PR2GraspChecker(object):
                 link.SetVisible(False)
             #link.SetVisible(True)
 
-    def moveToPregrasp(self, grasp):
+    def move_to_pregrasp(self, grasp_pose):
+        """ Move the robot to the pregrasp pose given by the grasp object """
         # get grasp pose
-        gripper_position = grasp.gripper_pose.position
-        gripper_orientation = grasp.gripper_pose.orientation
+        gripper_position = grasp_pose.position
+        gripper_orientation = grasp_pose.orientation
         gripper_pose = np.array([gripper_orientation.w, gripper_orientation.x, gripper_orientation.y, gripper_orientation.z, gripper_position.x, gripper_position.y, gripper_position.z])
 
         # get grasp pose relative to object
         T_gripper_obj = rave.matrixFromPose(gripper_pose)
-        T_obj_world = self.T_gripper_world.dot(self.T_fix).dot(np.linalg.inv(T_gripper_obj))
+        T_obj_world = self.T_gripper_world.dot(self.T_rviz_or).dot(np.linalg.inv(T_gripper_obj))
 
         # set robot position as inverse of object (for viewing purposes)
         T_robot_world = np.linalg.inv(T_obj_world)
@@ -109,7 +104,7 @@ class PR2GraspChecker(object):
 
         return T_gripper_obj, T_robot_world
         
-    def viewGrasps(self, auto_step, close_fingers):
+    def view_grasps(self, auto_step, close_fingers):
         '''
         Only display all of the grasps
         '''
@@ -117,7 +112,7 @@ class PR2GraspChecker(object):
             self.env.SetViewer('qtcoin')
         ind = 0
         for grasp in self.object_grasps:
-            self.moveToPregrasp(grasp)
+            self.move_to_pregrasp(grasp)
 
             # only display grasps out of collision
             in_collision = self.env.CheckCollision(self.robot, self.object)
@@ -137,25 +132,23 @@ class PR2GraspChecker(object):
                     self.taskprob.ReleaseFingers() # open fingets
                     self.robot.WaitForController(0) # wait
 
-    def pruneBadGrasps(self, vis = True, closed_thresh = 0.05, auto_step = True, close_fingers = True):
-        '''
-        Only display all of the grasps
-        '''
+    def prune_grasps_in_collision(self, object_grasps, vis = True, closed_thresh = 0.05, auto_step = True, close_fingers = False):
+        """ Remove all grasps from the object grasps list that are in collision with the given object """
         if vis and self.env.GetViewer() is None:
             self.env.SetViewer('qtcoin')
         ind = 0
         object_grasps_keep = []
         i = 0
 
-        for grasp in self.object_grasps:
+        for grasp in object_grasps:
             if vis:
-                T_gripper_obj, T_robot_world = self.moveToPregrasp(grasp)
+                T_gripper_obj, T_robot_world = self.move_to_pregrasp(grasp.tf.pose)
 
             # only display grasps out of collision
             in_collision = self.env.CheckCollision(self.robot, self.object)
             if not in_collision:
                 if auto_step:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                 else:
                     user_input = 'x'
                     while user_input != '':
@@ -172,9 +165,6 @@ class PR2GraspChecker(object):
                     closed_amount = self.finger_joint.GetValues()[0]
                     if closed_amount > closed_thresh:
                         object_grasps_keep.append(grasp)
-                    else:
-                        print 'BAD GRASP'
-                        #IPython.embed()
 
                     # open fingers
                     self.taskprob.ReleaseFingers()
@@ -185,7 +175,7 @@ class PR2GraspChecker(object):
             i = i+1
 
         return object_grasps_keep
-    
+
 if __name__ == "__main__":
     # get sys input
     argc = len(sys.argv)

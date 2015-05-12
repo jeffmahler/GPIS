@@ -19,11 +19,14 @@ from skimage import feature
 import skimage.filters
 
 import sdf_file as sf
+import similarity_tf as stf
 import tfx
 import time
 
 from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
+import random
+import string
 import IPython
 
 from sys import version_info
@@ -45,6 +48,12 @@ def crosses_threshold(threshold):
         """
         return (elems>threshold).any() and (elems<threshold).any()
     return crosses
+
+def random_frame(length=10):
+    frame = 'obj_'
+    for i in range(length):
+        frame = frame.join(random.choice(string.ascii_uppercase + string.digits))
+    return frame
 
 class Sdf:
     __metaclass__ = ABCMeta
@@ -93,32 +102,44 @@ class Sdf:
         return self.data_
 
     @property
+    def tf(self):
+        """
+        Returns the transform of the sdf wrt world frame
+        Returns:
+            similarity transform: sdf tf
+        """
+        return self.tf_
+
+    @tf.setter
+    def tf(self, tf):
+        self.tf_.tf = tf
+
+    @property
     def pose(self):
         """
         Returns the pose of the sdf wrt world frame
         Returns:
             tfx pose: sdf pose
         """
-        return self.pose_
-
+        return self.tf_.pose
 
     @pose.setter
     def pose(self, pose):
-        self.pose_ = pose
+        self.tf_.pose = pose
 
     @property
     def scale(self):
         """ Returns scale of SDF wrt world frame """
-        return self.scale_
+        return self.tf_.scale
 
     @scale.setter
     def scale(self, scale):
-        self.scale_ = scale
+        self.tf_.scale = scale
 
     @abstractmethod
-    def transform(self, T, scale):
+    def transform(self, tf):
         """
-        Returns a new SDF transformed by similarity tf specified in tfx canonical pose |T| and scale |scale|
+        Returns a new SDF transformed by similarity tf |tf|
         """
         pass
 
@@ -127,14 +148,20 @@ class Sdf:
         return self.transform(self.pose_, scale=self.scale_)
 
     @abstractmethod
-    def transform_pt_world_to_grid(self, x_world, direction = False):
+    def transform_pt_obj_to_grid(self, x_world, direction = False):
         """ Transform points from world frame to grid frame """
         pass
 
     @abstractmethod
-    def transform_pt_grid_to_world(self, x_grid, direction = False):
+    def transform_pt_grid_to_obj(self, x_grid, direction = False):
         """ Transform points from grid frame to world frame """
         pass
+
+    def center_world(self):
+        """
+        Center of grid (basically transforms world frame to grid center
+        """
+        return self.transform_pt_grid_to_obj(self.center_)
 
     @abstractmethod
     def __getitem__(self, coords):
@@ -181,16 +208,23 @@ class Sdf:
         return self.gradients_
 
 class Sdf3D(Sdf):
-    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(frame="world"), scale = 1.0, use_abs = True):
+    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(), scale = 1.0, frame = None, use_abs = True):
         self.data_ = sdf_data
         self.origin_ = origin
         self.resolution_ = resolution
         self.dims_ = self.data_.shape
-        self.pose_ = pose
-        self.scale_ = scale
 
+        # set up surface params
         self.surface_thresh_ = self.resolution_ * np.sqrt(2) / 2 # resolution is max dist from surface when surf is orthogonal to diagonal grid cells
-        self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2, self.dims_[2] / 2]
+        self.center_ = np.array([self.dims_[0] / 2, self.dims_[1] / 2, self.dims_[2] / 2])
+
+        # set up tf
+        pose.from_frame = 'world'
+        if frame is None:
+            frame = random_frame()
+        pose.to_frame = frame
+        self.tf_ = stf.SimilarityTransform3D(pose, scale) # pose in world frame
+        self.tf_grid_sdf_ = stf.SimilarityTransform3D(tfx.canonical.CanonicalTransform(np.eye(3), -self.center_), 1.0 / self.resolution_)
 
         # optionally use only the absolute values (useful for non-closed meshes in 3D)
         if use_abs:
@@ -261,6 +295,14 @@ class Sdf3D(Sdf):
 
         return weights.dot(values)
 
+    def max_dim(self):
+        """ Find the max dimension of the bounding box """
+        pts, sdf_vals = self.surface_points()
+        min_pts = np.min(pts, axis=0)
+        max_pts = np.max(pts, axis=0)
+        max_dim = np.max(max_pts - min_pts)
+        return max_dim
+
     def surface_points(self):
         """
         Returns the points on the surface
@@ -277,35 +319,31 @@ class Sdf3D(Sdf):
         surface_vals = self.data_[surface_points[:,0], surface_points[:,1], surface_points[:,2]]
         return surface_points, surface_vals
 
-    def transform(self, T, scale = 1.0, detailed = False):
+    def transform(self, tf, detailed = False):
         """
         Transform the grid by pose T and scale with canonical reference frame at the SDF center with axis alignment
         Params:
-            (tfx pose): Pose T
-            (float): scale of transform
-            (boo): detailed - whether or not to do the dirty, fast method
+            (similarity transform 3d): similarity tf
+            (bool): detailed - whether or not to do the dirty, fast method
         Returns:
             (SDF): new sdf with grid warped by T
         """
         # map all surface points to their new location
         start_t = time.clock()
         num_pts = self.pts_.shape[0]
-        pts_centered = self.pts_ - self.center_
-        pts_homog = np.r_[pts_centered.T, np.ones([1, num_pts])]
-        pts_homog_tf = T.matrix.dot(pts_homog)
-        pts_tf_centered = (1.0 / scale) * pts_homog_tf[0:3,:].T
-        pts_tf = pts_tf_centered + self.center_
+        pts_sdf = self.tf_grid_sdf_.apply(self.pts_.T)
+        pts_sdf_tf = tf.apply(pts_sdf)
+        pts_grid_tf = self.tf_grid_sdf_.inverse().apply(pts_sdf_tf)
+        pts_tf = pts_grid_tf.T
         all_points_t = time.clock()
 
         # transform the center
-        origin_centered = self.origin_ - self.center_
-        origin_homog = np.r_[origin_centered.T, 1]
-        origin_homog_tf = T.matrix.dot(origin_homog)
-        origin_tf_centered = (1.0 / scale) * origin_homog_tf[0:3,:].T
-        origin_tf = origin_tf_centered + self.center_
+        origin_sdf = self.tf_grid_sdf_.apply(self.origin_)
+        origin_sdf_tf = tf.apply(origin_sdf)
+        origin_tf = self.tf_grid_sdf_.inverse().apply(origin_sdf_tf)
 
         # rescale the resolution
-        resolution_tf = scale * self.resolution_
+        resolution_tf = tf.scale * self.resolution_
         origin_res_t = time.clock()
 
         # add each point to the new pose
@@ -335,33 +373,29 @@ class Sdf3D(Sdf):
         logging.info('Sdf3D: Time to transform origin: %f' %(origin_res_t - all_points_t))
         logging.info('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
 
-        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf, pose = T * self.pose_)
+        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf)#, pose = T * self.pose_, scale = scale * self.scale_)
 
-    def transform_pt_world_to_grid(self, x_world, direction = False):
-        """ Converts a point in world coords to the grid basis. If direction then don't translate """
-        if isinstance(x_world, np.ndarray) and x_world.shape[0] == 3 and not direction: 
-            x_sdf = self.scale_ * np.array(self.pose_.apply(x_world)).T[0]
-            x_sdf_grid = (1.0 / self.resolution_) * x_sdf + self.center_
+    def transform_pt_obj_to_grid(self, x_sdf, direction = False):
+        """ Converts a point in sdf coords to the grid basis. If direction then don't translate """
+        if isinstance(x_sdf, np.ndarray) and x_sdf.shape[0] == 3 and not direction: 
+            x_sdf_grid = self.tf_grid_sdf_.inverse().apply(x_sdf)
             return x_sdf_grid
-        elif isinstance(x_world, np.ndarray) and x_world.shape[0] == 3: 
-            x_sdf = np.array(self.pose_.rotation.apply(x_world)).T[0]
-            x_sdf = x_sdf / np.linalg.norm(x_sdf)
-            return x_sdf
-        elif (isinstance(x_world, np.ndarray) and x_world.shape[0] == 0) or isinstance(x_world, numbers.Number):
-            return (1.0 / self.resolution_) * x_world
+        elif isinstance(x_sdf, np.ndarray) and x_sdf.shape[0] == 3: 
+            x_sdf_grid = self.tf_grid_sdf_.inverse().apply(x_sdf)
+            return x_sdf_grid / np.linalg.norm(x_sdf_grid)
+        elif (isinstance(x_sdf, np.ndarray) and x_sdf.shape[0] == 0) or isinstance(x_sdf, numbers.Number):
+            return self.tf_grid_sdf_.scale * x_sdf
 
-    def transform_pt_grid_to_world(self, x_grid, direction = False):
+    def transform_pt_grid_to_obj(self, x_grid, direction = False):
         """ Converts a point in grid coords to the world basis. If direction then don't translate """
         if isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 3 and not direction: 
-            x_world_grid = (1.0 / self.scale_) * np.array(self.pose_.inverse().apply(x_grid)).T[0]
-            x_world = self.resolution_ * (x_world_grid - self.center_)
-            return x_world
+            x_sdf = self.tf_grid_sdf_.apply(x_grid)
+            return x_sdf
         elif isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 3: 
-            x_world = np.array(self.pose_.inverse().rotation.apply(x_grid)).T[0]
-            x_world = x_world / np.linalg.norm(x_world)
-            return x_world
+            x_sdf = self.tf_grid_sdf_.apply(x_grid)
+            return x_sdf / np.linalg.norm(x_sdf)
         elif (isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 0) or isinstance(x_grid, numbers.Number):
-            return self.resolution_ * x_grid
+            return (1.0 / self.tf_grid_sdf_.scale) * x_grid
 
     def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1): 
         """ 
@@ -481,8 +515,7 @@ class Sdf3D(Sdf):
         Params: - 
         Returns: - 
         """
-        h = plt.figure()
-        ax = h.add_subplot(111, projection = '3d')
+        ax = plt.gca(projection = '3d')
 
         # surface points
         surface_points, surface_vals = self.surface_points()
@@ -500,7 +533,7 @@ class Sdf3D(Sdf):
         ax.set_zlim3d(0, self.dims_[2])
 
 class Sdf2D(Sdf):
-    def __init__(self, sdf_data, origin = np.array([0,0]), resolution = 1.0, pose = tfx.identity_tf(frame="world"), scale = 1.0):
+    def __init__(self, sdf_data, origin = np.array([0,0]), resolution = 1.0, pose = tfx.identity_tf(from_frame="world"), scale = 1.0):
         self.data_ = sdf_data
         self.origin_ = origin
         self.resolution_ = resolution
@@ -509,7 +542,7 @@ class Sdf2D(Sdf):
         self.scale_ = scale
 
         self.surface_thresh_ = self.resolution_ * np.sqrt(2) / 2 # resolution is max dist from surface when surf is orthogonal to diagonal grid cells
-        self.center_ = [self.dims_[0] / 2, self.dims_[1] / 2]
+        self.center_ = np.array([self.dims_[0] / 2, self.dims_[1] / 2])
 
         self._compute_flat_indices()
         self._compute_gradients()
@@ -789,34 +822,42 @@ def test_function():
     teatime.make_plot()
 
 def test_3d_transform():
+    np.random.seed(100)
     sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
     s = sf.SdfFile(sdf_3d_file_name)
     sdf_3d = s.read()
 
     # transform
     pose_mat = np.matrix([[0, 1, 0, 0],[-1, 0, 0, 0],[0, 0, 1, 0],[0, 0,0,1]])
-    tf = tfx.transform(pose_mat, frame='world')
+    tf = tfx.transform(pose_mat, from_frame='world')
     tf = tfx.random_tf()
+    tf.position = 0.01 * np.random.rand(3)
 
     start_t = time.clock()
-    sdf_tf = sdf_3d.transform(tf, scale = 1.5)
+    s_tf = stf.SimilarityTransform3D(tf, scale = 1.2) 
+    sdf_tf = sdf_3d.transform(s_tf)
     end_t = time.clock()
     duration = end_t - start_t
     logging.info('3D Transform took %f sec' %(duration))
-    logging.info('Transformed resolution %f' %(sdf_tf.resolution()))
+    logging.info('Transformed resolution %f' %(sdf_tf.resolution))
 
     start_t = time.clock()
-    sdf_tf_d = sdf_3d.transform(tf, scale = 1.5, detailed = True)
+    sdf_tf_d = sdf_3d.transform(s_tf, detailed = True)
     end_t = time.clock()
     duration = end_t - start_t
     logging.info('Detailed 3D Transform took %f sec' %(duration))
-    logging.info('Transformed detailed resolution %f' %(sdf_tf_d.resolution()))
+    logging.info('Transformed detailed resolution %f' %(sdf_tf_d.resolution))
 
     # display
+    plt.figure()
     sdf_3d.scatter()
     plt.title('Original')
+    
+    plt.figure()
     sdf_tf.scatter()
     plt.title('Transformed')
+
+    plt.figure()
     sdf_tf_d.scatter()
     plt.title('Detailed Transformed')
     plt.show()
@@ -828,7 +869,7 @@ def test_2d_transform():
 
     # transform
     pose_mat = np.matrix([[0, 1, 0, 0],[-1, 0, 0, 0],[0, 0, 1, 0],[0, 0,0,1]])
-    tf = tfx.transform(pose_mat, frame='world')
+    tf = tfx.transform(pose_mat, from_frame='world')
 
     start_t = time.clock()
     sdf_tf = sdf_2d.transform(tf, scale = 1.5)
