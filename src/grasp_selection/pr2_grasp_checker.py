@@ -5,6 +5,7 @@ import os
 import sys
 import time
 
+import mayavi.mlab as mv
 import numpy as np
 import openravepy as rave
 import IK as ik
@@ -144,6 +145,14 @@ class PR2GraspChecker(object):
             if vis:
                 T_gripper_obj, T_robot_world = self.move_to_pregrasp(grasp.tf.pose)
 
+            """
+            link = self.robot.GetLink('l_gripper_palm_link')
+            link_geoms = link.GetGeometries()
+            link_tris = link_geoms[0].GetCollisionMesh()
+            verts = link_tris.vertices
+            inds = link_tris.indices
+            IPython.embed()
+            """
             # only display grasps out of collision
             in_collision = self.env.CheckCollision(self.robot, self.object)
             if not in_collision:

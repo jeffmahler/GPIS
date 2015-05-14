@@ -249,7 +249,6 @@ def test_thompson_sampling(num_candidates = 100):
     logging.info('Best index %d' %(true_max_indices[0]))
 
     # visualize result
-    # visualize result
     plot_num_pulls_beta_bernoulli(result)
     plt.title('Observations Per Variable for Thompson sampling')    
 

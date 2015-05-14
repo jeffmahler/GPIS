@@ -12,8 +12,8 @@ class SimilarityTransform3D:
         self.pose_ = pose
         self.scale_ = scale
         
-    def apply(self, x, normalize = False):
-        """ Appliess a similarity transform to a point x"""
+    def apply(self, x, direction = False):
+        """ Applies a similarity transform to a point x"""
         # allow numpy arays
         if isinstance(x, np.ndarray) and x.shape[0] == 3:
             num_pts = 1
@@ -21,20 +21,22 @@ class SimilarityTransform3D:
                 num_pts = x.shape[1]
             else:
                 x = np.array([x]).T
+
+            # rotation only if a direction
+            if direction:
+                x_tf = np.array(self.pose_.rotation.matrix.dot(x))
+                if num_pts == 1:
+                    x_tf = x_tf.squeeze()
+                return x_tf
+
+            # multiply pose matrix and scale result
             x_homog = np.r_[x, np.ones([1, num_pts])]
-            x_homog_tf = self.pose_.matrix.dot(x_homog)
+            x_homog_tf = np.array(self.pose_.matrix.dot(x_homog))
             x_tf = x_homog_tf[0:3,:]
             x_tf_scale = (1.0 / self.scale_) * x_tf
-
             x_tf_scale = np.array(x_tf_scale)
             if num_pts == 1:
                 x_tf_scale = x_tf_scale.squeeze()
-
-            if normalize:
-                if num_pts == 1:
-                    x_tf_scale = x_tf_scale / np.linalg.norm(x_tf_scale)
-                else:
-                    x_tf_scale = x_tf_scale / np.tile(np.linalg.norm(x_tf_scale, axis=0), [3, 1])
 
             return x_tf_scale 
         elif (isinstance(x, np.ndarray) and x.shape[0] == 1) or isinstance(x, numbers.Number):
@@ -43,10 +45,23 @@ class SimilarityTransform3D:
         else:
             raise ValueError('Only numpy 3-arrays are supported')
 
+    def compose(self, other_tf):
+        pose_tf = other_tf.pose.apply(self.pose_)
+        scale_tf = other_tf.scale * self.scale_
+        return SimilarityTransform3D(pose_tf, scale_tf)
+
     def inverse(self):
         inv_pose = self.pose_.inverse()
         inv_pose.position = (1.0 / self.scale_) * inv_pose.position
         return SimilarityTransform3D(inv_pose, 1.0 / self.scale_)
+
+    @property
+    def translation(self):
+        return np.array(self.pose_.position).squeeze()
+
+    @property
+    def rotation(self):
+        return np.array(self.pose_.rotation.matrix)
 
     @property
     def pose(self):

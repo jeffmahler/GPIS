@@ -208,7 +208,7 @@ class Sdf:
         return self.gradients_
 
 class Sdf3D(Sdf):
-    def __init__(self, sdf_data, origin, resolution, pose = tfx.identity_tf(), scale = 1.0, frame = None, use_abs = True):
+    def __init__(self, sdf_data, origin, resolution, tf = stf.SimilarityTransform3D(tfx.identity_tf(), scale = 1.0), frame = None, use_abs = True):
         self.data_ = sdf_data
         self.origin_ = origin
         self.resolution_ = resolution
@@ -219,12 +219,13 @@ class Sdf3D(Sdf):
         self.center_ = np.array([self.dims_[0] / 2, self.dims_[1] / 2, self.dims_[2] / 2])
 
         # set up tf
-        pose.from_frame = 'world'
-        if frame is None:
-            frame = random_frame()
-        pose.to_frame = frame
-        self.tf_ = stf.SimilarityTransform3D(pose, scale) # pose in world frame
-        self.tf_grid_sdf_ = stf.SimilarityTransform3D(tfx.canonical.CanonicalTransform(np.eye(3), -self.center_), 1.0 / self.resolution_)
+        self.tf_ = tf
+
+        # tranform sdf basis to grid (X and Z axes are flipped!)
+        R_sdf_mesh = np.eye(3)
+        R_sdf_mesh[0,0] = -1
+        R_sdf_mesh[2,2] = -1
+        self.tf_grid_sdf_ = stf.SimilarityTransform3D(tfx.canonical.CanonicalTransform(R_sdf_mesh, -R_sdf_mesh.T.dot(self.center_)), 1.0 / self.resolution_)
 
         # optionally use only the absolute values (useful for non-closed meshes in 3D)
         if use_abs:
@@ -254,7 +255,7 @@ class Sdf3D(Sdf):
 
         # log warning if out of bounds access
         if coords[0] < 0 or coords[0] >= self.dims_[0] or coords[0] < 0 or coords[1] >= self.dims_[1] or coords[2] < 0 or coords[2] >= self.dims_[2]:
-            logging.warning('Out of bounds access. Snapping to SDF dims')
+            logging.debug('Out of bounds access. Snapping to SDF dims')
 
         # snap to grid dims
         new_coords = np.zeros([3,])
@@ -295,6 +296,55 @@ class Sdf3D(Sdf):
 
         return weights.dot(values)
 
+    def gradient(self, coords):
+        if len(coords) != 3:
+            raise IndexError('Indexing must be 3 dimensional')
+
+        # log warning if out of bounds access
+        if coords[0] < 0 or coords[0] >= self.dims_[0] or coords[0] < 0 or coords[1] >= self.dims_[1] or coords[2] < 0 or coords[2] >= self.dims_[2]:
+            logging.debug('Out of bounds access. Snapping to SDF dims')
+            todo = 1
+
+        # snap to grid dims
+        new_coords = np.zeros([3,])
+        new_coords[0] = max(0, min(coords[0], self.dims_[0] - 1))
+        new_coords[1] = max(0, min(coords[1], self.dims_[1] - 1))
+        new_coords[2] = max(0, min(coords[2], self.dims_[2] - 1))
+
+        # regular indexing if integers
+        if type(coords[0]) is int and type(coords[1]) is int and type(coords[2]) is int:
+            new_coords = new_coords.astype(np.int)
+            return self.data_[new_coords[0], new_coords[1], new_coords[2]]
+
+        # otherwise interpolate
+        min_coords = np.floor(new_coords)
+        max_coords = np.ceil(new_coords)
+        points = np.array([[min_coords[0], min_coords[1], min_coords[2]],
+                           [max_coords[0], min_coords[1], min_coords[2]],
+                           [min_coords[0], max_coords[1], min_coords[2]],
+                           [min_coords[0], min_coords[1], max_coords[2]],
+                           [max_coords[0], max_coords[1], min_coords[2]],
+                           [min_coords[0], max_coords[1], max_coords[2]],
+                           [max_coords[0], min_coords[1], max_coords[2]],
+                           [max_coords[0], max_coords[1], max_coords[2]]])
+
+        num_interpolants = 8
+        values = np.zeros([num_interpolants, 3])
+        weights = np.ones([num_interpolants,])
+        for i in range(num_interpolants):
+            p = points[i,:].astype(np.int)
+            values[i, 0] = self.gradients_[0][p[0], p[1], p[2]]
+            values[i, 1] = self.gradients_[1][p[0], p[1], p[2]]
+            values[i, 2] = self.gradients_[2][p[0], p[1], p[2]]
+            dist = np.linalg.norm(new_coords - p.T)
+            if dist > 0:
+                weights[i] = 1.0 / dist
+
+        if np.sum(weights) == 0:
+            weights = np.ones([num_interpolants,])
+        weights = weights / np.sum(weights)
+        return values.T.dot(weights)
+
     def max_dim(self):
         """ Find the max dimension of the bounding box """
         pts, sdf_vals = self.surface_points()
@@ -303,7 +353,7 @@ class Sdf3D(Sdf):
         max_dim = np.max(max_pts - min_pts)
         return max_dim
 
-    def surface_points(self):
+    def surface_points(self, grid_basis=True):
         """
         Returns the points on the surface
         Params: (float) sdf value to threshold
@@ -317,6 +367,10 @@ class Sdf3D(Sdf):
         z = surface_points[2]
         surface_points = np.c_[x, np.c_[y, z]]
         surface_vals = self.data_[surface_points[:,0], surface_points[:,1], surface_points[:,2]]
+        if not grid_basis:
+            surface_points = self.transform_pt_grid_to_obj(surface_points.T)
+            surface_points = surface_points.T
+
         return surface_points, surface_vals
 
     def transform(self, tf, detailed = False):
@@ -368,34 +422,19 @@ class Sdf3D(Sdf):
             
         sdf_data_tf_grid = sdf_data_tf.reshape(self.dims_)
         tf_t = time.clock()
-
-        logging.info('Sdf3D: Time to transform coords: %f' %(all_points_t - start_t))
-        logging.info('Sdf3D: Time to transform origin: %f' %(origin_res_t - all_points_t))
-        logging.info('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
-
-        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf)#, pose = T * self.pose_, scale = scale * self.scale_)
+        
+        logging.debug('Sdf3D: Time to transform coords: %f' %(all_points_t - start_t))
+        logging.debug('Sdf3D: Time to transform origin: %f' %(origin_res_t - all_points_t))
+        logging.debug('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
+        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf, tf = tf.compose(self.tf_))
 
     def transform_pt_obj_to_grid(self, x_sdf, direction = False):
         """ Converts a point in sdf coords to the grid basis. If direction then don't translate """
-        if isinstance(x_sdf, np.ndarray) and x_sdf.shape[0] == 3 and not direction: 
-            x_sdf_grid = self.tf_grid_sdf_.inverse().apply(x_sdf)
-            return x_sdf_grid
-        elif isinstance(x_sdf, np.ndarray) and x_sdf.shape[0] == 3: 
-            x_sdf_grid = self.tf_grid_sdf_.inverse().apply(x_sdf)
-            return x_sdf_grid / np.linalg.norm(x_sdf_grid)
-        elif (isinstance(x_sdf, np.ndarray) and x_sdf.shape[0] == 0) or isinstance(x_sdf, numbers.Number):
-            return self.tf_grid_sdf_.scale * x_sdf
+        return self.tf_grid_sdf_.inverse().apply(x_sdf, direction=direction)
 
     def transform_pt_grid_to_obj(self, x_grid, direction = False):
         """ Converts a point in grid coords to the world basis. If direction then don't translate """
-        if isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 3 and not direction: 
-            x_sdf = self.tf_grid_sdf_.apply(x_grid)
-            return x_sdf
-        elif isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 3: 
-            x_sdf = self.tf_grid_sdf_.apply(x_grid)
-            return x_sdf / np.linalg.norm(x_sdf)
-        elif (isinstance(x_grid, np.ndarray) and x_grid.shape[0] == 0) or isinstance(x_grid, numbers.Number):
-            return (1.0 / self.tf_grid_sdf_.scale) * x_grid
+        return self.tf_grid_sdf_.apply(x_grid, direction=direction)
 
     def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1): 
         """ 
@@ -759,9 +798,16 @@ class Sdf2D(Sdf):
 
 def find_zero_crossing_linear(x1, y1, x2, y2):
     """ Find zero crossing using linear approximation"""
-    m = (y2 - y1) / (x2 - x1)
-    b = y1 - m.dot(x1)
-    x_zc = -b / m
+    # NOTE: use sparingly, approximations can be shoddy
+    d = x2 - x1
+    t1 = 0
+    t2 = np.linalg.norm(d)
+    v = d / t2
+
+    m = (y2 - y1) / (t2 - t1)
+    b = y1
+    t_zc = -b / m
+    x_zc = x1 + t_zc * v
     return x_zc
 
 def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
@@ -769,10 +815,13 @@ def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
     # compute coords along 1d line
     v = x2 - x1
     v = v / np.linalg.norm(v)
+    if v[v!=0].shape[0] == 0:
+        logging.error('Difference is 0. Probably a bug')        
+
     t1 = 0
-    t2 = (x2 - x1) / v
+    t2 = (x2 - x1)[v!=0] / v[v!=0]
     t2 = t2[0]
-    t3 = (x3 - x1) / v
+    t3 = (x3 - x1)[v!=0] / v[v!=0]
     t3 = t3[0]
 
     # solve for quad approx
