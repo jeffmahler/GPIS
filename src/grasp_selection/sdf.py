@@ -216,7 +216,7 @@ class Sdf3D(Sdf):
 
         # set up surface params
         self.surface_thresh_ = self.resolution_ * np.sqrt(2) / 2 # resolution is max dist from surface when surf is orthogonal to diagonal grid cells
-        self.center_ = np.array([self.dims_[0] / 2, self.dims_[1] / 2, self.dims_[2] / 2])
+        self.center_ = np.array([(self.dims_[0]-1) / 2, (self.dims_[1]-1) / 2, (self.dims_[2]-1) / 2])
 
         # set up tf
         self.tf_ = tf

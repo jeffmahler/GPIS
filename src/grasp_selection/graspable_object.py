@@ -21,13 +21,15 @@ import IPython
 class GraspableObject():
     __metaclass__ = ABCMeta
 
-    def __init__(self, sdf, mesh = None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0)):
+    def __init__(self, sdf, mesh = None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0), key='', category=''):
         if not isinstance(tf, stf.SimilarityTransform3D):
             raise ValueError('Must initialize graspable objects with 3D similarity transform')
 
         self.sdf_ = sdf
         self.mesh_ = mesh
         self.tf_ = tf
+        self.key_ = key
+        self.category_ = category
         self.grasps_ = {} # dictionary of grasps indexed by computation method?
 
         # make consistent poses, scales
@@ -88,6 +90,14 @@ class GraspableObject():
         if self.mesh_ is not None:
             self.mesh_.tf_.scale = scale
 
+    @property
+    def key(self):
+        return self.key_
+
+    @property
+    def category(self):
+        return self.category_
+
 class GraspableObject2D(GraspableObject):
     # TODO: fix 2d with similiarity tfs
     def __init__(self, sdf, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0)):
@@ -97,7 +107,7 @@ class GraspableObject2D(GraspableObject):
         GraspableObject.__init__(self, sdf, tf=tf)
 
 class GraspableObject3D(GraspableObject):
-    def __init__(self, sdf, mesh = None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0)):
+    def __init__(self, sdf, mesh = None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0), key='', category=''):
         """ 2D objects are initialized with sdfs only"""
         if not isinstance(sdf, s.Sdf3D):
             raise ValueError('Must initialize graspable object 3D with 3D sdf')
@@ -105,7 +115,7 @@ class GraspableObject3D(GraspableObject):
             raise ValueError('Must initialize graspable object 3D with 3D sdf')
 
         self.center_of_mass_ = sdf.center_world() # use SDF bb center for now
-        GraspableObject.__init__(self, sdf, mesh=mesh, tf=tf)
+        GraspableObject.__init__(self, sdf, mesh=mesh, tf=tf, key=key, category=category)
 
     def visualize(self, com_scale = 0.01):
         """

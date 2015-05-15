@@ -32,30 +32,6 @@ class Grasp:
         """ Converts a grasp to json """
         return None
 
-"""
-class PoseGrasp(Grasp):
-    def __init__(self, pose):
-        if not isinstance(pose, tfx.canonical.CanonicalTransform):
-            raise ValueError('Grasp pose must be a tfx transform object')
-        self.pose_ = pose
-        self.reference_frame_ = pose.from_frame
-
-    @property
-    def pose(self):
-        return self.pose_
-
-    @property
-    def reference_frame(self):
-        return self.reference_frame_
-
-    def transform(self, tf):
-        if tf.from_frame != self.pose_.to_frame:
-            logging.warning('Attempted to transform grasp between disjoint frames')
-            return False
-        self.pose_ = tf.apply(self.pose_)
-        self.reference_frame_ = slef
-   """                          
-
 class PointGrasp(Grasp):
     __metaclass__ = ABCMeta
 
@@ -67,7 +43,8 @@ class PointGrasp(Grasp):
     #NOTE: close_fingers must return success, array of contacts (one per column)
 
 class ParallelJawPtGrasp3D(PointGrasp):
-    def __init__(self, grasp_center, grasp_axis, grasp_width, jaw_width = 0, tf = stf.SimilarityTransform3D(tfx.identity_tf(from_frame = 'world'), 1.0)):
+    def __init__(self, grasp_center, grasp_axis, grasp_width, jaw_width = 0, grasp_angle = 0,
+                 tf = stf.SimilarityTransform3D(tfx.identity_tf(from_frame = 'world'), 1.0)):
         """
         Create a point grasp for parallel jaws with given center and width (relative to object)
         Params: (Note: all in meters!)
@@ -75,6 +52,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
             grasp_axis - numpy 3-array for grasp direction (should be normalized)
             grasp_width - how wide the jaws open in meters
             jaw_width - the width of the jaws tangent to the axis (0 means classical point grasp)
+            grasp_angle - the angle of approach for parallel-jaw grippers (the 6th DOF for point grasps)
+                wrt the orthogonal dir to the axis in the XY plane
+            tf - the similarity tf of the grasp wrt the world
         """
         if not isinstance(grasp_center, np.ndarray) or grasp_center.shape[0] != 3:
             raise ValueError('Center must be numpy ndarray of size 3')
@@ -87,6 +67,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.axis_ = grasp_axis / np.linalg.norm(grasp_axis)
         self.grasp_width_ = grasp_width
         self.jaw_width_ = jaw_width
+        self.approach_angle_ = grasp_angle
         self.tf_ = tf
 
     @property
@@ -101,6 +82,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
     @property
     def jaw_width(self):
         return self.jaw_width_
+    @property
+    def approach_angle(self):
+        return self.approach_angle_
     @property
     def tf(self):
         return self.tf_
@@ -144,7 +128,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         # find contacts
         if vis:
-            print g1_world, g2_world, self.axis_, self.grasp_width_, num_samples
             plt.cla()
             obj.sdf.scatter()
 
@@ -202,7 +185,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
             # visualize
             if vis:
-                print pt_grid
                 ax = plt.gca(projection = '3d')
                 ax.scatter(pt_grid[0], pt_grid[1], pt_grid[2], c=u'r')
 
@@ -243,51 +225,69 @@ class ParallelJawPtGrasp3D(PointGrasp):
             pt_zc_world = obj.sdf.transform_pt_grid_to_obj(pt_zc)
         return contact_found, pt_zc_world
 
-    def pr2_gripper_poses(self, obj, theta_res = 2 * np.pi / 10, R_grasp_center = np.eye(3), t_grasp_center = PR2_GRASP_OFFSET):
+    def transform(self, tf, theta_res = 0):
         """
-        Generates a set of PR2 gripper poses in gripper_l_tool_frame relative to the given object frame
-        of reference. Since parallel-jaw grasps have 5 DOF we discretize the rotation about the orthogonal
-        direction and return all pose grasps related to that
+        Generates a set of grasps in the object frame of reference.
+        Since parallel-jaw grasps have 5 DOF we discretize the rotation about the orthogonal
+        direction and return grasps approaching along those directions
         Params:
-           obj - GraspableObject on which the grasp is generated
-           theta_res - The angle resolution for equivalent rotations
-           R_grasp_center - The rotation of the grasp control frame relative to the grasp center
-           t_grasp_center - The offset of the grasp control frame relative to the grasp center
+           tf - SimilarityTransform3D to apply to the grasp
+           theta_res - The angle resolution for equivalent rotations (defaults to zero, meaning only transform grasp)
         Returns:
-           poses - (list of tfx poses) List of the gripper poses relative to the object center
+           grasps_tf - (list of ParallelJawPtGrasp3D) list of grasps with the given transformation
         """
         # transform grasp to object basis
-        grasp_center_obj = obj.tf.apply(self.center_)
-        grasp_axis_y_obj = obj.tf.apply(self.axis_, direction=True)
-        grasp_width_obj = obj.tf.apply(self.grasp_width_)
-
-        # get x, y, and z rotational axes of PR2 gripper relative to object 
-        grasp_axis_x_obj = np.array([grasp_axis_y_obj[1], -grasp_axis_y_obj[0], 0])
-        grasp_axis_x_obj = grasp_axis_x_obj / np.linalg.norm(grasp_axis_x_obj)
-        grasp_axis_z_obj = np.cross(grasp_axis_x_obj, grasp_axis_y_obj) 
-
-        R_center_obj = np.c_[grasp_axis_x_obj.T, np.c_[grasp_axis_y_obj, grasp_axis_z_obj]]
+        grasp_center_obj = tf.apply(self.center_)
+        grasp_axis_y_obj = tf.apply(self.axis_, direction=True)
+        grasp_width_obj = tf.apply(self.grasp_width_)
 
         # store all identifications of the grasp around the rotational axes
         theta = 0
-        grasps_pr2 = []
+        grasps_tf = []
         while theta <= 2*np.pi - theta_res:
-            R_obj_rot_obj = np.array([[ np.cos(theta), 0, np.sin(theta)],
-                                      [             0, 1,             0],
-                                      [-np.sin(theta), 0, np.cos(theta)]])
-            R_center_obj_rot = R_obj_rot_obj.dot(R_center_obj)
-            R_grasp_obj = R_grasp_center.dot(R_center_obj_rot)
-
-            t_grasp_obj = grasp_center_obj + R_center_obj_rot.T.dot(t_grasp_center)
-
-            # add new grasp with given pose in object basis
-            pose_grasp_obj = tfx.transform(R_grasp_obj.T, t_grasp_obj) #TODO: add correct frame
-            grasps_pr2.append(ParallelJawPtGrasp3D(grasp_center_obj, grasp_axis_y_obj, grasp_width_obj, self.jaw_width_,
-                                                   stf.SimilarityTransform3D(pose_grasp_obj, obj.scale)))
-
+            grasps_tf.append(ParallelJawPtGrasp3D(grasp_center_obj, grasp_axis_y_obj, grasp_width_obj, self.jaw_width, theta, tf))
             theta = theta + theta_res
+        return grasps_tf
+    
+    def gripper_pose(self, R_gripper_center = np.eye(3), t_gripper_center = PR2_GRASP_OFFSET):
+        """
+        Convert a grasp to a gripper pose in SE(3) using PR2 gripper_l_too_frame as default
+        Params:
+           R_gripper_center: (numpy 3x3 array) rotation matrix from grasp basis to gripper basis
+           t_gripper_center: (numpy 3 array) translation from grasp basis to gripper basis
+        Returns:
+           pose_gripper: (tfx transform) pose of gripper in the grasp frame
+        """
+        # convert gripper orientation to rotation matrix
+        grasp_axis_y = self.axis_
+        grasp_axis_x = np.array([grasp_axis_y[1], -grasp_axis_y[0], 0])
+        grasp_axis_x = grasp_axis_x / np.linalg.norm(grasp_axis_x)
+        grasp_axis_z = np.cross(grasp_axis_x, grasp_axis_y) 
 
-        return grasps_pr2
+        R_center_ref = np.c_[grasp_axis_x, np.c_[grasp_axis_y, grasp_axis_z]]
+        pose_center_ref = tfx.transform(R_center_ref, self.center_) # pose of grasp center in its reference frame
+
+        # rotate along grasp approach angle
+        R_center_rot_center = np.array([[ np.cos(self.approach_angle_), 0, np.sin(self.approach_angle_)],
+                                        [                            0, 1,                            0],
+                                        [-np.sin(self.approach_angle_), 0, np.cos(self.approach_angle_)]])
+        pose_center_rot_center = tfx.transform(R_center_rot_center, np.zeros(3))
+        pose_gripper_center_rot = tfx.transform(R_gripper_center, t_gripper_center)
+
+        pose_gripper_ref = pose_center_ref.apply(pose_center_rot_center).apply(pose_gripper_center_rot)
+        return pose_gripper_ref
+
+        """
+        R_center_grasp_rot = R_grasp_rot_grasp.dot(R_center_grasp)
+
+        # rotation and translation in same frame as grasp
+        R_gripper = R_gripper_center.dot(R_center_grasp_rot)
+        t_gripper = self.center_ + R_center_grasp_rot.dot(t_gripper_center)
+
+        # add new grasp with given pose in object basis
+        pose_gripper = tfx.transform(R_gripper, t_gripper) #TODO: add correct frame
+        return pose_gripper
+        """
 
     @staticmethod
     def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, jaw_width_world = 0, vis = False):
@@ -306,9 +306,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         # transform to grid basis
         grasp_axis_world = grasp_axis_world / np.linalg.norm(grasp_axis_world)
-        grasp_c1_grid = obj.sdf.transform_pt_obj_to_grid(grasp_c1_world)
         grasp_axis_grid = obj.sdf.transform_pt_obj_to_grid(grasp_axis_world, direction=True)
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(grasp_width_world)
+        grasp_c1_grid = obj.sdf.transform_pt_obj_to_grid(grasp_c1_world) - (grasp_width_grid / 2) * grasp_axis_grid # subtract to find true point
         num_samples = int(2 * grasp_width_grid) # at least 2 samples per grid
         g2 = grasp_c1_grid + grasp_width_grid * grasp_axis_grid
 
@@ -335,7 +335,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         # create grasp
         grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c1_world, c2_world)
         grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c1_world, c2_world)
-        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, obj.tf), c2_world # relative to object
+        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, grasp_angle=0, tf=obj.tf), c2_world # relative to object
 
     def visualize(self, obj, arrow_len = 0.01, line_width = 20.0):
         """ Display point grasp as arrows on the contact points of the mesh """

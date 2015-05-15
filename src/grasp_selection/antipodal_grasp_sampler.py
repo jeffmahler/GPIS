@@ -16,6 +16,21 @@ import sdf_file
 
 import IPython
 
+# basically a bucket for todo vis code, don't want to lose it
+def vis_graspable_grasp(graspable, grasp):
+
+    graspable.mesh.visualize()
+    mv.axes()
+
+    x, v = graspable.sdf.surface_points(grid_basis = False)
+    mv.points3d(x[:,0], x[:,1], x[:,2], scale_factor = 0.01)
+
+    g1, g2 = grasp.endpoints()
+    mv.points3d(g1[0], g1[1], g1[2], scale_factor = 0.01, color=(0.5,0.5,0.5))                        
+    mv.points3d(g2[0], g2[1], g2[2], scale_factor = 0.01, color=(0.5,0.5,0.5))                        
+    mv.points3d(grasp.center[0], grasp.center[1], grasp.center[2], scale_factor = 0.01, color=(0.5,0.5,0.5))                        
+    mv.show()
+
 class AntipodalGraspParams:
     """ Struct to hold antipodal grasp with statistics """
     def __init__(self, obj, grasp, alpha1, alpha2, rho1, rho2):
@@ -35,12 +50,12 @@ class AntipodalGraspSampler(object):
         self.grasp_width = config['grasp_width']
         self.friction_coef = config['friction_coef']
         self.num_cone_faces = config['num_cone_faces']
-        self.num_samples = config['num_samples']
+        self.num_samples = config['grasp_samples_per_surface_point']
         self.dir_prior = config['dir_prior']
-        self.alpha_thresh = config['alpha_thresh']
+        self.alpha_thresh = config['alpha_thresh'] * np.pi
         self.rho_thresh = config['rho_thresh']
-        self.vis = config['vis_antipodal']
         self.min_num_grasps = config['min_num_grasps']
+        self.theta_res = config['grasp_theta_res'] * np.pi
         self.alpha_inc = config['alpha_inc']
         self.rho_inc = config['rho_inc']
 
@@ -91,6 +106,14 @@ class AntipodalGraspSampler(object):
         ap_grasps = []
         surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
 
+        # load openrave
+        rave.raveSetDebugLevel(rave.DebugLevel.Error)
+        e = rave.Environment()
+        e.Load(pgc.PR2_MODEL_FILE)
+        e.SetViewer("qtcoin")
+        r = e.GetRobots()[0]
+        grasp_checker = pgc.PR2GraspChecker(e, r, mesh_name)
+
         for x1 in surface_points:
             start_time = time.clock()
 
@@ -100,8 +123,8 @@ class AntipodalGraspSampler(object):
                 x1 = x1 + (graspable.sdf.resolution / 2.0) * (np.random.rand(3) - 0.5)
 
                 # compute friction cone faces
-                cone_succeeded, cone1, n1 = \
-                    graspable.contact_friction_cone(x1, num_cone_faces = self.num_cone_faces, friction_coef = self.friction_coef)
+                cone_succeeded, cone1, n1 = graspable.contact_friction_cone(x1, num_cone_faces = self.num_cone_faces,
+                                                                            friction_coef = self.friction_coef)
                 if not cone_succeeded:
                     continue
                 cone_time = time.clock()
@@ -160,19 +183,12 @@ class AntipodalGraspSampler(object):
                         antipodal_grasp = AntipodalGraspParams(graspable, grasp, alpha1, alpha2, rho1, rho2)
                         ap_grasps.append(antipodal_grasp)
 
+                        #cf, c = grasp.close_fingers(graspable, vis = True)
+                        #grasp_checker.prune_grasps_in_collision([grasp], vis = True)
+
                         #logging.error('Cone time: %f' %(cone_time - start_time))
                         #logging.error('Sample time: %f' %(sample_time - cone_time))
                         #logging.error('Within cone time: %f' %(within_cone_time - sample_time))
-
-        # load openrave
-        """
-        rave.raveSetDebugLevel(rave.DebugLevel.Error)
-        e = rave.Environment()
-        e.Load(pgc.PR2_MODEL_FILE)
-        e.SetViewer("qtcoin")
-        r = e.GetRobots()[0]
-        grasp_checker = pgc.PR2GraspChecker(e, r, mesh_name)
-        """
 
         # go back through grasps and threshold            
         grasps = []
@@ -181,20 +197,29 @@ class AntipodalGraspSampler(object):
         while len(grasps) < self.min_num_grasps:
             # prune grasps above thresholds
             grasps = []
-#            pr2_grasps = []
+            pr2_grasps = []
             for ap_grasp in ap_grasps:
                 if max(ap_grasp.alpha1, ap_grasp.alpha2) < alpha_thresh and \
                         max(ap_grasp.rho1, ap_grasp.rho2) < rho_thresh:
                     # convert grasps to PR2 gripper poses
                     grasps.append(ap_grasp.grasp)
-#                    pr2_grasps.extend(ap_grasp.grasp.pr2_gripper_poses(graspable))
+                    rotated_grasps = ap_grasp.grasp.transform(graspable.tf, self.theta_res)
+                    pr2_grasps.extend(rotated_grasps)
+
+                    """
+                    ap_grasp.grasp.close_fingers(graspable, vis = True)
+                    grasp_checker.prune_grasps_in_collision(rotated_grasps, vis = True, auto_step = True, close_fingers = True)
+                    IPython.embed()
+                    """
 
             # prune grasps in collision (TODO)
-#            pr2_grasps = grasp_checker.prune_grasps_in_collision(pr2_grasps, vis = True)
 
             # update alpha and rho thresholds
             alpha_thresh = alpha_thresh * self.alpha_inc
             rho_thresh = alpha_thresh * self.rho_inc
+
+        # display pr2 grasps - not currently used
+        pr2_grasps = grasp_checker.prune_grasps_in_collision(pr2_grasps, vis = True, auto_step = True)
     
         """
         for grasp in grasps:
@@ -231,11 +256,11 @@ def test_antipodal_grasp_sampling():
         'grasp_width': 0.1,
         'friction_coef': 0.5,
         'num_cone_faces': 8,
-        'num_samples': 4,
+        'grasp_samples_per_surface_point': 4,
         'dir_prior': 1.0,
-        'alpha_thresh': np.pi / 32,
+        'alpha_thresh': 1.0 / 32,
         'rho_thresh': 0.75, # as pct of object max moment
-        'vis_antipodal': False,
+        'grasp_theta_res': 2.0 / 10, 
         'min_num_grasps': 100,
         'alpha_inc': 1.1,
         'rho_inc': 1.1

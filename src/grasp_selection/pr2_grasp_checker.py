@@ -1,10 +1,12 @@
 """
 +X is front, +Y is left, +Z is up
 """
+import copy
 import os
 import sys
 import time
 
+import matplotlib.pyplot as plt
 import mayavi.mlab as mv
 import numpy as np
 import openravepy as rave
@@ -12,6 +14,11 @@ import IK as ik
 from pymongo import MongoClient
 
 from message_wrappers import GraspWrapper
+
+import grasp as g
+import graspable_object
+import obj_file
+import sdf_file
 
 import IPython
 
@@ -53,7 +60,9 @@ class PR2GraspChecker(object):
         self.T_gripper_world = self.robot.GetManipulator("leftarm_torso").GetTransform()
 
         # set transform between rviz and openrave
-        R_fix = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
+        R_fix = np.array([[0, 0, -1],
+                          [0, 1, 0],
+                          [1, 0, 0]])
         T_fix = np.eye(4)
         T_fix[:3,:3] = R_fix
         T_fix[1,3] = 0
@@ -133,7 +142,7 @@ class PR2GraspChecker(object):
                     self.taskprob.ReleaseFingers() # open fingets
                     self.robot.WaitForController(0) # wait
 
-    def prune_grasps_in_collision(self, object_grasps, vis = True, closed_thresh = 0.05, auto_step = True, close_fingers = False):
+    def prune_grasps_in_collision(self, object_grasps, vis = True, closed_thresh = 0.05, auto_step = False, close_fingers = False):
         """ Remove all grasps from the object grasps list that are in collision with the given object """
         if vis and self.env.GetViewer() is None:
             self.env.SetViewer('qtcoin')
@@ -142,9 +151,9 @@ class PR2GraspChecker(object):
         i = 0
 
         for grasp in object_grasps:
+            pose = grasp.gripper_pose()
             if vis:
-                T_gripper_obj, T_robot_world = self.move_to_pregrasp(grasp.tf.pose)
-
+                T_gripper_obj, T_robot_world = self.move_to_pregrasp(pose)
             """
             link = self.robot.GetLink('l_gripper_palm_link')
             link_geoms = link.GetGeometries()
@@ -185,7 +194,69 @@ class PR2GraspChecker(object):
 
         return object_grasps_keep
 
+def test_grasp_collisions():
+    np.random.seed(100)
+
+    h = plt.figure()
+    ax = h.add_subplot(111, projection = '3d')
+
+    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
+    sf = sdf_file.SdfFile(sdf_3d_file_name)
+    sdf_3d = sf.read()
+
+    mesh_name = 'data/test/meshes/Co_clean.obj'
+    of = obj_file.ObjFile(mesh_name)
+    m = of.read()
+
+    graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m)
+
+    rave.raveSetDebugLevel(rave.DebugLevel.Error)
+    e = rave.Environment()
+    e.Load(PR2_MODEL_FILE)
+    e.SetViewer("qtcoin")
+    r = e.GetRobots()[0]
+    grasp_checker = PR2GraspChecker(e, r, mesh_name)
+
+    """
+    z = np.linspace(-0.1, 0.1, 50)
+    T = grasp_checker.object.GetTransform()
+    for i in range(z.shape[0]):
+        print z
+        T_tf = copy.copy(T)
+        T_tf[2,3] = z[i]
+        grasp_checker.object.SetTransform(T_tf)
+        time.sleep(0.1)
+
+    for i in range(z.shape[0]):
+        print z
+        T_tf = copy.copy(T)
+        T_tf[1,3] = z[i]
+        grasp_checker.object.SetTransform(T_tf)
+        time.sleep(0.1)
+
+    for i in range(z.shape[0]):
+        print z
+        T_tf = copy.copy(T)
+        T_tf[0,3] = z[i]
+        grasp_checker.object.SetTransform(T_tf)
+        time.sleep(0.1)
+    """
+
+    center = np.array([-0.01837182,  0.01218656,  0.03844461])
+    # np.array([-0.00297651,  0.00677959,  0.03165122])
+    axis = np.array([-0.94212793,  0.31667146, -0.11006428]) 
+    #np.array([1, 1, 0])
+    axis = axis / np.linalg.norm(axis)
+    grasp = g.ParallelJawPtGrasp3D(center, axis, 0.1)
+
+    grasp.close_fingers(graspable, vis = True)
+    grasp_checker.prune_grasps_in_collision([grasp], vis = True)
+
+    IPython.embed()
+
 if __name__ == "__main__":
+    test_grasp_collisions()
+    """
     # get sys input
     argc = len(sys.argv)
     if argc < 2:
@@ -212,3 +283,4 @@ if __name__ == "__main__":
                                               "{}.json".format(object_name + '_coll_free'))
     GraspWrapper.grasps_to_file(object_grasps_keep, object_grasps_out_filename)
 
+    """
