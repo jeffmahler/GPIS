@@ -1,7 +1,6 @@
 # directories
 bin/*
 build/*
-cfg/*
 matlab/dependencies/*
 lib/*
 

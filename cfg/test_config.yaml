@@ -1,0 +1,36 @@
+# Test yaml configuration file for grasp db
+
+# CORE PARAMS
+root_dir: /home/jmahler/jeff_working/GPIS
+data_dir: /mnt/terastation/shape_data
+
+# GCE PARAMS
+project:        &id_project        seraphic-disk-595
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+bucket:         &id_bucket         abinitio-bucket
+disk_type:      &id_disk_type      PERSISTENT
+compute:
+  api_version:    v1
+  machine_type:   n1-standard-4
+  zone:           us-central1-b
+  startup_script: startup.sh
+  image_project:  *id_project
+  image:          abinitio-image
+  service_email:  default
+  network:        default
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgical
+notify_email:   &id_notify_email    jmahl42@gmail.com
+
+# EXPERIMENT PARAMS
+num_training: 100
+num_pose_samples: 100
+translation_sigma: 0.1
+rotation_sigma: 0.01

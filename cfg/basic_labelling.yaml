@@ -1,0 +1,55 @@
+# Basic yaml configuration file for labelling grasps in the grasp db
+
+# CORE PARAMS
+root_dir: /home/jmahler/jeff_working/GPIS
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v0
+datasets:
+  - amazon_picking_challenge
+
+# EXPERIMENT PARAMS
+grasp_width: 0.1
+friction_coef: 0.5
+num_cone_faces: 8
+
+# GRASP SAMPLING
+grasp_samples_per_surface_point: 4
+dir_prior: 1.0
+alpha_thresh: 1.0 / 32.0 # in multiples of pi
+rho_thresh: 0.75 # as percentage of object max moment
+min_num_grasps: 20
+
+
+# UNCERTAINTY
+sigma_mu: 0.1
+sigma_trans_grasp: 0.001
+sigma_rot_grasp: 0.1
+sigma_trans_obj: 0.001
+sigma_rot_obj: 0.1
+sigma_scale_obj: 0.1
+num_prealloc_obj_samples: 0 # zero if we want to sample on-line
+num_prealloc_grasp_samples: 0
+
+# GCE PARAMS
+project:        &id_project        seraphic-disk-595
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+bucket:         &id_bucket         abinitio-bucket
+disk_type:      &id_disk_type      PERSISTENT
+compute:
+  api_version:    v1
+  machine_type:   n1-standard-4
+  zone:           us-central1-b
+  startup_script: startup.sh
+  image_project:  *id_project
+  image:          abinitio-image
+  service_email:  default
+  network:        default
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgical
+notify_email:   &id_notify_email    jmahl42@gmail.com
