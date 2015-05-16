@@ -118,7 +118,7 @@ class Dataset:
         graspable_dict = {
             'key': graspable.key,
             'category': graspable.category,
-            'grasps': [g.to_grasp() for g in grasps]
+            'grasps': [g.to_json() for g in grasps]
         }
 
         file_root = os.path.join(self.dataset_root_dir_, graspable.key)
