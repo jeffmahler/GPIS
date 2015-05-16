@@ -324,8 +324,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.scatter(grasp_c1_grid[0], grasp_c1_grid[1], grasp_c1_grid[2], s=80, c=u'g')
 
         # compute the contact points on the object
-        contact_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis = vis)
-        contact_found, c2_world = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis = vis)
+        contact1_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis = vis)
+        contact2_found, c2_world = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis = vis)
         if vis:
             ax.set_xlim3d(0, obj.sdf.dims_[0])
             ax.set_ylim3d(0, obj.sdf.dims_[1])
