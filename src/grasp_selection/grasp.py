@@ -27,10 +27,10 @@ class Grasp:
         """ Finds the contact points by closing on the given object """
         pass
 
-    #@abstractmethod
+    @abstractmethod
     def to_json(self):
         """ Converts a grasp to json """
-        return None
+        pass
 
 class PointGrasp(Grasp):
     __metaclass__ = ABCMeta
@@ -248,10 +248,10 @@ class ParallelJawPtGrasp3D(PointGrasp):
             grasps_tf.append(ParallelJawPtGrasp3D(grasp_center_obj, grasp_axis_y_obj, grasp_width_obj, self.jaw_width, theta, tf))
             theta = theta + theta_res
         return grasps_tf
-    
+
     def gripper_pose(self, R_gripper_center = np.eye(3), t_gripper_center = PR2_GRASP_OFFSET):
         """
-        Convert a grasp to a gripper pose in SE(3) using PR2 gripper_l_too_frame as default
+        Convert a grasp to a gripper pose in SE(3) using PR2 gripper_l_tool_frame as default
         Params:
            R_gripper_center: (numpy 3x3 array) rotation matrix from grasp basis to gripper basis
            t_gripper_center: (numpy 3 array) translation from grasp basis to gripper basis
@@ -262,7 +262,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_axis_y = self.axis_
         grasp_axis_x = np.array([grasp_axis_y[1], -grasp_axis_y[0], 0])
         grasp_axis_x = grasp_axis_x / np.linalg.norm(grasp_axis_x)
-        grasp_axis_z = np.cross(grasp_axis_x, grasp_axis_y) 
+        grasp_axis_z = np.cross(grasp_axis_x, grasp_axis_y)
 
         R_center_ref = np.c_[grasp_axis_x, np.c_[grasp_axis_y, grasp_axis_z]]
         pose_center_ref = tfx.transform(R_center_ref, self.center_) # pose of grasp center in its reference frame
@@ -351,12 +351,39 @@ class ParallelJawPtGrasp3D(PointGrasp):
             mv.quiver3d(c2_world[0] + v[0], c2_world[1] + v[1], c2_world[2] + v[2], -v[0], -v[1], -v[2], scale_factor=1.0,
                         mode='arrow', line_width=line_width)
 
+    def to_json(self):
+        gripper_pose = self.gripper_pose()
+        gripper_position = gripper_pose.position
+        gripper_orientation = gripper_pose.orientation
+        return {
+            'flag': 0, # what's this?
+            'gripper_width': self.grasp_width,
+            'jaw_width': self.jaw_width,
+            'gripper_pose': {
+                'position': {
+                    'x': gripper_position.x,
+                    'y': gripper_position.y,
+                    'z': gripper_position.z,
+                },
+                'orientation': {
+                    'w': gripper_orientation.w,
+                    'x': gripper_orientation.x,
+                    'y': gripper_orientation.y,
+                    'z': gripper_orientation.z,
+                }
+            },
+            'frame': 'gripper_l_tool_frame', # ?
+            'reference_frame': 'object',
+            'quality': 0,
+            'metric': 'PFC',
+        }
+
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """
     sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
     sf3 = sf.SdfFile(sdf_3d_file_name)
     sdf_3d = sf3.read()
-        
+
     # create grasp
     plt.figure()
     test_grasp_center = np.zeros(3)
@@ -366,7 +393,7 @@ def test_find_contacts():
     grasp = ParallelJawPtGrasp3D(test_grasp_center, test_grasp_axis, test_grasp_width)
     contact_found, contacts = grasp.close_fingers(obj_3d, vis=True)
     plt.show()
-    
+
     assert(contact_found)
 
 def test_grasp_from_contacts():
@@ -375,7 +402,7 @@ def test_grasp_from_contacts():
     sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
     sf3 = sf.SdfFile(sdf_3d_file_name)
     sdf_3d = sf3.read()
-        
+
     # create point on sdf surface
     obj_3d = go.GraspableObject3D(sdf_3d)
     surf_pts, surf_sdf = obj_3d.sdf.surface_points()
@@ -390,8 +417,8 @@ def test_grasp_from_contacts():
     axis = axis / np.linalg.norm(axis)
 
     plt.figure()
-    test_grasp_width = 1.3                    
-    g = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True) 
+    test_grasp_width = 1.3
+    g = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True)
     plt.show()
 
 if __name__ == '__main__':
