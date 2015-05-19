@@ -356,6 +356,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
                         mode='arrow', line_width=line_width)
 
     def to_json(self):
+        """Converts the grasp to a Python dictionary for serialization to JSON."""
         gripper_pose = self.gripper_pose()
         gripper_position = gripper_pose.position
         gripper_orientation = gripper_pose.orientation
