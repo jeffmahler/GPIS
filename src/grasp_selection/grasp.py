@@ -423,9 +423,35 @@ def test_grasp_from_contacts():
     test_grasp_width = 0.8                    
     ax = plt.gca(projection = '3d')
     ax.scatter(rand_surf_pt_grid[0], rand_surf_pt_grid[1], rand_surf_pt_grid[2], s=80, c=u'g')
-    g = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True) 
-   plt.show()
+    g, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True) 
+    plt.show()
+
+def test_to_json():
+    """ Should visually check for reasonable contacts (large green circles) """
+    np.random.seed(100)
+    sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
+    sf3 = sf.SdfFile(sdf_3d_file_name)
+    sdf_3d = sf3.read()
+
+    # create point on sdf surface
+    obj_3d = go.GraspableObject3D(sdf_3d)
+    surf_pts, surf_sdf = obj_3d.sdf.surface_points()
+    rand_pt_ind = np.random.choice(surf_pts.shape[0])
+    rand_surf_pt_grid = surf_pts[rand_pt_ind, :]
+    rand_surf_pt = obj_3d.sdf.transform_pt_grid_to_obj(rand_surf_pt_grid)
+
+    # get grasp direction
+    axis = -obj_3d.sdf.gradient(rand_surf_pt)
+    axis = axis / np.linalg.norm(axis)
+    axis = obj_3d.sdf.transform_pt_grid_to_obj(axis, direction=True)
+
+    test_grasp_width = 0.8
+    g, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = False)
+    j = g.to_json()
+
+    # TODO: hard checks
 
 if __name__ == '__main__':
     test_find_contacts()
     test_grasp_from_contacts()
+    test_to_json()
