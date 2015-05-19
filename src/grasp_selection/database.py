@@ -1,3 +1,4 @@
+import json
 import logging
 import numpy as np
 import os
@@ -17,7 +18,7 @@ class Database:
     def __init__(self, config):
         self._parse_config(config)
         self._create_datasets(config)
-        
+
     def _parse_config(self, config):
         self.database_root_dir_ = config['database_dir']
         self.dataset_names_ = config['datasets']
@@ -35,7 +36,7 @@ class Database:
     def datasets(self):
         return self.datasets_
 
-    def dataset(self, dataset_name=None):    
+    def dataset(self, dataset_name=None):
         if dataset_name is None:
             return self.datasets_.items()[0][0] # return first element
         return self.datasets_[dataset_name]
@@ -60,7 +61,8 @@ class Dataset:
         """ Read in all the data keys from the index """
         index_filename = os.path.join(self.dataset_root_dir_, INDEX_FILE)
         if not os.path.exists(index_filename):
-            raise IOError('Index file does not exist! Invalid dataset')
+            raise IOError('Index file does not exist! Invalid dataset'
+                          + '\n  ' + self.dataset_root_dir_)
 
         self.data_keys_ = []
         self.data_categories_ = []
@@ -94,6 +96,10 @@ class Dataset:
     def obj_filename(file_root):
         return file_root + '.obj'
 
+    @staticmethod
+    def _json_filename(file_root):
+        return file_root + '.json'
+
     def read_datum(self, key):
         """ Read in the datapoint corresponding to given key"""
         # get file roots
@@ -109,6 +115,21 @@ class Dataset:
         mesh = of.read()
 
         return go.GraspableObject3D(sdf, mesh=mesh, key=key)
+
+    def save_grasps(self, graspable, grasps):
+        if not isinstance(grasps, list): # only one grasp
+            grasps = [grasps]
+        graspable_dict = {
+            'key': graspable.key,
+            'category': graspable.category,
+            'grasps': [g.to_json() for g in grasps]
+        }
+
+        file_root = os.path.join(self.dataset_root_dir_, graspable.key)
+        grasp_filename = Dataset._json_filename(file_root)
+        with open(grasp_filename, 'w') as f:
+            json.dump(graspable_dict, f,
+                      sort_keys=True, indent=4, separators=(',', ': '))
 
     def __iter__(self):
         """ Generate iterator """

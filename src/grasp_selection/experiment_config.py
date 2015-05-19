@@ -14,7 +14,7 @@ import shutil
 import sys
 import time
 
-import h5py, yaml, re
+import yaml, re
 from collections import OrderedDict
 import os.path as osp
 
@@ -168,14 +168,14 @@ class ExperimentConfig(object):
         os.system(replace_command)
         shutil.copymode(template_filename_path, out_filename_path) #copy over permission
         return True
-    
+
     def create_leveldbs(self):
         """
         Creates all leveldbs specified in the configuration for Caffe.
         Currentl deprecated but could be reinstated if useful in future experiments
         """
         try:
-            leveldbs = self.config[LEVELDB_KEY] 
+            leveldbs = self.config[LEVELDB_KEY]
         except KeyError:
             log.warning('Cannot create leveldbs - none specified in configuration')
             return False
@@ -242,7 +242,7 @@ def test_load():
     logging.debug('Num pose samples: %d' %(ec['num_pose_samples']))
     logging.debug('Translation sigma: %f' %(ec['translation_sigma']))
     logging.debug('Rotation sigma: %f' %(ec['rotation_sigma']))
-    
+
     assert(ec['data_dir'] == '/mnt/terastation/shape_data')
     assert(ec['num_pose_samples'] == 100)
     assert(ec['translation_sigma'] == 0.1)
