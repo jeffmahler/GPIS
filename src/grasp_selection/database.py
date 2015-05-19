@@ -97,7 +97,7 @@ class Dataset:
         return file_root + '.obj'
 
     @staticmethod
-    def _json_filename(file_root):
+    def json_filename(file_root):
         return file_root + '.json'
 
     def read_datum(self, key):
@@ -117,6 +117,11 @@ class Dataset:
         return go.GraspableObject3D(sdf, mesh=mesh, key=key)
 
     def save_grasps(self, graspable, grasps):
+        """Saves a list of grasps in the database.
+        Params:
+            graspable - the GraspableObject for the grasps
+            grasps - a list of Grasps or a single Grasp to be saved
+        """
         if not isinstance(grasps, list): # only one grasp
             grasps = [grasps]
         graspable_dict = {
@@ -126,7 +131,8 @@ class Dataset:
         }
 
         file_root = os.path.join(self.dataset_root_dir_, graspable.key)
-        grasp_filename = Dataset._json_filename(file_root)
+        grasp_filename = Dataset.json_filename(file_root)
+        # TODO: what should happen if grasp_filename already exists?
         with open(grasp_filename, 'w') as f:
             json.dump(graspable_dict, f,
                       sort_keys=True, indent=4, separators=(',', ': '))
