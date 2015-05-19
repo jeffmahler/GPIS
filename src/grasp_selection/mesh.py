@@ -313,10 +313,12 @@ class Mesh3D:
         def visualize(self):
                 """ Plots visualization """
                 vertex_array = np.array(self.vertices_)
-                mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe')
+                mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface')
 
+        """
         def num_connected_components(self):
                 vert_labels = np.linspace(0, len(self.vertices_)-1, num=len(self.vertices_)).astype(np.uint32)
                 for t in self.triangles_:
                         vert_labels[t[1]] = vert_labels[t[0]]
                         vert_labels[t[2]] = vert_labels[t[0]]
+        """                   

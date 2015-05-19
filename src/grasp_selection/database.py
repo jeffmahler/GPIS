@@ -82,20 +82,24 @@ class Dataset:
     def data_keys(self):
         return self.data_keys_
 
+    @property
+    def dataset_root_dir(self):
+        return self.dataset_root_dir_
+
     @staticmethod
-    def _sdf_filename(file_root):
+    def sdf_filename(file_root):
         return file_root + '.sdf'
 
     @staticmethod
-    def _obj_filename(file_root):
+    def obj_filename(file_root):
         return file_root + '.obj'
 
     def read_datum(self, key):
         """ Read in the datapoint corresponding to given key"""
         # get file roots
         file_root = os.path.join(self.dataset_root_dir_, key)
-        sdf_filename = Dataset._sdf_filename(file_root)
-        obj_filename = Dataset._obj_filename(file_root)
+        sdf_filename = Dataset.sdf_filename(file_root)
+        obj_filename = Dataset.obj_filename(file_root)
 
         # read in data
         sf = sdf_file.SdfFile(sdf_filename)
@@ -125,7 +129,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     config_filename = 'cfg/basic_labelling.yaml'
     config = ec.ExperimentConfig(config_filename)
-    
+
     db = Database(config)
     keys = []
     logging.info('Reading datset %s' %(db.datasets[0].name))

@@ -108,11 +108,7 @@ class AntipodalGraspSampler(object):
 
         # load openrave
         rave.raveSetDebugLevel(rave.DebugLevel.Error)
-        e = rave.Environment()
-        e.Load(pgc.PR2_MODEL_FILE)
-        e.SetViewer("qtcoin")
-        r = e.GetRobots()[0]
-        grasp_checker = pgc.PR2GraspChecker(e, r, mesh_name)
+        grasp_checker = pgc.OpenRaveGraspChecker()
 
         for x1 in surface_points:
             start_time = time.clock()
@@ -219,7 +215,7 @@ class AntipodalGraspSampler(object):
             rho_thresh = alpha_thresh * self.rho_inc
 
         # display pr2 grasps - not currently used
-        pr2_grasps = grasp_checker.prune_grasps_in_collision(pr2_grasps, vis = True, auto_step = True)
+        pr2_grasps = grasp_checker.prune_grasps_in_collision(graspable, pr2_grasps, auto_step = True)
     
         """
         for grasp in grasps:
@@ -250,7 +246,7 @@ def test_antipodal_grasp_sampling():
     of = obj_file.ObjFile(mesh_name)
     m = of.read()
 
-    graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m)
+    graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m, model_name=mesh_name)
 
     config = {
         'grasp_width': 0.1,
