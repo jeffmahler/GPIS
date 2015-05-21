@@ -1,4 +1,5 @@
 import gurobipy as gb
+import cvxopt as cvx
 import numpy as np
 import pyhull.convex_hull as cvh
 import sys
@@ -25,7 +26,7 @@ class PointGraspMetrics3D:
             raise ValueError('Must provide a 3D graspable object')
         if not hasattr(PointGraspMetrics3D, method):
             raise ValueError('Illegal point grasp metric specified')
-        
+
         # get point grasp contacts
         contacts_found, contacts = grasp.close_fingers(obj)
         if not contacts_found:
@@ -80,11 +81,11 @@ class PointGraspMetrics3D:
 
         G = np.zeros([6, num_cols])
         for i in range(num_forces):
-            G[:3,i] = forces[:,i] 
+            G[:3,i] = forces[:,i]
             G[3:,i] = torques[:,i]
 
         if soft_fingers:
-            G[3:,-num_normals:] = normals  
+            G[3:,-num_normals:] = normals
         return G
 
     @staticmethod
@@ -96,7 +97,7 @@ class PointGraspMetrics3D:
 
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         min_norm = PointGraspMetrics3D.min_norm_vector_in_facet(G)
-        return 1 * (min_norm < eps) # if greater than eps, 0 is outside of hull 
+        return 1 * (min_norm < eps) # if greater than eps, 0 is outside of hull
 
     @staticmethod
     def min_singular(forces, torques, normals, soft_fingers=False, params=None):
@@ -176,14 +177,14 @@ class PointGraspMetrics3D:
         m = gb.Model("qp")
         m.params.OutputFlag = 0
         m.modelSense = gb.GRB.MINIMIZE
-        
+
         alpha = [m.addVar(name="m"+str(v)) for v in range(dim)]
         alpha = np.array(alpha)
         m.update()
 
         # quadratic cost for Euclidean distance
         obj = alpha.T.dot(G).dot(alpha)
-        m.setObjective(obj)    
+        m.setObjective(obj)
 
         # sum constraint to enforce convex combinations of vertices
         ones_v = np.ones(dim)
@@ -215,18 +216,41 @@ def test_gurobi_qp():
     m.update()
 
     obj = alpha.T.dot(G).dot(alpha)
-    m.setObjective(obj)    
+    m.setObjective(obj)
 
     ones_v = np.ones(dim)
     cvx_const = ones_v.T.dot(alpha)
     m.addConstr(cvx_const, gb.GRB.EQUAL, 1.0, "c0")
-    
+
     for i in range(dim):
         m.addConstr(alpha[i], gb.GRB.GREATER_EQUAL, 0.0)
 
     m.optimize()
     for v in m.getVars():
         print('Var %s: %f'%(v.varName, v.x))
+    print('Objective: %f'%(obj.getValue()))
+
+def test_cvxopt_qp():
+    np.random.seed(100)
+    dim = 20
+    forces = 2 * (np.random.rand(3, dim) - 0.5)
+    torques = 2 * (np.random.rand(3, dim) - 0.5)
+    normal = 2 * (np.random.rand(3,1) - 0.5)
+    # G = PointGraspMetrics3D.grasp_matrix(forces, torques, normal)
+    grasp_matrix = forces.T.dot(forces) # not sure if this is a correct name...
+
+    # Minimizes .5 x'Px + q'x subject to Gx <= h, Ax = b
+    P = cvx.matrix(2 * grasp_matrix)
+    q = cvx.matrix(np.zeros(dim))
+    G = cvx.matrix(-np.eye(dim))
+    h = cvx.matrix(np.zeros(dim))
+    A = cvx.matrix(np.ones(dim)).T
+    b = cvx.matrix(np.ones(1))
+
+    sol = cvx.solvers.qp(P, q, G, h, A, b)
+    for i, v in enumerate(sol['x']):
+        print('Var m%s: %f'%(i, v))
+    print('Objective: %f'%(sol['primal objective']))
 
 def test_ferrari_canny_L1_synthetic():
     np.random.seed(100)
@@ -234,7 +258,7 @@ def test_ferrari_canny_L1_synthetic():
     forces = 2 * (np.random.rand(3, dim) - 0.5)
     torques = 2 * (np.random.rand(3, dim) - 0.5)
     normal = 2 * (np.random.rand(3,1) - 0.5)
-    
+
     start_time = time.clock()
     fc = PointGraspMetrics3D.ferrari_canny_L1(forces, torques, normal, soft_fingers=True)
     end_time = time.clock()
@@ -244,7 +268,7 @@ def test_ferrari_canny_L1_synthetic():
 
 def test_quality_metrics():
     np.random.seed(100)
-    
+
     mesh_file_name = 'data/test/meshes/Co_clean.obj'
     sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
 
@@ -261,7 +285,7 @@ def test_quality_metrics():
         grasp_axis = np.array([0, 1, 0])
         grasp_width = 0.1
         grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
-    
+
         qualities = []
         metrics = ['force_closure', 'min_singular', 'wrench_volume', 'grasp_isotropy', 'ferrari_canny_L1']
         for metric in metrics:
@@ -277,7 +301,7 @@ def test_quality_metrics():
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.ERROR)
-#    test_gurobi_qp()
-#    test_ferrari_canny_L1_synthetic()
-    test_quality_metrics()
- 
+    test_gurobi_qp()
+    test_cvxopt_qp()
+    # test_ferrari_canny_L1_synthetic()
+    # test_quality_metrics()
