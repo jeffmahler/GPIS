@@ -253,7 +253,7 @@ def test_ferrari_canny_L1_synthetic():
     print 'FC Quality: %f' %(fc)
     print 'Computing FC took %f sec' %(fc_comp_time)
 
-def test_quality_metrics():
+def test_quality_metrics(vis=True):
     np.random.seed(100)
 
     mesh_file_name = 'data/test/meshes/Co_clean.obj'
@@ -280,15 +280,20 @@ def test_quality_metrics():
             qualities.append(q)
             print 'Grasp quality according to %s: %f' %(metric, q)
 
-        grasp.visualize(graspable)
-        graspable.visualize()
-        mv.show()
+        if vis:
+            grasp.visualize(graspable)
+            graspable.visualize()
+            mv.show()
 
     IPython.embed()
+
+
+# TODO: find a way to log output?
+cvx.solvers.options['show_progress'] = False
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.ERROR)
     # test_gurobi_qp()
     test_cvxopt_qp()
     # test_ferrari_canny_L1_synthetic()
-    # test_quality_metrics()
+    # test_quality_metrics(vis=False)
