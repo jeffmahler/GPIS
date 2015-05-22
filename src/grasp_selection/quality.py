@@ -1,4 +1,3 @@
-import gurobipy as gb
 import cvxopt as cvx
 import numpy as np
 import pyhull.convex_hull as cvh
@@ -173,34 +172,22 @@ class PointGraspMetrics3D:
 
         # create alpha weights for vertices of facet
         G = facet.T.dot(facet)
-        G = G + eps * np.eye(G.shape[0])
-        m = gb.Model("qp")
-        m.params.OutputFlag = 0
-        m.modelSense = gb.GRB.MINIMIZE
+        grasp_matrix = G + eps * np.eye(G.shape[0])
 
-        alpha = [m.addVar(name="m"+str(v)) for v in range(dim)]
-        alpha = np.array(alpha)
-        m.update()
+        # Solve QP to minimize .5 x'Px + q'x subject to Gx <= h, Ax = b
+        P = cvx.matrix(2 * grasp_matrix)   # quadratic cost for Euclidean dist
+        q = cvx.matrix(np.zeros((dim, 1)))
+        G = cvx.matrix(-np.eye(dim))       # greater than zero constraint
+        h = cvx.matrix(np.zeros((dim, 1)))
+        A = cvx.matrix(np.ones((1, dim)))  # sum constraint to enforce convex
+        b = cvx.matrix(np.ones(1))         # combinations of vertices
+        sol = cvx.solvers.qp(P, q, G, h, A, b)
 
-        # quadratic cost for Euclidean distance
-        obj = alpha.T.dot(G).dot(alpha)
-        m.setObjective(obj)
-
-        # sum constraint to enforce convex combinations of vertices
-        ones_v = np.ones(dim)
-        cvx_const = ones_v.T.dot(alpha)
-        m.addConstr(cvx_const, gb.GRB.EQUAL, 1.0, "c0")
-
-        # greater than zero constraint
-        for i in range(dim):
-            m.addConstr(alpha[i], gb.GRB.GREATER_EQUAL, 0.0)
-
-        # solve objective
-        m.optimize()
-        min_norm = obj.getValue()
-        return min_norm
+        min_norm = sol['primal objective']
+        return abs(min_norm)
 
 def test_gurobi_qp():
+    import gurobipy as gb
     np.random.seed(100)
     dim = 20
     forces = 2 * (np.random.rand(3, dim) - 0.5)
@@ -227,8 +214,8 @@ def test_gurobi_qp():
 
     m.optimize()
     for v in m.getVars():
-        print('Var %s: %f'%(v.varName, v.x))
-    print('Objective: %f'%(obj.getValue()))
+        print('Var {}: {}'.format(v.varName, v.x))
+    print('Objective: {}'.format(obj.getValue()))
 
 def test_cvxopt_qp():
     np.random.seed(100)
@@ -241,16 +228,16 @@ def test_cvxopt_qp():
 
     # Minimizes .5 x'Px + q'x subject to Gx <= h, Ax = b
     P = cvx.matrix(2 * grasp_matrix)
-    q = cvx.matrix(np.zeros(dim))
+    q = cvx.matrix(np.zeros((dim, 1)))
     G = cvx.matrix(-np.eye(dim))
-    h = cvx.matrix(np.zeros(dim))
-    A = cvx.matrix(np.ones(dim)).T
+    h = cvx.matrix(np.zeros((dim, 1)))
+    A = cvx.matrix(np.ones((1, dim)))
     b = cvx.matrix(np.ones(1))
 
     sol = cvx.solvers.qp(P, q, G, h, A, b)
     for i, v in enumerate(sol['x']):
-        print('Var m%s: %f'%(i, v))
-    print('Objective: %f'%(sol['primal objective']))
+        print('Var m{}: {}'.format(i, v))
+    print('Objective: {}'.format(sol['primal objective']))
 
 def test_ferrari_canny_L1_synthetic():
     np.random.seed(100)
@@ -301,7 +288,7 @@ def test_quality_metrics():
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.ERROR)
-    test_gurobi_qp()
+    # test_gurobi_qp()
     test_cvxopt_qp()
     # test_ferrari_canny_L1_synthetic()
     # test_quality_metrics()
