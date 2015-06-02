@@ -128,7 +128,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         # find contacts
         if vis:
-            plt.cla()
+            plt.clf()
+            h = plt.gcf()
+            plt.ion()
             obj.sdf.scatter()
 
         c1_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis=vis)
@@ -138,7 +140,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.set_xlim3d(0, obj.sdf.dims_[0])
             ax.set_ylim3d(0, obj.sdf.dims_[1])
             ax.set_zlim3d(0, obj.sdf.dims_[2])
-            plt.show(block=False)
+            plt.draw()
 
         contacts_found = c1_found and c2_found
         return contacts_found, np.array([c1_world, c2_world])
@@ -227,7 +229,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
     def transform(self, tf, theta_res = 0):
         """
-        Generates a set of grasps in the object frame of reference.
+        Generates a set of grasps in the given frame of reference.
         Since parallel-jaw grasps have 5 DOF we discretize the rotation about the orthogonal
         direction and return grasps approaching along those directions
         Params:
@@ -334,7 +336,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             plt.draw()
         if not contact1_found or not contact2_found:
             logging.warning('No contacts found for grasp')
-            return None
+            return None, None
 
         # create grasp
         grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c1_world, c2_world)
@@ -355,7 +357,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             mv.quiver3d(c2_world[0] + v[0], c2_world[1] + v[1], c2_world[2] + v[2], -v[0], -v[1], -v[2], scale_factor=1.0,
                         mode='arrow', line_width=line_width)
 
-    def to_json(self):
+    def to_json(self, quality=0, method='PFC'):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
         gripper_pose = self.gripper_pose()
         gripper_position = gripper_pose.position
@@ -379,8 +381,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
             },
             'frame': 'gripper_l_tool_frame', # ?
             'reference_frame': 'object',
-            'quality': 0,
-            'metric': 'PFC',
+            'quality': quality,
+            'metric': method,
         }
 
 def test_find_contacts():
@@ -454,5 +456,5 @@ def test_to_json():
 
 if __name__ == '__main__':
     test_find_contacts()
-    test_grasp_from_contacts()
-    test_to_json()
+#    test_grasp_from_contacts()
+#    test_to_json()
