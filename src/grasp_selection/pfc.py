@@ -7,6 +7,7 @@ import time
 
 import scipy.linalg
 import scipy.stats
+import sklearn.cluster
 
 import antipodal_grasp_sampler as ags
 import grasp as gr
@@ -111,6 +112,10 @@ class ParallelJawGraspGaussian:
         self.prealloc_samples_ = []
         for i in range(self.num_prealloc_samples_):
             self.prealloc_samples_.append(self.sample())
+    
+    @property
+    def grasp(self):
+        return self.grasp_
 
     def sample(self, size=1):
         samples = []
@@ -149,34 +154,85 @@ class ForceClosureRV:
         self.obj_rv_ = obj_rv
         self.friction_coef_rv_ = friction_coef_rv # scipy stat rv
 
-        self.parse_config(config)
+        self._parse_config(config)
         self.sample_count_ = 0
 
-    def parse_config(self, config):
+    def _parse_config(self, config):
         self.num_cone_faces_ = config['num_cone_faces']
+
+    @property
+    def grasp(self):
+        return self.grasp_rv_.grasp
 
     def sample_success(self):
         # sample grasp
+        cur_time = time.clock()
         grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
+        grasp_time = time.clock()
 
         # sample object
         obj_sample = self.obj_rv_.rvs(size=1, iteration=self.sample_count_)
+        obj_time = time.clock()
 
         # sample friction cone
         friction_coef_sample = self.friction_coef_rv_.rvs(size=1)
+        friction_time = time.clock()
 
-        """
-        self.obj_rv_.obj_.sdf.scatter()
-        plt.figure()
-        obj_sample.sdf.scatter()
-        plt.show()
-        IPython.embed()
-        """
+        logging.info('Grasp sample time %f'%(grasp_time - cur_time))
+        logging.info('Obj sample time %f'%(obj_time - grasp_time))
+        logging.info('Friction sample time %f'%(friction_time - obj_time))
+
         # compute force closure
         fc = pgq.PointGraspMetrics3D.grasp_quality(grasp_sample, obj_sample, "force_closure", friction_coef = friction_coef_sample,
                                                    num_cone_faces = self.num_cone_faces_, soft_fingers = True)
         self.sample_count_ = self.sample_count_ + 1
         return fc
+
+def cartesian_to_spherical(x):
+    v = x[0]**2 + x[1]**2
+    r = np.sqrt(v + x[2]**2)               # r
+    elev = np.arctan2(x[2], np.sqrt(v))     # theta
+    az = np.arctan2(x[1], x[0])                           # phi
+    return r, elev, az
+
+def space_partition_grasps(grasps, config):
+    """ Spatially partition grasps """
+    # setup variables
+    num_grasps = len(grasps)
+    num_clusters = config['num_grasp_clusters']
+
+    # no clustering if too few grasps
+    if num_grasps < num_clusters:
+        return [[grasp] for grasp in grasps]
+
+    # create grasp features
+    grasp_features = np.zeros([num_grasps, 5])
+    i = 0
+    for grasp in grasps:
+        grasp_features[i, :3] = grasp.center
+
+        r, elev, az = cartesian_to_spherical(grasp.axis)
+        grasp_features[i, 3] = az
+        grasp_features[i, 4] = elev
+        i = i+1
+
+    # whiten
+    Sigma = np.cov(grasp_features.T)
+    Sigma_sqrt = scipy.linalg.sqrtm(Sigma)
+    grasp_features_whitened = np.linalg.inv(Sigma_sqrt).dot(grasp_features.T)
+    
+    # run kmeans
+    km = sklearn.cluster.KMeans(n_clusters=num_clusters)
+    labels = km.fit_predict(grasp_features_whitened.T)
+
+    # partition grasps into bins
+    labels_grasps = zip(labels, grasps)
+    sorted_labels_grasps = sorted(labels_grasps, key=lambda g: g[0])
+    grasp_bins = [[] for i in range(num_clusters)]
+    for i in range(len(sorted_labels_grasps)):
+        grasp_bins[sorted_labels_grasps[i][0]].append(sorted_labels_grasps[i][1])
+
+    return grasp_bins
 
 def plot_value_vs_time_beta_bernoulli(result, candidate_true_p, true_max=None, color='blue'):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
@@ -202,7 +258,7 @@ def test_antipodal_grasp_thompson():
     of = obj_file.ObjFile(mesh_name)
     m = of.read()
 
-    graspable = go.GraspableObject3D(sdf_3d, mesh=m)
+    graspable = go.GraspableObject3D(sdf_3d, mesh=m, model_name=mesh_name)
 
     config = {
         'grasp_width': 0.1,
@@ -210,7 +266,7 @@ def test_antipodal_grasp_thompson():
         'num_cone_faces': 8,
         'grasp_samples_per_surface_point': 4,
         'dir_prior': 1.0,
-        'alpha_thresh': np.pi / 32,
+        'alpha_thresh_div': 32,
         'rho_thresh': 0.75, # as pct of object max moment
         'vis_antipodal': False,
         'min_num_grasps': 20,
@@ -223,7 +279,9 @@ def test_antipodal_grasp_thompson():
         'sigma_rot_obj': 0.1,
         'sigma_scale_obj': 0.1,
         'num_prealloc_obj_samples': 100,
-        'num_prealloc_grasp_samples': 0
+        'num_prealloc_grasp_samples': 0,
+        'min_num_collision_free_grasps': 10,
+        'grasp_theta_res': 1
     }
     sampler = ags.AntipodalGraspSampler(config)
 
@@ -243,24 +301,25 @@ def test_antipodal_grasp_thompson():
         grasp_rv = ParallelJawGraspGaussian(grasp, config)
         candidates.append(ForceClosureRV(grasp_rv, graspable_rv, f_rv, config))
 
-    IPython.embed()
     objective = objectives.RandomBinaryObjective()
 
     # run bandits
     ua = das.UniformAllocationMean(objective, candidates)
-    ua_result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(10000), snapshot_rate = 100)
+    ua_result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(100), snapshot_rate = 100)
+    logging.info('Uniform allocation took %f sec' %(ua_result.total_time))
 
     ts = das.ThompsonSampling(objective, candidates)
-    ts_result = ts.solve(termination_condition = tc.MaxIterTerminationCondition(1000), snapshot_rate = 100)
+    ts_result = ts.solve(termination_condition = tc.MaxIterTerminationCondition(100), snapshot_rate = 100)
+    logging.info('Thompson sampling took %f sec' %(ts_result.total_time))
 
     true_means = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+    IPython.embed()
 
     # plot results
     plt.figure()
     plot_value_vs_time_beta_bernoulli(ua_result, true_means, color='red')
     plot_value_vs_time_beta_bernoulli(ts_result, true_means, color='blue')
     plt.show()
-    IPython.embed()
 
     das.plot_num_pulls_beta_bernoulli(ua_result)
     plt.title('Observations Per Variable for Uniform allocation')    
