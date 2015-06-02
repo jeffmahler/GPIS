@@ -5,7 +5,7 @@ Author : Jeff Mahler
 """
 import argparse
 import gc
-import logging
+import logging as log
 import math
 import numpy as np
 import os

@@ -1,8 +1,8 @@
 # Basic yaml configuration file for labelling grasps in the grasp db
 
 # CORE PARAMS
-root_dir: /home/jmahler/jeff_working/GPIS
-database_dir: /mnt/terastation/shape_data/MASTER_DB_v0
+root_dir: /home/brian/GPIS
+database_dir: /home/brian/data
 datasets:
   - amazon_picking_challenge
 
