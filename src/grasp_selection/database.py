@@ -1,5 +1,6 @@
 import json
 import logging
+import numbers
 import numpy as np
 import os
 import sys
@@ -101,7 +102,10 @@ class Dataset:
         return file_root + '.json'
 
     def read_datum(self, key):
-        """ Read in the datapoint corresponding to given key"""
+        """ Read in the graspable object 3d corresponding to given key"""
+        if key not in self.data_keys_:
+            raise ValueError('Key not found in dataset')
+
         # get file roots
         file_root = os.path.join(self.dataset_root_dir_, key)
         sdf_filename = Dataset.sdf_filename(file_root)
@@ -114,7 +118,7 @@ class Dataset:
         of = obj_file.ObjFile(obj_filename)
         mesh = of.read()
 
-        return go.GraspableObject3D(sdf, mesh=mesh, key=key)
+        return go.GraspableObject3D(sdf, mesh=mesh, key=key, model_name=obj_filename)
 
     def save_grasps(self, graspable, grasps):
         """Saves a list of grasps in the database.
@@ -134,14 +138,25 @@ class Dataset:
         grasp_filename = Dataset.json_filename(file_root)
         # TODO: what should happen if grasp_filename already exists?
         with open(grasp_filename, 'w') as f:
-            json.dump(graspable_dict, f,
+            json.dump(grasps, f,
                       sort_keys=True, indent=4, separators=(',', ': '))
+
+    def __getitem__(self, index):
+        """ Index a particular object in the dataset """
+        if isinstance(index, numbers.Number):
+            if index < 0 or index >= len(self.data_keys_):
+                raise ValueError('Index out of bounds. Dataset contains %d objects' %(len(self.data_keys_)))
+            obj = self.read_datum(self.data_keys_[index])
+            return obj
+        elif isinstance(index, str):
+            obj = self.read_datum(index)
+            return obj
 
     def __iter__(self):
         """ Generate iterator """
         self.iter_count_ = 0 # NOT THREAD SAFE!
         return self
-
+    
     def next(self):
         """ Read the next object file in the list """
         if self.iter_count_ >= len(self.data_keys_):

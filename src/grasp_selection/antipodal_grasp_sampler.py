@@ -52,10 +52,11 @@ class AntipodalGraspSampler(object):
         self.num_cone_faces = config['num_cone_faces']
         self.num_samples = config['grasp_samples_per_surface_point']
         self.dir_prior = config['dir_prior']
-        self.alpha_thresh = config['alpha_thresh'] * np.pi
+        self.alpha_thresh = 2 * np.pi / config['alpha_thresh_div']
         self.rho_thresh = config['rho_thresh']
         self.min_num_grasps = config['min_num_grasps']
-        self.theta_res = config['grasp_theta_res'] * np.pi
+        self.min_num_collision_free = config['min_num_collision_free_grasps']
+        self.theta_res = 2 * np.pi * config['grasp_theta_res']
         self.alpha_inc = config['alpha_inc']
         self.rho_inc = config['rho_inc']
 
@@ -142,7 +143,13 @@ class AntipodalGraspSampler(object):
 
                     # start searching for contacts
                     grasp, x2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
+
+                    # make sure grasp is wide enough
+                    if grasp is None or x2 is None or np.linalg.norm(x1 - x2) < 0.02:
+                        continue
+                    
                     v_true = grasp.axis
+
 
                     # compute friction cone for contact 2
                     cone_succeeded, cone2, n2 = graspable.contact_friction_cone(x2, num_cone_faces = self.num_cone_faces,
@@ -188,9 +195,10 @@ class AntipodalGraspSampler(object):
 
         # go back through grasps and threshold            
         grasps = []
+        pr2_grasps = []
         alpha_thresh = self.alpha_thresh
         rho_thresh = self.rho_thresh * graspable.sdf.max_dim()
-        while len(grasps) < self.min_num_grasps:
+        while len(grasps) < self.min_num_grasps and len(pr2_grasps) < self.min_num_collision_free and alpha_thresh < np.pi / 2:
             # prune grasps above thresholds
             grasps = []
             pr2_grasps = []
@@ -198,25 +206,25 @@ class AntipodalGraspSampler(object):
                 if max(ap_grasp.alpha1, ap_grasp.alpha2) < alpha_thresh and \
                         max(ap_grasp.rho1, ap_grasp.rho2) < rho_thresh:
                     # convert grasps to PR2 gripper poses
-                    grasps.append(ap_grasp.grasp)
                     rotated_grasps = ap_grasp.grasp.transform(graspable.tf, self.theta_res)
-                    pr2_grasps.extend(rotated_grasps)
+                    rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step = True)
 
-                    """
-                    ap_grasp.grasp.close_fingers(graspable, vis = True)
-                    grasp_checker.prune_grasps_in_collision(rotated_grasps, vis = True, auto_step = True, close_fingers = True)
-                    IPython.embed()
-                    """
+                    # only add grasp if at least 1 is collision free
+                    if len(rotated_grasps) > 0:
+                        grasps.append(ap_grasp.grasp)
+                        pr2_grasps.extend(rotated_grasps)
+
 
             # prune grasps in collision (TODO)
-
+#            pr2_grasps = grasp_checker.prune_grasps_in_collision(graspable, pr2_grasps, auto_step = True)
+        
             # update alpha and rho thresholds
             alpha_thresh = alpha_thresh * self.alpha_inc
-            rho_thresh = alpha_thresh * self.rho_inc
+            rho_thresh = rho_thresh * self.rho_inc
 
-        # display pr2 grasps - not currently used
-        pr2_grasps = grasp_checker.prune_grasps_in_collision(graspable, pr2_grasps, auto_step = True)
-    
+        logging.info('Found %d antipodal grasps' %(len(grasps)))
+#        for grasp in grasps:
+#            grasp.close_fingers(graspable, vis=True)
         """
         for grasp in grasps:
             q = pgq.PointGraspMetrics3D.grasp_quality(grasp, graspable, "force_closure", soft_fingers = True)

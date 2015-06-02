@@ -74,7 +74,7 @@ def label_pfc(obj, dataset, config):
     i = 0
     for grasp in object_grasps:
         rotated_grasps = grasp.transform(obj.tf, theta_res)
-        rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False) 
+        rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay = 1) 
         pr2_grasps.extend(rotated_grasps)
         pr2_grasp_qualities.extend([grasp_qualities[i]] * len(rotated_grasps))
         i = i+1                    
@@ -102,5 +102,6 @@ if __name__ == '__main__':
     for dataset in database.datasets:
         logging.info('Labelling dataset %s' %(dataset.name))
         for obj in dataset:
+#            obj = dataset[2]#['elmers_washable_no_run_school_glue']
             logging.info('Labelling object %s' %(obj.key))
             label_pfc(obj, dataset, config)
