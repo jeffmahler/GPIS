@@ -96,7 +96,7 @@ class ExperimentConfig(object):
         try:
             retval = self.config[key]
         except KeyError:
-            log.warning('Key %s does not exist. Returning None.' %(key))
+            logging.warning('Key %s does not exist. Returning None.' %(key))
             return None
         return retval
 
@@ -132,7 +132,7 @@ class ExperimentConfig(object):
                 template_pairs  = self.templates[k][TEMPLATE_KEY]
                 self.__fill_template(source_filename, out_filename, template_pairs)
             except KeyError:
-                log.warning('Could not parse template block of configuration file.')
+                logging.warning('Could not parse template block of configuration file.')
 
     def __fill_template(self, template_filename, out_filename, template_pairs):
         """
@@ -145,11 +145,11 @@ class ExperimentConfig(object):
 
         # check for existence of files, notify user
         if not os.path.exists(template_filename_path):
-            log.warning('Template file %s does not exist' %(template_filename_path))
+            logging.warning('Template file %s does not exist' %(template_filename_path))
             return False
 
         if os.path.exists(out_filename_path):
-            log.warning('Output file %s will be overwritten' %(out_filename_path))
+            logging.warning('Output file %s will be overwritten' %(out_filename_path))
 
         replacements = '\''
         for (t, r) in template_pairs.items():
@@ -164,7 +164,7 @@ class ExperimentConfig(object):
         replacements += '\''
 
         replace_command = TEMPLATE_REPLACE_COMMAND %(replacements, template_filename_path, out_filename_path)
-        log.info('Command: %s' %(replace_command))
+        logging.info('Command: %s' %(replace_command))
         os.system(replace_command)
         shutil.copymode(template_filename_path, out_filename_path) #copy over permission
         return True
@@ -177,7 +177,7 @@ class ExperimentConfig(object):
         try:
             leveldbs = self.config[LEVELDB_KEY]
         except KeyError:
-            log.warning('Cannot create leveldbs - none specified in configuration')
+            logging.warning('Cannot create leveldbs - none specified in configuration')
             return False
 
         for k in leveldbs:
@@ -189,7 +189,7 @@ class ExperimentConfig(object):
                 sample = leveldbs[k][SAMPLE_KEY]
                 self.__create_leveldb(script, data, db, num, sample)
             except KeyError:
-                log.warning('Could not parse leveldb block of configuration file.')
+                logging.warning('Could not parse leveldb block of configuration file.')
 
     def __create_leveldb(self, script, data, database_name, num_to_convert, sample):
         """
@@ -213,15 +213,15 @@ class ExperimentConfig(object):
 
         # remove old leveldbs
         if os.path.exists(data_database_path):
-            log.warning('Database %s will be overwritten' %(data_database_path))
+            logging.warning('Database %s will be overwritten' %(data_database_path))
             shutil.rmtree(data_database_path)
 
         if os.path.exists(tar_database_path):
-            log.warning('Database %s will be overwritten' %(tar_database_path))
+            logging.warning('Database %s will be overwritten' %(tar_database_path))
             shutil.rmtree(tar_database_path)
 
         if os.path.exists(state_database_path):
-            log.warning('Database %s will be overwritten' %(state_database_path))
+            logging.warning('Database %s will be overwritten' %(state_database_path))
             shutil.rmtree(state_database_path)
 
         caffe_root_patched = caffe_root
@@ -231,7 +231,7 @@ class ExperimentConfig(object):
         # add 1 to num_to_convert because of the way the file is structured
         # TODO: fix and remove +1
         data_to_leveldb_command = TEMPLATE_LEVELDB_COMMAND %(leveldb_os_call, caffe_root_patched, data_path, database_path, (num_to_convert+1), sample)
-        log.info('Command: %s' %(data_to_leveldb_command))
+        logging.info('Command: %s' %(data_to_leveldb_command))
         os.system(data_to_leveldb_command)
 
 def test_load():
