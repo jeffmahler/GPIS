@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-FORMATS = {'.obj', '.skp', '.ply', '.off', '.3ds'}
+FORMATS = {'.obj', '.skp', '.ply', '.off', '.3ds', '.sdf', '.db'}
 
 BUCKET_NAME = 'dex-net'
 ROOT_DIR = '/mnt/terastation/shape_data/MASTER_DB_v0'
@@ -16,5 +16,5 @@ if __name__ == '__main__':
             format = os.path.splitext(abs_path)[1]
             if format in FORMATS:
                 command = ['gsutil', 'cp', abs_path, remote]
-                subprocess.call(command)
                 print(' '.join(command))
+                subprocess.call(command)
