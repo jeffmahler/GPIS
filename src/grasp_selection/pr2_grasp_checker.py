@@ -10,6 +10,7 @@ import time
 import matplotlib.pyplot as plt
 import mayavi.mlab as mv
 import numpy as np
+
 import openravepy as rave
 
 #from message_wrappers import GraspWrapper
@@ -251,11 +252,7 @@ def test_grasp_collisions():
     graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m, model_name=mesh_name)
 
     rave.raveSetDebugLevel(rave.DebugLevel.Error)
-    e = rave.Environment()
-    e.Load(PR2_MODEL_FILE)
-    e.SetViewer("qtcoin")
-    r = e.GetRobots()[0]
-    grasp_checker = OpenRaveGraspChecker(e, r)
+    grasp_checker = OpenRaveGraspChecker()
 
     center = np.array([-0.01837182,  0.01218656,  0.03844461])
     axis = np.array([-0.94212793,  0.31667146, -0.11006428]) 
@@ -263,7 +260,7 @@ def test_grasp_collisions():
     grasp = g.ParallelJawPtGrasp3D(center, axis, 0.1)
 
     grasp.close_fingers(graspable, vis = True)
-    grasp_checker.prune_grasps_in_collision(graspable, [grasp], auto_step=True, close_fingers=True)
+    grasp_checker.prune_grasps_in_collision(graspable, [grasp], auto_step=True, close_fingers=True, delay=30)
 
 def test_grasp_poses():
     sdf_3d_file_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/munchkin_white_hot_duck_bath_toy.sdf'
@@ -285,5 +282,5 @@ def test_grasp_poses():
     rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step = True)
 
 if __name__ == "__main__":
-#    test_grasp_collisions()
-    test_grasp_poses()
+    test_grasp_collisions()
+#    test_grasp_poses()

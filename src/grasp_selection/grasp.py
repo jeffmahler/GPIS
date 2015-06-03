@@ -117,7 +117,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         # compute num samples to use based on sdf resolution
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(self.grasp_width_)
-        num_samples = int(2 * grasp_width_grid) # at least 2 samples per grid
+        num_samples = int(2 * grasp_width_grid) # at least 1 sample per grid
 
         # get grasp endpoints in sdf frame
         g1_world, g2_world = self.endpoints()
@@ -179,10 +179,19 @@ class ParallelJawPtGrasp3D(PointGrasp):
         pt_zc = None
         pt_zc_world = None
         num_pts = len(line_of_action)
+        sdf_here = 0
+        sdf_before = 0
+        pt_grid = None
+        pt_before = None
 
         # step along line of action, get points on surface when possible
         i = 0
         while i < num_pts and not contact_found:
+            # update loop vars
+            pt_before_before = pt_before
+            pt_before = pt_grid
+            sdf_before_before = sdf_before
+            sdf_before = sdf_here
             pt_grid = line_of_action[i]
 
             # visualize
@@ -204,15 +213,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_grid, sdf_here, pt_after, sdf_after, pt_after_after, sdf_after_after)
 
                 elif i == len(line_of_action) - 1:
-                    pt_before = line_of_action[i-1]
-                    sdf_before = obj.sdf[pt_before]
-                    pt_before_before = line_of_action[i-2]
-                    sdf_before_before = obj.sdf[pt_before_before]
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before_before, sdf_before_before, pt_before, sdf_before, pt_grid, sdf_here, )
 
                 else:
-                    pt_before = line_of_action[i-1]
-                    sdf_before = obj.sdf[pt_before]
                     pt_after = line_of_action[i+1]
                     sdf_after = obj.sdf[pt_after]
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before, sdf_before, pt_grid, sdf_here, pt_after, sdf_after)
@@ -399,6 +402,7 @@ def test_find_contacts():
     obj_3d = go.GraspableObject3D(sdf_3d)
     grasp = ParallelJawPtGrasp3D(test_grasp_center, test_grasp_axis, test_grasp_width)
     contact_found, contacts = grasp.close_fingers(obj_3d, vis=True)
+    plt.ioff()
     plt.show()
 
     assert(contact_found)

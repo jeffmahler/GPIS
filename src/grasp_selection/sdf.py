@@ -208,6 +208,15 @@ class Sdf:
         return self.gradients_
 
 class Sdf3D(Sdf):
+    # static indexing vars
+    num_interpolants = 8
+    min_coords_x = [0, 2, 3, 5]
+    max_coords_x = [1, 4, 6, 7]
+    min_coords_y = [0, 1, 3, 6]
+    max_coords_y = [2, 4, 5, 7]
+    min_coords_z = [0, 1, 2, 5]
+    max_coords_z = [3, 5 ,6, 7]
+
     def __init__(self, sdf_data, origin, resolution, tf = stf.SimilarityTransform3D(tfx.identity_tf(), scale = 1.0), frame = None, use_abs = True):
         self.data_ = sdf_data
         self.origin_ = origin
@@ -217,6 +226,8 @@ class Sdf3D(Sdf):
         # set up surface params
         self.surface_thresh_ = self.resolution_ * np.sqrt(2) / 2 # resolution is max dist from surface when surf is orthogonal to diagonal grid cells
         self.center_ = np.array([(self.dims_[0]-1) / 2, (self.dims_[1]-1) / 2, (self.dims_[2]-1) / 2])
+        self.points_buf_ = np.zeros([Sdf3D.num_interpolants, 3], dtype=np.int)
+        self.coords_buf_ = np.zeros([3,])
 
         # set up tf
         self.tf_ = tf
@@ -226,6 +237,7 @@ class Sdf3D(Sdf):
         R_sdf_mesh[0,0] = 1#-1
         R_sdf_mesh[2,2] = 1#-1
         self.tf_grid_sdf_ = stf.SimilarityTransform3D(tfx.canonical.CanonicalTransform(R_sdf_mesh, -R_sdf_mesh.T.dot(self.center_)), 1.0 / self.resolution_)
+        self.tf_sdf_grid_ = self.tf_grid_sdf_.inverse()
 
         # optionally use only the absolute values (useful for non-closed meshes in 3D)
         if use_abs:
@@ -244,11 +256,14 @@ class Sdf3D(Sdf):
         self.pts_ = np.c_[x_ind.flatten().T, np.c_[y_ind.flatten().T, z_ind.flatten().T]]
 
     def __getitem__(self, coords):
+        return self.signed_distance(coords)
+        
+    def signed_distance(self, coords):
         """
         Returns the signed distance at the given coordinates, interpolating if necessary
         Params: numpy 3 array
         Returns:
-            float: the signed distance and the given coors (interpolated)
+            float: the signed distance and the given coords (interpolated)
         """
         if len(coords) != 3:
             raise IndexError('Indexing must be 3 dimensional')
@@ -258,45 +273,48 @@ class Sdf3D(Sdf):
             logging.debug('Out of bounds access. Snapping to SDF dims')
 
         # snap to grid dims
-        new_coords = np.zeros([3,])
-        new_coords[0] = max(0, min(coords[0], self.dims_[0] - 1))
-        new_coords[1] = max(0, min(coords[1], self.dims_[1] - 1))
-        new_coords[2] = max(0, min(coords[2], self.dims_[2] - 1))
+        self.coords_buf_[0] = max(0, min(coords[0], self.dims_[0] - 1))
+        self.coords_buf_[1] = max(0, min(coords[1], self.dims_[1] - 1))
+        self.coords_buf_[2] = max(0, min(coords[2], self.dims_[2] - 1))
 
         # regular indexing if integers
         if type(coords[0]) is int and type(coords[1]) is int and type(coords[2]) is int:
-            new_coords = new_coords.astype(np.int)
-            return self.data_[new_coords[0], new_coords[1], new_coords[2]]
+            self.coords_buf_ = self.coords_buf_.astype(np.int)
+            return self.data_[self.coords_buf_[0], self.coords_buf_[1], self.coords_buf_[2]]
 
         # otherwise interpolate
-        min_coords = np.floor(new_coords)
-        max_coords = np.ceil(new_coords)
-        points = np.array([[min_coords[0], min_coords[1], min_coords[2]],
-                           [max_coords[0], min_coords[1], min_coords[2]],
-                           [min_coords[0], max_coords[1], min_coords[2]],
-                           [min_coords[0], min_coords[1], max_coords[2]],
-                           [max_coords[0], max_coords[1], min_coords[2]],
-                           [min_coords[0], max_coords[1], max_coords[2]],
-                           [max_coords[0], min_coords[1], max_coords[2]],
-                           [max_coords[0], max_coords[1], max_coords[2]]])
+        min_coords = np.floor(self.coords_buf_)
+        max_coords = np.ceil(self.coords_buf_)
+        self.points_buf_[Sdf3D.min_coords_x, 0] = min_coords[0]
+        self.points_buf_[Sdf3D.max_coords_x, 0] = min_coords[0]
+        self.points_buf_[Sdf3D.min_coords_y, 1] = min_coords[1]
+        self.points_buf_[Sdf3D.max_coords_y, 1] = max_coords[1]
+        self.points_buf_[Sdf3D.min_coords_z, 2] = min_coords[2]
+        self.points_buf_[Sdf3D.max_coords_z, 2] = max_coords[2]
 
-        num_interpolants = 8
-        values = np.zeros([num_interpolants,])
-        weights = np.ones([num_interpolants,])
-        for i in range(num_interpolants):
-            p = points[i,:].astype(np.int)
-            values[i] = self.data_[p[0], p[1], p[2]]
-            dist = np.linalg.norm(new_coords - p.T)
-            if dist > 0:
-                weights[i] = 1.0 / dist
+        # interpolate points
+        sd = 0.0
+        w_sum = 0.0
+        for i in range(Sdf3D.num_interpolants):
+            p = self.points_buf_[i,:]
+            v = self.data_[p[0], p[1], p[2]]
+            sq_dist = (self.coords_buf_[0] - p[0])**2 + (self.coords_buf_[1] - p[1])**2 + (self.coords_buf_[2] - p[2])**2
+            if sq_dist > 0:
+                w = 1.0 / sq_dist
+                w_sum = w_sum + w
+                sd = sd + w * v
+            else:
+                return v
 
-        if np.sum(weights) == 0:
-            weights = np.ones([num_interpolants,])
-        weights = weights / np.sum(weights)
-
-        return weights.dot(values)
+        return sd / w_sum
 
     def gradient(self, coords):
+        """
+        Returns the sdf gradient at the given coordinates, interpolating if necessary
+        Params: numpy 3 array
+        Returns:
+            float: the gradient and the given coords (interpolated)
+        """
         if len(coords) != 3:
             raise IndexError('Indexing must be 3 dimensional')
 
@@ -306,44 +324,43 @@ class Sdf3D(Sdf):
             todo = 1
 
         # snap to grid dims
-        new_coords = np.zeros([3,])
-        new_coords[0] = max(0, min(coords[0], self.dims_[0] - 1))
-        new_coords[1] = max(0, min(coords[1], self.dims_[1] - 1))
-        new_coords[2] = max(0, min(coords[2], self.dims_[2] - 1))
+        self.coords_buf_[0] = max(0, min(coords[0], self.dims_[0] - 1))
+        self.coords_buf_[1] = max(0, min(coords[1], self.dims_[1] - 1))
+        self.coords_buf_[2] = max(0, min(coords[2], self.dims_[2] - 1))
 
         # regular indexing if integers
         if type(coords[0]) is int and type(coords[1]) is int and type(coords[2]) is int:
-            new_coords = new_coords.astype(np.int)
-            return self.data_[new_coords[0], new_coords[1], new_coords[2]]
+            self.coords_buf_ = self.coords_buf_.astype(np.int)
+            return self.data_[self.coords_buf_[0], self.coords_buf_[1], self.coords_buf_[2]]
 
         # otherwise interpolate
-        min_coords = np.floor(new_coords)
-        max_coords = np.ceil(new_coords)
-        points = np.array([[min_coords[0], min_coords[1], min_coords[2]],
-                           [max_coords[0], min_coords[1], min_coords[2]],
-                           [min_coords[0], max_coords[1], min_coords[2]],
-                           [min_coords[0], min_coords[1], max_coords[2]],
-                           [max_coords[0], max_coords[1], min_coords[2]],
-                           [min_coords[0], max_coords[1], max_coords[2]],
-                           [max_coords[0], min_coords[1], max_coords[2]],
-                           [max_coords[0], max_coords[1], max_coords[2]]])
+        min_coords = np.floor(self.coords_buf_)
+        max_coords = np.ceil(self.coords_buf_)
+        self.points_buf_[Sdf3D.min_coords_x, 0] = min_coords[0]
+        self.points_buf_[Sdf3D.max_coords_x, 0] = min_coords[0]
+        self.points_buf_[Sdf3D.min_coords_y, 1] = min_coords[1]
+        self.points_buf_[Sdf3D.max_coords_y, 1] = max_coords[1]
+        self.points_buf_[Sdf3D.min_coords_z, 2] = min_coords[2]
+        self.points_buf_[Sdf3D.max_coords_z, 2] = max_coords[2]
 
-        num_interpolants = 8
-        values = np.zeros([num_interpolants, 3])
-        weights = np.ones([num_interpolants,])
-        for i in range(num_interpolants):
-            p = points[i,:].astype(np.int)
-            values[i, 0] = self.gradients_[0][p[0], p[1], p[2]]
-            values[i, 1] = self.gradients_[1][p[0], p[1], p[2]]
-            values[i, 2] = self.gradients_[2][p[0], p[1], p[2]]
-            dist = np.linalg.norm(new_coords - p.T)
-            if dist > 0:
-                weights[i] = 1.0 / dist
+        g = np.zeros(3)
+        gp = np.zeros(3)
+        w_sum = 0.0
+        for i in range(Sdf3D.num_interpolants):
+            p = self.points_buf_[i,:]
+            gp[0] = self.gradients_[0][p[0], p[1], p[2]]
+            gp[1] = self.gradients_[1][p[0], p[1], p[2]]
+            gp[2] = self.gradients_[2][p[0], p[1], p[2]]
+            sq_dist = (self.coords_buf_[0] - p[0])**2 + (self.coords_buf_[1] - p[1])**2 + (self.coords_buf_[2] - p[2])**2
 
-        if np.sum(weights) == 0:
-            weights = np.ones([num_interpolants,])
-        weights = weights / np.sum(weights)
-        return values.T.dot(weights)
+            if sq_dist > 0:
+                w = 1.0 / sq_dist
+                w_sum = w_sum + w
+                g = g + w * gp
+            else:
+                return gp
+
+        return g / w_sum
 
     def max_dim(self):
         """ Find the max dimension of the bounding box """
@@ -387,14 +404,14 @@ class Sdf3D(Sdf):
         num_pts = self.pts_.shape[0]
         pts_sdf = self.tf_grid_sdf_.apply(self.pts_.T)
         pts_sdf_tf = tf.apply(pts_sdf)
-        pts_grid_tf = self.tf_grid_sdf_.inverse().apply(pts_sdf_tf)
+        pts_grid_tf = self.tf_sdf_grid_.apply(pts_sdf_tf)
         pts_tf = pts_grid_tf.T
         all_points_t = time.clock()
 
         # transform the center
         origin_sdf = self.tf_grid_sdf_.apply(self.origin_)
         origin_sdf_tf = tf.apply(origin_sdf)
-        origin_tf = self.tf_grid_sdf_.inverse().apply(origin_sdf_tf)
+        origin_tf = self.tf_sdf_grid_.apply(origin_sdf_tf)
 
         # rescale the resolution
         resolution_tf = tf.scale * self.resolution_
@@ -430,7 +447,7 @@ class Sdf3D(Sdf):
 
     def transform_pt_obj_to_grid(self, x_sdf, direction = False):
         """ Converts a point in sdf coords to the grid basis. If direction then don't translate """
-        return self.tf_grid_sdf_.inverse().apply(x_sdf, direction=direction)
+        return self.tf_sdf_grid_.apply(x_sdf, direction=direction)
 
     def transform_pt_grid_to_obj(self, x_grid, direction = False):
         """ Converts a point in grid coords to the world basis. If direction then don't translate """

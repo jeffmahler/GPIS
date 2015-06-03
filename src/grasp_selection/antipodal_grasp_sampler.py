@@ -214,17 +214,11 @@ class AntipodalGraspSampler(object):
                         grasps.append(ap_grasp.grasp)
                         pr2_grasps.extend(rotated_grasps)
 
-
-            # prune grasps in collision (TODO)
-#            pr2_grasps = grasp_checker.prune_grasps_in_collision(graspable, pr2_grasps, auto_step = True)
-        
             # update alpha and rho thresholds
             alpha_thresh = alpha_thresh * self.alpha_inc
             rho_thresh = rho_thresh * self.rho_inc
 
         logging.info('Found %d antipodal grasps' %(len(grasps)))
-#        for grasp in grasps:
-#            grasp.close_fingers(graspable, vis=True)
         """
         for grasp in grasps:
             q = pgq.PointGraspMetrics3D.grasp_quality(grasp, graspable, "force_closure", soft_fingers = True)

@@ -127,7 +127,8 @@ class ParallelJawGraspGaussian:
             t = self.t_rv_.rvs(size=1)
 
             # transform object by pose
-            grasp_sample = copy.copy(self.grasp_) #gr.ParallelJawPtGrasp3D(t, v, self.grasp_.grasp_width)
+            #grasp_sample = copy.copy(self.grasp_)
+            grasp_sample = gr.ParallelJawPtGrasp3D(t, v, self.grasp_.grasp_width)
 
             samples.append(grasp_sample)
 
@@ -178,9 +179,9 @@ class ForceClosureRV:
         friction_coef_sample = self.friction_coef_rv_.rvs(size=1)
         friction_time = time.clock()
 
-        logging.info('Grasp sample time %f'%(grasp_time - cur_time))
-        logging.info('Obj sample time %f'%(obj_time - grasp_time))
-        logging.info('Friction sample time %f'%(friction_time - obj_time))
+        #logging.info('Grasp sample time %f'%(grasp_time - cur_time))
+        #logging.info('Obj sample time %f'%(obj_time - grasp_time))
+        #logging.info('Friction sample time %f'%(friction_time - obj_time))
 
         # compute force closure
         fc = pgq.PointGraspMetrics3D.grasp_quality(grasp_sample, obj_sample, "force_closure", friction_coef = friction_coef_sample,
@@ -296,8 +297,6 @@ def test_antipodal_grasp_thompson():
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
     candidates = []
     for grasp in grasps:
-        fc = pgq.PointGraspMetrics3D.grasp_quality(grasp, graspable, "force_closure", friction_coef = config['friction_coef'],
-                                                   num_cone_faces = config['num_cone_faces'], soft_fingers = True)
         grasp_rv = ParallelJawGraspGaussian(grasp, config)
         candidates.append(ForceClosureRV(grasp_rv, graspable_rv, f_rv, config))
 
@@ -313,7 +312,6 @@ def test_antipodal_grasp_thompson():
     logging.info('Thompson sampling took %f sec' %(ts_result.total_time))
 
     true_means = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
-    IPython.embed()
 
     # plot results
     plt.figure()
