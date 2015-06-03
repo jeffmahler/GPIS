@@ -17,7 +17,7 @@ import database as db
 def save_result(obj, result, output_dest):
     fname = os.path.join(output_dest, obj.key + '.out')
     with open(fname, 'w') as f:
-        f.write(result)
+        f.write(str(result))
 
 def center_of_mass(graspable):
     return list(graspable.center_of_mass_)

@@ -1,5 +1,12 @@
 # Core parameters
-root_dir: /home/brian/GPIS
-database_dir: /home/brian/data
+
+# GCE setup
+# root_dir: /home/brian/GPIS
+# database_dir: /home/brian/data
+
+# rll4 setup
+root_dir: /home/jmahler/brian/GPIS
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v0
+
 datasets:
   - amazon_picking_challenge
