@@ -109,6 +109,14 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
             terminate = termination_condition(k, cur_val = next_ind_val, prev_val = prev_ind_val, model = self.model_)            
             k = k + 1
 
+        # log final values
+        checkpt = time.clock()
+        times.append(checkpt - start_time)
+        iters.append(k)
+        iter_indices.append(next_ind)
+        iter_vals.append(next_ind_val)
+        iter_models.append(self.model_.snapshot())
+
         # log total runtime
         end_time = time.clock()
         total_duration = end_time - start_time

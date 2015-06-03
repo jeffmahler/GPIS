@@ -303,12 +303,15 @@ def test_antipodal_grasp_thompson():
     objective = objectives.RandomBinaryObjective()
 
     # run bandits
+    eps = 5e-4
+    ua_tc_list = [tc.MaxIterTerminationCondition(1000)]#, tc.ConfidenceTerminationCondition(eps)]
     ua = das.UniformAllocationMean(objective, candidates)
-    ua_result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(100), snapshot_rate = 100)
+    ua_result = ua.solve(termination_condition = tc.OrTerminationCondition(ua_tc_list), snapshot_rate = 100)
     logging.info('Uniform allocation took %f sec' %(ua_result.total_time))
 
+    ts_tc_list = [tc.MaxIterTerminationCondition(1000), tc.ConfidenceTerminationCondition(eps)]
     ts = das.ThompsonSampling(objective, candidates)
-    ts_result = ts.solve(termination_condition = tc.MaxIterTerminationCondition(100), snapshot_rate = 100)
+    ts_result = ts.solve(termination_condition = tc.OrTerminationCondition(ts_tc_list), snapshot_rate = 100)
     logging.info('Thompson sampling took %f sec' %(ts_result.total_time))
 
     true_means = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)

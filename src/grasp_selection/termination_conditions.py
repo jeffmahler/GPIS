@@ -43,7 +43,8 @@ class ConfidenceTerminationCondition(TerminationCondition):
         self.eps_ = eps
 
     def __call__(self, k, cur_val, prev_val, cur_grad = None, cur_hess = None, model = None):
-        return (model.confidence() < self.eps_)
+        max_ind, max_mean, max_var = model.max_prediction()
+        return (max_var[0] < self.eps_)
     
 class OrTerminationCondition(TerminationCondition):
     def __init__(self, term_conditions):
@@ -51,7 +52,7 @@ class OrTerminationCondition(TerminationCondition):
 
     def __call__(self, k, cur_val, prev_val, cur_grad = None, cur_hess = None, model = None):
         terminate = False
-        for term_condition in term_conditions:
+        for term_condition in self.term_conditions_:
             terminate = terminate or term_condition(k, cur_val, prev_val, cur_grad, cur_hess, model)
         return terminate
 
@@ -61,6 +62,6 @@ class AndTerminationCondition(TerminationCondition):
 
     def __call__(self, k, cur_val, prev_val, cur_grad = None, cur_hess = None, model = None):
         terminate = True
-        for term_condition in term_conditions:
+        for term_condition in self.term_conditions_:
             terminate = terminate and term_condition(k, cur_val, prev_val, cur_grad, cur_hess, model)
         return terminate
