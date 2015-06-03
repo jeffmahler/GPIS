@@ -4,7 +4,7 @@
 
 BUCKET=gs://dex-net/
 DEVICE=/dev/sdb
-TARGET=~/data
+TARGET=/home/brian/data
 
 # Create data directory and mount disk
 mkdir -p $TARGET
