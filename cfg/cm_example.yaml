@@ -1,0 +1,5 @@
+# Core parameters
+root_dir: /home/brian/GPIS
+database_dir: /home/brian/data
+datasets:
+  - amazon_picking_challenge
