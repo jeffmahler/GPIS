@@ -22,7 +22,6 @@ $CONFIG
 EOF
 
 # Run experiment
-mkdir -p $OUT_DIR
 python src/grasp_selection/cm_example.py config.yaml $OUT_DIR
 
 # Zip directory and upload to bucket

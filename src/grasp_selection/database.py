@@ -15,7 +15,7 @@ import IPython
 
 INDEX_FILE = 'index.db'
 
-class Database:
+class Database(object):
     def __init__(self, config):
         self._parse_config(config)
         self._create_datasets(config)
@@ -40,9 +40,11 @@ class Database:
     def dataset(self, dataset_name=None):
         if dataset_name is None:
             return self.datasets_.items()[0][0] # return first element
-        return self.datasets_[dataset_name]
+        for dataset in self.datasets:
+            if dataset.name == dataset_name:
+                return dataset
 
-class Dataset:
+class Dataset(object):
     def __init__(self, dataset_name, config):
         self._parse_config(config)
 
@@ -70,8 +72,10 @@ class Dataset:
         index_file = open(index_filename, 'r')
         for line in index_file.readlines():
             tokens = line.split()
-            self.data_keys_.append(tokens[0])
+            if not tokens: # ignore empty lines
+                continue
 
+            self.data_keys_.append(tokens[0])
             if len(tokens) > 1:
                 self.data_categories_.append(tokens[1])
             else:
@@ -102,11 +106,10 @@ class Dataset:
         return file_root + '.json'
 
     def read_datum(self, key):
-        """ Read in the graspable object 3d corresponding to given key"""
+        """Read in the GraspableObject3D corresponding to given key."""
         if key not in self.data_keys_:
             raise ValueError('Key not found in dataset')
 
-        # get file roots
         file_root = os.path.join(self.dataset_root_dir_, key)
         sdf_filename = Dataset.sdf_filename(file_root)
         obj_filename = Dataset.obj_filename(file_root)
@@ -167,7 +170,7 @@ class Dataset:
             self.iter_count_ = self.iter_count_ + 1
             return obj
 
-if __name__ == '__main__':
+def test_dataset():
     logging.getLogger().setLevel(logging.INFO)
     config_filename = 'cfg/basic_labelling.yaml'
     config = ec.ExperimentConfig(config_filename)
@@ -179,3 +182,6 @@ if __name__ == '__main__':
         keys.append(obj.key)
 
     assert(len(keys) == 26)
+
+if __name__ == '__main__':
+    test_dataset()

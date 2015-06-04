@@ -33,6 +33,12 @@ if __name__ == '__main__':
     # read config file
     config = ec.ExperimentConfig(args.config)
 
+    # make output directory
+    try:
+        os.makedirs(args.output_dest)
+    except os.error:
+        pass
+
     # loop through objects, finding CM for each
     database = db.Database(config)
     for dataset in database.datasets:

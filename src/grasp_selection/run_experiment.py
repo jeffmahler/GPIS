@@ -83,7 +83,7 @@ Here is the set of scripts run:
 
 Here's the output of `gcloud compute instances list`:
 
-    %(listinstances_output)s
+%(listinstances_output)s
 """
 
 def delete_resource(delete_method, *args):
@@ -201,8 +201,9 @@ def launch_experiment(args, sleep_time):
         logging.error(e)
         return
 
-    instance_console = 'https://console.developers.google.com/project/nth-clone-620/compute/' + \
-                       'instancesDetail/zones/us-central1-a/instances/%s/console#end' % instance_name
+    instance_console = ('https://console.developers.google.com/'
+                        'project/nth-clone-620/compute/instancesDetail/'
+                        'zones/us-central1-a/instances/%s/console#end') % instance_name
     logging.info('Instance is running! Check it out: %s' % instance_console)
 
     instance_completed = False
