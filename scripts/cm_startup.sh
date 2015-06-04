@@ -8,8 +8,8 @@ OUT_DIR=/home/brian/cm_out
 cd $GIT_DIR
 git pull
 
-# Mount and update data disk
-sudo bash scripts/update_data_disk.sh
+# Mount data disk
+sudo bash scripts/mount_data_disk.sh
 
 # Retrieve metadata: bucket_name, instance_name, config
 BUCKET_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/bucket_name -H "X-Google-Metadata-Request: True")
