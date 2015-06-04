@@ -16,7 +16,7 @@ datasets:
 project:        &id_project        nth-clone-620
 client_secrets: &id_client_secrets client_secrets.json
 oauth_storage:  &id_oauth_storage  oauth2.dat
-bucket:         &id_bucket         dex-net/results/cm/
+bucket:         &id_bucket         dex-net-cm
 disk_type:      &id_disk_type      PERSISTENT
 compute:
   api_version:    v1
@@ -37,5 +37,5 @@ compute:
 
 # Notification parameters ############################################
 gmail_user:     &id_gmail_user      RavenDebridement
-gmail_password: &id_gmail_password  surgical
+gmail_password: &id_gmail_password  surgicallab
 notify_email:   &id_notify_email    brian.hou@berkeley.edu

@@ -97,7 +97,7 @@ def send_notification_email(message, config, subject="Your experiment has comple
     to_emails = [notify_email] #must be a list
 
     # Prepare actual message
-    message = "From: %s\nTo: %s\nSubject: %s\n\n%s" % (from_email, ", ".join(to_emails), subject, message)
+    message = "From: %s\nTo: %s\nSubject: %s\n\n%s\n" % (from_email, ", ".join(to_emails), subject, message)
     #server = smtplib.SMTP(SERVER)
     server = smtplib.SMTP("smtp.gmail.com", 587) #or port 465 doesn't seem to work!
     server.ehlo()
@@ -106,7 +106,7 @@ def send_notification_email(message, config, subject="Your experiment has comple
     server.sendmail(from_email, to_emails, message)
     #server.quit()
     server.close()
-    print 'successfully sent the mail'
+    logging.info('successfully sent the mail')
 
 def random_string(n):
     """
@@ -191,7 +191,6 @@ def launch_experiment(args, sleep_time):
     logging.info('Instance is running! Check it out: %s' % instance_console)
 
     instance_completed = False
-    bucket_name = config['bucket']
     instance_data = '%s.tar.gz' %(instance_name)
 
     # set up service
@@ -199,7 +198,7 @@ def launch_experiment(args, sleep_time):
     while service_not_ready:
       try:
         service = discovery.build('storage', config['compute']['api_version'], http=auth_http)
-        req = service.objects().list(bucket=bucket_name)
+        req = service.objects().list(bucket=bucket)
         service_not_ready = False
       except (ValueError, Exception) as e:
         logging.info('Connection failed. Retrying...')
@@ -221,6 +220,7 @@ def launch_experiment(args, sleep_time):
         for item in items:
           if item['name'] == instance_data:
             instance_completed = True
+            logging.info('Instance completed!')
 
     # Delete the instance.
     delete_resource(gce_helper.stop_instance, instance_name)
@@ -233,11 +233,12 @@ def launch_experiment(args, sleep_time):
     instance_list = ''
     for instance in instances:
         logging.info(instance['name'])
-        instance_list += instance['name'] + '\n'
+        instance_list += '\t' + instance['name'] + '\n'
+    logging.info(instance_list)
 
     # Send the user an email
     message = """
-Your experiment %(experiment_name)s has completed.
+Your experiment %(instance_name)s has completed.
 
 Here was the config used to run the experiment:
 
@@ -250,10 +251,10 @@ Here is the set of scripts run:
 Here's the output of "gcutil listinstances":
 
 %(listinstances_output)s
-        """%dict(experiment_name=instance_name,
+        """%dict(instance_name=instance_name,
                  experiment_config=config_file,
                  script_commands=config['compute']['startup_script'],
-                 listinstances_output = instance_list)
+                 listinstances_output=instance_list)
 
     send_notification_email(message=message, config=config,
                             subject="Your experiment has completed.")
