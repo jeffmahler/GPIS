@@ -186,7 +186,7 @@ def launch_experiment(args, sleep_time):
         logging.error(e)
         return
 
-    instance_console = 'https://console.developers.google.com/project/nth-clone-620/compute/'
+    instance_console = 'https://console.developers.google.com/project/nth-clone-620/compute/' + \
                        'instancesDetail/zones/us-central1-a/instances/%s/console#end' % instance_name
     logging.info('Instance is running! Check it out: %s' % instance_console)
 
