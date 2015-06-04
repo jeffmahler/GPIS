@@ -40,11 +40,8 @@ if __name__ == '__main__':
         pass
 
     # loop through objects, finding CM for each
-    database = db.Database(config)
-    for dataset in database.datasets:
-        logging.info('Labelling dataset {}'.format(dataset.name))
-        for obj in dataset:
-            logging.info('Labelling object {}'.format(obj.key))
-
-            result = center_of_mass(obj)
-            save_result(obj, result, args.output_dest)
+    chunk = db.Chunk(config)
+    for obj in chunk:
+        logging.info('Labelling object {}'.format(obj.key))
+        result = center_of_mass(obj)
+        save_result(obj, result, args.output_dest)

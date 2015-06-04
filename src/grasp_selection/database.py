@@ -51,8 +51,6 @@ class Dataset(object):
         self.dataset_name_ = dataset_name
         self.dataset_root_dir_ = os.path.join(self.database_root_dir_, self.dataset_name_)
         self.iter_count_ = 0
-        self.data_keys_ = []
-        self.data_categories_ = []
 
         # read in filenames
         self._read_data_keys()
@@ -60,8 +58,8 @@ class Dataset(object):
     def _parse_config(self, config):
         self.database_root_dir_ = config['database_dir']
 
-    def _read_data_keys(self):
-        """ Read in all the data keys from the index """
+    def _read_data_keys(self, start=0, end=None):
+        """Read in all the data keys from start to end in the index."""
         index_filename = os.path.join(self.dataset_root_dir_, INDEX_FILE)
         if not os.path.exists(index_filename):
             raise IOError('Index file does not exist! Invalid dataset'
@@ -69,8 +67,13 @@ class Dataset(object):
 
         self.data_keys_ = []
         self.data_categories_ = []
-        index_file = open(index_filename, 'r')
-        for line in index_file.readlines():
+        index_file_lines = open(index_filename, 'r').readlines()
+        if end is None:
+            end = len(index_file_lines)
+        for i, line in enumerate(index_file_lines):
+            if not (start <= i < end):
+                continue
+
             tokens = line.split()
             if not tokens: # ignore empty lines
                 continue
@@ -169,6 +172,23 @@ class Dataset(object):
             obj = self.read_datum(self.data_keys_[self.iter_count_])
             self.iter_count_ = self.iter_count_ + 1
             return obj
+
+class Chunk(Dataset):
+    def __init__(self, config):
+        self._parse_config(config)
+
+        self.dataset_root_dir_ = os.path.join(self.database_root_dir_, config['dataset'])
+        self.iter_count_ = 0
+
+        # read in filenames
+        start = self.chunk_num_ * self.chunk_size_
+        end = (self.chunk_num_ + 1) * self.chunk_size_
+        self._read_data_keys(start, end)
+
+    def _parse_config(self, config):
+        super(Chunk, self)._parse_config(config)
+        self.chunk_size_ = config['max_chunk_size']
+        self.chunk_num_ = config['chunk_num']
 
 def test_dataset():
     logging.getLogger().setLevel(logging.INFO)
