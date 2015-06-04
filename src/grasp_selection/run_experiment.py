@@ -70,6 +70,21 @@ DELETE_ERROR = """
 Error deleting %(name)s. %(name)s might still exist; You can use
 the console (http://cloud.google.com/console) to delete %(name)s.
 """
+EMAIL_NOTIFICATION = """
+Your experiment %(instance_name)s has completed.
+
+Here was the config used to run the experiment:
+
+    %(experiment_config)s
+
+Here is the set of scripts run:
+
+    %(script_commands)s
+
+Here's the output of `gcloud compute instances list`:
+
+    %(listinstances_output)s
+"""
 
 def delete_resource(delete_method, *args):
     """
@@ -228,33 +243,23 @@ def launch_experiment(args, sleep_time):
     # Delete the disk.
     delete_resource(gce_helper.delete_disk, disk_name)
 
-    logging.info('These are your running instances:')
     instances = gce_helper.list_instances()
     instance_list = ''
     for instance in instances:
         logging.info(instance['name'])
         instance_list += '\t' + instance['name'] + '\n'
+    if not instances:
+        instance_list = '\t(none)'
+    logging.info('These are your running instances:')
     logging.info(instance_list)
 
     # Send the user an email
-    message = """
-Your experiment %(instance_name)s has completed.
-
-Here was the config used to run the experiment:
-
-%(experiment_config)s
-
-Here is the set of scripts run:
-
-%(script_commands)s
-
-Here's the output of "gcutil listinstances":
-
-%(listinstances_output)s
-        """%dict(instance_name=instance_name,
-                 experiment_config=config_file,
-                 script_commands=config['compute']['startup_script'],
-                 listinstances_output=instance_list)
+    message = EMAIL_NOTIFICATION % dict(
+        instance_name=instance_name,
+        experiment_config=config_file,
+        script_commands=config['compute']['startup_script'],
+        listinstances_output=instance_list
+    )
 
     send_notification_email(message=message, config=config,
                             subject="Your experiment has completed.")
