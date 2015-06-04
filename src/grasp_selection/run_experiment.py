@@ -186,7 +186,9 @@ def launch_experiment(args, sleep_time):
         logging.error(e)
         return
 
-    logging.info('Instance is running! Check it out: %s' % instance_name)
+    instance_console = 'https://console.developers.google.com/project/nth-clone-620/compute/'
+                       'instancesDetail/zones/us-central1-a/instances/%s/console#end' % instance_name
+    logging.info('Instance is running! Check it out: %s' % instance_console)
 
     instance_completed = False
     bucket_name = config['bucket']
@@ -213,6 +215,7 @@ def launch_experiment(args, sleep_time):
           resp = req.execute()
         except (ValueError, Exception) as e:
           logging.info('Connection failed. Retrying...')
+          continue
 
         items = resp['items']
         for item in items:
