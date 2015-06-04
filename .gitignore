@@ -16,3 +16,7 @@ lib/*
 *.pyc
 *.recv
 *.send
+
+# secret files
+client_secrets.json
+oauth2.dat
