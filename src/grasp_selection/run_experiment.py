@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-Abinitio-learning version of the Compute engine demo, main.py. 
+DexNet version of the Compute Engine demo, main.py.
 Launches an instance with a random name to run the experiment configured in the input yaml file
 See below for original file description:
 
@@ -21,7 +21,6 @@ Google Compute Engine demo using the Google Python Client Library.
 __author__ = 'kbrisbin@google.com (Kathryn Hurley)'
 
 Demo steps:
-
 - Create an instance with a start up script and metadata.
 - Print out the URL where the modified image will be written.
 - The start up script executes these steps on the instance:
@@ -46,9 +45,9 @@ import argparse
 import IPython
 import logging
 try:
-  import simplejson as json
+    import simplejson as json
 except:
-  import json
+    import json
 import numpy as np
 import sys
 import time
@@ -57,13 +56,12 @@ from apiclient import discovery
 import httplib2
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
-from oauth2client.tools import run
+from oauth2client.tools import argparser, run_flow
 from oauth2client import tools
 import smtplib
+import gce
 
 import experiment_config as ec
-
-import gce
 
 INSTANCE_NAME_LENGTH = 10
 
@@ -80,7 +78,6 @@ def delete_resource(delete_method, *args):
     Args:
       delete_method: The gce.Gce method for deleting the resource.
     """
-
     resource_name = args[0]
     logging.info('Deleting %s' % resource_name)
 
@@ -90,7 +87,7 @@ def delete_resource(delete_method, *args):
         logging.error(DELETE_ERROR, {'name': resource_name})
         logging.error(e)
 
-def send_notification_email(message, config, subject="adp4control notification"):
+def send_notification_email(message, config, subject="Your experiment has completed."):
     # http://stackoverflow.com/questions/10147455/trying-to-send-email-gmail-as-mail-provider-using-python
     gmail_user = config['gmail_user']
     gmail_pwd = config['gmail_password']
@@ -101,7 +98,7 @@ def send_notification_email(message, config, subject="adp4control notification")
 
     # Prepare actual message
     message = "From: %s\nTo: %s\nSubject: %s\n\n%s" % (from_email, ", ".join(to_emails), subject, message)
-    #server = smtplib.SMTP(SERVER) 
+    #server = smtplib.SMTP(SERVER)
     server = smtplib.SMTP("smtp.gmail.com", 587) #or port 465 doesn't seem to work!
     server.ehlo()
     server.starttls()
@@ -119,13 +116,11 @@ def random_string(n):
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
 
-def launch_experiment(config_file, sleep_time):
+def oauth_authorization(config, args):
     """
-    Perform OAuth 2 authorization, then start, list, and stop instance(s).
+    Perform OAuth2 authorization and return an authorized instance of
+    httplib2.Http.
     """
-    config = ec.ExperimentConfig(config_file)
-    logging.basicConfig(level=logging.INFO)
-
     # Perform OAuth 2.0 authorization flow.
     flow = flow_from_clientsecrets(
         config['client_secrets'], scope=config['compute']['scopes'])
@@ -135,9 +130,20 @@ def launch_experiment(config_file, sleep_time):
     # Authorize an instance of httplib2.Http.
     logging.info('Authorizing Google API')
     if credentials is None or credentials.invalid:
-        credentials = run(flow, storage)
+        credentials = run_flow(flow, storage, args)
     http = httplib2.Http()
     auth_http = credentials.authorize(http)
+    return auth_http
+
+def launch_experiment(args, sleep_time):
+    """
+    Perform OAuth 2 authorization, then start, list, and stop instance(s).
+    """
+    # Parse arguments and load config file.
+    config_file = args.config
+    config = ec.ExperimentConfig(config_file)
+    logging.basicConfig(level=logging.INFO)
+    auth_http = oauth_authorization(config, args)
 
     # Retrieve / create instance data
     bucket = config['bucket']
@@ -157,20 +163,18 @@ def launch_experiment(config_file, sleep_time):
 
     try:
       gce_helper.start_instance(
-            instance_name,
-            disk_name,
-            image_name,
-            service_email = config['compute']['service_email'],
-            scopes = config['compute']['scopes'],
-            startup_script = config['compute']['startup_script'],
-            metadata = [
-                {'key': 'config', 'value': config.file_contents},
-                {'key': 'image_url', 'value': config['image_url']},
-                {'key': 'image_dir', 'value': config['image_dir']},
-                {'key': 'log_file', 'value': config['log_file']},
-                {'key': 'experiment_name', 'value': instance_name},
-                {'key': 'project_name', 'value': config['project']},
-                {'key': 'bucket_name', 'value': bucket}])
+          instance_name, disk_name, image_name,
+          service_email=config['compute']['service_email'],
+          scopes=config['compute']['scopes'],
+          startup_script=config['compute']['startup_script'],
+          metadata=[
+              {'key': 'config', 'value': config.file_contents},
+              {'key': 'instance_name', 'value': instance_name},
+              {'key': 'project_name', 'value': config['project']},
+              {'key': 'bucket_name', 'value': bucket}
+          ],
+          additional_disks=config['compute']['data_disks']
+      )
     except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
         # Delete the disk in case the instance fails to start.
         delete_resource(gce_helper.delete_disk, disk_name)
@@ -182,7 +186,7 @@ def launch_experiment(config_file, sleep_time):
         logging.error(e)
         return
 
-    logging.info('Instance running! Check it out')
+    logging.info('Instance is running! Check it out: %s' % instance_name)
 
     instance_completed = False
     bucket_name = config['bucket']
@@ -203,7 +207,7 @@ def launch_experiment(config_file, sleep_time):
         time.sleep(sleep_time)
 
         logging.info('Checking for completion...')
-        
+
         # List all running instances.
         try:
           resp = req.execute()
@@ -214,7 +218,7 @@ def launch_experiment(config_file, sleep_time):
         for item in items:
           if item['name'] == instance_data:
             instance_completed = True
-        
+
     # Delete the instance.
     delete_resource(gce_helper.stop_instance, instance_name)
 
@@ -230,7 +234,7 @@ def launch_experiment(config_file, sleep_time):
 
     # Send the user an email
     message = """
-Your experiment %(experiment_name)s has completed. 
+Your experiment %(experiment_name)s has completed.
 
 Here was the config used to run the experiment:
 
@@ -247,16 +251,14 @@ Here's the output of "gcutil listinstances":
                  experiment_config=config_file,
                  script_commands=config['compute']['startup_script'],
                  listinstances_output = instance_list)
-    
-    send_notification_email(message=message, config=config, subject="Your experiment has completed")
+
+    send_notification_email(message=message, config=config,
+                            subject="Your experiment has completed.")
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('config', default='/home/jmahler/projects/abinitio_learning/src/caffe/Test_Squares/test_config.yaml') 
-    parser.add_argument('-s','--sleep',default=120) # seconds to sleep before rechecking
+    parser = argparse.ArgumentParser(parents=[argparser])
+    parser.add_argument('config')
+    parser.add_argument('-s', '--sleep', type=int, default=120) # seconds to sleep before rechecking
     args = parser.parse_args(sys.argv[1:])
-
-    config_file = args.config
-    sleep_time = int(args.sleep)
-    launch_experiment(config_file, sleep_time)
+    launch_experiment(args, args.sleep)

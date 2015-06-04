@@ -29,3 +29,6 @@ python src/grasp_selection/cm_example.py config.yaml $OUT_DIR
 cp /var/log/startupscript.log $OUT_DIR
 tar -cvzf $INSTANCE_NAME.tar.gz $OUT_DIR
 sudo gsutil cp $INSTANCE_NAME.tar.gz gs://$BUCKET_NAME
+
+# Unmount disk
+sudo umount /dev/disk/by-id/google-persistent-disk-1
