@@ -27,6 +27,7 @@ GRASP_SAVE_PATH = '/home/jmahler/tmp_grasps'
 def label_pfc(obj, dataset, config):
     """ Label an object with grasps according to probability of force closure """
     # sample intial antipodal grasps
+    start = time.clock()
     sampler = ags.AntipodalGraspSampler(config)
         
     start_time = time.clock()
@@ -37,6 +38,12 @@ def label_pfc(obj, dataset, config):
 
     # partition grasps
     grasp_partitions = pfc.space_partition_grasps(grasps, config)
+
+    # bandit params
+    max_iter = config['bandit_max_iter']
+    confidence = config['bandit_confidence']
+    snapshot_rate = config['bandit_snapshot_rate']
+    tc_list = [tc.MaxIterTerminationCondition(max_iter), tc.ConfidenceTerminationCondition(confidence)]
 
     # run bandits on each partition
     object_grasps = []
@@ -56,25 +63,27 @@ def label_pfc(obj, dataset, config):
         # run bandits
         objective = objectives.RandomBinaryObjective()
         ts = das.ThompsonSampling(objective, candidates)
-        ts_result = ts.solve(termination_condition = tc.MaxIterTerminationCondition(200), snapshot_rate = 100)
+        ts_result = ts.solve(termination_condition = tc.OrTerminationCondition(tc_list), snapshot_rate = snapshot_rate)
         object_grasps.extend([c.grasp for c in ts_result.best_candidates])
         grasp_qualities.extend(list(ts_result.best_pred_means))
         i = i+1
-        
 
-#    for grasp in object_grasps:
-#        grasp.close_fingers(obj, vis=True)
-#        time.sleep(1)
+    stop = time.clock()
+    logging.info('Took %d sec' %(stop - start))
 
     # get rotated, translated versions of grasps
+    delay = 0
     pr2_grasps = []
     pr2_grasp_qualities = []
     theta_res = config['grasp_theta_res'] * np.pi
-    grasp_checker = pgc.OpenRaveGraspChecker()
+    grasp_checker = pgc.OpenRaveGraspChecker(view=config['vis_grasps'])
     i = 0
+    if config['vis_grasps']:
+        delay = config['vis_delay']
+
     for grasp in object_grasps:
         rotated_grasps = grasp.transform(obj.tf, theta_res)
-        rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay = 1) 
+        rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay=delay) 
         pr2_grasps.extend(rotated_grasps)
         pr2_grasp_qualities.extend([grasp_qualities[i]] * len(rotated_grasps))
         i = i+1                    
@@ -101,7 +110,7 @@ if __name__ == '__main__':
     database = db.Database(config)
     for dataset in database.datasets:
         logging.info('Labelling dataset %s' %(dataset.name))
-        for obj in dataset:
-#            obj = dataset[2]#['elmers_washable_no_run_school_glue']
-            logging.info('Labelling object %s' %(obj.key))
-            label_pfc(obj, dataset, config)
+#        for obj in datsaset:
+        obj = dataset[1]#['elmers_washable_no_run_school_glue']
+        logging.info('Labelling object %s' %(obj.key))
+        label_pfc(obj, dataset, config)

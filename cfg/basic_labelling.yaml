@@ -1,28 +1,38 @@
 # Basic yaml configuration file for labelling grasps in the grasp db
 
 # CORE PARAMS
-root_dir: /home/brian/GPIS
-database_dir: /home/brian/data
+root_dir: /home/jmahler/jeff_working/GPIS
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
 datasets:
+#  - Cat50_ModelDatabase
   - amazon_picking_challenge
+#  - ModelNet40
 
 # EXPERIMENT PARAMS
 grasp_width: 0.1
-friction_coef: 0.5
+friction_coef: 0.8
 num_cone_faces: 8
-num_grasp_clusters: 3
-vis_grasps: True
+num_grasp_clusters: 10
+vis_grasps: False
+vis_delay: 0.5
+
+# BANDITS
+bandit_max_iter: 400
+bandit_confidence: 0.0025
+bandit_snapshot_rate: 50
 
 # GRASP SAMPLING
 min_num_grasps: 100
 min_num_collision_free_grasps: 200
-grasp_samples_per_surface_point: 4
+grasp_samples_per_surface_point: 2
+
 dir_prior: 1.0
 alpha_thresh_div: 32.0 # in multiples of pi
 grasp_theta_res: 0.1 # in multiples of pi
 rho_thresh: 0.75 # as percentage of object max moment
-alpha_inc: 2.0
-rho_inc: 1.025
+alpha_inc: 0.25
+rho_inc: 0.025
+friction_inc: 0.1
 
 # UNCERTAINTY
 sigma_mu: 0.1
@@ -58,4 +68,3 @@ compute:
 gmail_user:     &id_gmail_user      RavenDebridement
 gmail_password: &id_gmail_password  surgical
 notify_email:   &id_notify_email    jmahl42@gmail.com
-extra_key: asdfas

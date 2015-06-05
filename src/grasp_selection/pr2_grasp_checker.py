@@ -30,16 +30,18 @@ class OpenRaveGraspChecker(object):
     env_ = None
     robot_ = None
 
-    def __init__(self, env = None, robot = None, win_height = 1200, win_width = 1200, cam_dist = 0.5):
+    def __init__(self, env = None, robot = None, view = True, win_height = 1200, win_width = 1200, cam_dist = 0.5):
         """ Defaults to using the PR2 """
         if env is None and (OpenRaveGraspChecker.env_ is None or OpenRaveGraspChecker.robot_ is None):
             OpenRaveGraspChecker._setup_rave_env()
 
         self.object_ = None
+        self.view_ = view
         self._init_robot()        
         self._init_poses()
-        self._init_viewer(win_height, win_width, cam_dist)
-
+        if view:
+            self._init_viewer(win_height, win_width, cam_dist)
+        
     @property
     def env(self):
         if OpenRaveGraspChecker.env_ is None or OpenRaveGraspChecker.robot_ is None:
@@ -57,7 +59,6 @@ class OpenRaveGraspChecker(object):
         """ OpenRave environment """
         OpenRaveGraspChecker.env_ = rave.Environment()
         OpenRaveGraspChecker.env_.Load(PR2_MODEL_FILE)
-        OpenRaveGraspChecker.env_.SetViewer("qtcoin")
         OpenRaveGraspChecker.robot_ = OpenRaveGraspChecker.env_.GetRobots()[0]
 
     def _init_robot(self):
@@ -84,12 +85,13 @@ class OpenRaveGraspChecker(object):
         T_fix = np.eye(4)
         T_fix[:3,:3] = R_fix
         T_fix[1,3] = 0
-        T_fix[2,3] = -0.0375
+        T_fix[2,3] = -0.05
         self.T_rviz_or_ = T_fix
 
     def _init_viewer(self, height, width, cam_dist):
         """ Initialize the OpenRave viewer """
         # set OR viewer
+        OpenRaveGraspChecker.env_.SetViewer("qtcoin")
         viewer = self.env.GetViewer()
         viewer.SetSize(width, height)
 
@@ -157,7 +159,7 @@ class OpenRaveGraspChecker(object):
         
     def view_grasps(self, graspable, object_grasps, auto_step=False, close_fingers=False):
         """ Display all of the grasps """
-        if self.env.GetViewer() is None:
+        if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
         ind = 0
         obj = self._load_object(graspable)
@@ -189,7 +191,7 @@ class OpenRaveGraspChecker(object):
 
     def prune_grasps_in_collision(self, graspable, object_grasps, closed_thresh = 0.05, auto_step = False, close_fingers = False, delay = 0.01):
         """ Remove all grasps from the object grasps list that are in collision with the given object """
-        if self.env.GetViewer() is None:
+        if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
         ind = 0
         object_grasps_keep = []
@@ -241,11 +243,13 @@ def test_grasp_collisions():
     h = plt.figure()
     ax = h.add_subplot(111, projection = '3d')
 
-    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
+    sdf_3d_file_name = 'data/test/sdf/Co.sdf'
+#    sdf_3d_file_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/dove_beauty_bar.sdf'
     sf = sdf_file.SdfFile(sdf_3d_file_name)
     sdf_3d = sf.read()
 
-    mesh_name = 'data/test/meshes/Co_clean.obj'
+    mesh_name = 'data/test/meshes/Co.obj'
+#    mesh_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/dove_beauty_bar.obj'
     of = obj_file.ObjFile(mesh_name)
     m = of.read()
 
@@ -254,10 +258,11 @@ def test_grasp_collisions():
     rave.raveSetDebugLevel(rave.DebugLevel.Error)
     grasp_checker = OpenRaveGraspChecker()
 
-    center = np.array([-0.01837182,  0.01218656,  0.03844461])
-    axis = np.array([-0.94212793,  0.31667146, -0.11006428]) 
+    center = np.array([0, 0, 0.02])
+    axis = np.array([1, 0, 0]) 
     axis = axis / np.linalg.norm(axis)
-    grasp = g.ParallelJawPtGrasp3D(center, axis, 0.1)
+    width = 0.1
+    grasp = g.ParallelJawPtGrasp3D(center, axis, width)
 
     grasp.close_fingers(graspable, vis = True)
     grasp_checker.prune_grasps_in_collision(graspable, [grasp], auto_step=True, close_fingers=True, delay=30)

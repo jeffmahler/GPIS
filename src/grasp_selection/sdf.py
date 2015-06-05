@@ -234,8 +234,6 @@ class Sdf3D(Sdf):
 
         # tranform sdf basis to grid (X and Z axes are flipped!)
         R_sdf_mesh = np.eye(3)
-        R_sdf_mesh[0,0] = 1#-1
-        R_sdf_mesh[2,2] = 1#-1
         self.tf_grid_sdf_ = stf.SimilarityTransform3D(tfx.canonical.CanonicalTransform(R_sdf_mesh, -R_sdf_mesh.T.dot(self.center_)), 1.0 / self.resolution_)
         self.tf_sdf_grid_ = self.tf_grid_sdf_.inverse()
 
