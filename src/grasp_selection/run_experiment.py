@@ -71,7 +71,7 @@ Error deleting %(name)s. %(name)s might still exist; You can use
 the console (http://cloud.google.com/console) to delete %(name)s.
 """
 EMAIL_NOTIFICATION = """
-Your experiment %(instance_name)s has completed.
+Your experiment %(instance_id)s has completed.
 
 Here was the config used to run the experiment:
 
@@ -165,7 +165,8 @@ def launch_experiment(args, sleep_time):
     if not bucket:
         logging.error('Cloud Storage bucket required.')
         return
-    instance_name = 'experiment-' + random_string(INSTANCE_NAME_LENGTH)
+    instance_id = random_string(INSTANCE_NAME_LENGTH)
+    instance_name = 'experiment-%s-' % instance_id + '%d'
     disk_name = instance_name + '-disk'
     image_name = config['compute']['image']
 
@@ -173,76 +174,92 @@ def launch_experiment(args, sleep_time):
     logging.info('Initializing GCE')
     gce_helper = gce.Gce(auth_http, config, project_id=config['project'])
 
-    # Start an instance with a local start-up script and boot disk.
-    logging.info('Starting GCE instance %s' %(instance_name))
+    # Start an instance for each chunk
+    num_instances = 0
+    instance_names = []
+    disk_names = []
+    instance_results = []
+    for chunk in config['chunks']:
+        dataset = chunk['dataset']
+        chunk_start, chunk_end = chunk['chunk']
 
-    try:
-      gce_helper.start_instance(
-          instance_name, disk_name, image_name,
-          service_email=config['compute']['service_email'],
-          scopes=config['compute']['scopes'],
-          startup_script=config['compute']['startup_script'],
-          metadata=[
-              {'key': 'config', 'value': config.file_contents},
-              {'key': 'instance_name', 'value': instance_name},
-              {'key': 'project_name', 'value': config['project']},
-              {'key': 'bucket_name', 'value': bucket}
-          ],
-          additional_disks=config['compute']['data_disks']
-      )
-    except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
-        # Delete the disk in case the instance fails to start.
-        delete_resource(gce_helper.delete_disk, disk_name)
-        logging.error(INSERT_ERROR, {'name': instance_name})
-        logging.error(e)
-        return
-    except gce.DiskDoesNotExistError as e:
-        logging.error(INSERT_ERROR, {'name': instance_name})
-        logging.error(e)
-        return
+        curr_instance_name = instance_name % num_instances
+        curr_disk_name = disk_name % num_instances
 
-    instance_console = ('https://console.developers.google.com/'
-                        'project/nth-clone-620/compute/instancesDetail/'
-                        'zones/us-central1-a/instances/%s/console#end') % instance_name
-    logging.info('Instance is running! Check it out: %s' % instance_console)
+        # Start an instance with a local start-up script and boot disk.
+        logging.info('Starting GCE instance %s' % curr_instance_name)
+        try:
+            gce_helper.start_instance(
+                curr_instance_name, curr_disk_name, image_name,
+                service_email=config['compute']['service_email'],
+                scopes=config['compute']['scopes'],
+                startup_script=config['compute']['startup_script'],
+                metadata=[
+                    {'key': 'config', 'value': config.file_contents},
+                    {'key': 'instance_name', 'value': instance_name},
+                    {'key': 'project_name', 'value': config['project']},
+                    {'key': 'bucket_name', 'value': bucket},
+                    # chunking metadata
+                    {'key': 'dataset', 'value': dataset},
+                    {'key': 'chunk_start', 'value': chunk_start},
+                    {'key': 'chunk_end', 'value': chunk_end},
+                ],
+                additional_ro_disks=config['compute']['data_disks']
+            )
+        except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
+            # Delete the disk in case the instance fails to start.
+            delete_resource(gce_helper.delete_disk, disk_name)
+            logging.error(INSERT_ERROR, {'name': instance_name})
+            logging.error(e)
+            return
+        except gce.DiskDoesNotExistError as e:
+            logging.error(INSERT_ERROR, {'name': instance_name})
+            logging.error(e)
+            return
 
-    instance_completed = False
-    instance_data = '%s.tar.gz' %(instance_name)
+        num_instances += 1
+        instance_names.append(curr_instance_name)
+        disk_names.append(curr_disk_name)
+        instance_results.append('%s.tar.gz' % curr_instance_name)
+        instance_console = ('https://console.developers.google.com/'
+                            'project/nth-clone-620/compute/instancesDetail/'
+                            'zones/us-central1-a/instances/%s/console#end') % curr_instance_name
+        logging.info('Instance is running! Check it out: %s' % instance_console)
 
     # set up service
     service_not_ready = True
     while service_not_ready:
-      try:
-        service = discovery.build('storage', config['compute']['api_version'], http=auth_http)
-        req = service.objects().list(bucket=bucket)
-        service_not_ready = False
-      except (ValueError, Exception) as e:
-        logging.info('Connection failed. Retrying...')
+        try:
+            service = discovery.build('storage', config['compute']['api_version'], http=auth_http)
+            req = service.objects().list(bucket=bucket)
+            service_not_ready = False
+        except (ValueError, Exception) as e:
+            logging.info('Connection failed. Retrying...')
 
-    while not instance_completed:
+    while instance_results:
         # Wait before checking again
         time.sleep(sleep_time)
 
         logging.info('Checking for completion...')
-
-        # List all running instances.
         try:
-          resp = req.execute()
+            resp = req.execute()
         except (ValueError, Exception) as e:
-          logging.info('Connection failed. Retrying...')
-          continue
+            logging.info('Connection failed. Retrying...')
+            continue
 
         items = resp['items']
         for item in items:
-          if item['name'] == instance_data:
-            instance_completed = True
-            logging.info('Instance completed!')
+            if item['name'] in instance_results:
+                instance_results.remove(item['name'])
+                logging.info('Instance %s completed!' % item['name'])
 
-    # Delete the instance.
-    delete_resource(gce_helper.stop_instance, instance_name)
+    # Delete the instances.
+    for curr_instance_name in instance_names:
+        delete_resource(gce_helper.stop_instance, curr_instance_name)
 
     # Delete the disk.
-    delete_resource(gce_helper.delete_disk, disk_name)
+    for curr_disk_name in disk_names:
+        delete_resource(gce_helper.delete_disk, curr_disk_name)
 
     instances = gce_helper.list_instances()
     instance_list = ''
@@ -256,7 +273,7 @@ def launch_experiment(args, sleep_time):
 
     # Send the user an email
     message = EMAIL_NOTIFICATION % dict(
-        instance_name=instance_name,
+        instance_id=instance_id,
         experiment_config=config_file,
         script_commands=config['compute']['startup_script'],
         listinstances_output=instance_list
@@ -270,5 +287,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(parents=[argparser])
     parser.add_argument('config')
     parser.add_argument('-s', '--sleep', type=int, default=120) # seconds to sleep before rechecking
-    args = parser.parse_args(sys.argv[1:])
+    args = parser.parse_args()
     launch_experiment(args, args.sleep)

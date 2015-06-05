@@ -11,7 +11,10 @@ git pull
 # Mount data disk
 sudo bash scripts/mount_data_disk.sh
 
-# Retrieve metadata: bucket_name, instance_name, config
+# Retrieve metadata: dataset, chunk_start, chunk_end, bucket_name, instance_name, config
+DATASET=$(curl http://metadata/computeMetadata/v1/instance/attributes/dataset -H "X-Google-Metadata-Request: True")
+CHUNK_START=$(curl http://metadata/computeMetadata/v1/instance/attributes/chunk_start -H "X-Google-Metadata-Request: True")
+CHUNK_END=$(curl http://metadata/computeMetadata/v1/instance/attributes/chunk_end -H "X-Google-Metadata-Request: True")
 BUCKET_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/bucket_name -H "X-Google-Metadata-Request: True")
 INSTANCE_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/instance_name -H "X-Google-Metadata-Request: True")
 
@@ -19,6 +22,9 @@ INSTANCE_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/inst
 CONFIG=$(curl http://metadata/computeMetadata/v1/instance/attributes/config -H "X-Google-Metadata-Request: True")
 cat <<EOF >> config.yaml
 $CONFIG
+dataset:     $DATASET
+chunk_start: $CHUNK_START
+chunk_end:   $CHUNK_END
 EOF
 
 # Run experiment

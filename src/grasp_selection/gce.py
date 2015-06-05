@@ -82,7 +82,7 @@ class Gce(object):
                      startup_script=None,
                      startup_script_url=None,
                      blocking=True,
-                     additional_disks=[]):
+                     additional_ro_disks=[]):
     """Start an instance with the given name and settings.
 
     Args:
@@ -98,7 +98,7 @@ class Gce(object):
       startup_script: The filename of a startup script.
       startup_script_url: Url of a startup script.
       blocking: Whether the function will wait for the operation to complete.
-      additional_disks: List of string disk names
+      additional_ro_disks: List of read-only string disk names
 
     Returns:
       Dictionary response representing the operation.
@@ -147,7 +147,7 @@ class Gce(object):
     }]
 
     # Attach additional disks
-    for disk in additional_disks:
+    for disk in additional_ro_disks:
       disk_valid = self.get_disk(disk, zone)
       if not disk_valid:
         logging.error('Disk %s does not exist.' % disk)

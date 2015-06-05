@@ -181,14 +181,12 @@ class Chunk(Dataset):
         self.iter_count_ = 0
 
         # read in filenames
-        start = self.chunk_num_ * self.chunk_size_
-        end = (self.chunk_num_ + 1) * self.chunk_size_
-        self._read_data_keys(start, end)
+        self._read_data_keys(self.start, self.end)
 
     def _parse_config(self, config):
         super(Chunk, self)._parse_config(config)
-        self.chunk_size_ = config['max_chunk_size']
-        self.chunk_num_ = config['chunk_num']
+        self.start = config['chunk_start']
+        self.end = config['chunk_end']
 
 def test_dataset():
     logging.getLogger().setLevel(logging.INFO)
