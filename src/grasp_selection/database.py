@@ -177,7 +177,7 @@ class Chunk(Dataset):
     def __init__(self, config):
         self._parse_config(config)
 
-        self.dataset_root_dir_ = os.path.join(self.database_root_dir_, config['dataset'])
+        self.dataset_root_dir_ = os.path.join(self.database_root_dir_, self.dataset_name_)
         self.iter_count_ = 0
 
         # read in filenames
@@ -185,6 +185,7 @@ class Chunk(Dataset):
 
     def _parse_config(self, config):
         super(Chunk, self)._parse_config(config)
+        self.dataset_name_ = config['dataset']
         self.start = config['chunk_start']
         self.end = config['chunk_end']
 

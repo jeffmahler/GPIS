@@ -32,16 +32,17 @@ if __name__ == '__main__':
 
     # read config file
     config = ec.ExperimentConfig(args.config)
+    chunk = db.Chunk(config)
 
     # make output directory
     try:
-        os.makedirs(args.output_dest)
+        dest = os.path.join(args.output_dest, chunk.name)
+        os.makedirs(dest)
     except os.error:
         pass
 
     # loop through objects, finding CM for each
-    chunk = db.Chunk(config)
     for obj in chunk:
         logging.info('Labelling object {}'.format(obj.key))
         result = center_of_mass(obj)
-        save_result(obj, result, args.output_dest)
+        save_result(obj, result, dest)
