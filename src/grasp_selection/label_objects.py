@@ -97,20 +97,26 @@ def label_pfc(obj, dataset, config):
                   sort_keys=True, indent=4, separators=(',', ': '))
 
 if __name__ == '__main__':
+    import argparse
+    parser.add_argument('config', default='cfg/basic_labelling.yaml')
+    parser.add_argument('output_dest', default='out/')
+    args = parser.parse_args()
+
     logging.getLogger().setLevel(logging.INFO)
 
-    # get command line args
-    argc = len(sys.argv)
-    config_filename = sys.argv[1]
-
     # read config file
-    config = ec.ExperimentConfig(config_filename)
+    config = ec.ExperimentConfig(args.config)
+    chunk = db.Chunk(config)
+
+    # make output directory
+    try:
+        dest = os.path.join(args.output_dest, chunk.name)
+        os.makedirs(dest)
+        GRASP_SAVE_PATH = dest # legacy
+    except os.error:
+        pass
 
     # loop through objects, labelling each
-    database = db.Database(config)
-    for dataset in database.datasets:
-        logging.info('Labelling dataset %s' %(dataset.name))
-#        for obj in datsaset:
-        obj = dataset[1]#['elmers_washable_no_run_school_glue']
-        logging.info('Labelling object %s' %(obj.key))
-        label_pfc(obj, dataset, config)
+    for obj in chunk:
+        logging.info('Labelling object {}'.format(obj.key))
+        label_pfc(obj, chunk, config)
