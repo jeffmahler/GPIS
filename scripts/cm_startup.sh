@@ -31,7 +31,7 @@ EOF
 python src/grasp_selection/cm_example.py config.yaml $OUT_DIR
 
 # Zip directory and upload to bucket
-cp /var/log/startupscript.log $OUT_DIR
+cp /var/log/startupscript.log $OUT_DIR/${INSTANCE_NAME}_startupscript.log
 tar -cvzf $INSTANCE_NAME.tar.gz $OUT_DIR
 sudo gsutil cp $INSTANCE_NAME.tar.gz gs://$BUCKET_NAME
 
