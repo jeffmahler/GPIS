@@ -388,6 +388,37 @@ class ParallelJawPtGrasp3D(PointGrasp):
             'metric': method,
         }
 
+class ParallelJawPtPose3D(object):
+    """A skeleton class that exposes the same attributes as a tfx.transform."""
+    class _orientation(object):
+        def __init__(self, w, x, y, z):
+            self.w = w
+            self.x = x
+            self.y = y
+            self.z = z
+
+    class _position(object):
+        def __init__(self, x, y, z):
+            self.x = x
+            self.y = y
+            self.z = z
+
+    def __init__(self, data):
+        self._json = data
+        gripper_pose = data['gripper_pose']
+        self.orientation = self._orientation(gripper_pose['orientation'])
+        self.position = self._position(gripper_pose['position'])
+
+    @staticmethod
+    def from_json(data):
+        return ParallelJawPtPose3D(data)
+
+    def to_json(self):
+        return self._json
+
+    def gripper_pose(self, R_gripper_center=np.eye(3), t_gripper_center=PR2_GRASP_OFFSET):
+        return self
+
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """
     sdf_3d_file_name = 'data/test/sdf/Co_clean_dim_25.sdf'
@@ -427,10 +458,10 @@ def test_grasp_from_contacts():
     axis = obj_3d.sdf.transform_pt_grid_to_obj(axis, direction=True)
 
     plt.figure()
-    test_grasp_width = 0.8                    
+    test_grasp_width = 0.8
     ax = plt.gca(projection = '3d')
     ax.scatter(rand_surf_pt_grid[0], rand_surf_pt_grid[1], rand_surf_pt_grid[2], s=80, c=u'g')
-    g, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True) 
+    g, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True)
     plt.show()
 
 def test_to_json():

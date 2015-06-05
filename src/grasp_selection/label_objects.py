@@ -98,6 +98,7 @@ def label_pfc(obj, dataset, config):
 
 if __name__ == '__main__':
     import argparse
+    parser = argparse.ArgumentParser()
     parser.add_argument('config', default='cfg/basic_labelling.yaml')
     parser.add_argument('output_dest', default='out/')
     args = parser.parse_args()

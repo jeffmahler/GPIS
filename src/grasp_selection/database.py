@@ -7,6 +7,7 @@ import sys
 import time
 
 import experiment_config as ec
+import grasp
 import graspable_object as go
 import obj_file
 import sdf_file
@@ -125,6 +126,16 @@ class Dataset(object):
         mesh = of.read()
 
         return go.GraspableObject3D(sdf, mesh=mesh, key=key, model_name=obj_filename)
+
+    def load_grasps(self, key):
+        """Loads a list of grasps from a file (dataset/graspable.json).
+        Params:
+            key - string name of a graspable
+        """
+        path = os.path.join(self.dataset_root_dir_, Dataset.json_filename(key))
+        with open(path) as f:
+            grasps = json.load(f)
+        return [grasp.ParallelJawPtPose3D.from_json(g) for g in grasps]
 
     def save_grasps(self, graspable, grasps):
         """Saves a list of grasps in the database.
