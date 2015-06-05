@@ -73,6 +73,9 @@ the console (http://cloud.google.com/console) to delete %(name)s.
 EMAIL_NOTIFICATION = """
 Your experiment %(instance_id)s has completed.
 
+Here are the instances that were created:
+%(instance_names)s
+
 Here was the config used to run the experiment:
 
     %(experiment_config)s
@@ -196,7 +199,7 @@ def launch_experiment(args, sleep_time):
                 startup_script=config['compute']['startup_script'],
                 metadata=[
                     {'key': 'config', 'value': config.file_contents},
-                    {'key': 'instance_name', 'value': instance_name},
+                    {'key': 'instance_name', 'value': curr_instance_name},
                     {'key': 'project_name', 'value': config['project']},
                     {'key': 'bucket_name', 'value': bucket},
                     # chunking metadata
@@ -209,11 +212,11 @@ def launch_experiment(args, sleep_time):
         except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
             # Delete the disk in case the instance fails to start.
             delete_resource(gce_helper.delete_disk, disk_name)
-            logging.error(INSERT_ERROR, {'name': instance_name})
+            logging.error(INSERT_ERROR, {'name': curr_instance_name})
             logging.error(e)
             return
         except gce.DiskDoesNotExistError as e:
-            logging.error(INSERT_ERROR, {'name': instance_name})
+            logging.error(INSERT_ERROR, {'name': curr_instance_name})
             logging.error(e)
             return
 
@@ -265,15 +268,16 @@ def launch_experiment(args, sleep_time):
     instance_list = ''
     for instance in instances:
         logging.info(instance['name'])
-        instance_list += '\t' + instance['name'] + '\n'
+        instance_list += '    ' + instance['name'] + '\n'
     if not instances:
-        instance_list = '\t(none)'
+        instance_list = '    (none)'
     logging.info('These are your running instances:')
     logging.info(instance_list)
 
     # Send the user an email
     message = EMAIL_NOTIFICATION % dict(
         instance_id=instance_id,
+        instance_names='\n'.join(map(lambda n: '    ' + n, instance_names)),
         experiment_config=config_file,
         script_commands=config['compute']['startup_script'],
         listinstances_output=instance_list
