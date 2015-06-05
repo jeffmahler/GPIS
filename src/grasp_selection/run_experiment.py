@@ -134,6 +134,32 @@ def random_string(n):
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
 
+def make_chunks(config):
+    """Chunks datasets according to configuration. Each chunk only contains
+    data from one dataset."""
+    # Read counts file
+    counts = {}
+    with open(config['dataset_counts']) as f:
+        for line in f:
+            count, dataset = line.split()
+            counts[dataset] = int(count)
+
+    # Create chunks
+    datasets = config['datasets']
+    max_chunk_size = config['max_chunk_size']
+    chunks = []
+    for dataset in datasets:
+        assigned = 0
+        while assigned < counts[dataset]:
+            chunk = dict(dataset=dataset,
+                         chunk=[assigned, assigned+max_chunk_size])
+            chunks.append(chunk)
+            assigned += max_chunk_size
+    yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks))
+    if yesno.lower() == 'n':
+        sys.exit(1)
+    return chunks
+
 def oauth_authorization(config, args):
     """
     Perform OAuth2 authorization and return an authorized instance of
@@ -173,6 +199,9 @@ def launch_experiment(args, sleep_time):
     disk_name = instance_name + '-disk'
     image_name = config['compute']['image']
 
+    # Make chunks
+    chunks = make_chunks(config)
+
     # Initialize gce.Gce.
     logging.info('Initializing GCE')
     gce_helper = gce.Gce(auth_http, config, project_id=config['project'])
@@ -182,7 +211,7 @@ def launch_experiment(args, sleep_time):
     instance_names = []
     disk_names = []
     instance_results = []
-    for chunk in config['chunks']:
+    for chunk in chunks:
         dataset = chunk['dataset']
         chunk_start, chunk_end = chunk['chunk']
 

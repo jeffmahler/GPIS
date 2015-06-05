@@ -7,11 +7,11 @@ database_dir: /home/brian/data
 # root_dir:     /home/jmahler/brian/GPIS
 # database_dir: /mnt/terastation/shape_data/MASTER_DB_v0
 
-chunks:
-  - dataset: amazon_picking_challenge
-    chunk:   [5, 25]
-  - dataset: MiniBIRD
-    chunk:   [0, 10]
+dataset_counts: data/counts.txt
+datasets:
+  - amazon_picking_challenge
+  - MiniBIRD
+max_chunk_size: 15
 
 # Experiment parameters (metadata) ###################################
 
