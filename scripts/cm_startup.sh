@@ -29,6 +29,7 @@ EOF
 
 # Run experiment
 python src/grasp_selection/cm_example.py config.yaml $OUT_DIR
+cd .. # back to home directory
 
 # Zip directory and upload to bucket
 cp /var/log/startupscript.log $OUT_DIR/${INSTANCE_NAME}_startupscript.log

@@ -13,6 +13,11 @@ datasets:
   - MiniBIRD
 max_chunk_size: 15
 
+# Will be overridden by startup script
+dataset:     MiniBIRD
+chunk_start: 0
+chunk_end:   15
+
 # Experiment parameters (metadata) ###################################
 
 # GCE parameters #####################################################
