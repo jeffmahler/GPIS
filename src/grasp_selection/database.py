@@ -127,12 +127,16 @@ class Dataset(object):
 
         return go.GraspableObject3D(sdf, mesh=mesh, key=key, model_name=obj_filename)
 
-    def load_grasps(self, key):
-        """Loads a list of grasps from a file (dataset/graspable.json).
+    def load_grasps(self, key, grasp_dir=None):
+        """Loads a list of grasps from a file (grasp_dir/key.json).
         Params:
             key - string name of a graspable
+            grasp_dir - string path to the grasp.json directory; defaults to
+              self.dataset_root_dir_
         """
-        path = os.path.join(self.dataset_root_dir_, Dataset.json_filename(key))
+        if grasp_dir is None:
+            grasp_dir = self.dataset_root_dir_
+        path = os.path.join(grasp_dir, Dataset.json_filename(key))
         with open(path) as f:
             grasps = json.load(f)
         return [grasp.ParallelJawPtPose3D.from_json(g) for g in grasps]
@@ -212,6 +216,17 @@ def test_dataset():
         keys.append(obj.key)
 
     assert(len(keys) == 26)
+
+def test_load_grasps():
+    logging.getLogger().setLevel(logging.INFO)
+    config_filename = 'cfg/basic_labelling.yaml'
+    config = ec.ExperimentConfig(config_filename)
+
+    key = 'feline_greenies_dental_treats'
+    db = Database(config)
+    apc = db.datasets[0]
+    grasps = apc.load_grasps(key, 'results/gce_grasps/amazon_picking_challenge')
+    graspable = apc[key]
 
 if __name__ == '__main__':
     test_dataset()

@@ -406,8 +406,8 @@ class ParallelJawPtPose3D(object):
     def __init__(self, data):
         self._json = data
         gripper_pose = data['gripper_pose']
-        self.orientation = self._orientation(gripper_pose['orientation'])
-        self.position = self._position(gripper_pose['position'])
+        self.orientation = self._orientation(**gripper_pose['orientation'])
+        self.position = self._position(**gripper_pose['position'])
 
     @staticmethod
     def from_json(data):
