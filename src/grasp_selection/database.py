@@ -15,7 +15,7 @@ import IPython
 
 INDEX_FILE = 'index.db'
 
-class Database:
+class Database(object):
     def __init__(self, config):
         self._parse_config(config)
         self._create_datasets(config)
@@ -40,17 +40,17 @@ class Database:
     def dataset(self, dataset_name=None):
         if dataset_name is None:
             return self.datasets_.items()[0][0] # return first element
-        return self.datasets_[dataset_name]
+        for dataset in self.datasets:
+            if dataset.name == dataset_name:
+                return dataset
 
-class Dataset:
+class Dataset(object):
     def __init__(self, dataset_name, config):
         self._parse_config(config)
 
         self.dataset_name_ = dataset_name
         self.dataset_root_dir_ = os.path.join(self.database_root_dir_, self.dataset_name_)
         self.iter_count_ = 0
-        self.data_keys_ = []
-        self.data_categories_ = []
 
         # read in filenames
         self._read_data_keys()
@@ -58,8 +58,8 @@ class Dataset:
     def _parse_config(self, config):
         self.database_root_dir_ = config['database_dir']
 
-    def _read_data_keys(self):
-        """ Read in all the data keys from the index """
+    def _read_data_keys(self, start=0, end=None):
+        """Read in all the data keys from start to end in the index."""
         index_filename = os.path.join(self.dataset_root_dir_, INDEX_FILE)
         if not os.path.exists(index_filename):
             raise IOError('Index file does not exist! Invalid dataset'
@@ -67,11 +67,18 @@ class Dataset:
 
         self.data_keys_ = []
         self.data_categories_ = []
-        index_file = open(index_filename, 'r')
-        for line in index_file.readlines():
-            tokens = line.split()
-            self.data_keys_.append(tokens[0])
+        index_file_lines = open(index_filename, 'r').readlines()
+        if end is None:
+            end = len(index_file_lines)
+        for i, line in enumerate(index_file_lines):
+            if not (start <= i < end):
+                continue
 
+            tokens = line.split()
+            if not tokens: # ignore empty lines
+                continue
+
+            self.data_keys_.append(tokens[0])
             if len(tokens) > 1:
                 self.data_categories_.append(tokens[1])
             else:
@@ -102,11 +109,10 @@ class Dataset:
         return file_root + '.json'
 
     def read_datum(self, key):
-        """ Read in the graspable object 3d corresponding to given key"""
+        """Read in the GraspableObject3D corresponding to given key."""
         if key not in self.data_keys_:
             raise ValueError('Key not found in dataset')
 
-        # get file roots
         file_root = os.path.join(self.dataset_root_dir_, key)
         sdf_filename = Dataset.sdf_filename(file_root)
         obj_filename = Dataset.obj_filename(file_root)
@@ -167,7 +173,23 @@ class Dataset:
             self.iter_count_ = self.iter_count_ + 1
             return obj
 
-if __name__ == '__main__':
+class Chunk(Dataset):
+    def __init__(self, config):
+        self._parse_config(config)
+
+        self.dataset_root_dir_ = os.path.join(self.database_root_dir_, self.dataset_name_)
+        self.iter_count_ = 0
+
+        # read in filenames
+        self._read_data_keys(self.start, self.end)
+
+    def _parse_config(self, config):
+        super(Chunk, self)._parse_config(config)
+        self.dataset_name_ = config['dataset']
+        self.start = config['chunk_start']
+        self.end = config['chunk_end']
+
+def test_dataset():
     logging.getLogger().setLevel(logging.INFO)
     config_filename = 'cfg/basic_labelling.yaml'
     config = ec.ExperimentConfig(config_filename)
@@ -179,3 +201,6 @@ if __name__ == '__main__':
         keys.append(obj.key)
 
     assert(len(keys) == 26)
+
+if __name__ == '__main__':
+    test_dataset()
