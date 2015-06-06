@@ -390,24 +390,14 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
 class ParallelJawPtPose3D(object):
     """A skeleton class that exposes the same attributes as a tfx.transform."""
-    class _orientation(object):
-        def __init__(self, w, x, y, z):
-            self.w = w
-            self.x = x
-            self.y = y
-            self.z = z
-
-    class _position(object):
-        def __init__(self, x, y, z):
-            self.x = x
-            self.y = y
-            self.z = z
-
     def __init__(self, data):
         self._json = data
         gripper_pose = data['gripper_pose']
-        self.orientation = self._orientation(**gripper_pose['orientation'])
-        self.position = self._position(**gripper_pose['position'])
+        orientation = gripper_pose['orientation']
+        position = gripper_pose['position']
+        self._orientation = tfx.rotation([orientation[c] for c in 'wxyz'])
+        self._position = tfx.point([position[c] for c in 'xyz'])
+        self._gripper_pose = tfx.pose(self._orientation, self._position)
 
     @staticmethod
     def from_json(data):
@@ -417,7 +407,7 @@ class ParallelJawPtPose3D(object):
         return self._json
 
     def gripper_pose(self, R_gripper_center=np.eye(3), t_gripper_center=PR2_GRASP_OFFSET):
-        return self
+        return self._gripper_pose
 
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """
