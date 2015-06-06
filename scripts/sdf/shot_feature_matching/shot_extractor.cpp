@@ -240,21 +240,10 @@ main (int argc, char *argv[])
   //for (int kk = 0; kk < 352; kk++)
   //  std::cout << ((model_descriptors->points[1]).descriptor).size () << " ";
 
-  pcl::KdTreeFLANN<DescriptorType> match_search;
-  match_search.setInputCloud (model_descriptors);
-  std::cout << "Dims " << match_search.getPointRepresentation()->getNumberOfDimensions() << std::endl;
-  std::cout << "Is Trivial? " << match_search.getPointRepresentation()->isTrivial() << std::endl;
+  std::ofstream outf;
+  outf.open (output_filename_.c_str(), std::ios::in | std::ios::out);
 
-  float p[352];
-  match_search.getPointRepresentation()->copyToFloatArray(model_descriptors->at(0), p);
-  for (int i = 0; i < 352; i++) {
-    float diff = p[i] - model_descriptors->points[0].descriptor[i];
-    if (diff > 0)
-      std::cout << "Weird " << i << " has diff " << diff << std::endl;
-  }
-
-  std::ofstream outf(output_filename_.c_str());
-  if (!outf.is_open())
+  if (!outf)
   {
     std::cerr << output_filename_ << " could not be opened for writing" << std::endl;
     exit(1);
@@ -264,11 +253,6 @@ main (int argc, char *argv[])
   outf << DIM_SHOT << std::endl;
   outf << DIM_REF << std::endl;
 
-  //const float* ptr = reinterpret_cast<const float*> (&model_descriptors->at(0));
-  // for (int i = 0; i < 352; i++) {
-  //   std::cout << i << " " << ptr[i] << std::endl;
-  // }
-  std::cout << "HERE " << model_descriptors->at(0) << std::endl;
     
   for (int ii = 0; ii < model_keypoints->points.size (); ii++)
   {
@@ -286,7 +270,7 @@ main (int argc, char *argv[])
     outf << model_keypoints->points[ii].x << " " << model_keypoints->points[ii].y << " " << model_keypoints->points[ii].z << " \t";
     for (int jj = 0; jj < model_normals->points.size (); jj++)
     {
-      if ((model->points[jj].x == model_keypoints->points[ii].x) && (model->points[jj].y == model_keypoints->points[ii].y))
+      if ((model->points[jj].x == model_keypoints->points[ii].x) && (model->points[jj].y == model_keypoints->points[ii].y)
       {
         outf << model_normals->points[jj].normal_x << " " << model_normals->points[jj].normal_y << " " << model_normals->points[jj].normal_z  << std::endl;
         break;

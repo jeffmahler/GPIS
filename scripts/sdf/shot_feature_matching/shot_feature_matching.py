@@ -166,20 +166,5 @@ if RUN_EXAMPLE == True:
 
 
 
-
-"""
-    def knn(self, other_model, k):
-            model = NearestNeighbors(n_neighbors = k)
-            model.fit(other_model.descriptors)#, [i for i in range(other_model.num_descriptors)])
-            closest_indices_in_descriptors = model.kneighbors(self.descriptors, return_distance=False)
-            closest_points = [ tuple(other_model.points[i]) for i in closest_indices_in_descriptors]
-            for i,j in enumerate(closest_points):
-                    my_point_index = self.all_points[tuple(self.points[i])]
-                    other_point_indices = [other_model.all_points[tuple(k)] for k in j]
-                    self.matches[my_point_index] = other_point_indices
-            return self.matches
-"""
-
-
             
 
