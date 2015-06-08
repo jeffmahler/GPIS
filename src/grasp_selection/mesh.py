@@ -8,10 +8,15 @@ import os
 from PIL import Image, ImageDraw
 import sklearn.decomposition
 import sys
+import tfx
 
+import camera_params as cp
 import obj_file
 
-class Mesh:
+import mayavi.mlab as mv
+import pyhull.convex_hull as cvh
+
+class Mesh3D:
 	"""
         A Mesh is a three-dimensional shape representation
         
@@ -20,34 +25,53 @@ class Mesh:
            triangles: (list of 3-lists of ints)
            normals:   (list of 3-lists of float)
            metadata:  (dictionary) data like category, etc
-           pose:      (4x4 numpy array) pose of mesh in world basis
+           pose:      (tfx pose)
+           scale:     (float)
         """
-	def __init__(self, vertices, triangles, normals=None, metadata=None, pose=None):
+	def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0):
 		self.vertices_ = vertices
 		self.triangles_ = triangles
 		self.normals_ = normals
 		self.metadata_ = metadata
-                if pose is None:
-                        # assume identity pose if none provided
-                        self.pose_ = np.eye(4)
-                else:
-                        self.pose_ = pose
+                self.pose_ = pose
+                self.scale_ = scale
 
-	def get_vertices(self):
+                # compute mesh properties
+                self.compute_bb_center()
+                self.compute_centroid()
+                self.compute_com_uniform()
+
+	def vertices(self):
 		return self.vertices_
 
-	def get_triangles(self):
+	def triangles(self):
 		return self.triangles_
 
-	def get_normals(self):
+	def normals(self):
 		if self.normals_:
 			return self.normals_
 		return None #"Mesh does not have a list of normals."
 
-	def get_metadata(self):
+	def metadata(self):
 		if self.metadata_:
 			return self.metadata_
 		return "No metadata available."
+
+        @property
+        def pose(self):
+                return self.pose_
+
+        @pose.setter
+        def pose(self, pose):
+                self.pose_ = pose
+
+        @property
+        def scale(self):
+                return self.scale_
+
+        @scale.setter
+        def scale(self, scale):
+                self.scale_ = scale
 
 	def set_vertices(self, vertices):
 		self.vertices_ = vertices
@@ -61,7 +85,42 @@ class Mesh:
 	def set_metadata(self, metadata):
 		self.metadata_ = metadata
 
-        def project_binary(self, camera_params, camera_pose):
+        def compute_bb_center(self):
+                """ Get the bounding box center of the mesh  """
+                vertex_array = np.array(self.vertices_)
+                min_vertices = np.min(vertex_array, axis=0)
+                max_vertices = np.max(vertex_array, axis=0)
+                self.bb_center_ = (max_vertices + min_vertices) / 2 
+
+        def _signed_volume_of_tri(self, tri, vertex_array):
+                """ Get the bounding box center of the mesh  """
+                v1 = vertex_array[tri[0], :]
+                v2 = vertex_array[tri[1], :]
+                v3 = vertex_array[tri[2], :]
+
+                volume = (1.0 / 6.0) * (v1.dot(np.cross(v3, v2)))
+                center = (1.0 / 3.0) * (v1 + v2 + v3)
+                return volume, center
+
+        def compute_com_uniform(self):
+                """ Computes the center of mass using a uniform mass distribution assumption """
+                total_volume = 0
+                weighted_point_sum = np.zeros([1, 3])
+                vertex_array = np.array(self.vertices_)
+                i = 0
+                for tri in self.triangles_:
+                        volume, center = self._signed_volume_of_tri(tri, vertex_array)
+                        weighted_point_sum = weighted_point_sum + volume * center
+                        total_volume = total_volume + volume
+                        i = i+1
+                self.center_of_mass_ = weighted_point_sum / total_volume
+                self.center_of_mass_ = np.abs(self.center_of_mass_[0])
+
+        def compute_centroid(self):
+                vertex_array = np.array(self.vertices_)
+                self.vertex_mean_ = np.mean(vertex_array, axis=0)
+        
+        def project_binary(self, camera_params):
                 '''
                 Project the triangles of the mesh into a binary image which is 1 if the mesh is
                 visible at that point in the image and 0 otherwise.
@@ -75,6 +134,7 @@ class Mesh:
                    PIL binary image (1 = mesh projects to point, 0 = does not)
                 '''
                 vertex_array = np.array(self.vertices_)
+                camera_pose = camera_params.pose().matrix()
                 R = camera_pose[:3,:3]
                 t = camera_pose[:3,3:]
                 t_rep = np.tile(t, [1, 3]) # replicated t vector for fast transformations
@@ -151,12 +211,23 @@ class Mesh:
                 else:
                         return False
         
-        def center_vertices(self):
+        def center_vertices_avg(self):
                 '''
-                Simple vertex centering
+                Centers vertices at average vertex
                 '''
                 vertex_array = np.array(self.vertices_)
                 centroid = np.mean(vertex_array, axis = 0)
+                vertex_array_cent = vertex_array - centroid
+                self.vertices_ = vertex_array_cent.tolist()
+
+        def center_vertices_bb(self):
+                '''
+                Centers vertices at center of bounding box
+                '''
+                vertex_array = np.array(self.vertices_)
+                min_vertex = np.min(vertex_array, axis = 0)
+                max_vertex = np.max(vertex_array, axis = 0)
+                centroid = (max_vertex + min_vertex) / 2
                 vertex_array_cent = vertex_array - centroid
                 self.vertices_ = vertex_array_cent.tolist()
 
@@ -168,11 +239,8 @@ class Mesh:
                 Returns:
                    Nothing. Modified the mesh in place (for now)
                 '''
-                vertex_array = np.array(self.vertices_)
-
-                # get centroid
-                centroid = np.mean(vertex_array, axis = 0)
-                vertex_array_cent = vertex_array - centroid
+                self.center_vertices_avg()
+                vertex_array_cent = np.array(self.vertices_)
                 
                 # find principal axes
                 pca = sklearn.decomposition.PCA(n_components = 3)
@@ -180,7 +248,7 @@ class Mesh:
 
                 # count num vertices on side of origin wrt principal axes
                 comp_array = pca.components_
-                norm_proj = vertex_array.dot(comp_array.T)
+                norm_proj = vertex_array_cent.dot(comp_array.T)
                 opposite_aligned = np.sum(norm_proj < 0, axis = 0)
                 same_aligned = np.sum(norm_proj >= 0, axis = 0)
                 pos_oriented = 1 * (same_aligned > opposite_aligned) # trick to turn logical to int
@@ -196,10 +264,11 @@ class Mesh:
                 vertex_array_rot = R.dot(vertex_array_cent.T)
                 vertex_array_rot = vertex_array_rot.T
                 self.vertices_ = vertex_array_rot.tolist()
+                self.center_vertices_bb()
 
                 if self.normals_:
                         normals_array = np.array(self.normals_)
-                        normals_array_rot = R.dot(vertex_array.T)
+                        normals_array_rot = R.dot(normals_array.T)
                         self.normals_ = normals_array_rot.tolist()
 
         def rescale_vertices(self, min_scale):
@@ -225,6 +294,14 @@ class Mesh:
                 vertex_array = scale_factor * vertex_array
                 self.vertices_ = vertex_array.tolist()
 
+        def convex_hull(self):
+                """ Returns the convex hull of a mesh as a new mesh """
+                hull = cvh.ConvexHull(self.vertices_)
+                hull_tris = hull.vertices
+                cvh_mesh = Mesh3D(self.vertices_, hull_tris, self.normals_)
+                cvh_mesh.remove_unreferenced_vertices()
+                return cvh_mesh
+
         def make_image(self, filename, rot):
             proj_img = self.project_binary(cp, T)
             file_root, file_ext = os.path.splitext(filename)
@@ -232,40 +309,16 @@ class Mesh:
 
             oof = obj_file.ObjFile(filename)
             oof.write(self)
-                
-if __name__ == '__main__':
-        # test various aspects of mesh cleanup
-        with open("paths", "r") as ifile:
-            for line in ifile: 
-                print("converting " + line) 
-                filename = line
-                of = obj_file.ObjFile(filename)
-                m = of.read()
 
-                cp = CameraParams(480., 640., 525., 525.)
+        def visualize(self):
+                """ Plots visualization """
+                vertex_array = np.array(self.vertices_)
+                mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface')
 
-                T = np.eye(4)
-                T[:3,3] = np.array([0, 0, 3.0])
-                min_dim = 0.5
-                
-                m.remove_unreferenced_vertices()
-
-                m.normalize_vertices()
-                m.rescale_vertices(min_dim)
-
-                m.make_image(filename, T)
-
-        T = np.eye(4)
-        theta = np.pi / 2
-        R = np.array([[np.cos(theta), 0, -np.sin(theta)],
-                      [0, 1, 0],
-                      [np.sin(theta), 0, np.cos(theta)]])
-        T[:3,:3] = R
-        T[:3,3] = np.array([0, 0, 2.5])
-        min_dim = 0.5
-        
-        m.remove_unreferenced_vertices()
-
-
-#        IPython.embed()
-
+        """
+        def num_connected_components(self):
+                vert_labels = np.linspace(0, len(self.vertices_)-1, num=len(self.vertices_)).astype(np.uint32)
+                for t in self.triangles_:
+                        vert_labels[t[1]] = vert_labels[t[0]]
+                        vert_labels[t[2]] = vert_labels[t[0]]
+        """                   

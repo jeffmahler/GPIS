@@ -81,7 +81,8 @@ class Gce(object):
                      metadata=None,
                      startup_script=None,
                      startup_script_url=None,
-                     blocking=True):
+                     blocking=True,
+                     additional_ro_disks=[]):
     """Start an instance with the given name and settings.
 
     Args:
@@ -97,6 +98,7 @@ class Gce(object):
       startup_script: The filename of a startup script.
       startup_script_url: Url of a startup script.
       blocking: Whether the function will wait for the operation to complete.
+      additional_ro_disks: List of read-only string disk names
 
     Returns:
       Dictionary response representing the operation.
@@ -136,16 +138,30 @@ class Gce(object):
     # Make sure the disk exists, and apply disk to instance resource.
     image_url = '%s/global/images/%s' % (self.project_url, image_name)
     instance['disks'] = [{
-        'boot': True,
+      'boot': True,
+      'type': self.config['disk_type'],
+      'initializeParams': {
+        'diskName': disk_name,
+        'sourceImage': image_url
+      }
+    }]
+
+    # Attach additional disks
+    for disk in additional_ro_disks:
+      disk_valid = self.get_disk(disk, zone)
+      if not disk_valid:
+        logging.error('Disk %s does not exist.' % disk)
+        raise DiskDoesNotExistError(disk)
+      disk_info = {
+        'boot': False,
         'type': self.config['disk_type'],
-        'initializeParams': {
-          'diskName': disk_name,
-          'sourceImage': image_url
-          }
-        }]
+        'mode': 'READ_ONLY',
+        'source': disk_valid['selfLink'],
+      }
+      instance['disks'].append(disk_info)
 
     # Set optional fields with provided values.
-    if service_email and scopes:
+    if service_email or scopes:
       instance['serviceAccounts'] = [{'email': service_email, 'scopes': scopes}]
 
     # Set the instance metadata if provided.
@@ -176,6 +192,48 @@ class Gce(object):
     if response and 'error' in response:
       raise ApiOperationError(response['error']['errors'])
 
+    return response
+
+  def attach_disk(self, instance_name, disk_name,
+                  zone=None, disk_mode='READ_ONLY'):
+    """Attaches a persistent disk to an instance.
+
+    Args:
+      instance_name: The string instance name
+      disk_name: The string disk name
+
+    Returns:
+      Dictionary response representing the operation
+
+    Raises:
+      ApiOperationError: Operation contains an error message.
+      DiskDoesNotExistError: Disk to be used for instance boot does not exist.
+      ValueError: Either instance_name is None or an empty string or disk_name
+          is None or an empty string.
+    """
+    if not instance_name:
+      raise ValueError('instance_name required.')
+    if not disk_name:
+      raise ValueError('disk_name required.')
+    if not zone:
+      zone = self.config['compute']['zone']
+
+    # check if disk name is valid
+    if not self.get_disk(disk_name, zone):
+      raise DiskDoesNotExistError(disk_name)
+
+    body = {
+      'type': 'persistent',
+      'mode': disk_mode,
+      'source': disk_response['selfLink']
+    }
+    request = self.service.instances().attachDisk(
+      project=self.project_id, zone=zone, instance=instance_name, body=body
+    )
+    response = self._execute_request(request)
+
+    if response and 'error' in response:
+      raise ApiOperationError(response['error']['errors'])
     return response
 
   def list_instances(self, zone=None, list_filter=None):
@@ -352,7 +410,7 @@ class Gce(object):
 
     return response
 
-  def _blocking_call(self, response):
+  def _blocking_call(self, response, finished_status='DONE'):
     """Blocks until the operation status is done for the given operation.
 
     Args:
@@ -364,7 +422,7 @@ class Gce(object):
 
     status = response['status']
 
-    while status != 'DONE' and response:
+    while status != finished_status and response:
       operation_id = response['name']
       if 'zone' in response:
         zone = response['zone'].rsplit('/', 1)[-1]
@@ -377,8 +435,9 @@ class Gce(object):
       if response:
         status = response['status']
         logging.info(
-            'Waiting until operation is DONE. Current status: %s', status)
-        if status != 'DONE':
+          'Waiting until operation is %s. Current status: %s',
+          finished_status, status)
+        if status != finished_status:
           time.sleep(3)
 
     return response

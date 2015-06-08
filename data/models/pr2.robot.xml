@@ -1,0 +1,55 @@
+<!-- pr2 robot with simulated sensors and controllers attached -->
+<robot file="pr2-beta-static.zae">
+    <kinbody>
+        <body name="r_gripper_center_frame">
+            <rotationaxis>0 0 0 0</rotationaxis>
+            <translation>-0.015 0 0</translation>
+            <offsetfrom>r_gripper_tool_frame</offsetfrom>
+        </body>
+        <joint name="dummy_r_gripper_center" type="hinge">
+            <body>r_gripper_tool_frame</body>
+            <body>r_gripper_center_frame</body>
+            <limitsdeg>0 0</limitsdeg>
+        </joint>
+    </kinbody>
+    <kinbody>
+        <Body name="r_kinect" type="dynamic">
+            <offsetfrom>r_gripper_tool_frame</offsetfrom>
+            <Translation>-0.1 0 -.06</Translation>
+            <Geom type="box">
+                <Translation>0 0 0</Translation>
+                <Extents>0.02 0.11 0.013</Extents>
+                <diffuseColor>0 1 1</diffuseColor>
+            </Geom>
+        </Body>
+        <joint name="dummy_r_kinect" type="hinge">
+            <body>r_gripper_tool_frame</body>
+            <body>r_kinect</body>
+            <limitsdeg>0 0</limitsdeg>
+        </joint>
+    </kinbody>
+    <kinbody>
+        <body name="l_gripper_center_frame">
+            <rotationaxis>0 0 0 0</rotationaxis>
+            <translation>-0.015 0 0</translation>
+            <offsetfrom>l_gripper_tool_frame</offsetfrom>
+        </body>
+        <joint name="dummy_l_gripper_center" type="hinge">
+            <body>l_gripper_tool_frame</body>
+            <body>l_gripper_center_frame</body>
+            <limitsdeg>0 0</limitsdeg>
+        </joint>
+    </kinbody>
+
+    <manipulator name="leftarm_torso_base">
+        <effector>l_gripper_palm_link</effector>
+        <base>base_footprint</base>
+        <joints>
+            l_gripper_l_finger_joint
+            l_gripper_motor_slider_joint
+            l_gripper_motor_screw_joint
+            l_gripper_joint
+        </joints>
+    </manipulator>
+
+</robot>

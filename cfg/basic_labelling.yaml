@@ -1,0 +1,84 @@
+# Basic yaml configuration file for labelling grasps in the grasp db
+
+# CORE PARAMS
+# rll4 setup
+root_dir: /home/jmahler/jeff_working/GPIS
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
+# GCE setup
+# root_dir:     /home/brian/GPIS
+# database_dir: /home/brian/data
+
+dataset_counts: data/counts.txt
+datasets:
+#  - Cat50_ModelDatabase
+  - amazon_picking_challenge
+#  - ModelNet40
+max_chunk_size: 15
+
+# Will be overridden by startup script
+dataset:     amazon_picking_challenge
+chunk_start: 0
+chunk_end:   15
+
+# EXPERIMENT PARAMS
+grasp_width: 0.1
+friction_coef: 0.8
+num_cone_faces: 8
+num_grasp_clusters: 10
+vis_grasps: False
+vis_delay: 0.5
+
+# BANDITS
+bandit_max_iter: 400
+bandit_confidence: 0.0025
+bandit_snapshot_rate: 50
+
+# GRASP SAMPLING
+min_num_grasps: 100
+min_num_collision_free_grasps: 200
+grasp_samples_per_surface_point: 2
+
+dir_prior: 1.0
+alpha_thresh_div: 32.0 # in multiples of pi
+grasp_theta_res: 0.1 # in multiples of pi
+rho_thresh: 0.75 # as percentage of object max moment
+alpha_inc: 0.25
+rho_inc: 0.025
+friction_inc: 0.1
+
+# UNCERTAINTY
+sigma_mu: 0.1
+sigma_trans_grasp: 0.001
+sigma_rot_grasp: 0.1
+sigma_trans_obj: 0.001
+sigma_rot_obj: 0.1
+sigma_scale_obj: 0.1
+num_prealloc_obj_samples: 0 # zero if we want to sample on-line
+num_prealloc_grasp_samples: 0
+
+# GCE PARAMS
+project:        &id_project        nth-clone-620
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+bucket:         &id_bucket         dex-net-cm # TODO
+disk_type:      &id_disk_type      PERSISTENT
+compute:
+  api_version:    v1
+  machine_type:   n1-standard-1
+  zone:           us-central1-a
+  startup_script: scripts/cm_startup.sh # TODO
+  image_project:  *id_project
+  image:          dex-net-image
+  data_disk:
+    - dex-net-data
+  service_email:  default
+  network:        default
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgicallab
+notify_email:   &id_notify_email    jmahl42@gmail.com
