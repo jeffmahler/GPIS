@@ -395,7 +395,7 @@ class ParallelJawPtPose3D(object):
         gripper_pose = data['gripper_pose']
         orientation = gripper_pose['orientation']
         position = gripper_pose['position']
-        self._orientation = tfx.rotation([orientation[c] for c in 'wxyz'])
+        self._orientation = tfx.rotation([orientation[c] for c in 'xyzw'])
         self._position = tfx.point([position[c] for c in 'xyz'])
         self._gripper_pose = tfx.pose(self._orientation, self._position)
 

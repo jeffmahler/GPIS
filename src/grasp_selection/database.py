@@ -40,7 +40,7 @@ class Database(object):
 
     def dataset(self, dataset_name=None):
         if dataset_name is None:
-            return self.datasets_.items()[0][0] # return first element
+            return self.datasets[0] # return first element
         for dataset in self.datasets:
             if dataset.name == dataset_name:
                 return dataset
