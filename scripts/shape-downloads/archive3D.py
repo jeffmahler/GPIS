@@ -64,7 +64,7 @@ def download_shapes_from(category, num, start_page, end_page):
 			os.makedirs(sub_folder + "/" + dir_name)
 			unzip("temp", sub_folder + "/" + dir_name)
 
-download_shapes_from("Kitchen Equipment", 436, 2, 3)
+download_shapes_from("Kitchen Equipment", 436, 5, 6)
 
 print "download complete."
 

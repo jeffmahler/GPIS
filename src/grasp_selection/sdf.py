@@ -617,8 +617,8 @@ class Sdf2D(Sdf):
         Returns:
             float: the signed distance and the given coors (interpolated)
         """
-        if len(coords) != 2:
-            raise IndexError('Indexing must be 2 dimensional')
+        # if len(coords) != 2:
+        #     raise IndexError('Indexing must be 2 dimensional')
 
         # log warning if out of bounds access
         if coords[0] < 0 or coords[0] >= self.dims_[0] or coords[0] < 0 or coords[1] >= self.dims_[1]:
