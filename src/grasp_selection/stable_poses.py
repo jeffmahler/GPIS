@@ -19,7 +19,7 @@ def compute_stable_poses(mesh):
 	convex_hull, cm = m.convex_hull(mesh), m.compute_centroid()
 
 	# mapping each edge in the convex hull to the two faces it borders
-	triangles, vertices, edge_to_faces, triangle_to_vertex, top_vertex = convex_hull.triangles(), convex_hull.vertices(), {}, {}, 0
+	triangles, vertices, edge_to_faces, triangle_to_vertex, top_vertices = convex_hull.triangles(), convex_hull.vertices(), {}, {}, []
 	for triangle in triangles:
 		triangle_vertices = [vertices[i] for i in triangle]
 		e1, e2, e3 = Segment(triangle_vertices[0], triangle_vertices[1]), Segment(triangle_vertices[0], triangle_vertices[2]), Segment(triangle_vertices[1], triangle_vertices[2])
@@ -62,6 +62,7 @@ def compute_stable_poses(mesh):
 
 		proj_cm_in_triangle = (u >= 0) and (v >= 0) and (u + v < 1)
 
+		# update list of top vertices, add edges between vertices as needed
 		if not proj_cm_in_triangle:
 			s1, s2, s3 = Segment(triangle_vertices[0], triangle_vertices[1]), Segment(triangle_vertices[0], triangle_vertices[2]), Segment(triangle_vertices[1], triangle_vertices[2])
 			closest_edge = closest_segment(proj_cm, [s1, s2, s3])
@@ -70,13 +71,17 @@ def compute_stable_poses(mesh):
 					topple_face = face
 			predecessor, successor = triangle_to_vertex[triangle], triangle_to_vertex[topple_face]
 			predecessor.add_edge(successor)
-			if top_vertex:
-				if top_vertex is successor:
-					top_vertex = predecessor
+			if successor in top_vertices:
+				top_vertices[top_vertices.index(successor)] = predecessor
 			else: 
-				top_vertex = predecessor
+				top_vertices.append(predecessor)
 
-	return dfs_sum_probs(top_vertex, 0, {})
+	# computes dictionary mapping faces to probabilities
+	probabilities = {}
+	for top_vertex in top_vertices:
+		probabilities.update(dfs_sum_probs(top_vertex, 0, {}))
+	
+	return probabilities
 
 
 def compute_projected_area(vertices, cm):
@@ -221,5 +226,3 @@ class Vertex:
 		"""
 		self.is_sink = False
 		self.children = self.children + [child]
-
-
