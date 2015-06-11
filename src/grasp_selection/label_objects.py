@@ -110,10 +110,10 @@ if __name__ == '__main__':
     chunk = db.Chunk(config)
 
     # make output directory
+    dest = os.path.join(args.output_dest, chunk.name)
+    GRASP_SAVE_PATH = dest # legacy
     try:
-        dest = os.path.join(args.output_dest, chunk.name)
         os.makedirs(dest)
-        GRASP_SAVE_PATH = dest # legacy
     except os.error:
         pass
 
