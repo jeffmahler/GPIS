@@ -185,6 +185,7 @@ def trace_grasp_axes(trace_im, im_size, scale):
         x1 = np.array(coords[i]) - im_size / 2
         x2 = np.array(coords[i+1]) - im_size / 2
         center = (x1 + x2) / 2
+        center[0] = -center[0]
         v = x2 - x1
         angle = np.arctan(v[0] / v[1])
         width = np.linalg.norm(v)

@@ -168,6 +168,16 @@ class Mesh:
                         # fill in area on image
                         img_draw.polygon([tuple(verts_proj[:,0]), tuple(verts_proj[:,1]), tuple(verts_proj[:,2])], fill=255)
                 return fill_img
+
+        def remove_bad_tris(self):
+                ''' Remove triangles with illegal out-of-bounds references '''
+                new_tris = []
+                num_v = len(self.vertices_)
+                for t in self.triangles_:
+                        if t[0] >= 0 and t[0] < num_v and t[1] >= 0 and t[1] < num_v and t[2] >= 0 and t[2] < num_v:
+                                new_tris.append(t)
+
+                self.triangles_ = new_tris
         
         def remove_unreferenced_vertices(self):
                 '''
@@ -179,9 +189,10 @@ class Mesh:
                 # fill in a 1 for each referenced vertex
                 reffed_array = np.zeros([num_v, 1])
                 for f in self.triangles_:
-                        reffed_array[f[0]] = 1
-                        reffed_array[f[1]] = 1
-                        reffed_array[f[2]] = 1
+                        if f[0] < num_v and f[1] < num_v and f[2] < num_v:
+                                reffed_array[f[0]] = 1
+                                reffed_array[f[1]] = 1
+                                reffed_array[f[2]] = 1
 
                 # trim out vertices that are not referenced
                 reffed_v_old_ind = np.where(reffed_array == 1)
@@ -211,7 +222,7 @@ class Mesh:
                         vertex_array = np.array(self.vertices_)
                         new_vertex_array = np.zeros(vertex_array.shape)
                         new_vertex_array[:,0] = vertex_array[:,1]
-                        new_vertex_array[:,1] = vertex_array[:,0]
+                        new_vertex_array[:,1] = -vertex_array[:,0]
                         new_vertex_array[:,2] = vertex_array[:,2]
                         self.vertices_ = new_vertex_array.tolist()
                         return True
@@ -246,7 +257,7 @@ class Mesh:
                 Returns:
                    Nothing. Modified the mesh in place (for now)
                 '''
-                self.center_vertices_bb()
+                self.center_vertices_avg()
                 vertex_array_cent = np.array(self.vertices_)
                 
                 # find principal axes
@@ -271,10 +282,11 @@ class Mesh:
                 vertex_array_rot = R.dot(vertex_array_cent.T)
                 vertex_array_rot = vertex_array_rot.T
                 self.vertices_ = vertex_array_rot.tolist()
+                self.center_vertices_bb()
 
                 if self.normals_:
                         normals_array = np.array(self.normals_)
-                        normals_array_rot = R.dot(vertex_array_cent.T)
+                        normals_array_rot = R.dot(normals_array.T)
                         self.normals_ = normals_array_rot.tolist()
 
         def rescale_vertices(self, min_scale):

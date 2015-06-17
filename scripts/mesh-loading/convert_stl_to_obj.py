@@ -10,8 +10,9 @@ def get_category(file_dir, dataset):
         while head != '/' and tail in INVALID_CATEGORIES:
             head, tail = os.path.split(head)
         return tail
+    return None
 
-format = '_clean.obj'
+format = '.stl'
 data_folder = sys.argv[1]
 out_folder = sys.argv[2]
 dataset = sys.argv[3]
@@ -35,9 +36,9 @@ for root, sub_folders, files in os.walk(data_folder):
         if file_name.endswith(format) and file_name.find(file_match) >= 0:
             print 'Converting ', file_name
             if dataset == 'berkeley':
-                new_file_name = os.path.join(out_folder, category + '.stl')
+                new_file_name = os.path.join(out_folder, category + '.obj')
             else:
-                new_file_name = os.path.join(out_folder, file_root + '.stl')
+                new_file_name = os.path.join(out_folder, file_root + '.obj')
             meshlabserver_cmd = 'meshlabserver -i %s -o %s' %(file_name, new_file_name) 
             print meshlabserver_cmd
             os.system(meshlabserver_cmd)

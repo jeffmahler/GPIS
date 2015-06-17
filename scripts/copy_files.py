@@ -17,10 +17,10 @@ if __name__ == '__main__':
             for format in FORMATS:
                 if f.endswith(format):
                     cur_filename = os.path.join(root, f)
-                    if cur_filename.find(file_match) >= 0:
+                    if cur_filename.find(file_match) == -1:
                         dirs, file_root = os.path.split(cur_filename)
-                        head, folder = os.path.split(dirs)
-                        head, obj = os.path.split(head)
+                        head, obj = os.path.split(dirs)
+#                        head, obj = os.path.split(head)
 
                         target_subdir = os.path.join(target_dir, obj)
                         target_filename = os.path.join(target_subdir, f)
