@@ -112,7 +112,7 @@ class Dataset(object):
     def read_datum(self, key):
         """Read in the GraspableObject3D corresponding to given key."""
         if key not in self.data_keys_:
-            raise ValueError('Key not found in dataset')
+            raise ValueError('Key %s not found in dataset %s' % (key, self.name))
 
         file_root = os.path.join(self.dataset_root_dir_, key)
         sdf_filename = Dataset.sdf_filename(file_root)

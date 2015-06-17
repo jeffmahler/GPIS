@@ -70,7 +70,8 @@ class ObjFile:
                                 if i == 0:
                                     vi.append(int(tokens[i]) - 1) # adjust for python 0 - indexing
                                 elif i == 1:
-                                    vti.append(int(tokens[i]))
+                                    if tokens[i] != '':
+                                        vti.append(int(tokens[i]))
                                 elif i == 2:
                                     nti.append(int(tokens[i]))
                     faces.append(vi)
