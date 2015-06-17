@@ -1,8 +1,10 @@
 # directories
 bin/*
 build/*
+feedback/*
 matlab/dependencies/*
 lib/*
+images/*
 
 # temp files
 *~
@@ -20,3 +22,6 @@ lib/*
 # secret files
 client_secrets.json
 oauth2.dat
+
+# common outputs
+profile.txt

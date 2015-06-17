@@ -10,5 +10,5 @@ list (REMOVE_ITEM SOURCES ${MAIN})
 #add_executable(GPIS main.cpp)
 #target_link_libraries(GPIS ${CMAKE_PROJECT_NAME}_Core)
 
-add_executable(shot_extractor shot_extractor.cpp)
+add_executable(shot_extractor shot_extractor.cpp load_obj.cpp)
 target_link_libraries(shot_extractor ${FEATURE_DEPENDENCY_LIBS})
