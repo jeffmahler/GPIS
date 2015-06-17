@@ -95,6 +95,11 @@ class AntipodalGraspSampler(object):
         alpha = np.arccos(f.T.dot(v) / np.linalg.norm(v))
         return alpha <= theta, alpha
 
+    def perturb_point(self, x, scale):
+        """ Uniform random perturbations to a point """
+        x_samp = x + (scale / 2.0) * (np.random.rand(3) - 0.5)
+        return x_samp
+
     def generate_grasps(self, graspable, vis = False):
         """Returns a list of candidate grasps for graspable object.
         Params: GraspableObject3D
@@ -112,13 +117,13 @@ class AntipodalGraspSampler(object):
         rave.raveSetDebugLevel(rave.DebugLevel.Error)
         grasp_checker = pgc.OpenRaveGraspChecker(view=vis)
 
-        for x1 in surface_points:
+        for x_surf in surface_points:
             start_time = time.clock()
 
             # perturb grasp for num samples
             for i in range(self.num_samples):
                 # perturb contact (TODO: sample in tangent plane to surface)
-                x1 = x1 + (graspable.sdf.resolution / 2.0) * (np.random.rand(3) - 0.5)
+                x1 = self.perturb_point(x_surf, graspable.sdf.resolution) 
 
                 # compute friction cone faces
                 cone_succeeded, cone1, n1 = graspable.contact_friction_cone(x1, num_cone_faces = self.num_cone_faces,
@@ -132,7 +137,6 @@ class AntipodalGraspSampler(object):
                 sample_time = time.clock()
             
                 for v in v_samples:                
-
                     if vis:
                         x1_grid = graspable.sdf.transform_pt_obj_to_grid(x1)
                         cone1_grid = graspable.sdf.transform_pt_obj_to_grid(cone1, direction=True)
@@ -144,7 +148,12 @@ class AntipodalGraspSampler(object):
                             ax.scatter(x1_grid[0] - cone1_grid[0], x1_grid[1] - cone1_grid[1], x1_grid[2] - cone1_grid[2], s = 50, c = u'm') 
 
                     # start searching for contacts
-                    grasp, x2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
+                    #IPython.embed()
+                    grasp, x1_c, x2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
+
+                    #test_center = np.array([ 0.35838462,  0.0851854 , -0.0181023 ])#np.array([0.0589, -0.01609, 0.14805])
+                    #if np.linalg.norm(grasp.center - test_center) < 1e-2:
+                    #    IPython.embed()
 
                     # make sure grasp is wide enough
                     if grasp is None or x2 is None or np.linalg.norm(x1 - x2) < 0.02:

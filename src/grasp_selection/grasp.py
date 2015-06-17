@@ -164,7 +164,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         return line_of_action
 
     @staticmethod
-    def find_contact(line_of_action, obj, vis = True):
+    def find_contact(line_of_action, obj, vis = True, stop = False):
         """
         Find the point at which a point travelling along a given line of action hits a surface
         Params:
@@ -210,15 +210,32 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     sdf_after = obj.sdf[pt_after]
                     pt_after_after = line_of_action[i+2]
                     sdf_after_after = obj.sdf[pt_after_after]
+                    if stop:
+                        IPython.embed()
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_grid, sdf_here, pt_after, sdf_after, pt_after_after, sdf_after_after)
 
+                    if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
+                        contact_found = False
+
+
                 elif i == len(line_of_action) - 1:
-                    pt_zc = sdf.find_zero_crossing_quadratic(pt_before_before, sdf_before_before, pt_before, sdf_before, pt_grid, sdf_here, )
+                    if stop:
+                        IPython.embed()
+                    pt_zc = sdf.find_zero_crossing_quadratic(pt_before_before, sdf_before_before, pt_before, sdf_before, pt_grid, sdf_here)
+                    if pt_zc is None:
+                        contact_found = False
 
                 else:
+                    if stop:
+                        IPython.embed()
                     pt_after = line_of_action[i+1]
                     sdf_after = obj.sdf[pt_after]
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before, sdf_before, pt_grid, sdf_here, pt_after, sdf_after)
+
+                    if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
+                        contact_found = False
+
+
             i = i+1
 
         # visualization
@@ -295,7 +312,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
 
     @staticmethod
-    def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, jaw_width_world = 0, vis = False):
+    def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, jaw_width_world = 0, vis = False, stop = False):
         """
         Creates a grasp from a single contact point in grid coordinates and direction in grid coordinates
         Params:
@@ -329,8 +346,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.scatter(grasp_c1_grid[0], grasp_c1_grid[1], grasp_c1_grid[2], s=80, c=u'b')
 
         # compute the contact points on the object
-        contact1_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis = vis)
-        contact2_found, c2_world = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis = vis)
+        contact1_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis = vis, stop = stop)
+        contact2_found, c2_world = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis = vis, stop = stop)
 
         if vis:
             ax.set_xlim3d(0, obj.sdf.dims_[0])
@@ -338,13 +355,13 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.set_zlim3d(0, obj.sdf.dims_[2])
             plt.draw()
         if not contact1_found or not contact2_found:
-            logging.warning('No contacts found for grasp')
-            return None, None
+            logging.debug('No contacts found for grasp')
+            return None, None, None
 
         # create grasp
         grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c1_world, c2_world)
         grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c1_world, c2_world)
-        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, grasp_angle=0, tf=obj.tf), c2_world # relative to object
+        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, grasp_angle=0, tf=obj.tf), c1_world, c2_world # relative to object
 
     def visualize(self, obj, arrow_len = 0.01, line_width = 20.0):
         """ Display point grasp as arrows on the contact points of the mesh """

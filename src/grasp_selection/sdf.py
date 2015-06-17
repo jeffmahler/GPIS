@@ -368,6 +368,37 @@ class Sdf3D(Sdf):
         max_dim = np.max(max_pts - min_pts)
         return max_dim
 
+    def curvature(self, coords, delta = 0.1):
+        """
+        Returns an approximation to the local SDF curvature (hessian) at the given coordinate in GRID BASIS
+        Params: numpy 9 array
+        Returns:
+            float: the approximate hessian (interpolated)
+        """
+        # perturb local coords
+        coords_x_up = coords + np.array([delta, 0, 0])
+        coords_x_down = coords + np.array([-delta, 0, 0])
+        coords_y_up = coords + np.array([0, delta, 0])
+        coords_y_down = coords + np.array([0, -delta, 0])
+        coords_z_up = coords + np.array([0, 0, delta])
+        coords_z_down = coords + np.array([0, 0, -delta])
+        
+        # get gradient
+        grad_x_up = self.gradient(coords_x_up)
+        grad_x_down = self.gradient(coords_x_down)
+        grad_y_up = self.gradient(coords_y_up)
+        grad_y_down = self.gradient(coords_y_down)
+        grad_z_up = self.gradient(coords_z_up)
+        grad_z_down = self.gradient(coords_z_down)
+        
+        # finite differences
+        curvature_x = (grad_x_up - grad_x_down) / (2 * delta)
+        curvature_y = (grad_y_up - grad_y_down) / (2 * delta)
+        curvature_z = (grad_z_up - grad_z_down) / (2 * delta)
+        print curvature_x
+        curvature = np.c_[curvature_x, np.c_[curvature_y, curvature_z]]
+        return curvature
+
     def surface_points(self, grid_basis=True):
         """
         Returns the points on the surface
@@ -860,6 +891,10 @@ def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
     # if no positive roots find min
     if t_zc is None:
         t_zc = -w[1] / (2 * w[0])
+
+    eps = 1.0
+    if t_zc < -eps or t_zc > eps:
+        return None
 
     x_zc = x1 + t_zc * v
     return x_zc
