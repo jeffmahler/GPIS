@@ -12,6 +12,8 @@ import obj_file
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+import IPython
+
 # A function for computing the statistical distribution of stable poses of a polyhedron.
 def compute_stable_poses(mesh):
     """
@@ -29,8 +31,17 @@ def compute_stable_poses(mesh):
         triangle_vertices = [vertices[i] for i in triangle]
         e1, e2, e3 = Segment(triangle_vertices[0], triangle_vertices[1]), Segment(triangle_vertices[0], triangle_vertices[2]), Segment(triangle_vertices[1], triangle_vertices[2])
         for edge in [e1, e2, e3]:
-            p_1, p_2 = tuple(sorted(edge.endpoint_1)), tuple(sorted(edge.endpoint_2))
-            k = (p_1, p_2) if p_1[0] > p_2[0] else (p_2, p_1)
+            # order vertices for consistent hashing
+            p_1, p_2 = tuple(edge.endpoint_1), tuple(edge.endpoint_2)
+            k = (p_1, p_2)
+            if p_1[0] < p_2[0]:
+                k = (p_2, p_1)
+            elif p_1[0] == p_2[0] and p_1[1] < p_2[1]:
+                k = (p_2, p_1)
+            elif p_1[0] == p_2[0] and p_1[1] == p_2[1] and p_1[2] < p_2[2]:
+                k = (p_2, p_1)
+                
+ 
             if k in edge_to_faces:
                 edge_to_faces[k] += [triangle]
             else:
@@ -46,15 +57,23 @@ def compute_stable_poses(mesh):
         triangle_vertices = [vertices[i] for i in triangle]
 
         # computation of projection of cm onto plane of face
-        normal_vector, origin_point = np.cross(np.subtract(triangle_vertices[0], triangle_vertices[1]), np.subtract(triangle_vertices[0], triangle_vertices[2])), triangle_vertices[0]
+        v_0 = np.subtract(triangle_vertices[2], triangle_vertices[0])
+        v_1 = np.subtract(triangle_vertices[1], triangle_vertices[0])
+
+        v_0 = v_0 / np.linalg.norm(v_0)
+        v_1 = v_1 / np.linalg.norm(v_1)
+        normal_vector = np.cross(v_0, v_1)
+        
+        origin_point = np.array(triangle_vertices[0])
         normal_vector = normal_vector / np.linalg.norm(normal_vector)
+
         proj_vector = np.subtract(cm, origin_point)
         dist = np.dot(normal_vector, proj_vector)
         proj_cm = np.subtract(cm, dist*normal_vector)
 
+        other_dist = np.linalg.norm(cm - np.array(triangle_vertices[1]))
+
         # barycentric coordinates/minimum distance analysis (adapted from implementation provided at http://www.blackpawn.com/texts/pointinpoly/)
-        v_0 = np.subtract(triangle_vertices[2], triangle_vertices[0])
-        v_1 = np.subtract(triangle_vertices[1], triangle_vertices[0])
         v_2 = np.subtract(proj_cm, triangle_vertices[0])
 
         dot_00 = np.dot(v_0, v_0)
@@ -80,22 +99,37 @@ def compute_stable_poses(mesh):
                 else:
                     index = index + 1
                 closest_edge = Segment(common_endpoint, triangle_vertices[index])
+
             else:
                 closest_edge = closest_edges[0]
-            p_1, p_2 = tuple(sorted(closest_edge.endpoint_1)), tuple(sorted(closest_edge.endpoint_2))
-            k = (p_1, p_2) if p_1[0] > p_2[0] else (p_2, p_1)
+
+            # order vertices for consistent hashing
+            p_1, p_2 = tuple(closest_edge.endpoint_1), tuple(closest_edge.endpoint_2)
+            k = (p_1, p_2)
+            if p_1[0] < p_2[0]:
+                k = (p_2, p_1)
+            elif p_1[0] == p_2[0] and p_1[1] < p_2[1]:
+                k = (p_2, p_1)
+            elif p_1[0] == p_2[0] and p_1[1] == p_2[1] and p_1[2] < p_2[2]:
+                k = (p_2, p_1)
+
             for face in edge_to_faces[k]:
                 if list(face) != list(triangle):
                     topple_face = face
             predecessor, successor = triangle_to_vertex[tuple(triangle)], triangle_to_vertex[tuple(topple_face)]
             predecessor.add_edge(successor)
 
+
     # computes dictionary mapping faces to probabilities
+    """
     top_vertices = []
+    prob_sum = 0
     for vertex in triangle_to_vertex.values():
+        prob_sum += vertex.probability
         if not vertex.has_parent:
             top_vertices.append(vertex)
-    probabilities = propagate_probabilities(top_vertices)
+    """
+    probabilities = prop_probs_slow(triangle_to_vertex.values())
 
     return probabilities
 
@@ -117,6 +151,26 @@ def compute_projected_area(vertices, cm):
     return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
     
 
+def prop_probs_slow(vertices):
+    """
+    Pushes the probability of each vertex onto it sink by traversing the graph for each vertex. Slow, but works
+
+    vertices -- list of all vertices in grasp
+    prob_mapping -- mapping of sink vertices to their propogated probabilities
+    """
+    prob_mapping = {}
+    for vertex in vertices:
+        c = vertex
+        while not c.is_sink:
+            c = c.children[0]
+
+        if not vertex.is_sink:
+            c.probability += vertex.probability
+        prob_mapping[tuple(c.face)] = c.probability
+
+    return prob_mapping
+        
+
 def propagate_probabilities(top_vertices):
     """
     Traverses graph of faces with depth first search, setting all non-sink
@@ -126,6 +180,8 @@ def propagate_probabilities(top_vertices):
     vertex -- starting vertex from which graph is to be traversed
     prob_sum -- current probability sum
     prob_mapping -- mapping of sink vertices to their propogated probabilities
+
+    NOTE: DOES NOT WORK. DO NOT USE
     """
     q, prob_mapping = Queue.Queue(), {}
     for vertex in top_vertices:
@@ -133,20 +189,28 @@ def propagate_probabilities(top_vertices):
 
     while not q.empty():
         curr_vertex = q.get()
-        if curr_vertex.marked:
-            prob_mapping[tuple(curr_vertex.face)] = curr_vertex.probability
-            continue
+
         if curr_vertex.is_sink:
             prob_mapping[tuple(curr_vertex.face)] = curr_vertex.probability
+            curr_vertex.marked = True;
+
         else:
             num_children = len(curr_vertex.children)
             curr_vertex.probability /= num_children
             for child in curr_vertex.children:
                 if curr_vertex in child.children:
-                    print(curr_vertex.face)
-                child.probability += curr_vertex.probability
-                q.put(child)
-        curr_vertex.marked = True;
+                    print 'SMALL LOOP', curr_vertex.face
+
+                if child.marked:
+                    c = child
+                    while not c.is_sink:
+                        c = c.children[0]
+                    c.probability += curr_vertex.probability
+                else:
+                    child.probability += curr_vertex.probability
+                    q.put(child)
+            curr_vertex.marked = True;
+
     return prob_mapping
 
 
@@ -257,6 +321,7 @@ class Vertex:
         """
         self.probability = probability
         self.children = []
+        self.parents = []
         self.face = face
         self.is_sink = True if not self.children else False
         self.has_parent = False
@@ -270,6 +335,7 @@ class Vertex:
         """
         self.is_sink = False
         self.children.append(child)
+        child.parents.append(self)
         child.has_parent = True
         child.num_parents += 1
 
@@ -277,12 +343,13 @@ class Vertex:
 ##############
 #TESTING AREA#
 ##############
-filename = "/Users/Nikhil/Desktop/UC Berkeley /GPIS/data/test/meshes/Co_clean.obj"
-filename = "/Users/Nikhil/Desktop/pepper_orig.obj"
+filename = "data/test/meshes/Co_clean.obj"
+#filename = "data/test/features/pepper_orig.obj"
 ob = obj_file.ObjFile(filename)
 mesh = ob.read()
 mesh.remove_unreferenced_vertices()
 prob_mapping = compute_stable_poses(mesh)
+
 print(prob_mapping)
-print(sum([val for val in prob_mapping.values()]))
+print 'Total sink sum', sum([val for val in prob_mapping.values()])
 
