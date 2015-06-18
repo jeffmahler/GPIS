@@ -46,7 +46,6 @@ class LocalFeatureFile:
        
         # initialize features object
         features = f.BagOfFeatures()
-        IPython.embed()
 
         # parse through the lines of data from the shot file to fill out the matrices
         for i in range(num_descriptors):
