@@ -6,14 +6,20 @@ import numpy as np
 from scipy import spatial
 from sklearn.neighbors import NearestNeighbors
 
+import feature_file as ff
+import feature_matcher as fm
+import registration as reg
+import obj_file as of
+
 import IPython
+
+HEADER_SIZE = 8 #size of obj file header
 
 def string_to_array(string):
     """
     Takes in a string of space-separated values and returns an np-array of those values
     """
     return np.array([float(i) for i in string.split()])
-
 
 class ShotFeatures:
     def __init__(self, shot_file_name, pts_file_name):
@@ -26,7 +32,6 @@ class ShotFeatures:
         """
 
         #working with the extracted shot features (extracted with c++ script and input as shot_file_name)
-        HEADER_SIZE = 8 #size of obj file header
         shot_file = open(shot_file_name, 'r')
 
         self.num_descriptors = int(shot_file.readline())
@@ -49,24 +54,6 @@ class ShotFeatures:
         shot_file.close()
 
         #determining indices of points with descriptors in original .obj/point list
-        """
-        opened_obj_file = open(obj_file_name, 'r')
-        obj_file_lines = opened_obj_file.readlines()
-        self.all_points = {} #mapping from point to index
-        for i in range(HEADER_SIZE,len(obj_file_lines)):
-            point_vector = obj_file_lines[i].split()[1:] #the obj was all vertices, so flag ignored
-            point = tuple([float(coord) for coord in point_vector])
-            self.all_points[point] = i - HEADER_SIZE
-        
-        opened_obj_file.close()
-        """
-
-        """
-        all_points_arr = np.loadtxt(pts_file_name)
-        self.all_points = {}
-        for i in range(all_points_arr.shape[0]):
-            self.all_points[tuple(all_points_arr[i,:])] = i 
-        """
         self.all_points = np.loadtxt(pts_file_name)
 
     def get_index(self, point):
@@ -187,8 +174,47 @@ def test_feature_matching():
     print 'Delta TF'
     print delta_tf
 
+def test_new_feature_matching():
+    a_features_filename = "data/test/features/pepper_orig_features.txt"
+    b_features_filename = "data/test/features/pepper_tf_features.txt"
+    a_mesh_filename = "data/test/features/pepper_orig.obj"
+    b_mesh_filename = "data/test/features/pepper_tf.obj"
+
+    # read data
+    a_feat_file = ff.LocalFeatureFile(a_features_filename)
+    a_features = a_feat_file.read()
+
+    b_feat_file = ff.LocalFeatureFile(b_features_filename)
+    b_features = b_feat_file.read()
+
+    a_obj_file = of.ObjFile(a_mesh_filename)
+    a_mesh = a_obj_file.read()
+
+    b_obj_file = of.ObjFile(b_mesh_filename)
+    b_mesh = b_obj_file.read()
+
+    # match features
+    feat_matcher = fm.RawDistanceFeatureMatcher()
+    ab_corrs = feat_matcher.match(a_features, b_features)
+    reg_solver = reg.RigidRegistrationSolver()
+    tf = reg_solver.register(ab_corrs)
+
+    # compare with true transform
+    tf_true = np.loadtxt("data/test/features/tf_true.txt", delimiter=" ")
+    delta_tf = tf.dot(np.linalg.inv(tf_true))
+
+    print 'Estimated TF'
+    print tf
+
+    print 'True TF'
+    print tf_true
+
+    print 'Delta TF'
+    print delta_tf
+
 if __name__ == '__main__':
-    test_feature_matching()
+    #test_feature_matching()
+    test_new_feature_matching()
 
 
 
