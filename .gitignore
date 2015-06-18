@@ -18,6 +18,7 @@ images/*
 *.pyc
 *.recv
 *.send
+.DS_Store
 
 # secret files
 client_secrets.json

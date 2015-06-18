@@ -36,7 +36,7 @@ class AdaptiveSamplingResult:
         self.models = models
 
 class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
-    __metaclass__ = ABCMeta    
+    __metaclass__ = ABCMeta
 
     """
     Skeleton class for an adaptive sampler to maximize some objective over some objective.
@@ -46,7 +46,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
         self.model_ = model
         self.selection_policy_ = selection_policy
         solvers.DiscreteSamplingSolver.__init__(self, objective, candidates)
-    
+
     @abstractmethod
     def reset_model(self, candidates):
         """ Reset model with the new candidates """
@@ -57,7 +57,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
                           snapshot_rate = 1):
         """
         Maximizes a function over a discrete set of variables by
-        iteratively predicting the best point (using some model policy) 
+        iteratively predicting the best point (using some model policy)
         """
         # check input
         if len(candidates) == 0:
@@ -83,7 +83,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
         next_ind_val = 0
 
         while not terminate:
-            # get next point to sample    
+            # get next point to sample
             next_ind = self.selection_policy_.choose_next()
 
             # evaluate the function at the given point (can be nondeterministic)
@@ -93,7 +93,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
             # snapshot the model and whatnot
             if (k % snapshot_rate) == 0:
                 logging.info('Iteration %d' %(k))
-                
+
                 # log time and stuff
                 checkpt = time.clock()
                 times.append(checkpt - start_time)
@@ -106,7 +106,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
             self.model_.update(next_ind, next_ind_val)
 
             # check termination condiation
-            terminate = termination_condition(k, cur_val = next_ind_val, prev_val = prev_ind_val, model = self.model_)            
+            terminate = termination_condition(k, cur_val = next_ind_val, prev_val = prev_ind_val, model = self.model_)
             k = k + 1
 
         # log final values
@@ -143,9 +143,21 @@ class BetaBernoulliBandit(DiscreteAdaptiveSampler):
     def reset_model(self, candidates):
         """ Needed to independently maximize over subsets of data """
         num_subcandidates = len(candidates)
-        self.model_ = models.BetaBernoulliModel(self.num_candidates_, self.model_.alpha_prior_, self.model_.beta_prior_)        
+        self.model_ = models.BetaBernoulliModel(self.num_candidates_, self.model_.alpha_prior_, self.model_.beta_prior_)
+        self.selection_policy_.set_model(self.model_) # always update the selection policy!
+
+class GaussianBandit(DiscreteAdaptiveSampler):
+    def __init__(self, objective, candidates, policy, mean_prior=0.5, sigma=1e-2):
+        self.num_candidates_ = len(candidates)
+        self.model_ = models.GaussianModel(self.num_candidates_, mean_prior, sigma)
+        self.selection_policy_ = policy
         self.selection_policy_.set_model(self.model_)
-        # always update the selection policy!    
+
+        DiscreteAdaptiveSampler.__init__(self, objective, candidates, self.model_, self.selection_policy_)
+
+    def reset_model(self):
+        self.model_ = models.BetaBernoulliModel(self.num_candidates_, self.model_.alpha_prior_, self.model_.beta_prior_)
+        self.selection_policy_.set_model(self.model_) # always update the selection policy!
 
 # Beta-Bernoulli bandit models: so easy!
 class UniformAllocationMean(BetaBernoulliBandit):
@@ -210,7 +222,7 @@ def test_uniform_alloc(num_candidates = 100):
     # get true maximum
     true_max = np.max(pred_means)
     true_max_indices = np.where(pred_means == true_max)
-        
+
     # solve using uniform allocation
     obj = objectives.RandomBinaryObjective()
     ua = UniformAllocationMean(obj, candidates)
@@ -226,7 +238,7 @@ def test_uniform_alloc(num_candidates = 100):
 
     # visualize result
     plot_num_pulls_beta_bernoulli(result)
-    plt.title('Observations Per Variable for Uniform Allocation')    
+    plt.title('Observations Per Variable for Uniform Allocation')
 
     plot_value_vs_time_beta_bernoulli(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Uniform Allocation')
@@ -242,7 +254,7 @@ def test_thompson_sampling(num_candidates = 100):
     # get true maximum
     true_max = np.max(pred_means)
     true_max_indices = np.where(pred_means == true_max)
-        
+
     # solve using uniform allocation
     obj = objectives.RandomBinaryObjective()
     ua = ThompsonSampling(obj, candidates)
@@ -258,7 +270,7 @@ def test_thompson_sampling(num_candidates = 100):
 
     # visualize result
     plot_num_pulls_beta_bernoulli(result)
-    plt.title('Observations Per Variable for Thompson sampling')    
+    plt.title('Observations Per Variable for Thompson sampling')
 
     plot_value_vs_time_beta_bernoulli(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Thompson sampling')
@@ -274,7 +286,7 @@ def test_gittins_indices_98(num_candidates = 100):
     # get true maximum
     true_max = np.max(pred_means)
     true_max_indices = np.where(pred_means == true_max)
-        
+
     # solve using uniform allocation
     obj = objectives.RandomBinaryObjective()
     ua = GittinsIndex98(obj, candidates)
@@ -290,7 +302,7 @@ def test_gittins_indices_98(num_candidates = 100):
 
     # visualize result
     plot_num_pulls_beta_bernoulli(result)
-    plt.title('Observations Per Variable for Gittins Indices 98')    
+    plt.title('Observations Per Variable for Gittins Indices 98')
 
     plot_value_vs_time_beta_bernoulli(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Gittins Indices 98')
@@ -301,4 +313,3 @@ if __name__ == '__main__':
     test_thompson_sampling()
 #    test_gittins_indices_98()
     plt.show()
-
