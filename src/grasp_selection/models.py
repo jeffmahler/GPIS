@@ -65,18 +65,29 @@ class DiscreteModel(Model):
         """Returns the number of variables in the model"""
         return self.num_vars_
 
-class BernoulliSnapshot:
-    def __init__(self, best_pred_ind, means, num_obs):
+
+class Snapshot:
+    __metaclass__ = ABCMeta
+    def __init__(self, best_pred_ind, num_obs):
         self.best_pred_ind = best_pred_ind
-        self.means = copy.copy(means)
         self.num_obs = copy.copy(num_obs)
 
-class BetaBernoulliSnapshot:
+class BernoulliSnapshot(Snapshot):
+    def __init__(self, best_pred_ind, means, num_obs):
+        Snapshot.__init__(self, best_pred_ind, num_obs)
+        self.means = copy.copy(means)
+
+class BetaBernoulliSnapshot(Snapshot):
     def __init__(self, best_pred_ind, alphas, betas, num_obs):
-        self.best_pred_ind = best_pred_ind
+        Snapshot.__init__(self, best_pred_ind, num_obs)
         self.alphas = copy.copy(alphas)
         self.betas = copy.copy(betas)
-        self.num_obs = copy.copy(num_obs)
+
+class GaussianSnapshot(Snapshot):
+    def __init__(self, best_pred_ind, means, variances, num_obs):
+        Snapshot.__init__(self, best_pred_ind, num_obs)
+        self.means = copy.copy(means)
+        self.variances = copy.copy(variances)
 
 class BernoulliModel(DiscreteModel):
     """
@@ -274,6 +285,7 @@ class GaussianModel(DiscreteModel):
     def _init_model_params(self):
         self.means_ = self.mean_prior_ * np.ones(self.num_vars_)
         self.vars_ = np.ones(self.num_vars_)
+        self.num_observations_ = np.zeros(self.num_vars_)
 
     @property
     def means(self):
@@ -314,8 +326,9 @@ class GaussianModel(DiscreteModel):
         old_var = self.vars_[index]
         noise = self.sigma_ ** 2
 
-        self.means_[index] = old_mean + (old_var / old_var + noise) * (value - old_mean)
+        self.means_[index] = old_mean + ((value - old_mean) * old_var) / (old_var + noise)
         self.vars_[index] = old_var - (old_var ** 2) / (old_var + noise)
+        self.num_observations_[index] += 1
 
     def sample(self, stop=False):
         """Sample discrete predictions from the model."""
@@ -328,4 +341,5 @@ class GaussianModel(DiscreteModel):
         """Returns a concise description of the current model for debugging and
         logging purposes.
         """
-        return self.max_prediction()
+        ind, mn, var = self.max_prediction()
+        return GaussianSnapshot(ind[0], self.means_, self.vars_, self.num_observations_)

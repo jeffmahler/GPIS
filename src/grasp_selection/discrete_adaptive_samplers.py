@@ -130,6 +130,8 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
         return AdaptiveSamplingResult(best_candidates, best_pred_means, best_pred_vars, total_duration,
                                       times, iters, iter_indices, iter_vals, iter_models)
 
+
+# Beta-Bernoulli bandit models: so easy!
 class BetaBernoulliBandit(DiscreteAdaptiveSampler):
     """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
     def __init__(self, objective, candidates, policy, alpha_prior = 1.0, beta_prior = 1.0):
@@ -146,20 +148,6 @@ class BetaBernoulliBandit(DiscreteAdaptiveSampler):
         self.model_ = models.BetaBernoulliModel(self.num_candidates_, self.model_.alpha_prior_, self.model_.beta_prior_)
         self.selection_policy_.set_model(self.model_) # always update the selection policy!
 
-class GaussianBandit(DiscreteAdaptiveSampler):
-    def __init__(self, objective, candidates, policy, mean_prior=0.5, sigma=1e-2):
-        self.num_candidates_ = len(candidates)
-        self.model_ = models.GaussianModel(self.num_candidates_, mean_prior, sigma)
-        self.selection_policy_ = policy
-        self.selection_policy_.set_model(self.model_)
-
-        DiscreteAdaptiveSampler.__init__(self, objective, candidates, self.model_, self.selection_policy_)
-
-    def reset_model(self):
-        self.model_ = models.BetaBernoulliModel(self.num_candidates_, self.model_.alpha_prior_, self.model_.beta_prior_)
-        self.selection_policy_.set_model(self.model_) # always update the selection policy!
-
-# Beta-Bernoulli bandit models: so easy!
 class UniformAllocationMean(BetaBernoulliBandit):
     """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
     def __init__(self, objective, candidates, alpha_prior = 1.0, beta_prior = 1.0):
@@ -179,7 +167,43 @@ class GittinsIndex98(BetaBernoulliBandit):
         self.selection_policy_ = dcsp.BetaBernoulliGittinsIndex98Policy()
         BetaBernoulliBandit.__init__(self, objective, candidates, self.selection_policy_, alpha_prior=1, beta_prior=1)
 
-class BernoulliRV:
+
+# Gaussian bandit models
+class GaussianBandit(DiscreteAdaptiveSampler):
+    def __init__(self, objective, candidates, policy, mean_prior=0.5, sigma=1e-2):
+        self.num_candidates_ = len(candidates)
+        self.model_ = models.GaussianModel(self.num_candidates_, mean_prior, sigma)
+        self.selection_policy_ = policy
+        self.selection_policy_.set_model(self.model_)
+
+        DiscreteAdaptiveSampler.__init__(self, objective, candidates, self.model_, self.selection_policy_)
+
+    def reset_model(self, candidates):
+        self.model_ = models.GaussianModel(self.num_candidates_, self.model_.mean_prior_, self.model_.sigma_)
+        self.selection_policy_.set_model(self.model_) # always update the selection policy!
+
+class GaussianUniformAllocationMean(GaussianBandit):
+    def __init__(self, objective, candidates, mean_prior=0.5, sigma=1e-2):
+        GaussianBandit.__init__(self, objective, candidates, dcsp.UniformSelectionPolicy(), mean_prior, sigma)
+
+class GaussianThompsonSampling(GaussianBandit):
+    def __init__(self, objective, candidates, mean_prior=0.5, sigma=1e-2):
+        GaussianBandit.__init__(self, objective, candidates, dcsp.ThompsonSelectionPolicy(), mean_prior, sigma)
+
+
+class RandomVariable:
+    """Abstract class for random variables."""
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def sample_success(self):
+        pass
+
+    @abstractmethod
+    def value(self):
+        pass
+
+class BernoulliRV(RandomVariable):
     """ Bernoulli RV class for use with Beta-Bernoulli bandit testing """
     def __init__(self, p):
         self.p_ = p
@@ -190,7 +214,13 @@ class BernoulliRV:
     def p(self):
         return self.p_
 
-def plot_num_pulls_beta_bernoulli(result):
+    def value(self):
+        return self.p_
+
+
+# Tests
+
+def plot_num_pulls(result):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
     num_candidates = result.models[-1].num_obs.shape[0]
     ind = np.arange(num_candidates)
@@ -201,15 +231,16 @@ def plot_num_pulls_beta_bernoulli(result):
     ax.set_xlabel('Variables')
     ax.set_ylabel('Num observations')
 
-def plot_value_vs_time_beta_bernoulli(result, candidates, true_max=None):
+def plot_value_vs_time(result, candidates, true_max=None):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
-    best_values = [candidates[m.best_pred_ind].p() for m in result.models]
+    best_values = [candidates[m.best_pred_ind].value() for m in result.models]
     plt.figure()
     plt.plot(result.iters, best_values, color='blue', linewidth=2)
     if true_max is not None: # also plot best possible
         plt.plot(result.iters, true_max*np.ones(len(result.iters)), color='green', linewidth=2)
     plt.xlabel('Iteration')
     plt.ylabel('Probability of Success')
+
 
 def test_uniform_alloc(num_candidates = 100):
     # get candidates
@@ -237,10 +268,10 @@ def test_uniform_alloc(num_candidates = 100):
     logging.info('Best index %d' %(true_max_indices[0]))
 
     # visualize result
-    plot_num_pulls_beta_bernoulli(result)
+    plot_num_pulls(result)
     plt.title('Observations Per Variable for Uniform Allocation')
 
-    plot_value_vs_time_beta_bernoulli(result, candidates, true_max)
+    plot_value_vs_time(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Uniform Allocation')
 
 def test_thompson_sampling(num_candidates = 100):
@@ -269,10 +300,10 @@ def test_thompson_sampling(num_candidates = 100):
     logging.info('Best index %d' %(true_max_indices[0]))
 
     # visualize result
-    plot_num_pulls_beta_bernoulli(result)
+    plot_num_pulls(result)
     plt.title('Observations Per Variable for Thompson sampling')
 
-    plot_value_vs_time_beta_bernoulli(result, candidates, true_max)
+    plot_value_vs_time(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Thompson sampling')
 
 def test_gittins_indices_98(num_candidates = 100):
@@ -301,15 +332,76 @@ def test_gittins_indices_98(num_candidates = 100):
     logging.info('Best index %d' %(true_max_indices[0]))
 
     # visualize result
-    plot_num_pulls_beta_bernoulli(result)
+    plot_num_pulls(result)
     plt.title('Observations Per Variable for Gittins Indices 98')
 
-    plot_value_vs_time_beta_bernoulli(result, candidates, true_max)
+    plot_value_vs_time(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Gittins Indices 98')
+
+
+def test_gaussian_uniform_alloc(num_candidates=100):
+    # get candidates
+    np.random.seed(1000)
+    actual_means = np.random.rand(num_candidates)
+    candidates = [BernoulliRV(m) for m in actual_means]
+
+    # get true maximum
+    true_max = np.max(actual_means)
+    true_max_indices = np.where(actual_means == true_max)
+
+    # solve using uniform allocation
+    obj = objectives.RandomBinaryObjective()
+    ua = GaussianUniformAllocationMean(obj, candidates)
+    result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=1000)
+
+    # check result (not guaranteed to work in finite iterations but whatever)
+    assert len(result.best_candidates) == 1
+    assert np.abs(result.best_candidates[0].p() - true_max) < 1e-4
+    logging.info('Gaussian uniform allocation test passed!')
+    logging.info('Took %f sec' % (result.total_time))
+    logging.info('Best index %d' % (true_max_indices[0]))
+
+    # visualize result
+    plot_num_pulls(result)
+    plt.title('Observations Per Variable for Gaussian Uniform Allocation')
+
+    plot_value_vs_time(result, candidates, true_max)
+    plt.title('P(Success) versus Iterations for Gaussian Uniform Allocation')
+
+def test_gaussian_thompson_sampling(num_candidates=100):
+    # get candidates
+    np.random.seed(1000)
+    actual_means = np.random.rand(num_candidates)
+    candidates = [BernoulliRV(m) for m in actual_means]
+
+    # get true maximum
+    true_max = np.max(actual_means)
+    true_max_indices = np.where(actual_means == true_max)
+
+    # solve using Thompson sampling
+    obj = objectives.RandomBinaryObjective()
+    ts = GaussianThompsonSampling(obj, candidates)
+    result = ts.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=1000)
+
+    # check result (not guaranteed to work in finite iterations but whatever)
+    assert len(result.best_candidates) == 1
+    assert np.abs(result.best_candidates[0].p() - true_max) < 1e-4
+    logging.info('Gaussian Thompson sampling test passed!')
+    logging.info('Took %f sec' % (result.total_time))
+    logging.info('Best index %d' % (true_max_indices[0]))
+
+    # visualize result
+    plot_num_pulls(result)
+    plt.title('Observations Per Variable for Gaussian Thompson Sampling')
+
+    plot_value_vs_time(result, candidates, true_max)
+    plt.title('P(Success) versus Iterations for Gaussian Thompson Sampling')
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    test_uniform_alloc()
+    # test_uniform_alloc()
     test_thompson_sampling()
-#    test_gittins_indices_98()
+    # test_gittins_indices_98()
+    # test_gaussian_uniform_alloc()
+    test_gaussian_thompson_sampling()
     plt.show()
