@@ -190,6 +190,10 @@ class GaussianThompsonSampling(GaussianBandit):
     def __init__(self, objective, candidates, mean_prior=0.5, sigma=1e-2):
         GaussianBandit.__init__(self, objective, candidates, dcsp.ThompsonSelectionPolicy(), mean_prior, sigma)
 
+class GaussianUCBSampling(GaussianBandit):
+    def __init__(self, objective, candidates, mean_prior=0.5, sigma=1e-2):
+        GaussianBandit.__init__(self, objective, candidates, dcsp.GaussianUCBPolicy(), mean_prior, sigma)
+
 
 class RandomVariable:
     """Abstract class for random variables."""
@@ -219,6 +223,8 @@ class BernoulliRV(RandomVariable):
 
 
 # Tests
+
+SNAPSHOT_RATE = 100
 
 def plot_num_pulls(result):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
@@ -258,7 +264,7 @@ def test_uniform_alloc(num_candidates = 100):
     obj = objectives.RandomBinaryObjective()
     ua = UniformAllocationMean(obj, candidates)
 
-    result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(10000), snapshot_rate = 1000)
+    result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(10000), snapshot_rate = SNAPSHOT_RATE)
 
     # check result (not guaranteed to work in finite iterations but whatever)
     assert(len(result.best_candidates) == 1)
@@ -290,7 +296,7 @@ def test_thompson_sampling(num_candidates = 100):
     obj = objectives.RandomBinaryObjective()
     ua = ThompsonSampling(obj, candidates)
 
-    result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(10000), snapshot_rate = 1000)
+    result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(10000), snapshot_rate = SNAPSHOT_RATE)
 
     # check result (not guaranteed to work in finite iterations but whatever)
     assert(len(result.best_candidates) == 1)
@@ -321,7 +327,7 @@ def test_gittins_indices_98(num_candidates = 100):
     # solve using uniform allocation
     obj = objectives.RandomBinaryObjective()
     ua = GittinsIndex98(obj, candidates)
-    result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(100000), snapshot_rate = 1000)
+    result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(100000), snapshot_rate = SNAPSHOT_RATE)
     # NOTE: needs more iters on this problem
 
     # check result (not guaranteed to work in finite iterations but whatever)
@@ -352,7 +358,7 @@ def test_gaussian_uniform_alloc(num_candidates=100):
     # solve using uniform allocation
     obj = objectives.RandomBinaryObjective()
     ua = GaussianUniformAllocationMean(obj, candidates)
-    result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=1000)
+    result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=SNAPSHOT_RATE)
 
     # check result (not guaranteed to work in finite iterations but whatever)
     assert len(result.best_candidates) == 1
@@ -368,6 +374,8 @@ def test_gaussian_uniform_alloc(num_candidates=100):
     plot_value_vs_time(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Gaussian Uniform Allocation')
 
+    return result
+
 def test_gaussian_thompson_sampling(num_candidates=100):
     # get candidates
     np.random.seed(1000)
@@ -381,7 +389,7 @@ def test_gaussian_thompson_sampling(num_candidates=100):
     # solve using Thompson sampling
     obj = objectives.RandomBinaryObjective()
     ts = GaussianThompsonSampling(obj, candidates)
-    result = ts.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=1000)
+    result = ts.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=SNAPSHOT_RATE)
 
     # check result (not guaranteed to work in finite iterations but whatever)
     assert len(result.best_candidates) == 1
@@ -397,6 +405,39 @@ def test_gaussian_thompson_sampling(num_candidates=100):
     plot_value_vs_time(result, candidates, true_max)
     plt.title('P(Success) versus Iterations for Gaussian Thompson Sampling')
 
+    return result
+
+def test_gaussian_ucb(num_candidates=100):
+    # get candidates
+    np.random.seed(1000)
+    actual_means = np.random.rand(num_candidates)
+    candidates = [BernoulliRV(m) for m in actual_means]
+
+    # get true maximum
+    true_max = np.max(actual_means)
+    true_max_indices = np.where(actual_means == true_max)
+
+    # solve using GP-UCB
+    obj = objectives.RandomBinaryObjective()
+    ts = GaussianUCBSampling(obj, candidates)
+    result = ts.solve(termination_condition=tc.MaxIterTerminationCondition(10000), snapshot_rate=SNAPSHOT_RATE)
+
+    # check result (not guaranteed to work in finite iterations but whatever)
+    assert len(result.best_candidates) == 1
+    assert np.abs(result.best_candidates[0].p() - true_max) < 1e-4
+    logging.info('Gaussian UCB sampling test passed!')
+    logging.info('Took %f sec' % (result.total_time))
+    logging.info('Best index %d' % (true_max_indices[0]))
+
+    # visualize result
+    plot_num_pulls(result)
+    plt.title('Observations Per Variable for Gaussian UCB Sampling')
+
+    plot_value_vs_time(result, candidates, true_max)
+    plt.title('P(Success) versus Iterations for Gaussian UCB Sampling')
+
+    return result
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     # test_uniform_alloc()
@@ -404,4 +445,5 @@ if __name__ == '__main__':
     # test_gittins_indices_98()
     # test_gaussian_uniform_alloc()
     test_gaussian_thompson_sampling()
+    test_gaussian_ucb()
     plt.show()

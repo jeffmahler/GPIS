@@ -44,7 +44,7 @@ class MaxDiscreteSelectionPolicy(DiscreteSelectionPolicy):
         """ Returns the index of the maximal variable, breaking ties uniformly at random"""
         if self.model_ is None:
             raise ValueError('Must set predictive model')
-        max_indices, max_mean_vals, max_var_vals = self.model_.max_prediction()
+        max_indices, _, _ = self.model_.max_prediction()
         num_max_indices = max_indices.shape[0]
         next_index = np.random.choice(num_max_indices)
         return max_indices[next_index]
@@ -96,3 +96,22 @@ class BetaBernoulliGittinsIndex98Policy(DiscreteSelectionPolicy):
         num_max_indices = max_indices.shape[0]
         next_index = np.random.choice(num_max_indices)
         return max_indices[next_index]        
+
+class GaussianUCBPolicy(DiscreteSelectionPolicy):
+    def __init__(self, beta=1.0):
+        self.beta_ = beta
+
+    def choose_next(self, stop=False):
+        """Returns the index of the variable with the highest UCB, breaking ties
+        uniformly at random."""
+        if self.model_ is None:
+            raise ValueError('Must set predictive model')
+        if not isinstance(self.model_, models.GaussianModel):
+            raise ValueError('GP-UCB can only be used with Gaussian models')
+
+        ucb = self.model_.means + self.beta_ * np.sqrt(self.model_.variances)
+        max_ucb = np.max(ucb)
+        max_indices = np.where(ucb == max_ucb)[0]
+        num_max_indices = max_indices.shape[0]
+        next_index = np.random.choice(num_max_indices)
+        return max_indices[next_index]
