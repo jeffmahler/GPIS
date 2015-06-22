@@ -88,7 +88,6 @@ FloatLayout:
 	size_hint: (.1,.1)
 	text: 'Next'
 
-
 <SaveButton>:
 	id: save_button
 	source: root.source
@@ -96,6 +95,25 @@ FloatLayout:
 	size_hint: (.1,.1)
 	text: 'Save'
 
+<SaveScreen>:
+	id: save_screen
+	source: root.source
+	pos_hint: {'x':.3, 'y':.3}
+	size_hint: (.4,.4)
+	text:'Button'
+	canvas:
+		Color:
+			rgba: .4, .4, .4, 1
+		Rectangle: 
+			pos: self.pos
+			size: self.size
+
+<SaveScreenSave>:
+	id: save_screen_save
+	source: root.source
+	pos_hint: {'x':.55, 'y':.35}
+	size_hint: (.1,.1)
+	text:'Save'
 
 <FinalSaveButton>:
 	id: final_save_button

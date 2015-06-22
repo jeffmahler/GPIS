@@ -20,9 +20,11 @@ import pickle
 # Grasp: general class for grasps (to be added to in other programs)
 # Should match Grasp class/objects loaded from external file
 class Grasp:
-	def __init__(self, image_path, label = 0):
+	def __init__(self, image_path, obj_file, label=0, scale=1):
 		self.image = image_path
-		self.label = 0
+		self.obj_file = obj_file
+		self.label = label
+		self.scale = scale
 
 	def mark_good(self):
 		self.label = 1
@@ -32,6 +34,9 @@ class Grasp:
 
 	def mark_undecided(self):
 		self.label = 0
+
+	def mark_scale(self, scale_val):
+		self.scale = scale_val
 
 
 # select_animate: turns ImageButtons green/red when selected
@@ -96,11 +101,36 @@ class SaveButton(Button):
 	source = StringProperty(None)
 	labeled_grasps = ObjectProperty(None)
 
+	# def on_press(self):
+	# 	file_name = "labeled_grasps.dat"
+	# 	file_object = open(file_name, 'wb')
+	# 	pickle.dump(self.labeled_grasps, file_object)
+	# 	file_object.close()
+
 	def on_press(self):
-		file_name = "labeled_grasps.dat"
+		save_screen = SaveScreen(labeled_grasps = self.labeled_grasps)
+		save_screen_save = SaveScreenSave(labeled_grasps = self.labeled_grasps, par = save_screen)
+		gui.root.add_widget(save_screen)
+		gui.root.add_widget(save_screen_save)
+
+class SaveScreen(FloatLayout):
+	source = StringProperty(None)
+	labeled_grasps = ObjectProperty(None)
+
+
+class SaveScreenSave(Button):
+	source = StringProperty(None)
+	labeled_grasps = ObjectProperty(None)
+	par = ObjectProperty(None)
+
+	def on_press(self):
+		file_name = "labeled_grasps/labeled_grasps.dat"
 		file_object = open(file_name, 'wb')
 		pickle.dump(self.labeled_grasps, file_object)
 		file_object.close()
+		gui.root.remove_widget(self)
+		gui.root.remove_widget(self.par)
+
 
 # FinalSaveButton: pops when 'Next' is pressed and there are no more grasps
 class FinalSaveButton(Button):
@@ -115,6 +145,7 @@ class FinalSaveButton(Button):
 		file_object = open(file_name, 'wb')
 		pickle.dump(gui.grasps, file_object)
 		file_object.close()
+
 
 # GraspSelectionApp: Builds application, central class
 class GraspSelectionApp(App):
