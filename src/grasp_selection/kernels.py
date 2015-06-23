@@ -126,35 +126,29 @@ class LSHForest(NearestNeighbor):
                                                    return_distance=True)
         return self.data_[indices], distances
 
-def test_kdtree():
+def test(nn_class, distance, k):
     np.random.seed(0)
     data = np.random.rand(100, 100)
     datum = data[0]
 
-    kdtree = KDTree()
-    kdtree.train(data)
-    print kdtree.within_distance(datum, 3.7)
-    print kdtree.nearest_neighbors(datum, 3)
+    name = nn_class.__name__
+    nn = nn_class()
+    nn.train(data)
 
-def test_balltree():
-    np.random.seed(0)
-    data = np.random.rand(100, 100)
-    datum = data[0]
+    obj, _ = nn.within_distance(datum, distance)
+    print '%s: %d objects within %f' %(name, len(obj), distance)
 
-    ball_tree = BallTree()
-    ball_tree.train(data)
-    print ball_tree.within_distance(datum, 3.7)
-    print ball_tree.nearest_neighbors(datum, 3)
+    _, dist = nn.nearest_neighbors(datum, k)
+    print '%s: %d-NN are within %f' %(name, k, np.max(dist))
 
-def test_lshf():
-    np.random.seed(0)
-    data = np.random.rand(100, 100)
-    datum = data[0]
+def test_kdtree(distance=3.7, k=3):
+    test(KDTree, distance, k)
 
-    lshf = LSHForest()
-    lshf.train(data)
-    print lshf.within_distance(datum, 0.23)
-    print lshf.nearest_neighbors(datum, 3)
+def test_balltree(distance=3.7, k=3):
+    test(BallTree, distance, k)
+
+def test_lshf(distance=0.23, k=3):
+    test(LSHForest, distance, k)
 
 if __name__ == '__main__':
     test_kdtree()
