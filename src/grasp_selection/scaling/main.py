@@ -33,11 +33,12 @@ import pickle
 # Grasp: general class for grasps (to be added to in other programs)
 # Should match Grasp class/objects loaded from external file
 class Grasp:
-    def __init__(self, image_path, obj_file, label=0, scale=1):
+    def __init__(self, image_path, obj_file, label=0, scale=1, mass=1):
         self.image = image_path
         self.obj_file = obj_file
         self.label = label
         self.scale = scale
+        self.mass = mass
 
     def mark_good(self):
         self.label = 1
@@ -51,6 +52,9 @@ class Grasp:
     def mark_scale(self, scale_val):
         self.scale = scale_val
 
+    def mark_mass(self, mass):
+        self.mass = mass
+
 
 class Renderer(Widget):
     def __init__(self, grasp, **kwargs):
@@ -58,6 +62,7 @@ class Renderer(Widget):
         self.canvas = RenderContext(compute_normasl_mat=True)
         self.canvas.shader.source = resource_find('simple.glsl')
         self.scene = ObjFile(resource_find(self.grasp.obj_file))
+        #self.scene = ObjFile(resource_find('Co_clean.obj'))
         super(Renderer, self).__init__(**kwargs)
         with self.canvas:
             self.cb = Callback(self.setup_gl_context)
@@ -66,7 +71,6 @@ class Renderer(Widget):
             PopMatrix()
             self.cb = Callback(self.reset_gl_context)
         self.update_glsl_cw()
-        #Clock.schedule_interval(self.update_glsl_cw, 1 / 60.)
 
     def setup_gl_context(self, *args):
         glEnable(GL_DEPTH_TEST)
@@ -202,8 +206,8 @@ class RendererApp(App):
         rot_buttonCCW = RotCCWButton(pos_hint = {'x':.7,'y':.15}, size_hint = (.1,.07), text = 'CCW')
         zoom_in_button = ZoomInButton(pos_hint = {'x':.58,'y':.05}, size_hint = (.1,.07), text = 'Larger')
         zoom_out_button = ZoomOutButton(pos_hint = {'x':.7,'y':.05}, size_hint = (.1,.07), text = 'Smaller')
-        compare_image = Image(pos_hint = {'top':.7,'x':.1}, size_hint = (.3, .2), source = 'shoe_compare.png')
-        compare_image2 = Image(pos_hint = {'top':.5,'x':.15}, size_hint = (.2, .5), source = 'shoe_compare2.png')
+        compare_image = Image(pos_hint = {'top':.84,'x':.05}, size_hint = (.4, .4), source = 'monkey_compare1.png')
+        compare_image2 = Image(pos_hint = {'top':.44,'x':0}, size_hint = (.45, .45), source = 'monkey_compare2.png')
         root.add_widget(self.renderer)
         root.add_widget(save_button)
         root.add_widget(next_button)

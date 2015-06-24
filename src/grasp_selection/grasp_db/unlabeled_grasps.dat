@@ -9,7 +9,7 @@ S'../grasp_db/obj_files/monkey.obj'
 p4
 sS'image'
 p5
-S'images/3dnet_bottles\\bottle1.png'
+S'../grasp_db/images/3dnet_bottles\\bottle1.png'
 p6
 sS'scale'
 p7
@@ -24,7 +24,7 @@ p9
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle10.png'
+S'../grasp_db/images/3dnet_bottles\\bottle10.png'
 p11
 sg7
 I1
@@ -37,7 +37,7 @@ p12
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle11.png'
+S'../grasp_db/images/3dnet_bottles\\bottle11.png'
 p14
 sg7
 I1
@@ -50,7 +50,7 @@ p15
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle12.png'
+S'../grasp_db/images/3dnet_bottles\\bottle12.png'
 p17
 sg7
 I1
@@ -63,7 +63,7 @@ p18
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle13.png'
+S'../grasp_db/images/3dnet_bottles\\bottle13.png'
 p20
 sg7
 I1
@@ -76,7 +76,7 @@ p21
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle14.png'
+S'../grasp_db/images/3dnet_bottles\\bottle14.png'
 p23
 sg7
 I1
@@ -89,7 +89,7 @@ p24
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle15.png'
+S'../grasp_db/images/3dnet_bottles\\bottle15.png'
 p26
 sg7
 I1
@@ -102,7 +102,7 @@ p27
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle16.png'
+S'../grasp_db/images/3dnet_bottles\\bottle16.png'
 p29
 sg7
 I1
@@ -115,7 +115,7 @@ p30
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle17.png'
+S'../grasp_db/images/3dnet_bottles\\bottle17.png'
 p32
 sg7
 I1
@@ -128,7 +128,7 @@ p33
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle18.png'
+S'../grasp_db/images/3dnet_bottles\\bottle18.png'
 p35
 sg7
 I1
@@ -141,7 +141,7 @@ p36
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle19.png'
+S'../grasp_db/images/3dnet_bottles\\bottle19.png'
 p38
 sg7
 I1
@@ -154,7 +154,7 @@ p39
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle2.png'
+S'../grasp_db/images/3dnet_bottles\\bottle2.png'
 p41
 sg7
 I1
@@ -167,7 +167,7 @@ p42
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle20.png'
+S'../grasp_db/images/3dnet_bottles\\bottle20.png'
 p44
 sg7
 I1
@@ -180,7 +180,7 @@ p45
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle3.png'
+S'../grasp_db/images/3dnet_bottles\\bottle3.png'
 p47
 sg7
 I1
@@ -193,7 +193,7 @@ p48
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle4.png'
+S'../grasp_db/images/3dnet_bottles\\bottle4.png'
 p50
 sg7
 I1
@@ -206,7 +206,7 @@ p51
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle5.png'
+S'../grasp_db/images/3dnet_bottles\\bottle5.png'
 p53
 sg7
 I1
@@ -219,7 +219,7 @@ p54
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle6.png'
+S'../grasp_db/images/3dnet_bottles\\bottle6.png'
 p56
 sg7
 I1
@@ -232,7 +232,7 @@ p57
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle7.png'
+S'../grasp_db/images/3dnet_bottles\\bottle7.png'
 p59
 sg7
 I1
@@ -245,7 +245,7 @@ p60
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle8.png'
+S'../grasp_db/images/3dnet_bottles\\bottle8.png'
 p62
 sg7
 I1
@@ -258,7 +258,7 @@ p63
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle9.png'
+S'../grasp_db/images/3dnet_bottles\\bottle9.png'
 p65
 sg7
 I1
@@ -271,7 +271,7 @@ p66
 g3
 g4
 sg5
-S'images/3dnet_bottles\\bottle_shelf_overlay.png'
+S'../grasp_db/images/3dnet_bottles\\bottle_shelf_overlay.png'
 p68
 sg7
 I1
@@ -284,7 +284,7 @@ p69
 g3
 g4
 sg5
-S'images/apc\\black_warrior.png'
+S'../grasp_db/images/apc\\black_warrior.png'
 p71
 sg7
 I1
@@ -297,7 +297,7 @@ p72
 g3
 g4
 sg5
-S'images/apc\\black_warrior_2.png'
+S'../grasp_db/images/apc\\black_warrior_2.png'
 p74
 sg7
 I1
@@ -310,7 +310,7 @@ p75
 g3
 g4
 sg5
-S'images/apc\\black_warrior_3.png'
+S'../grasp_db/images/apc\\black_warrior_3.png'
 p77
 sg7
 I1
@@ -323,7 +323,7 @@ p78
 g3
 g4
 sg5
-S'images/apc\\bottle_brush_1.png'
+S'../grasp_db/images/apc\\bottle_brush_1.png'
 p80
 sg7
 I1
@@ -336,7 +336,7 @@ p81
 g3
 g4
 sg5
-S'images/apc\\bottle_brush_2.png'
+S'../grasp_db/images/apc\\bottle_brush_2.png'
 p83
 sg7
 I1
@@ -349,7 +349,7 @@ p84
 g3
 g4
 sg5
-S'images/apc\\crayons_1.png'
+S'../grasp_db/images/apc\\crayons_1.png'
 p86
 sg7
 I1
@@ -362,7 +362,7 @@ p87
 g3
 g4
 sg5
-S'images/apc\\crayons_2.png'
+S'../grasp_db/images/apc\\crayons_2.png'
 p89
 sg7
 I1
@@ -375,7 +375,7 @@ p90
 g3
 g4
 sg5
-S'images/apc\\crayons_3.png'
+S'../grasp_db/images/apc\\crayons_3.png'
 p92
 sg7
 I1
@@ -388,7 +388,7 @@ p93
 g3
 g4
 sg5
-S'images/apc\\dove_beauty_bar_1.png'
+S'../grasp_db/images/apc\\dove_beauty_bar_1.png'
 p95
 sg7
 I1
@@ -401,7 +401,7 @@ p96
 g3
 g4
 sg5
-S'images/apc\\dove_beauty_bar_2.png'
+S'../grasp_db/images/apc\\dove_beauty_bar_2.png'
 p98
 sg7
 I1
@@ -414,7 +414,7 @@ p99
 g3
 g4
 sg5
-S'images/apc\\dove_beauty_bar_3.png'
+S'../grasp_db/images/apc\\dove_beauty_bar_3.png'
 p101
 sg7
 I1
@@ -427,7 +427,7 @@ p102
 g3
 g4
 sg5
-S'images/apc\\dry_eraser_1.png'
+S'../grasp_db/images/apc\\dry_eraser_1.png'
 p104
 sg7
 I1
@@ -440,7 +440,7 @@ p105
 g3
 g4
 sg5
-S'images/apc\\dry_eraser_2.png'
+S'../grasp_db/images/apc\\dry_eraser_2.png'
 p107
 sg7
 I1
@@ -453,7 +453,7 @@ p108
 g3
 g4
 sg5
-S'images/apc\\duck_dog_toy_1.png'
+S'../grasp_db/images/apc\\duck_dog_toy_1.png'
 p110
 sg7
 I1
@@ -466,7 +466,7 @@ p111
 g3
 g4
 sg5
-S'images/apc\\duck_toy_1.png'
+S'../grasp_db/images/apc\\duck_toy_1.png'
 p113
 sg7
 I1
@@ -479,7 +479,7 @@ p114
 g3
 g4
 sg5
-S'images/apc\\duck_toy_2.png'
+S'../grasp_db/images/apc\\duck_toy_2.png'
 p116
 sg7
 I1
@@ -492,7 +492,7 @@ p117
 g3
 g4
 sg5
-S'images/apc\\duck_toy_3.png'
+S'../grasp_db/images/apc\\duck_toy_3.png'
 p119
 sg7
 I1
@@ -505,7 +505,7 @@ p120
 g3
 g4
 sg5
-S'images/apc\\elmers_1.png'
+S'../grasp_db/images/apc\\elmers_1.png'
 p122
 sg7
 I1
@@ -518,7 +518,7 @@ p123
 g3
 g4
 sg5
-S'images/apc\\elmers_2.png'
+S'../grasp_db/images/apc\\elmers_2.png'
 p125
 sg7
 I1
@@ -531,7 +531,7 @@ p126
 g3
 g4
 sg5
-S'images/apc\\greenies_1.png'
+S'../grasp_db/images/apc\\greenies_1.png'
 p128
 sg7
 I1
@@ -544,7 +544,7 @@ p129
 g3
 g4
 sg5
-S'images/apc\\greenies_2.png'
+S'../grasp_db/images/apc\\greenies_2.png'
 p131
 sg7
 I1
@@ -557,7 +557,7 @@ p132
 g3
 g4
 sg5
-S'images/apc\\huck_finn_1.png'
+S'../grasp_db/images/apc\\huck_finn_1.png'
 p134
 sg7
 I1
@@ -570,7 +570,7 @@ p135
 g3
 g4
 sg5
-S'images/apc\\huck_finn_2.png'
+S'../grasp_db/images/apc\\huck_finn_2.png'
 p137
 sg7
 I1
@@ -583,7 +583,7 @@ p138
 g3
 g4
 sg5
-S'images/apc\\index_cards_1.png'
+S'../grasp_db/images/apc\\index_cards_1.png'
 p140
 sg7
 I1
@@ -596,7 +596,7 @@ p141
 g3
 g4
 sg5
-S'images/apc\\index_cards_2.png'
+S'../grasp_db/images/apc\\index_cards_2.png'
 p143
 sg7
 I1
@@ -609,7 +609,7 @@ p144
 g3
 g4
 sg5
-S'images/apc\\index_cards_3.png'
+S'../grasp_db/images/apc\\index_cards_3.png'
 p146
 sg7
 I1
@@ -622,7 +622,7 @@ p147
 g3
 g4
 sg5
-S'images/apc\\index_cards_4.png'
+S'../grasp_db/images/apc\\index_cards_4.png'
 p149
 sg7
 I1
@@ -635,7 +635,7 @@ p150
 g3
 g4
 sg5
-S'images/apc\\mommys_outlet_1.png'
+S'../grasp_db/images/apc\\mommys_outlet_1.png'
 p152
 sg7
 I1
@@ -648,7 +648,7 @@ p153
 g3
 g4
 sg5
-S'images/apc\\mommys_outlet_2.png'
+S'../grasp_db/images/apc\\mommys_outlet_2.png'
 p155
 sg7
 I1
@@ -661,7 +661,7 @@ p156
 g3
 g4
 sg5
-S'images/apc\\one_with_nature_soap.png'
+S'../grasp_db/images/apc\\one_with_nature_soap.png'
 p158
 sg7
 I1
@@ -674,7 +674,7 @@ p159
 g3
 g4
 sg5
-S'images/apc\\oreos)1.png'
+S'../grasp_db/images/apc\\oreos)1.png'
 p161
 sg7
 I1
@@ -687,7 +687,7 @@ p162
 g3
 g4
 sg5
-S'images/apc\\oreos_2.png'
+S'../grasp_db/images/apc\\oreos_2.png'
 p164
 sg7
 I1
@@ -700,7 +700,7 @@ p165
 g3
 g4
 sg5
-S'images/apc\\sharpie_1.png'
+S'../grasp_db/images/apc\\sharpie_1.png'
 p167
 sg7
 I1
@@ -713,7 +713,7 @@ p168
 g3
 g4
 sg5
-S'images/apc\\sharpie_2.png'
+S'../grasp_db/images/apc\\sharpie_2.png'
 p170
 sg7
 I1
@@ -726,7 +726,7 @@ p171
 g3
 g4
 sg5
-S'images/apc\\sharpie_3.png'
+S'../grasp_db/images/apc\\sharpie_3.png'
 p173
 sg7
 I1
@@ -739,7 +739,7 @@ p174
 g3
 g4
 sg5
-S'images/apc\\soap_2.png'
+S'../grasp_db/images/apc\\soap_2.png'
 p176
 sg7
 I1
@@ -752,7 +752,7 @@ p177
 g3
 g4
 sg5
-S'images/apc\\spark_plug_1.png'
+S'../grasp_db/images/apc\\spark_plug_1.png'
 p179
 sg7
 I1
@@ -765,7 +765,7 @@ p180
 g3
 g4
 sg5
-S'images/apc\\spark_plug_2.png'
+S'../grasp_db/images/apc\\spark_plug_2.png'
 p182
 sg7
 I1
@@ -778,7 +778,7 @@ p183
 g3
 g4
 sg5
-S'images/apc\\spark_plug_3.png'
+S'../grasp_db/images/apc\\spark_plug_3.png'
 p185
 sg7
 I1
@@ -791,7 +791,7 @@ p186
 g3
 g4
 sg5
-S'images/apc\\spark_plug_4.png'
+S'../grasp_db/images/apc\\spark_plug_4.png'
 p188
 sg7
 I1
@@ -804,7 +804,7 @@ p189
 g3
 g4
 sg5
-S'images/apc\\stick_notes_1.png'
+S'../grasp_db/images/apc\\stick_notes_1.png'
 p191
 sg7
 I1
@@ -817,7 +817,7 @@ p192
 g3
 g4
 sg5
-S'images/apc\\stick_notes_2.png'
+S'../grasp_db/images/apc\\stick_notes_2.png'
 p194
 sg7
 I1
@@ -830,7 +830,7 @@ p195
 g3
 g4
 sg5
-S'images/apc\\stick_notes_3.png'
+S'../grasp_db/images/apc\\stick_notes_3.png'
 p197
 sg7
 I1
@@ -843,7 +843,7 @@ p198
 g3
 g4
 sg5
-S'images/apc\\stick_notes_4.png'
+S'../grasp_db/images/apc\\stick_notes_4.png'
 p200
 sg7
 I1
@@ -856,7 +856,7 @@ p201
 g3
 g4
 sg5
-S'images/ycb\\apple_1.png'
+S'../grasp_db/images/ycb\\apple_1.png'
 p203
 sg7
 I1
@@ -869,7 +869,7 @@ p204
 g3
 g4
 sg5
-S'images/ycb\\apple_2.png'
+S'../grasp_db/images/ycb\\apple_2.png'
 p206
 sg7
 I1
@@ -882,7 +882,7 @@ p207
 g3
 g4
 sg5
-S'images/ycb\\banana_1.png'
+S'../grasp_db/images/ycb\\banana_1.png'
 p209
 sg7
 I1
@@ -895,7 +895,7 @@ p210
 g3
 g4
 sg5
-S'images/ycb\\banana_2.png'
+S'../grasp_db/images/ycb\\banana_2.png'
 p212
 sg7
 I1
@@ -908,7 +908,7 @@ p213
 g3
 g4
 sg5
-S'images/ycb\\banana_3.png'
+S'../grasp_db/images/ycb\\banana_3.png'
 p215
 sg7
 I1
@@ -921,7 +921,7 @@ p216
 g3
 g4
 sg5
-S'images/ycb\\chain_1.png'
+S'../grasp_db/images/ycb\\chain_1.png'
 p218
 sg7
 I1
@@ -934,7 +934,7 @@ p219
 g3
 g4
 sg5
-S'images/ycb\\cheerios_1.png'
+S'../grasp_db/images/ycb\\cheerios_1.png'
 p221
 sg7
 I1
@@ -947,7 +947,7 @@ p222
 g3
 g4
 sg5
-S'images/ycb\\cheerios_2.png'
+S'../grasp_db/images/ycb\\cheerios_2.png'
 p224
 sg7
 I1
@@ -960,7 +960,7 @@ p225
 g3
 g4
 sg5
-S'images/ycb\\cheez_it_1.png'
+S'../grasp_db/images/ycb\\cheez_it_1.png'
 p227
 sg7
 I1
@@ -973,7 +973,7 @@ p228
 g3
 g4
 sg5
-S'images/ycb\\clorox_1.png'
+S'../grasp_db/images/ycb\\clorox_1.png'
 p230
 sg7
 I1
@@ -986,7 +986,7 @@ p231
 g3
 g4
 sg5
-S'images/ycb\\clorox_2.png'
+S'../grasp_db/images/ycb\\clorox_2.png'
 p233
 sg7
 I1
@@ -999,7 +999,7 @@ p234
 g3
 g4
 sg5
-S'images/ycb\\cups_1.png'
+S'../grasp_db/images/ycb\\cups_1.png'
 p236
 sg7
 I1
@@ -1012,7 +1012,7 @@ p237
 g3
 g4
 sg5
-S'images/ycb\\cups_2.png'
+S'../grasp_db/images/ycb\\cups_2.png'
 p239
 sg7
 I1
@@ -1025,7 +1025,7 @@ p240
 g3
 g4
 sg5
-S'images/ycb\\domino_1.png'
+S'../grasp_db/images/ycb\\domino_1.png'
 p242
 sg7
 I1
@@ -1038,7 +1038,7 @@ p243
 g3
 g4
 sg5
-S'images/ycb\\drill_box_1.png'
+S'../grasp_db/images/ycb\\drill_box_1.png'
 p245
 sg7
 I1
@@ -1051,7 +1051,7 @@ p246
 g3
 g4
 sg5
-S'images/ycb\\dry_erase_marker.png'
+S'../grasp_db/images/ycb\\dry_erase_marker.png'
 p248
 sg7
 I1
@@ -1064,7 +1064,7 @@ p249
 g3
 g4
 sg5
-S'images/ycb\\foam_block_1.png'
+S'../grasp_db/images/ycb\\foam_block_1.png'
 p251
 sg7
 I1
@@ -1077,7 +1077,7 @@ p252
 g3
 g4
 sg5
-S'images/ycb\\golf_ball_1.png'
+S'../grasp_db/images/ycb\\golf_ball_1.png'
 p254
 sg7
 I1
@@ -1090,7 +1090,7 @@ p255
 g3
 g4
 sg5
-S'images/ycb\\hammer_1.png'
+S'../grasp_db/images/ycb\\hammer_1.png'
 p257
 sg7
 I1
@@ -1103,7 +1103,7 @@ p258
 g3
 g4
 sg5
-S'images/ycb\\hammer_2.png'
+S'../grasp_db/images/ycb\\hammer_2.png'
 p260
 sg7
 I1
@@ -1116,7 +1116,7 @@ p261
 g3
 g4
 sg5
-S'images/ycb\\large_clamp_1.png'
+S'../grasp_db/images/ycb\\large_clamp_1.png'
 p263
 sg7
 I1
@@ -1129,7 +1129,7 @@ p264
 g3
 g4
 sg5
-S'images/ycb\\mug_1.png'
+S'../grasp_db/images/ycb\\mug_1.png'
 p266
 sg7
 I1
@@ -1142,7 +1142,7 @@ p267
 g3
 g4
 sg5
-S'images/ycb\\mustard_1.png'
+S'../grasp_db/images/ycb\\mustard_1.png'
 p269
 sg7
 I1
@@ -1155,7 +1155,7 @@ p270
 g3
 g4
 sg5
-S'images/ycb\\mustard_2.png'
+S'../grasp_db/images/ycb\\mustard_2.png'
 p272
 sg7
 I1
@@ -1168,7 +1168,7 @@ p273
 g3
 g4
 sg5
-S'images/ycb\\pear_1.png'
+S'../grasp_db/images/ycb\\pear_1.png'
 p275
 sg7
 I1
@@ -1181,7 +1181,7 @@ p276
 g3
 g4
 sg5
-S'images/ycb\\play_go_cups_1.png'
+S'../grasp_db/images/ycb\\play_go_cups_1.png'
 p278
 sg7
 I1
@@ -1194,7 +1194,7 @@ p279
 g3
 g4
 sg5
-S'images/ycb\\play_go_orange_1.png'
+S'../grasp_db/images/ycb\\play_go_orange_1.png'
 p281
 sg7
 I1
@@ -1207,7 +1207,7 @@ p282
 g3
 g4
 sg5
-S'images/ycb\\power_drill_1.png'
+S'../grasp_db/images/ycb\\power_drill_1.png'
 p284
 sg7
 I1
@@ -1220,7 +1220,7 @@ p285
 g3
 g4
 sg5
-S'images/ycb\\power_drill_2.png'
+S'../grasp_db/images/ycb\\power_drill_2.png'
 p287
 sg7
 I1
@@ -1233,7 +1233,7 @@ p288
 g3
 g4
 sg5
-S'images/ycb\\pringles_1.png'
+S'../grasp_db/images/ycb\\pringles_1.png'
 p290
 sg7
 I1
@@ -1246,7 +1246,7 @@ p291
 g3
 g4
 sg5
-S'images/ycb\\rope_1.png'
+S'../grasp_db/images/ycb\\rope_1.png'
 p293
 sg7
 I1
@@ -1259,7 +1259,7 @@ p294
 g3
 g4
 sg5
-S'images/ycb\\scissors_1.png'
+S'../grasp_db/images/ycb\\scissors_1.png'
 p296
 sg7
 I1
@@ -1272,7 +1272,7 @@ p297
 g3
 g4
 sg5
-S'images/ycb\\scissors_2.png'
+S'../grasp_db/images/ycb\\scissors_2.png'
 p299
 sg7
 I1
@@ -1285,7 +1285,7 @@ p300
 g3
 g4
 sg5
-S'images/ycb\\scissors_3.png'
+S'../grasp_db/images/ycb\\scissors_3.png'
 p302
 sg7
 I1
@@ -1298,7 +1298,7 @@ p303
 g3
 g4
 sg5
-S'images/ycb\\screwdriver_1.png'
+S'../grasp_db/images/ycb\\screwdriver_1.png'
 p305
 sg7
 I1
@@ -1311,7 +1311,7 @@ p306
 g3
 g4
 sg5
-S'images/ycb\\screwdriver_2.png'
+S'../grasp_db/images/ycb\\screwdriver_2.png'
 p308
 sg7
 I1
@@ -1324,7 +1324,7 @@ p309
 g3
 g4
 sg5
-S'images/ycb\\screwdriver_3.png'
+S'../grasp_db/images/ycb\\screwdriver_3.png'
 p311
 sg7
 I1
@@ -1337,7 +1337,7 @@ p312
 g3
 g4
 sg5
-S'images/ycb\\sharpie_1.png'
+S'../grasp_db/images/ycb\\sharpie_1.png'
 p314
 sg7
 I1
@@ -1350,7 +1350,7 @@ p315
 g3
 g4
 sg5
-S'images/ycb\\small_clamp_1.png'
+S'../grasp_db/images/ycb\\small_clamp_1.png'
 p317
 sg7
 I1
@@ -1363,7 +1363,7 @@ p318
 g3
 g4
 sg5
-S'images/ycb\\soft_scrub_1.png'
+S'../grasp_db/images/ycb\\soft_scrub_1.png'
 p320
 sg7
 I1
@@ -1376,7 +1376,7 @@ p321
 g3
 g4
 sg5
-S'images/ycb\\soft_scrub_2.png'
+S'../grasp_db/images/ycb\\soft_scrub_2.png'
 p323
 sg7
 I1
@@ -1389,7 +1389,7 @@ p324
 g3
 g4
 sg5
-S'images/ycb\\soup_1.png'
+S'../grasp_db/images/ycb\\soup_1.png'
 p326
 sg7
 I1
@@ -1402,7 +1402,7 @@ p327
 g3
 g4
 sg5
-S'images/ycb\\tuna_1.png'
+S'../grasp_db/images/ycb\\tuna_1.png'
 p329
 sg7
 I1
@@ -1415,7 +1415,7 @@ p330
 g3
 g4
 sg5
-S'images/ycb\\tuna_2.png'
+S'../grasp_db/images/ycb\\tuna_2.png'
 p332
 sg7
 I1
@@ -1428,7 +1428,7 @@ p333
 g3
 g4
 sg5
-S'images/ycb\\wood_1.png'
+S'../grasp_db/images/ycb\\wood_1.png'
 p335
 sg7
 I1
@@ -1441,7 +1441,7 @@ p336
 g3
 g4
 sg5
-S'images/ycb\\wood_12in_1.png'
+S'../grasp_db/images/ycb\\wood_12in_1.png'
 p338
 sg7
 I1

@@ -20,11 +20,12 @@ import pickle
 # Grasp: general class for grasps (to be added to in other programs)
 # Should match Grasp class/objects loaded from external file
 class Grasp:
-	def __init__(self, image_path, obj_file, label=0, scale=1):
+	def __init__(self, image_path, obj_file, label=0, scale=1, mass=1):
 		self.image = image_path
 		self.obj_file = obj_file
 		self.label = label
 		self.scale = scale
+		self.mass = mass
 
 	def mark_good(self):
 		self.label = 1
@@ -37,6 +38,9 @@ class Grasp:
 
 	def mark_scale(self, scale_val):
 		self.scale = scale_val
+
+	def mark_mass(self, mass):
+		self.mass = mass
 
 
 # select_animate: turns ImageButtons green/red when selected
