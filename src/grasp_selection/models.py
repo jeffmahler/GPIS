@@ -343,3 +343,51 @@ class GaussianModel(DiscreteModel):
         """
         ind, mn, var = self.max_prediction()
         return GaussianSnapshot(ind[0], self.means_, self.vars_, self.num_observations_)
+
+class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
+    """Correlated Beta-Bernoulli model for predictions over a discrete set of
+    candidates.
+    Params:
+        candidates: the objects to track
+        nn: a NearestNeighbor instance to use for neighborhood lookups
+        kernel: a Kernel instance to measure similarities
+        tolerance: (float) for computing radius of neighborhood, between 0 and 1
+        alpha_prior and beta_prior: (float) the prior parameters of a Beta
+        distribution over the probability of success for each candidate
+    """
+    def __init__(self, candidates, nn, kernel, tolerance=1e-2,
+                 alpha_prior=1.0, beta_prior=1.0):
+        BetaBernoulliModel.__init__(self, len(candidates), alpha_prior, beta_prior)
+        self.candidates_ = candidates
+
+        self.kernel_ = kernel
+        self.tolerance_ = tolerance
+        self.error_radius_ = kernel.error_radius(tolerance)
+
+        self.nn_ = nn
+        self.nn_.train(candidates)
+
+    def update(self, index, value):
+        """Update the model based on current data
+        Params:
+            index: (int) the index of the variable that was evaluated
+            value: (float) the value of the variable
+        """
+        if not (0 <= value <= 1):
+            raise ValueError('Values must be between 0 and 1')
+
+        # find neighbors within radius
+        candidate = self.candidates_[index]
+        neighbor_indices, _ = self.nn_.within_distance(candidate, self.error_radius_,
+                                                       return_indices=True)
+
+        # create array of correlations
+        correlations = np.zeros(self.num_vars_)
+        for neighbor_index in neighbor_indices:
+            neighbor = self.candidates_[neighbor_index]
+            correlations[neighbor_index] = self.kernel_(candidate, neighbor)
+
+        self.posterior_alphas_ = self.posterior_alphas_ + value * correlations
+        self.posterior_betas_ = self.posterior_betas_ + (1.0 - value) * correlations
+        # TODO: should num_observations_ be updated by correlations instead?
+        self.num_observations_[index] += 1

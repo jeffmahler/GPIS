@@ -25,6 +25,12 @@ class Kernel:
         pass
 
     @abstractmethod
+    def error_radius(self, tolerance):
+        """Returns the radius of the ball that produces an error less than
+        tolerance by solving tolerance = k(x, y)."""
+        pass
+
+    @abstractmethod
     def gradient(self, x):
         pass
 
@@ -33,15 +39,23 @@ class Kernel:
 
 class SquaredExponentialKernel(Kernel):
     """ k(x, y) = \sigma^2 exp(-||x - y||^2 / 2l^2) """
-    def __init__(self, sigma=1.0, l=1.0, dist='euclidean'):
+    def __init__(self, sigma=1.0, l=1.0, dist='euclidean', phi=None):
         # kernel parameters
         self.sigma_ = sigma
         self.l_ = l
 
         # look up distance function name, default to Euclidean
         self.dist_ = DISTANCE_FNS.get(dist, euclidean_distance)
+        self.phi_ = phi
+
+    def error_radius(self, tolerance):
+        assert 0 < tolerance <= 1, 'Tolerance must be between 0 and 1.'
+        # TODO: should this depend on the distance function?
+        return np.sqrt(2.0 * self.l_**2 * np.log(self.sigma_**2 / tolerance))
 
     def evaluate(self, x, y):
+        if self.phi_ is not None:
+            x, y = self.phi_(x), self.phi_(y)
         return self.sigma_**2 * np.exp(-self.dist_(x, y)**2 / 2 * self.l_**2)
 
     def gradient(self, x):
@@ -65,22 +79,28 @@ class NearestNeighbor:
         """
 
     @abstractmethod
-    def within_distance(self, x, dist=0.5):
+    def within_distance(self, x, dist=0.5, return_indices=False):
         """Returns the objects that are close to x and within a distance of dist
         according to self.dist_metric_.
         Params:
             x - object to find neighbors for
             dist - (float) cutoff for how far neighbors can be
-        Returns: list of objects, list of distances
+            return_indices - (bool) True if returning indices rather than objects
+        Returns:
+            list of objects, list of distances (when return_indices is False)
+            list of indices, list of distances (when return_indices is True)
         """
 
     @abstractmethod
-    def nearest_neighbors(self, x, k):
+    def nearest_neighbors(self, x, k, return_indices=False):
         """Returns the k nearest neighbors to x.
         Params:
             x - object to find neighbors for
             k - (int) number of neighbors to return
-        Returns: list of objects, list of distances
+            return_indices - (bool) True if returning indices rather than objects
+        Returns:
+            list of objects, list of distances (when return_indices is False)
+            list of indices, list of distances (when return_indices is True)
         """
 
 class BinaryTree(NearestNeighbor):
@@ -89,15 +109,22 @@ class BinaryTree(NearestNeighbor):
         self.featurized_ = np.array([self.phi_(d) for d in data])
         self.tree_ = tree_class(self.featurized_, metric=self.dist_metric_)
 
-    def within_distance(self, x, dist=0.2):
+    def within_distance(self, x, dist=0.2, return_indices=False):
         indices, distances = self.tree_.query_radius(self.phi_(x), dist,
                                                      return_distance=True)
-        return self.data_[indices[0]], distances
+        indices = indices[0]
+        if return_indices:
+            return indices, distances
+        else:
+            return self.data_[indices], distances
 
-    def nearest_neighbors(self, x, k):
+    def nearest_neighbors(self, x, k, return_indices=False):
         distances, indices = self.tree_.query(self.phi_(x), k,
                                               return_distance=True)
-        return self.data_[indices], distances
+        if return_indices:
+            return indices, distances
+        else:
+            return self.data_[indices], distances
 
 class KDTree(BinaryTree):
     def train(self, data):
@@ -116,15 +143,22 @@ class LSHForest(NearestNeighbor):
         self.lshf_ = neighbors.LSHForest() # TODO -- set params
         self.lshf_.fit(data)
 
-    def within_distance(self, x, dist=0.2):
+    def within_distance(self, x, dist=0.2, return_indices=False):
         distances, indices = self.lshf_.radius_neighbors(self.phi_(x), dist,
                                                          return_distance=True)
-        return self.data_[indices[0]], distances
+        indices = indices[0]
+        if return_indices:
+            return indices, distances
+        else:
+            return self.data_[indices], distances
 
-    def nearest_neighbors(self, x, k):
+    def nearest_neighbors(self, x, k, return_indices=False):
         distances, indices = self.lshf_.kneighbors(self.phi_(x), k,
                                                    return_distance=True)
-        return self.data_[indices], distances
+        if return_indices:
+            return indices, distances
+        else:
+            return self.data_[indices], distances
 
 def test(nn_class, distance, k):
     np.random.seed(0)

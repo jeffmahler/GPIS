@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 Classes for selecting a candidate that maximizes some objective over a discrete set of candidates
 
@@ -13,6 +15,7 @@ import scipy.stats
 import time
 
 import discrete_selection_policies as dcsp
+import kernels
 import models
 import objectives
 import solvers
@@ -195,6 +198,34 @@ class GaussianUCBSampling(GaussianBandit):
         GaussianBandit.__init__(self, objective, candidates, dcsp.GaussianUCBPolicy(), mean_prior, sigma)
 
 
+# Correlated Beta-Bernoulli bandit models
+class CorrelatedBetaBernoulliBandit(DiscreteAdaptiveSampler):
+    """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
+    def __init__(self, objective, candidates, policy, nn, kernel, tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0):
+        self.num_candidates_ = len(candidates)
+        self.model_ = models.CorrelatedBetaBernoulliModel(candidates, nn, kernel, tolerance, alpha_prior, beta_prior)
+        self.selection_policy_ = policy
+        self.selection_policy_.set_model(self.model_)
+
+        DiscreteAdaptiveSampler.__init__(self, objective, candidates, self.model_, self.selection_policy_)
+
+    def reset_model(self, candidates):
+        """ Needed to independently maximize over subsets of data """
+        self.model_ = models.CorrelatedBetaBernoulliModel(
+            self.candidates_, self.model_.nn_, self.model_.kernel_,
+            self.model_.tolerance_, self.model_.alpha_prior_, self.model_.beta_prior_
+        )
+        self.selection_policy_.set_model(self.model_) # always update the selection policy!
+
+class CorrelatedThompsonSampling(CorrelatedBetaBernoulliBandit):
+    def __init__(self, objective, candidates, nn, kernel,
+                 tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0):
+        CorrelatedBetaBernoulliBandit.__init__(
+            self, objective, candidates, dcsp.ThompsonSelectionPolicy(),
+            nn, kernel, tolerance, alpha_prior, beta_prior
+        )
+
+
 class RandomVariable:
     """Abstract class for random variables."""
     __metaclass__ = ABCMeta
@@ -221,10 +252,13 @@ class BernoulliRV(RandomVariable):
     def value(self):
         return self.p_
 
+    def __repr__(self):
+        return 'Bernoulli({})'.format(self.p_)
 
 # Tests
 
-MAX_ITERS = 10000
+NUM_CANDIDATES = 100
+MAX_ITERS = 3000
 SNAPSHOT_RATE = 100
 
 def plot_num_pulls(result):
@@ -237,6 +271,7 @@ def plot_num_pulls(result):
     ax.bar(ind+width, result.models[-1].num_obs)
     ax.set_xlabel('Variables')
     ax.set_ylabel('Num observations')
+    ax.set_xlim([0, NUM_CANDIDATES+1])
 
 def plot_value_vs_time(result, candidates, true_max=None):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
@@ -247,9 +282,10 @@ def plot_value_vs_time(result, candidates, true_max=None):
         plt.plot(result.iters, true_max*np.ones(len(result.iters)), color='green', linewidth=2)
     plt.xlabel('Iteration')
     plt.ylabel('Probability of Success')
+    plt.xlim([0, MAX_ITERS+1])
 
 
-def test_uniform_alloc(num_candidates = 100):
+def test_uniform_alloc(num_candidates=NUM_CANDIDATES):
     # get candidates
     np.random.seed(1000)
     pred_means = np.random.rand(num_candidates)
@@ -283,10 +319,13 @@ def test_uniform_alloc(num_candidates = 100):
 
     return result
 
-def test_thompson_sampling(num_candidates = 100):
+def test_thompson_sampling(num_candidates=NUM_CANDIDATES, random=False):
     # get candidates
     np.random.seed(1000)
-    pred_means = np.random.rand(num_candidates)
+    if random:
+        pred_means = np.random.rand(num_candidates)
+    else:
+        pred_means = np.linspace(0.0, 1.0, num=num_candidates)
     candidates = []
     for i in range(num_candidates):
         candidates.append(BernoulliRV(pred_means[i]))
@@ -310,14 +349,14 @@ def test_thompson_sampling(num_candidates = 100):
 
     # visualize result
     plot_num_pulls(result)
-    plt.title('Observations Per Variable for Thompson sampling')
+    plt.title('Observations Per Variable for Thompson Sampling')
 
     plot_value_vs_time(result, candidates, true_max)
-    plt.title('P(Success) versus Iterations for Thompson sampling')
+    plt.title('P(Success) versus Iterations for Thompson Sampling')
 
     return result
 
-def test_gittins_indices_98(num_candidates = 100):
+def test_gittins_indices_98(num_candidates=NUM_CANDIDATES):
     # get candidates
     np.random.seed(1000)
     pred_means = np.random.rand(num_candidates)
@@ -351,7 +390,7 @@ def test_gittins_indices_98(num_candidates = 100):
 
     return result
 
-def test_gaussian_uniform_alloc(num_candidates=100):
+def test_gaussian_uniform_alloc(num_candidates=NUM_CANDIDATES):
     # get candidates
     np.random.seed(1000)
     actual_means = np.random.rand(num_candidates)
@@ -382,7 +421,7 @@ def test_gaussian_uniform_alloc(num_candidates=100):
 
     return result
 
-def test_gaussian_thompson_sampling(num_candidates=100):
+def test_gaussian_thompson_sampling(num_candidates=NUM_CANDIDATES):
     # get candidates
     np.random.seed(1000)
     actual_means = np.random.rand(num_candidates)
@@ -413,7 +452,7 @@ def test_gaussian_thompson_sampling(num_candidates=100):
 
     return result
 
-def test_gaussian_ucb(num_candidates=100):
+def test_gaussian_ucb(num_candidates=NUM_CANDIDATES):
     # get candidates
     np.random.seed(1000)
     actual_means = np.random.rand(num_candidates)
@@ -444,6 +483,44 @@ def test_gaussian_ucb(num_candidates=100):
 
     return result
 
+def test_correlated_thompson_sampling(num_candidates=NUM_CANDIDATES, sig=1.0, eps=0.5):
+    # get candidates
+    actual_means = np.linspace(0.0, 1.0, num=num_candidates)
+    candidates = [BernoulliRV(m) for m in actual_means]
+
+    # get true maximum
+    true_max = np.max(actual_means)
+    true_max_indices = np.where(actual_means == true_max)
+
+    # constructing nearest neighbor and kernel
+    def phi(bern):
+        return np.array([round(bern.p(), 2)])
+    nn = kernels.KDTree(phi=phi)
+    kernel = kernels.SquaredExponentialKernel(sigma=sig, phi=phi)
+
+    # solve using Thompson sampling
+    obj = objectives.RandomBinaryObjective()
+    ts = CorrelatedThompsonSampling(obj, candidates, nn, kernel, tolerance=eps)
+    result = ts.solve(termination_condition=tc.MaxIterTerminationCondition(MAX_ITERS), snapshot_rate=SNAPSHOT_RATE)
+
+    # check result (not guaranteed to work in finite iterations but whatever)
+    assert len(result.best_candidates) == 1
+    assert np.abs(result.best_candidates[0].p() - true_max) < 1e-4
+    logging.info('Correlated Thompson sampling test passed!')
+    logging.info('Took %f sec' % (result.total_time))
+    logging.info('Best index %d' % (true_max_indices[0]))
+
+    info = u' (σ=%.1f, ɛ=%.3f)' %(sig, eps)
+
+    # visualize result
+    plot_num_pulls(result)
+    plt.title('Observations Per Variable for Correlated Thompson Sampling' + info)
+
+    plot_value_vs_time(result, candidates, true_max)
+    plt.title('P(Success) versus Iterations for Correlated Thompson Sampling' + info)
+
+    return result
+
 def plot_gpucb_vs_thompson(num_candidates=100):
     global MAX_ITERS
     MAX_ITERS = 3000
@@ -471,8 +548,15 @@ if __name__ == '__main__':
     # test_uniform_alloc()
     # test_thompson_sampling()
     # test_gittins_indices_98()
+
     # test_gaussian_uniform_alloc()
     # test_gaussian_thompson_sampling()
     # test_gaussian_ucb()
+
+    # test_correlated_thompson_sampling(eps=1e-3)
+    # test_correlated_thompson_sampling(eps=0.3)
+    # test_correlated_thompson_sampling(eps=0.7)
+    # test_correlated_thompson_sampling(eps=0.98)
+
     plot_gpucb_vs_thompson()
     plt.show()
