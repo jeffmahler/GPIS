@@ -70,7 +70,8 @@ class Renderer(Widget):
             self.setup_scene()
             PopMatrix()
             self.cb = Callback(self.reset_gl_context)
-        self.update_glsl_cw()
+        Clock.schedule_once(self.rot_up)
+        Clock.schedule_once(self.rot_left)
 
     def setup_gl_context(self, *args):
         glEnable(GL_DEPTH_TEST)
@@ -85,29 +86,47 @@ class Renderer(Widget):
         if self.zoom.scale > 0:
             self.zoom.scale -= .005
 
-    def update_glsl_cw(self, *args):
+    def rot_left(self, *args):
         asp = self.width / float(self.height)
         proj = Matrix().view_clip(-asp, asp, -1, 1, 1, 100, 1)
         self.canvas['projection_mat'] = proj
         self.canvas['diffuse_light'] = (1.0, 1.0, 0.8)
         self.canvas['ambient_light'] = (0.1, 0.1, 0.1)
-        self.rot.angle -= 1
+        self.rot_z.angle -= 1
 
-    def update_glsl_ccw(self, *args):
+    def rot_right(self, *args):
         asp = self.width / float(self.height)
         proj = Matrix().view_clip(-asp, asp, -1, 1, 1, 100, 1)
         self.canvas['projection_mat'] = proj
         self.canvas['diffuse_light'] = (1.0, 1.0, 0.8)
         self.canvas['ambient_light'] = (0.1, 0.1, 0.1)
-        self.rot.angle += 1
+        self.rot_z.angle += 1
+
+    def rot_up(self, *args):
+        asp = self.width / float(self.height)
+        proj = Matrix().view_clip(-asp, asp, -1, 1, 1, 100, 1)
+        self.canvas['projection_mat'] = proj
+        self.canvas['diffuse_light'] = (1.0, 1.0, 0.8)
+        self.canvas['ambient_light'] = (0.1, 0.1, 0.1)
+        self.rot_y.angle += 1
+
+    def rot_down(self, *args):
+        asp = self.width / float(self.height)
+        proj = Matrix().view_clip(-asp, asp, -1, 1, 1, 100, 1)
+        self.canvas['projection_mat'] = proj
+        self.canvas['diffuse_light'] = (1.0, 1.0, 0.8)
+        self.canvas['ambient_light'] = (0.1, 0.1, 0.1)
+        self.rot_y.angle -= 1
 
     def setup_scene(self):
         Color(1, 1, 1, 1)
         PushMatrix()
         Translate(0, 0, -3)
         Translate(1.4,0,0)
-        self.rot = Rotate(1, 0, 1, 0)
+        self.rot_z = Rotate(1, 0, 1, 0)
+        self.rot_y = Rotate(1, 0, 0, 1)
         self.zoom = Scale(1)
+        Scale(15)
         m = list(self.scene.objects.values())[0]
         UpdateNormalMatrix()
         self.mesh = Mesh(
@@ -170,23 +189,41 @@ class ZoomOutButton(Button):
         Clock.unschedule(gui.renderer.update_glsl_zoom_out)
         gui.renderer.grasp.mark_scale(gui.renderer.zoom.scale)      
 
-
-class RotCWButton(Button):
+class RotLeftButton(Button):
     def on_press(self):
-        #self.update_glsl()
-        Clock.schedule_interval(gui.renderer.update_glsl_cw, 1 / 60.)
+        Clock.schedule_interval(gui.renderer.rot_left, 1 / 60.)
 
     def on_release(self):
-        Clock.unschedule(gui.renderer.update_glsl_cw)
+        Clock.unschedule(gui.renderer.rot_left)
 
 
-class RotCCWButton(Button):
+class RotLeftButton(Button):
     def on_press(self):
-        #self.update_glsl()
-        Clock.schedule_interval(gui.renderer.update_glsl_ccw, 1 / 60.)
+        Clock.schedule_interval(gui.renderer.rot_left, 1 / 60.)
 
     def on_release(self):
-        Clock.unschedule(gui.renderer.update_glsl_ccw)
+        Clock.unschedule(gui.renderer.rot_left)
+
+class RotRightButton(Button):
+    def on_press(self):
+        Clock.schedule_interval(gui.renderer.rot_right, 1 / 60.)
+
+    def on_release(self):
+        Clock.unschedule(gui.renderer.rot_right)
+
+class RotUpButton(Button):
+    def on_press(self):
+        Clock.schedule_interval(gui.renderer.rot_up, 1 / 60.)
+
+    def on_release(self):
+        Clock.unschedule(gui.renderer.rot_up)
+
+class RotDownButton(Button):
+    def on_press(self):
+        Clock.schedule_interval(gui.renderer.rot_down, 1 / 60.)
+
+    def on_release(self):
+        Clock.unschedule(gui.renderer.rot_down)
 
 
 class RendererApp(App):
@@ -202,20 +239,24 @@ class RendererApp(App):
         save_button = SaveButton(labeled_grasps = self.grasps)
         next_button = NextButton(grasps = self.grasps)
         help_button = HelpButton()
-        rot_buttonCW = RotCWButton(pos_hint = {'x':.58,'y':.15}, size_hint = (.1,.07), text = 'CW')        
-        rot_buttonCCW = RotCCWButton(pos_hint = {'x':.7,'y':.15}, size_hint = (.1,.07), text = 'CCW')
-        zoom_in_button = ZoomInButton(pos_hint = {'x':.58,'y':.05}, size_hint = (.1,.07), text = 'Larger')
-        zoom_out_button = ZoomOutButton(pos_hint = {'x':.7,'y':.05}, size_hint = (.1,.07), text = 'Smaller')
-        compare_image = Image(pos_hint = {'top':.84,'x':.05}, size_hint = (.4, .4), source = 'monkey_compare1.png')
-        compare_image2 = Image(pos_hint = {'top':.44,'x':0}, size_hint = (.45, .45), source = 'monkey_compare2.png')
+        rot_left_button = RotLeftButton(pos_hint = {'x':.58,'y':.15}, size_hint = (.1,.07), text = 'Roll left')        
+        rot_right_button = RotRightButton(pos_hint = {'x':.58,'y':.05}, size_hint = (.1,.07), text = 'Roll right')
+        rot_up_button = RotUpButton(pos_hint = {'x':.7,'y':.15}, size_hint = (.1,.07), text = 'Roll up')
+        rot_down_button = RotDownButton(pos_hint = {'x':.7,'y':.05}, size_hint = (.1,.07), text = 'Roll down')
+        zoom_in_button = ZoomInButton(pos_hint = {'x':.82,'y':.15}, size_hint = (.1,.07), text = 'Larger')
+        zoom_out_button = ZoomOutButton(pos_hint = {'x':.82,'y':.05}, size_hint = (.1,.07), text = 'Smaller')
+        compare_image = Image(pos_hint = {'top':.84,'x':.05}, size_hint = (.4, .4), source = 'shoe_compare1.png')
+        compare_image2 = Image(pos_hint = {'top':.44,'x':.05}, size_hint = (.4, .4), source = 'shoe_compare2.png')
         root.add_widget(self.renderer)
         root.add_widget(save_button)
         root.add_widget(next_button)
         root.add_widget(help_button)
         root.add_widget(zoom_in_button)
         root.add_widget(zoom_out_button)
-        root.add_widget(rot_buttonCW)
-        root.add_widget(rot_buttonCCW)
+        root.add_widget(rot_left_button)
+        root.add_widget(rot_right_button)
+        root.add_widget(rot_up_button)
+        root.add_widget(rot_down_button)
         root.add_widget(compare_image)
         root.add_widget(compare_image2)
         return root

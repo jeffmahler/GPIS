@@ -39,7 +39,7 @@ grasps_list = []
 
 # Make list of Grasp objects
 for i in range(len(images)):
-	new_grasp = Grasp('../grasp_db/' + images[i], '../grasp_db/obj_files/monkey.obj')
+	new_grasp = Grasp('../grasp_db/' + images[i], '../grasp_db/obj_files/Co_clean.obj')
 	grasps_list += [new_grasp]
 
 pickle.dump(grasps_list, file_object)

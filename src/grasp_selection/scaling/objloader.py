@@ -9,20 +9,21 @@ class MeshData(object):
         self.indices = []
 
     def calculate_normals(self):
-        for i in range(len(self.indices) / (3)):
+        for i in range(len(self.indices) // 3):
             fi = i * 3
-            v1i = self.indices[fi]
-            v2i = self.indices[fi + 1]
-            v3i = self.indices[fi + 2]
+            v1i = self.indices[fi] # =0
+            v2i = self.indices[fi + 1] # =1
+            v3i = self.indices[fi + 2] # =2
 
             vs = self.vertices
-            p1 = [vs[v1i + c] for c in range(3)]
-            p2 = [vs[v2i + c] for c in range(3)]
-            p3 = [vs[v3i + c] for c in range(3)]
+            # vs[0 to 2] are vertex coordinates, vs[3 to 5] are normal components (all -1), vs[6 and 7] are tcs data
+            p1 = [vs[v1i*8 + c] for c in range(3)] # vs[0] vs[1] vs[2]
+            p2 = [vs[v2i*8 + c] for c in range(3)] # vs[8] vs[9] vs[10]
+            p3 = [vs[v3i*8 + c] for c in range(3)] # vs[16] vs[17] vs[18]
 
             u, v = [0, 0, 0], [0, 0, 0]
             for j in range(3):
-                v[j] = p2[j] - p1[j]
+                v[j] = p2[j] - p1[j] # v[0] = vs[8] - vs[0]     # v[1] = vs[9] - vs[1]      # v[2] = vs[10] - vs[2]
                 u[j] = p3[j] - p1[j]
 
             n = [0, 0, 0]
@@ -31,9 +32,9 @@ class MeshData(object):
             n[2] = u[0] * v[1] - u[1] * v[0]
 
             for k in range(3):
-                self.vertices[v1i + 3 + k] = n[k]
-                self.vertices[v2i + 3 + k] = n[k]
-                self.vertices[v3i + 3 + k] = n[k]
+                self.vertices[v1i*8 + 3 + k] = n[k]
+                self.vertices[v2i*8 + 3 + k] = n[k]
+                self.vertices[v3i*8 + 3 + k] = n[k]
 
 
 class ObjFile:
@@ -59,7 +60,8 @@ class ObjFile:
                     t = self.texcoords[tcs[i] - 1]
 
                 #get vertex components
-                v = self.vertices[verts[i] - 1]
+                # v = self.vertices[verts[i] - 1] # for monkey
+                v = self.vertices[verts[i]] # for shoe
 
                 data = [v[0], v[1], v[2], n[0], n[1], n[2], t[0], t[1]]
                 mesh.vertices.extend(data)
@@ -69,7 +71,7 @@ class ObjFile:
             idx += 3
 
         self.objects[self._current_object] = mesh
-        #mesh.calculate_normals()
+        mesh.calculate_normals()
         self.faces = []
 
     def __init__(self, filename, swapyz=False):
