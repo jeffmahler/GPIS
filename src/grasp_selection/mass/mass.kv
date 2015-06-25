@@ -13,6 +13,7 @@ FloatLayout:
 
     # Title text
     BoxLayout: 
+        id: title
         padding: 10
         spacing: 10
         size_hint: 1, None
@@ -39,6 +40,33 @@ FloatLayout:
             color: (1, 1, 1, .8)
             text: 'Automation Lab, UC Berkeley'
 
+    # Input Explanation Text
+    BoxLayout:
+        padding: 10
+        spacing: 10
+        size_hint: 1, None
+        pos_hint: {'top': .18, 'x': .52}
+        height: 10
+        Label:
+            height: 10
+            text_size: self.width, None
+            font_size: '14sp'
+            color: (1, 1, 1, .8)
+            text: 'Insert Mass Here'
+
+    # Comparison Image Text
+    BoxLayout:
+        padding: 10
+        spacing: 10
+        size_hint: 1, None
+        pos_hint: {'top': .1, 'x': .1}
+        height: 10
+        Label:
+            height: 10
+            text_size: self.width, None
+            font_size: '14sp'
+            color: (1, 1, 1, .8)
+            text: 'Standard Water Bottle : 1kg (check)'
 
 <NextButton>:
     id: next_button

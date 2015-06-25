@@ -38,6 +38,11 @@ class Grasp:
     def mark_mass(self, mass):
         self.mass = mass
 
+class MassInput(TextInput):
+    grasp = ObjectProperty(None)
+
+    def on_text(self, value, *args):
+        self.grasp.mark_mass(value)
 
 # NextButton: removes current images, shows new ones
 class NextButton(Button):
@@ -47,6 +52,8 @@ class NextButton(Button):
         remaining_grasps = self.grasps[1:]
         self.grasps = remaining_grasps
         gui.root.remove_widget(gui.current_image)
+        gui.text_input.grasp = self.grasps[0]
+        gui.text_input.text = ''
         gui.display_image(gui.next_grasp)
         # if remaining_grasps[0]:
         #     gui.renderer = Renderer(remaining_grasps[0])
@@ -75,6 +82,13 @@ class HelpScreenButton(Button):
     def on_release(self):
         gui.root.remove_widget(self)
 
+# class CountButton(Button):
+#     val = NumericProperty(0)
+
+#     def on_press(self):
+#         self.val += 1
+#         self.text = str(self.val)
+
 
 class MassApp(App):
     def build(self):
@@ -90,12 +104,14 @@ class MassApp(App):
         save_button = SaveButton(labeled_grasps = self.grasps)
         next_button = NextButton(grasps = self.grasps)
         help_button = HelpButton()
-        text_input = TextInput(text='', size_hint = (.2, .05), pos_hint = {'top': .2, 'x': .6})
-        compare_image = Image(pos_hint = {'top':.7,'x':.1}, size_hint = (.3, .6), source = 'bottle_comparison.jpg')
+        self.text_input = MassInput(text='', size_hint = (.2, .05), pos_hint = {'top': .2, 'x': .7}, multiline = False, grasp = self.grasps[0])
+        compare_image = Image(pos_hint = {'top':.75,'x':.1}, size_hint = (.3, .6), source = 'bottle_comparison.jpg')
+        # self.counter = CountButton(size_hint = (.1,.1), text = '0')
+        #root.add_widget(self.counter)
         root.add_widget(save_button)
         root.add_widget(next_button)
         root.add_widget(help_button)
-        root.add_widget(text_input)
+        root.add_widget(self.text_input)
         root.add_widget(compare_image)
         return root
 
