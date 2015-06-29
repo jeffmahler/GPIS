@@ -65,6 +65,8 @@ def label_correlated(obj, dest, config):
     objective = objectives.RandomBinaryObjective()
     ts = das.CorrelatedThompsonSampling(
         objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
+
+    logging.info('Solving bandits!')
     ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     object_grasps = [c.grasp for c in ts_result.best_candidates]
@@ -92,7 +94,7 @@ def label_correlated(obj, dest, config):
 
     logging.info('Num grasps: %d' %(len(pr2_grasps)))
 
-    grasp_filename = os.path.join(dest, db.json_filename(obj.key))
+    grasp_filename = os.path.join(dest, obj.key + '.json')
     with open(grasp_filename, 'w') as f:
         json.dump([g.to_json(quality=q) for g, q in zip(pr2_grasps, pr2_grasp_qualities)], f,
                   sort_keys=True, indent=4, separators=(',', ': '))

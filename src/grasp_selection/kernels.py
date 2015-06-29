@@ -5,6 +5,7 @@ Author: Brian Hou
 """
 
 from abc import ABCMeta, abstractmethod
+import logging
 import time
 
 import numpy as np
