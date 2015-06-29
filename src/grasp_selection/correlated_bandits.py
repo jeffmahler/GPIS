@@ -33,7 +33,7 @@ def label_correlated(obj, dest, config):
     grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(obj, vis=False)
     antipodal_end = time.clock()
     antipodal_duration = antipodal_end - antipodal_start
-    logging.info('Antipodal grasp candidate generation took %f sec' %(duration))
+    logging.info('Antipodal grasp candidate generation took %f sec' %(antipodal_duration))
 
     # bandit params
     max_iter = config['bandit_max_iter']
@@ -53,8 +53,8 @@ def label_correlated(obj, dest, config):
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         candidates.append(pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config))
 
-    def phi(grasp):
-        windows = grasp.surface_window(obj, config['window_width'], config['window_steps'])
+    def phi(rv):
+        windows = rv.grasp.surface_window(obj, config['window_width'], config['window_steps'])
         windows = windows # align window
         window_vec = np.ravel(windows)
         return window_vec
