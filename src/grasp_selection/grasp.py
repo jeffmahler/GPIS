@@ -162,7 +162,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         line_of_action = [g + t * axis for t in np.linspace(0, width, num = num_samples)]
         if convert_grid:
-            line_of_action = [obj.sdf.transform_pt_obj_to_grid(g) for g in line_of_action]
+            as_array = np.array(line_of_action).T
+            transformed = obj.sdf.transform_pt_obj_to_grid(as_array)
+            line_of_action = list(transformed.T)
         return line_of_action
 
     @staticmethod
