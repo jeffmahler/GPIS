@@ -11,6 +11,10 @@ import time
 import numpy as np
 from sklearn import neighbors
 
+from nearpy import Engine
+from nearpy.hashes import RandomBinaryProjections
+from nearpy.distances import EuclideanDistance
+
 def euclidean_distance(x, y):
     return np.linalg.norm(x - y)
 
@@ -185,6 +189,44 @@ class LSHForest(NearestNeighbor):
             return indices, distances
         else:
             return self.data_[indices], distances
+
+class NearPy(NearestNeighbor):
+    def _create_engine(self, dimension, lshashes=None):
+        self.engine_ = nearpy.Engine(dimension, lshashes, EuclideanDistance())
+
+    def train(self, data):
+        self.data_ = np.array(data)
+        featurized = []
+        for i, d in enumerate(data, 1):
+            logging.info('Extracting features from object %d (of %d).' %(i, len(data)))
+            featurize_start = time.clock()
+            featurized.append(self.phi_(d))
+            featurize_end = time.clock()
+            logging.info('Took %f sec' %(featurize_end - featurize_start))
+        self.featurized_ = np.array(featurized)
+
+        shape = featurized[0].shape
+        assert 1 in shape, 'Feature vector must be 1xN or Nx1.'
+        transpose = (shape[0] == 1)
+        dimension = shape[1] if transpose else shape[0]
+
+        logging.info('Constructing nearest neighbor data structure.')
+        train_start = time.clock()
+        self._create_engine(dimension)
+        for i, feature in enumerate(featurized):
+            if transpose:
+                self.engine_.store_vector(feature.T, i)
+            else:
+                self.engine_.store_vector(feature, i)
+        train_end = time.clock()
+        logging.info('Took %f sec' %(train_end - train_start))
+
+    def within_distance(x, dist=0.5, return_indices=False):
+        raise NotImplementedError
+
+    def nearest_neighbors(self, x, k=10, return_indices=False):
+        assert k == 10, 'Only queries default (10 nearest neighbors)'
+        return self.engine_.neighbours(x)
 
 def test(nn_class, distance, k):
     np.random.seed(0)

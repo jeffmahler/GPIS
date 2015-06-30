@@ -35,6 +35,10 @@ def label_correlated(obj, dest, config):
     antipodal_duration = antipodal_end - antipodal_start
     logging.info('Antipodal grasp candidate generation took %f sec' %(antipodal_duration))
 
+    if not grasps:
+        logging.info('Skipping %s' %(obj.key))
+        return
+
     # bandit params
     max_iter = config['bandit_max_iter']
     confidence = config['bandit_confidence']

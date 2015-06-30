@@ -561,7 +561,7 @@ class Sdf3D(Sdf):
         else:
             to_add = self.feature_vector
 
-        engine.store_vector(to_add,self.file_name_)
+        engine.store_vector(to_add, self.file_name_)
 
 
     def query_nearpy_engine(self, engine):
