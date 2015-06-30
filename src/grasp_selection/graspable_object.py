@@ -255,18 +255,19 @@ class GraspableObject3D(GraspableObject):
             window[i] = self.sdf[curr_loc_grid]
         return window.reshape((num_steps, num_steps))
 
-    def contact_surface_window_projection(self, contact, width=1e-1, num_steps=21,
-                                          back_up=1e-5, max_projection=5.0, samples_per_unit=500.0):
+    def contact_surface_window_projection(self, contact, width=1e-2, num_steps=21,
+                                          max_projection=1.0,
+                                          back_up_units=3.0, samples_per_grid=2.0):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             contact - numpy 3 array of the surface contact in obj frame
             width - float width of the window in obj frame
             num_steps - int number of steps
 
-            back_up - float amount to back up before finding a contact
-            max_projection - float maximum amount to search forward for a contact
-            samples_per_unit - float number of samples per unit vector when
-                finding contacts
+            max_projection - float maximum amount to search forward for a contact (meters)
+
+            back_up_units - float amount to back up before finding a contact (grid coords)
+            samples_per_grid - float number of samples per grid when finding contacts
         Returns:
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
@@ -276,7 +277,8 @@ class GraspableObject3D(GraspableObject):
             return False
 
         # number of samples used when looking for contacts
-        num_samples = int((max_projection + back_up) * samples_per_unit)
+        back_up = back_up_units * self.sdf.resolution
+        num_samples = int(samples_per_grid * (max_projection + back_up) / self.sdf.resolution)
         scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
         window = np.zeros(num_steps**2)
         for i, (c1, c2) in enumerate(it.product(scales, repeat=2)):
@@ -288,19 +290,17 @@ class GraspableObject3D(GraspableObject):
 
             projection_start = curr_loc - back_up * normal
             line_of_action = g.ParallelJawPtGrasp3D.create_line_of_action(
-                projection_start, normal, max_projection, self, num_samples
+                projection_start, normal, (max_projection + back_up), self, num_samples
             )
             found, projection_contact = g.ParallelJawPtGrasp3D.find_contact(
                 line_of_action, self, vis=False
             )
             if found:
                 logging.debug('{} found.'.format(i))
-                # take mean to reduce rounding issues
-                projection = ((projection_contact - curr_loc) / normal).mean()
+                sign = normal.dot(projection_contact - curr_loc)
+                projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
             else:
                 projection = 0.0
-            # if i in (20,):
-            #     IPython.embed()
 
             window[i] = projection
         return window.reshape((num_steps, num_steps))
@@ -347,8 +347,6 @@ def test_windows(width, num_steps, plot=None):
         plot(sdf_window, num_steps)
         plot(proj_window, num_steps)
         plt.show()
-
-    IPython.embed()
 
     return sdf_window, proj_window
 
@@ -435,6 +433,7 @@ def plot_window_2d(window, num_steps):
     imgplot = plt.imshow(window, extent=[indices[0], indices[-1], indices[-1], indices[0]],
                          interpolation='none', cmap=plt.cm.binary)
     plt.colorbar()
+    plt.clim(-0.01, 0.01) # fixing color range for visual comparisons
 
 def plot_window_both(window, num_steps):
     """Plot window as both 2D and 3D."""
@@ -443,4 +442,4 @@ def plot_window_both(window, num_steps):
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    test_windows(width=1e-3, num_steps=21, plot=plot_window_2d)
+    test_windows(width=1e-2, num_steps=21, plot=plot_window_2d)
