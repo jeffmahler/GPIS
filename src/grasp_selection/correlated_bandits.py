@@ -22,6 +22,29 @@ import pfc
 import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
+def best_values_over_time(result, plot=False):
+    """Computes the expected values for the best arms of a BetaBernoulliModel at
+    each time step.
+    Params:
+        result - AdaptiveSamplingResult instance, from a BetaBernoulliModel
+    Returns:
+        best_values - list of floats, expected values over time
+    """
+    best_values = [(m.alphas / m.betas)[m.best_pred_ind] for m in result.models]
+
+    if plot:
+        plt.figure()
+        plt.plot(result.iters, best_values, color='blue', linewidth=2)
+        plt.xlabel('Iteration')
+        plt.ylabel('P(Success)')
+
+    return best_values
+
+def save_results(results, file='bandit_results.npy'):
+    """Saves results to a file."""
+    asarray = np.array(results)
+    np.save(file, asarray)
+
 def label_correlated(obj, dest, config):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
@@ -59,8 +82,8 @@ def label_correlated(obj, dest, config):
 
     def phi(rv):
         windows = rv.grasp.surface_window(obj, config['window_width'], config['window_steps'])
-        windows = windows # align window
-        window_vec = np.ravel(windows)
+        clean_windows = windows # align and filter window
+        window_vec = np.ravel(clean_windows)
         return window_vec
     nn = kernels.KDTree(phi=phi)
     kernel = kernels.SquaredExponentialKernel(
@@ -103,6 +126,8 @@ def label_correlated(obj, dest, config):
         json.dump([g.to_json(quality=q) for g, q in zip(pr2_grasps, pr2_grasp_qualities)], f,
                   sort_keys=True, indent=4, separators=(',', ': '))
 
+    return best_values_over_time(ts_result)
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -124,6 +149,12 @@ if __name__ == '__main__':
         pass
 
     # loop through objects, labelling each
+    results = []
     for obj in chunk:
         logging.info('Labelling object {}'.format(obj.key))
-        label_correlated(obj, dest, config)
+        values_over_time = label_correlated(obj, dest, config)
+        if values_over_time is None:
+            continue # no grasps to run bandits on for this object
+        results.append(values_over_time)
+
+    save_results(results)
