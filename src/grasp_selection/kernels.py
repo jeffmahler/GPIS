@@ -192,7 +192,7 @@ class LSHForest(NearestNeighbor):
 
 class NearPy(NearestNeighbor):
     def _create_engine(self, dimension, lshashes=None):
-        self.engine_ = nearpy.Engine(dimension, lshashes, EuclideanDistance())
+        self.engine_ = Engine(dimension, lshashes, EuclideanDistance())
 
     def train(self, data):
         self.data_ = np.array(data)
@@ -207,14 +207,14 @@ class NearPy(NearestNeighbor):
 
         shape = featurized[0].shape
         assert 1 in shape, 'Feature vector must be 1xN or Nx1.'
-        transpose = (shape[0] == 1)
-        dimension = shape[1] if transpose else shape[0]
+        self.transpose_ = (shape[0] == 1)
+        dimension = shape[1] if self.transpose_ else shape[0]
 
         logging.info('Constructing nearest neighbor data structure.')
         train_start = time.clock()
         self._create_engine(dimension)
         for i, feature in enumerate(featurized):
-            if transpose:
+            if self.transpose_:
                 self.engine_.store_vector(feature.T, i)
             else:
                 self.engine_.store_vector(feature, i)
@@ -225,8 +225,20 @@ class NearPy(NearestNeighbor):
         raise NotImplementedError
 
     def nearest_neighbors(self, x, k=10, return_indices=False):
-        assert k == 10, 'Only queries default (10 nearest neighbors)'
-        return self.engine_.neighbours(x)
+        assert k == 10, 'Can only query default (10 nearest neighbors)'
+
+        feature = self.phi_(x)
+        if self.transpose_:
+            query_result = self.engine_.neighbours(feature.T)
+        else:
+            query_result = self.engine_.neighbours(feature)
+
+        features, indices, distances = zip(*query_result)
+        if return_indices:
+            return list(indices), list(distances)
+        else:
+            indices = np.array(indices)
+            return self.data_[indices], list(distances)
 
 def test(nn_class, distance, k):
     np.random.seed(0)
