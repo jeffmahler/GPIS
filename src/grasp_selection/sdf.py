@@ -285,7 +285,7 @@ class Sdf3D(Sdf):
 
         # otherwise interpolate
         min_coords = np.floor(self.coords_buf_)
-        max_coords = np.ceil(self.coords_buf_)
+        max_coords = min_coords + 1 # assumed to be on grid
         self.points_buf_[Sdf3D.min_coords_x, 0] = min_coords[0]
         self.points_buf_[Sdf3D.max_coords_x, 0] = max_coords[0]
         self.points_buf_[Sdf3D.min_coords_y, 1] = min_coords[1]
@@ -293,21 +293,18 @@ class Sdf3D(Sdf):
         self.points_buf_[Sdf3D.min_coords_z, 2] = min_coords[2]
         self.points_buf_[Sdf3D.max_coords_z, 2] = max_coords[2]
 
-        # interpolate points
+        # bilinearly interpolate points
         sd = 0.0
-        w_sum = 0.0
         for i in range(Sdf3D.num_interpolants):
             p = self.points_buf_[i,:]
-            v = self.data_[p[0], p[1], p[2]]
-            sq_dist = (self.coords_buf_[0] - p[0])**2 + (self.coords_buf_[1] - p[1])**2 + (self.coords_buf_[2] - p[2])**2
-            if sq_dist > 0:
-                w = 1.0 / sq_dist
-                w_sum = w_sum + w
-                sd = sd + w * v
+            if self.is_out_of_bounds(p):
+                v = 0.0
             else:
-                return v
+                v = self.data_[p[0], p[1], p[2]]
+            w = np.prod(-np.abs(p - self.coords_buf_) + 1)
+            sd = sd + w * v
 
-        return sd / w_sum
+        return sd
 
     def gradient(self, coords):
         """

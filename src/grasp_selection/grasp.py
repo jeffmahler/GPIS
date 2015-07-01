@@ -214,31 +214,27 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     sdf_after = obj.sdf[pt_after]
                     pt_after_after = line_of_action[i+2]
                     sdf_after_after = obj.sdf[pt_after_after]
-                    if stop:
-                        IPython.embed()
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_grid, sdf_here, pt_after, sdf_after, pt_after_after, sdf_after_after)
 
+                    # contact not yet found if next sdf value is smaller
                     if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
                         contact_found = False
 
 
                 elif i == len(line_of_action) - 1:
-                    if stop:
-                        IPython.embed()
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before_before, sdf_before_before, pt_before, sdf_before, pt_grid, sdf_here)
+
                     if pt_zc is None:
                         contact_found = False
 
                 else:
-                    if stop:
-                        IPython.embed()
                     pt_after = line_of_action[i+1]
                     sdf_after = obj.sdf[pt_after]
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before, sdf_before, pt_grid, sdf_here, pt_after, sdf_after)
 
+                    # contact not yet found if next sdf value is smaller
                     if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
                         contact_found = False
-
 
             i = i+1
 

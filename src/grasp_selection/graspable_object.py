@@ -10,6 +10,7 @@ import logging
 import mayavi.mlab as mv
 import numpy as np
 import os
+import scipy.ndimage.filters as spfilt
 import sys
 
 import grasp as g
@@ -35,6 +36,8 @@ class GraspableObject:
         self.model_name_ = model_name # for OpenRave usage, gross!
         self.category_ = category
 
+        self.features_ = {} # dictionary mapping feature type to "bag of features"
+
         # make consistent poses, scales
         self.sdf_.tf = self.tf_
         if self.mesh_ is not None:
@@ -56,6 +59,10 @@ class GraspableObject:
     @property
     def mesh(self):
         return self.mesh_
+
+    @property
+    def features(self):
+        return self.features_
 
     @property
     def tf(self):
@@ -256,8 +263,9 @@ class GraspableObject3D(GraspableObject):
         return window.reshape((num_steps, num_steps))
 
     def contact_surface_window_projection(self, contact, width=1e-2, num_steps=21,
-                                          max_projection=1.0,
-                                          back_up_units=3.0, samples_per_grid=2.0):
+                                          max_projection=0.1,
+                                          back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
+                                          vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             contact - numpy 3 array of the surface contact in obj frame
@@ -268,6 +276,7 @@ class GraspableObject3D(GraspableObject):
 
             back_up_units - float amount to back up before finding a contact (grid coords)
             samples_per_grid - float number of samples per grid when finding contacts
+            sigma - bandwidth of gaussian filter on window
         Returns:
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
@@ -277,6 +286,7 @@ class GraspableObject3D(GraspableObject):
             return False
 
         # number of samples used when looking for contacts
+        no_contact = 0.2
         back_up = back_up_units * self.sdf.resolution
         num_samples = int(samples_per_grid * (max_projection + back_up) / self.sdf.resolution)
         scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
@@ -285,25 +295,47 @@ class GraspableObject3D(GraspableObject):
             curr_loc = contact + c1 * t1 + c2 * t2
             curr_loc_grid = self.sdf.transform_pt_obj_to_grid(curr_loc)
             if self.sdf.is_out_of_bounds(curr_loc_grid):
-                window[i] = -1e-2
+                window[i] = 0.0
                 continue
 
+            # get start of projection
             projection_start = curr_loc - back_up * normal
             line_of_action = g.ParallelJawPtGrasp3D.create_line_of_action(
                 projection_start, normal, (max_projection + back_up), self, num_samples
             )
+
+            # display sdf for debugging
+            if vis:
+                plt.figure()
+                self.sdf.scatter()
+
             found, projection_contact = g.ParallelJawPtGrasp3D.find_contact(
-                line_of_action, self, vis=False
+                line_of_action, self, vis=vis
             )
+
+            if vis:
+                ax = plt.gca(projection = '3d')
+                ax.set_xlim3d(0, self.sdf.dims_[0])
+                ax.set_ylim3d(0, self.sdf.dims_[1])
+                ax.set_zlim3d(0, self.sdf.dims_[2])
+                plt.show()
+
+            # log distance along ray to projected point
             if found:
                 logging.debug('{} found.'.format(i))
                 sign = normal.dot(projection_contact - curr_loc)
                 projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
             else:
-                projection = 0.0
+                projection = no_contact
 
             window[i] = projection
-        return window.reshape((num_steps, num_steps))
+
+        window = window.reshape((num_steps, num_steps))
+
+        # apply gaussian filter to window (should be narrow bandwidth)
+        if sigma > 0.0:
+            window = spfilt.gaussian_filter(window, sigma)
+        return window
         
 
 def test_windows(width, num_steps, plot=None):
@@ -442,4 +474,4 @@ def plot_window_both(window, num_steps):
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    test_windows(width=1e-2, num_steps=21, plot=plot_window_2d)
+    test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
