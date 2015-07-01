@@ -67,7 +67,7 @@ class Dataset(object):
                           + '\n  ' + self.dataset_root_dir_)
 
         self.data_keys_ = []
-        self.data_categories_ = []
+        self.data_categories_ = {}
         index_file_lines = open(index_filename, 'r').readlines()
         if end is None:
             end = len(index_file_lines)
@@ -81,9 +81,9 @@ class Dataset(object):
 
             self.data_keys_.append(tokens[0])
             if len(tokens) > 1:
-                self.data_categories_.append(tokens[1])
+                self.data_categories_[tokens[0]] = tokens[1]
             else:
-                self.data_categories_.append('')
+                self.data_categories_[tokens[0]] = ''
 
     @property
     def name(self):
@@ -125,7 +125,7 @@ class Dataset(object):
         of = obj_file.ObjFile(obj_filename)
         mesh = of.read()
 
-        return go.GraspableObject3D(sdf, mesh=mesh, key=key, model_name=obj_filename)
+        return go.GraspableObject3D(sdf, mesh=mesh, key=key, model_name=obj_filename, category=self.data_categories_[key])
 
     def load_grasps(self, key, grasp_dir=None):
         """Loads a list of grasps from a file (grasp_dir/key.json).

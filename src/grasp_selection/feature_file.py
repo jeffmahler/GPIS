@@ -48,8 +48,10 @@ class LocalFeatureFile:
         features = f.BagOfFeatures()
 
         # parse through the lines of data from the shot file to fill out the matrices
+        #IPython.embed()
         for i in range(num_descriptors):
-            rf, descriptor, keypoint, normal = [string_to_array(j) for j in feature_file.readline().split('\t')] 
+            p = feature_file.readline().split('\t')
+            rf, descriptor, keypoint, normal = [string_to_array(j) for j in p] 
             features.add(f.LocalFeature(descriptor, rf, keypoint, normal))
 
         feature_file.close()
@@ -66,9 +68,6 @@ class LocalFeatureFile:
         raise Exception('FeatureFile writes not yet supported')
 
 if __name__ == '__main__':
-    test_file = sys.argv[1]
-    of = ObjFile(test_file)
-    m = of.read()
-
-    oof = ObjFile('test.obj')
-    oof.write(m)
+    feature_file = 'data/features/5c74962846d6cd33920ed6df8d81211d_features.txt'
+    a = LocalFeatureFile(feature_file)
+    feat = a.read()

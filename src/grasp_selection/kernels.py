@@ -5,10 +5,13 @@ Author: Brian Hou
 """
 
 from abc import ABCMeta, abstractmethod
+import IPython
 import logging
 import time
 
+import pickle
 import numpy as np
+import scipy.sparse as ss
 from sklearn import neighbors
 
 from nearpy import Engine
@@ -281,8 +284,28 @@ def test_lshf(distance=0.23, k=3, **kw):
 def test_nearpy(distance=None, k=3, **kw):
     test(NearPy, distance, k, **kw)
 
+def test_sparse():
+    dim = 500
+    num_train = 1000
+    num_test = 1
+    train_data = ss.rand(dim, num_train)#pickle.load('/home/jmahler/Downloads/feature_objects.p')
+    test_data = ss.rand(dim, num_test)
+
+    rbp = RandomBinaryProjections('rbp', 10)
+    engine = Engine(dim, lshashes=[rbp])
+
+    for i in range(num_train):
+        engine.store_vector(train_data.getcol(i))
+
+    for j in range(num_test):
+        N = engine.neighbours(test_data.getcol(j))
+        print N
+
+    IPython.embed()
+
+
 if __name__ == '__main__':
-    test_kdtree()
-    test_balltree()
-    test_lshf()
-    test_nearpy(within_distance=False)
+    #test_kdtree()
+    #test_balltree()
+    #test_lshf()
+    test_sparse()

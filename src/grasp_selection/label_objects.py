@@ -21,9 +21,7 @@ import pfc
 import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
-GRASP_SAVE_PATH = '/home/jmahler/tmp_grasps'
-
-def label_pfc(obj, dataset, config):
+def label_pfc(obj, dataset, output_dir, config):
     """ Label an object with grasps according to probability of force closure """
     # sample intial antipodal grasps
     start = time.clock()
@@ -81,6 +79,7 @@ def label_pfc(obj, dataset, config):
         delay = config['vis_delay']
 
     for grasp in object_grasps:
+        print 'Grasp', i
         rotated_grasps = grasp.transform(obj.tf, theta_res)
         rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay=delay) 
         pr2_grasps.extend(rotated_grasps)
@@ -90,7 +89,7 @@ def label_pfc(obj, dataset, config):
     logging.info('Num grasps: %d' %(len(pr2_grasps)))
 
     # save grasps locally :( Due to problems with sudo
-    grasp_filename = os.path.join(GRASP_SAVE_PATH, obj.key + '.json')
+    grasp_filename = os.path.join(output_dir, obj.key + '.json')
     with open(grasp_filename, 'w') as f:
         json.dump([pr2_grasps[i].to_json(quality=pr2_grasp_qualities[i]) for i in range(len(pr2_grasps))], f,
                   sort_keys=True, indent=4, separators=(',', ': '))
@@ -99,24 +98,38 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('config', default='cfg/basic_labelling.yaml')
-    parser.add_argument('output_dest', default='out/')
+    parser.add_argument('output_dir', default='out/')
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
 
+    np.random.seed(100)
+
     # read config file
     config = ec.ExperimentConfig(args.config)
-    chunk = db.Chunk(config)
+    output_dir = args.output_dir
+    #chunk = db.Chunk(config)
 
     # make output directory
-    dest = os.path.join(args.output_dest, chunk.name)
-    GRASP_SAVE_PATH = dest # legacy
+    """
     try:
         os.makedirs(dest)
     except os.error:
         pass
+    """
 
     # loop through objects, labelling each
-    for obj in chunk:
-        logging.info('Labelling object {}'.format(obj.key))
-        label_pfc(obj, chunk, config)
+    database = db.Database(config)
+    keys = []
+    logging.info('Reading datset %s' %(database.datasets[0].name))
+    
+    obj = database.datasets[0][0]#['xbox_0120']
+    logging.info('Labelling object {}'.format(obj.key))
+    label_pfc(obj, database.datasets[0], output_dir, config)
+
+    """
+    obj = chunk['dove_beauty_bar']
+#    for obj in chunk:
+    logging.info('Labelling object {}'.format(obj.key))
+    label_pfc(obj, chunk, config)
+    """

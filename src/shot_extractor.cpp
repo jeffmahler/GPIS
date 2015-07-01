@@ -34,9 +34,9 @@ std::string output_filename_;
 bool use_cloud_resolution_ (true);
 
 // values for resolution == 1.0f
-float model_ss_ (2.50f);
+float model_ss_ (2.5f);
 float descr_rad_ (100.0f);
-int normals_nn_ (10);
+int normals_nn_ (100);
 
 void
 showHelp (char *filename)
@@ -105,8 +105,9 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
   double res = 0.0;
   int n_points = 0;
   int nres;
-  std::vector<int> indices (2);
-  std::vector<float> sqr_distances (2);
+  int nn = 20;
+  std::vector<int> indices (nn);
+  std::vector<float> sqr_distances (nn);
   pcl::search::KdTree<PointType> tree;
   tree.setInputCloud (cloud);
 
@@ -115,10 +116,16 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
       continue;
     }
     //Considering the second neighbor since the first is the point itself.
-    nres = tree.nearestKSearch (i, 2, indices, sqr_distances);
-    if (nres == 2) {
-      res += sqrt (sqr_distances[1]);
-      ++n_points;
+    nres = tree.nearestKSearch (i, nn, indices, sqr_distances);
+    if (nres == nn) {
+      int j = 0;
+      while (j < sqr_distances.size() && sqr_distances[j] <= 0) {
+        j++;
+      }
+      if (j < sqr_distances.size() && !isnan(sqr_distances[j])) {
+        res += sqrt (sqr_distances[j]);
+        ++n_points;
+      }
     }
   }
   if (n_points != 0) {

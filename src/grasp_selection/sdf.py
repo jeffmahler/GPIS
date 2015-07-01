@@ -332,7 +332,7 @@ class Sdf3D(Sdf):
 
         # otherwise interpolate
         min_coords = np.floor(self.coords_buf_)
-        max_coords = np.ceil(self.coords_buf_)
+        max_coords = min_coords + 1
         self.points_buf_[Sdf3D.min_coords_x, 0] = min_coords[0]
         self.points_buf_[Sdf3D.max_coords_x, 0] = min_coords[0]
         self.points_buf_[Sdf3D.min_coords_y, 1] = min_coords[1]
@@ -340,24 +340,25 @@ class Sdf3D(Sdf):
         self.points_buf_[Sdf3D.min_coords_z, 2] = min_coords[2]
         self.points_buf_[Sdf3D.max_coords_z, 2] = max_coords[2]
 
+        # bilinear interpolation
         g = np.zeros(3)
         gp = np.zeros(3)
         w_sum = 0.0
         for i in range(Sdf3D.num_interpolants):
             p = self.points_buf_[i,:]
-            gp[0] = self.gradients_[0][p[0], p[1], p[2]]
-            gp[1] = self.gradients_[1][p[0], p[1], p[2]]
-            gp[2] = self.gradients_[2][p[0], p[1], p[2]]
-            sq_dist = (self.coords_buf_[0] - p[0])**2 + (self.coords_buf_[1] - p[1])**2 + (self.coords_buf_[2] - p[2])**2
-
-            if sq_dist > 0:
-                w = 1.0 / sq_dist
-                w_sum = w_sum + w
-                g = g + w * gp
+            if self.is_out_of_bounds(p):
+                gp[0] = 0.0
+                gp[1] = 0.0
+                gp[2] = 0.0
             else:
-                return gp
+                gp[0] = self.gradients_[0][p[0], p[1], p[2]]
+                gp[1] = self.gradients_[1][p[0], p[1], p[2]]
+                gp[2] = self.gradients_[2][p[0], p[1], p[2]]
 
-        return g / w_sum
+            w = np.prod(-np.abs(p - self.coords_buf_) + 1)
+            g = g + w * gp
+
+        return g
 
     def max_dim(self):
         """ Find the max dimension of the bounding box """

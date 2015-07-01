@@ -1,9 +1,13 @@
 from abc import ABCMeta, abstractmethod
 
 import IPython
+import logging
+import numpy as np
 import os
 import sys
 
+import database as db
+import experiment_config as ec
 import feature_file as ff
 import graspable_object as go
 import obj_file
@@ -37,7 +41,7 @@ class SHOTFeatureExtractor(FeatureExtractor):
         shot_features = feature_file.read()
         graspable.features[SHOTFeatureExtractor.key] = shot_features
 
-if __name__ == '__main__':
+def test_feature_extraction():
     # load object
     sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
     sf = sdf_file.SdfFile(sdf_3d_file_name)
@@ -54,4 +58,36 @@ if __name__ == '__main__':
     feature_extractor = SHOTFeatureExtractor()
     feature_extractor.extract(graspable, shot_features_name)
 
-    IPython.embed()
+    IPython.embed()    
+
+def extract_features_dataset(dataset, output_dir):
+    feature_extractor = SHOTFeatureExtractor()
+    for obj in dataset:
+#    if True:
+#        obj = dataset['5c74962846d6cd33920ed6df8d81211d']
+        feature_filename = os.path.join(output_dir, '%s_features.txt' %(obj.key))
+        feature_extractor.extract(obj, feature_filename)
+
+        # TEMP: save category info, must redo database interface for more graceful handling of data
+        # either object read and write functions or dictionary
+        cat_filename = os.path.join(output_dir, '%s.cat' %(obj.key))
+        f = open(cat_filename, 'w')
+        f.write(obj.category)
+        f.close()
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', default='cfg/basic_labelling.yaml')
+    parser.add_argument('output_dir', default='out/')
+    args = parser.parse_args()
+
+    logging.getLogger().setLevel(logging.INFO)
+
+    np.random.seed(100)
+
+    config = ec.ExperimentConfig(args.config)
+    database = db.Database(config)
+    logging.info('Reading datset %s' %(database.datasets[0].name))
+    
+    extract_features_dataset(database.datasets[0], args.output_dir)

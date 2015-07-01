@@ -51,11 +51,28 @@ class BagOfFeatures:
         self.features_.append(feature)
         self.num_features_ = len(self.features_)        
 
+    def extend(self, features):
+        """ Add a list of features to the bag """
+        self.features_.extend(features)
+        self.num_features_ = len(self.features_)        
+
     def feature(self, index):
         """ Returns a feature """
         if index < 0 or index >= self.num_features_:
             raise ValueError('Index %d out of range' %(index))
-        return self.features[index]
+        return self.features_[index]
+
+    def feature_subset(self, indices):
+        """ Returns some subset of the features """
+        if isinstance(indices, np.ndarray):
+            indices = indices.tolist()
+        if not isinstance(indices, list):
+            raise ValueError('Can only index with lists')
+        return [self.features_[i] for i in indices]
+
+    @property
+    def num_features(self):
+        return self.num_features_
 
     @property
     def descriptors(self):
