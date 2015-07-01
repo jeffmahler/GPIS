@@ -14,6 +14,7 @@ from sklearn import neighbors
 from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
 from nearpy.distances import EuclideanDistance
+from nearpy.filters import NearestFilter
 
 def euclidean_distance(x, y):
     return np.linalg.norm(x - y)
@@ -191,10 +192,19 @@ class LSHForest(NearestNeighbor):
             return self.data_[indices], distances
 
 class NearPy(NearestNeighbor):
-    def _create_engine(self, dimension, lshashes=None):
-        self.engine_ = Engine(dimension, lshashes, EuclideanDistance())
+    def _create_engine(self, k, lshashes=None):
+        self.k_ = k
+        self.engine_ = Engine(self.dimension_, lshashes,
+                              distance=EuclideanDistance(),
+                              vector_filters=[NearestFilter(k)])
 
-    def train(self, data):
+        for i, feature in enumerate(self.featurized_):
+            if self.transpose_:
+                self.engine_.store_vector(feature.T, i)
+            else:
+                self.engine_.store_vector(feature, i)
+
+    def train(self, data, k=10):
         self.data_ = np.array(data)
         featurized = []
         for i, d in enumerate(data, 1):
@@ -206,26 +216,28 @@ class NearPy(NearestNeighbor):
         self.featurized_ = np.array(featurized)
 
         shape = featurized[0].shape
-        assert 1 in shape, 'Feature vector must be 1xN or Nx1.'
-        self.transpose_ = (shape[0] == 1)
-        dimension = shape[1] if self.transpose_ else shape[0]
+        assert len(shape) <= 2, 'Feature shape must be (1, N), (N, 1), or (N,)'
+        if len(shape) == 1:
+            self.transpose_ = False
+            self.dimension_ = shape[0]
+        else:
+            assert 1 in shape, 'Feature shape must be (1, N) or (N, 1)'
+            self.transpose_ = (shape[0] == 1)
+            self.dimension_ = shape[1] if self.transpose_ else shape[0]
 
         logging.info('Constructing nearest neighbor data structure.')
         train_start = time.clock()
-        self._create_engine(dimension)
-        for i, feature in enumerate(featurized):
-            if self.transpose_:
-                self.engine_.store_vector(feature.T, i)
-            else:
-                self.engine_.store_vector(feature, i)
+        self._create_engine(k)
         train_end = time.clock()
         logging.info('Took %f sec' %(train_end - train_start))
 
     def within_distance(x, dist=0.5, return_indices=False):
         raise NotImplementedError
 
-    def nearest_neighbors(self, x, k=10, return_indices=False):
-        assert k == 10, 'Can only query default (10 nearest neighbors)'
+    def nearest_neighbors(self, x, k, return_indices=False):
+        # HACK: load all data back into new engine if k doesn't match
+        if k != self.k_:
+            self._create_engine(k)
 
         feature = self.phi_(x)
         if self.transpose_:
@@ -238,9 +250,9 @@ class NearPy(NearestNeighbor):
             return list(indices), list(distances)
         else:
             indices = np.array(indices)
-            return self.data_[indices], list(distances)
+            return list(self.data_[indices]), list(distances)
 
-def test(nn_class, distance, k):
+def test(nn_class, distance, k, within_distance=True, nearest_neighbors=True):
     np.random.seed(0)
     data = np.random.rand(100, 100)
     datum = data[0]
@@ -249,22 +261,28 @@ def test(nn_class, distance, k):
     nn = nn_class()
     nn.train(data)
 
-    obj, _ = nn.within_distance(datum, distance)
-    print '%s: %d objects within %f' %(name, len(obj), distance)
+    if within_distance:
+        obj, _ = nn.within_distance(datum, distance)
+        print '%s: %d objects within %f' %(name, len(obj), distance)
 
-    _, dist = nn.nearest_neighbors(datum, k)
-    print '%s: %d-NN are within %f' %(name, k, np.max(dist))
+    if nearest_neighbors:
+        _, dist = nn.nearest_neighbors(datum, k)
+        print '%s: %d-NN are within %f' %(name, k, np.max(dist))
 
-def test_kdtree(distance=3.7, k=3):
-    test(KDTree, distance, k)
+def test_kdtree(distance=3.7, k=3, **kw):
+    test(KDTree, distance, k, **kw)
 
-def test_balltree(distance=3.7, k=3):
-    test(BallTree, distance, k)
+def test_balltree(distance=3.7, k=3, **kw):
+    test(BallTree, distance, k, **kw)
 
-def test_lshf(distance=0.23, k=3):
-    test(LSHForest, distance, k)
+def test_lshf(distance=0.23, k=3, **kw):
+    test(LSHForest, distance, k, **kw)
+
+def test_nearpy(distance=None, k=3, **kw):
+    test(NearPy, distance, k, **kw)
 
 if __name__ == '__main__':
     test_kdtree()
     test_balltree()
     test_lshf()
+    test_nearpy(within_distance=False)
