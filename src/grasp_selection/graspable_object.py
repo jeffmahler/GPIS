@@ -493,16 +493,23 @@ class GraspableObject3D(GraspableObject):
             plt.scatter([center, center*u1t[0] + center], [center, -center*u1t[1] + center], color='blue')
             plt.scatter([center, center*u2t[0] + center], [center, -center*u2t[1] + center], color='green')
 
-        # TODO: fix sign of u1 a la SHOT?
         u1 = np.dot(principal_axis, t1) * t1 + np.dot(principal_axis, t2) * t2
         u2 = np.cross(direction, u1) # u2 must be orthogonal to u1 on plane
         u1 = u1 / np.linalg.norm(u1)
         u2 = u2 / np.linalg.norm(u2)
 
-        return self._compute_surface_window_projection(contact, u1=u1, u2=u2,
+        window = self._compute_surface_window_projection(contact, u1=u1, u2=u2,
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
+
+        # arbitrarily decide direction of u1: right_avg > left_avg (inspired by SHOT)
+        left_avg = np.average(window[:, :num_steps//2])
+        right_avg = np.average(window[:, num_steps//2:])
+        if left_avg > right_avg:
+            # need to flip both u1 and u2, i.e. rotate 180 degrees
+            window = np.rot90(window, k=2)
+        return window
 
     def surface_window_grad_curvature(self, contact, width, num_steps, direction=None):
         proj_window = self.contact_surface_window_projection(
@@ -575,15 +582,15 @@ def test_windows(width, num_steps, plot=None):
 
     print 'unaligned projection window'
     unaligned_window1 = graspable.contact_surface_window_projection_unaligned(
-        contact1, width, num_steps, direction=grasp_axis)
+        contact1, width, num_steps)
     unaligned_window2 = graspable.contact_surface_window_projection_unaligned(
-        contact2, width, num_steps, direction=grasp_axis)
+        contact2, width, num_steps)
 
     print 'aligned projection window'
     aligned_window1 = graspable.contact_surface_window_projection(
-        contact1, width, num_steps, direction=grasp_axis)
+        contact1, width, num_steps)
     aligned_window2 = graspable.contact_surface_window_projection(
-        contact2, width, num_steps, direction=grasp_axis)
+        contact2, width, num_steps)
 
     print 'proj, sdf, proj - sdf at contact'
     contact_index = num_steps // 2
