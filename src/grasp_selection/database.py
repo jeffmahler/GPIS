@@ -121,7 +121,7 @@ class Dataset(object):
         # read in data
         sf = sdf_file.SdfFile(sdf_filename)
         sdf = sf.read()
-
+        
         of = obj_file.ObjFile(obj_filename)
         mesh = of.read()
 
@@ -184,7 +184,13 @@ class Dataset(object):
             raise StopIteration
         else:
             logging.info('Returning datum %s' %(self.data_keys_[self.iter_count_]))
-            obj = self.read_datum(self.data_keys_[self.iter_count_])
+            try:
+                obj = self.read_datum(self.data_keys_[self.iter_count_])    
+            except:
+                logging.warning('Error reading %s. Skipping' %(self.data_keys_[self.iter_count_]))
+                self.iter_count_ = self.iter_count_ + 1
+                return self.next()
+
             self.iter_count_ = self.iter_count_ + 1
             return obj
 
