@@ -48,11 +48,11 @@ class LocalFeatureFile:
         features = f.BagOfFeatures()
 
         # parse through the lines of data from the shot file to fill out the matrices
-        #IPython.embed()
         for i in range(num_descriptors):
             p = feature_file.readline().split('\t')
             rf, descriptor, keypoint, normal = [string_to_array(j) for j in p] 
-            features.add(f.LocalFeature(descriptor, rf, keypoint, normal))
+            if np.sum(np.isnan(descriptor)) == 0 and np.sum(np.isinf(descriptor)) == 0:
+                features.add(f.LocalFeature(descriptor, rf, keypoint, normal))
 
         feature_file.close()
 
