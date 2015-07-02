@@ -308,10 +308,9 @@ class GraspableObject3D(GraspableObject):
 
         return found, projection_contact
 
-    def _compute_surface_window_projection(self, contact, u1=None, u2=None,
-                                           width=1e-2, num_steps=21, max_projection=0.1,
-                                           back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
-                                           direction=None, vis=False):
+    def _compute_surface_window_projection(self, contact, u1=None, u2=None, width=1e-2,
+        num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
+        sigma=1.5, direction=None, vis=False):
         """Compute the projection window at a contact point onto the basis
         defined by u1 and u2.
 
@@ -376,10 +375,9 @@ class GraspableObject3D(GraspableObject):
             window = spfilt.gaussian_filter(window, sigma)
         return window
 
-    def contact_surface_window_projection(self, contact, width=1e-2, num_steps=21,
-                                          max_projection=0.1,
-                                          back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
-                                          direction=None, vis=False):
+    def contact_surface_window_projection_unaligned(self, contact, width=1e-2,
+        num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
+        sigma=1.5, direction=None, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             contact - numpy 3 array of the surface contact in obj frame
@@ -401,10 +399,9 @@ class GraspableObject3D(GraspableObject):
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
                                                        
-    def contact_surface_window_projection_aligned(self, contact, width=1e-2, num_steps=21,
-                                                  max_projection=0.1,
-                                                  back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
-                                                  direction=None, vis=False):
+    def contact_surface_window_projection(self, contact, width=1e-2,
+        num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
+        sigma=1.5, direction=None, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             contact - numpy 3 array of the surface contact in obj frame
@@ -576,16 +573,16 @@ def test_windows(width, num_steps, plot=None):
     sdf_window2 = graspable.contact_surface_window_sdf(
         contact2, width, num_steps)
 
-    print 'projection window'
-    proj_window1 = graspable.contact_surface_window_projection(
+    print 'unaligned projection window'
+    unaligned_window1 = graspable.contact_surface_window_projection_unaligned(
         contact1, width, num_steps, direction=grasp_axis)
-    proj_window2 = graspable.contact_surface_window_projection(
+    unaligned_window2 = graspable.contact_surface_window_projection_unaligned(
         contact2, width, num_steps, direction=grasp_axis)
 
     print 'aligned projection window'
-    aligned_window1 = graspable.contact_surface_window_projection_aligned(
+    aligned_window1 = graspable.contact_surface_window_projection(
         contact1, width, num_steps, direction=grasp_axis)
-    aligned_window2 = graspable.contact_surface_window_projection_aligned(
+    aligned_window2 = graspable.contact_surface_window_projection(
         contact2, width, num_steps, direction=grasp_axis)
 
     print 'proj, sdf, proj - sdf at contact'
@@ -593,14 +590,15 @@ def test_windows(width, num_steps, plot=None):
     if num_steps % 2 == 0:
         contact_index += 1
     contact_index = (contact_index, contact_index)
-    print proj_window[contact_index], sdf_window[contact_index], proj_window[contact_index] - sdf_window[contact_index]
+    print aligned_window1[contact_index], sdf_window1[contact_index], aligned_window1[contact_index] - sdf_window1[contact_index]
+    print aligned_window2[contact_index], sdf_window2[contact_index], aligned_window2[contact_index] - sdf_window2[contact_index]
 
     if plot:
         plot(sdf_window1, num_steps, 'SDF Window 1')
-        plot(proj_window1, num_steps, 'Projection Window 1')
+        plot(unaligned_window1, num_steps, 'Unaligned Projection Window 1')
         plot(aligned_window1, num_steps, 'Aligned Projection Window 1')
         plot(sdf_window2, num_steps, 'SDF Window 2')
-        plot(proj_window2, num_steps, 'Projection Window 2')
+        plot(unaligned_window2, num_steps, 'Unaligned Projection Window 2')
         plot(aligned_window2, num_steps, 'Aligned Projection Window 2')
         plt.show()
 
