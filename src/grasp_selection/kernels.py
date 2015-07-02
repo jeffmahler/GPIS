@@ -47,6 +47,10 @@ class Kernel:
     def __call__(self, x, y):
         return self.evaluate(x, y)
 
+    def __mul__(self, other):
+        assert isinstance(other, Kernel), 'Can only multiply Kernels!'
+        return KernelProduct([self, other])
+
 class SquaredExponentialKernel(Kernel):
     """ k(x, y) = \sigma^2 exp(-||x - y||^2 / 2l^2) """
     def __init__(self, sigma=1.0, l=1.0, dist='euclidean', phi=None):
@@ -69,7 +73,24 @@ class SquaredExponentialKernel(Kernel):
         return self.sigma_**2 * np.exp(-self.dist_(x, y)**2 / 2 * self.l_**2)
 
     def gradient(self, x):
-        todo = 1
+        raise NotImplementedError
+
+class KernelProduct(Kernel):
+    """ k(x, y) = k1(x, y) * k2(x, y) * ... """
+    def __init__(self, kernels, phi=None):
+        self.kernels_ = kernels
+        self.phi_ = phi
+
+    def evaluate(self, x, y):
+        if self.phi_ is not None:
+            x, y = self.phi_(x), self.phi_(y)
+        return np.prod([k(x, y) for k in self.kernels_])
+
+    def error_radius(self, tolerance):
+        raise NotImplementedError
+
+    def gradient(self, x):
+        raise NotImplementedError
 
 class NearestNeighbor:
     __metaclass__ = ABCMeta
@@ -303,9 +324,37 @@ def test_sparse():
 
     IPython.embed()
 
+def test_kernels():
+    np.random.seed(0)
+    x, y = np.random.rand(10), np.random.rand(10)
+
+    k1 = SquaredExponentialKernel(0.5, 2.0)
+    k2 = SquaredExponentialKernel()
+    k111 = KernelProduct([k1, k1, k1])
+    k12 = KernelProduct([k1, k2])
+    k21 = KernelProduct([k2, k1])
+
+    k1_result = k1(x, y)
+    k2_result = k2(x, y)
+    k111_result = k111(x, y)
+    k12_result = k12(x, y)
+    k21_result = k21(x, y)
+
+    assert k111_result == k1_result**3
+    assert k12_result == k21_result == k1_result * k2_result
+
+    k12111 = KernelProduct([k12, k111])
+    k12111_result = k12111(x, y)
+
+    assert k12111_result == k12_result * k111_result
+
+    k1221 = k12 * k21
+    k1221_result = k1221(x, y)
+    assert k1221_result == k12_result**2
 
 if __name__ == '__main__':
     #test_kdtree()
     #test_balltree()
     #test_lshf()
     test_sparse()
+    test_kernels()
