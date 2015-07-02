@@ -105,35 +105,13 @@ class SaveButton(Button):
 	source = StringProperty(None)
 	labeled_grasps = ObjectProperty(None)
 
-	# def on_press(self):
-	# 	file_name = "labeled_grasps.dat"
-	# 	file_object = open(file_name, 'wb')
-	# 	pickle.dump(self.labeled_grasps, file_object)
-	# 	file_object.close()
-
-	def on_press(self):
-		save_screen = SaveScreen(labeled_grasps = self.labeled_grasps)
-		save_screen_save = SaveScreenSave(labeled_grasps = self.labeled_grasps, par = save_screen)
-		gui.root.add_widget(save_screen)
-		gui.root.add_widget(save_screen_save)
-
-class SaveScreen(FloatLayout):
-	source = StringProperty(None)
-	labeled_grasps = ObjectProperty(None)
-
-
-class SaveScreenSave(Button):
-	source = StringProperty(None)
-	labeled_grasps = ObjectProperty(None)
-	par = ObjectProperty(None)
-
 	def on_press(self):
 		file_name = "labeled_grasps/labeled_grasps.dat"
 		file_object = open(file_name, 'wb')
 		pickle.dump(self.labeled_grasps, file_object)
 		file_object.close()
-		gui.root.remove_widget(self)
-		gui.root.remove_widget(self.par)
+		disappear_button = Animation(background_color=[0,0,0,0], d=.4) + Animation(background_color=[.6,.6,.6,1], d=.4) 
+		disappear_button.start(gui.save_button)
 
 
 # FinalSaveButton: pops when 'Next' is pressed and there are no more grasps
@@ -170,10 +148,10 @@ class GraspSelectionApp(App):
 		# create and add buttons
 		help_button = HelpButton()
 		next_button = NextButton(old_layout = layout, grasps = self.grasps)
-		save_button = SaveButton(labeled_grasps = self.grasps)
+		self.save_button = SaveButton(labeled_grasps = self.grasps)
 		root.add_widget(help_button)
 		root.add_widget(next_button)
-		root.add_widget(save_button)
+		root.add_widget(self.save_button)
 		return root
 
 	# display_images: makes new grid of images
