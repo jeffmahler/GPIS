@@ -99,6 +99,18 @@ class PointGraspMetrics3D:
         return 1 * (min_norm < eps) # if greater than eps, 0 is outside of hull
 
     @staticmethod
+    def partial_closure(forces, torques, normals, soft_fingers=False, params=None):
+        """ Partial closure: whether or not the forces and torques can resist a specific wrench givien in the params"""
+        force_limit = None
+        if params is None:
+            return 0
+        force_limit = params['force_limits']
+        target_wrench = params['target_wrench']        
+
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        return PointGraspMetrics.wrench_in_span(G, target_wrench, force_limit)
+
+    @staticmethod
     def min_singular(forces, torques, normals, soft_fingers=False, params=None):
         """ Min singular value of grasp matrix - measure of wrench that grasp is "weakest" at resisting """
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
@@ -164,6 +176,27 @@ class PointGraspMetrics3D:
                 min_dist = dist
 
         return min_dist
+
+    @staticmethod
+    def wrench_in_span(W, target_wrench, f):
+        """ Check whether wrench W can be resisted by forces and torques in G with limit force f """
+        eps = 1e-4
+        num_wrenches = W.shape[1]
+
+        # quadratic and linear costs
+        P = W.T.dot(W)
+        q = -2 * target_wrench
+        
+        # inequalities 
+        lam_geq_zero = -1 * np.eye(num_wrenches)
+        force_constraint = np.ones(num_wrenches)
+        G = np.c_[lam_geq_zero, force_constraint]
+        h = zeros(num_wrenches+1)
+        h[num_wrenches] = f
+
+        sol = cvx.solvers.qp(P, q, G, h)        
+        min_dist = sol['primal objective']
+        return min_dist < eps
 
     @staticmethod
     def min_norm_vector_in_facet(facet):
