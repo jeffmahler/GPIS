@@ -21,6 +21,7 @@ import tfx
 
 import IPython
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 class GraspableObject:
     __metaclass__ = ABCMeta
@@ -236,7 +237,7 @@ class GraspableObject3D(GraspableObject):
 
         return True, torques
 
-    def contact_surface_window_sdf(self, contact, width=1e-1, num_steps=21):
+    def contact_surface_window_sdf(self, contact, width=1e-2, num_steps=21):
         """Returns a window of SDF values on the tangent plane at a contact point.
         Params:
             contact - numpy 3 array of the surface contact in obj frame
@@ -262,6 +263,104 @@ class GraspableObject3D(GraspableObject):
             window[i] = self.sdf[curr_loc_grid]
         return window.reshape((num_steps, num_steps))
 
+    def _find_projection(self, curr_loc, normal, max_projection, back_up, num_samples, vis=False):
+        """Finds the point of contact when shooting a normal ray from curr_loc.
+        Params:
+            curr_loc - numpy 3 array of the starting point in obj frame
+            normal - normalized numpy 3 array, direction to look for contact
+
+            max_projection - float maximum amount to search forward for a contact (meters)
+
+            back_up - float amount to back up before finding a contact (meters)
+            num_samples - float number of samples when finding contacts
+        Returns:
+            found - True if projection contact is found
+            projection_contact - numpy 3 array of the contact point in obj frame
+        """
+        # get start of projection
+        projection_start = curr_loc - back_up * normal
+        line_of_action = g.ParallelJawPtGrasp3D.create_line_of_action(
+            projection_start, normal, (max_projection + back_up), self, num_samples
+        )
+        found, projection_contact = g.ParallelJawPtGrasp3D.find_contact(
+            line_of_action, self, vis=vis
+        )
+
+        if vis:
+            ax = plt.gca(projection = '3d')
+            ax.set_xlim3d(0, self.sdf.dims_[0])
+            ax.set_ylim3d(0, self.sdf.dims_[1])
+            ax.set_zlim3d(0, self.sdf.dims_[2])
+            plt.show()
+
+        return found, projection_contact
+
+    def _compute_surface_window_projection(self, contact, u1=None, u2=None,
+                                           width=1e-2, num_steps=21, max_projection=0.1,
+                                           back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
+                                           vis=False):
+        """Compute the projection window at a contact point onto the basis
+        defined by u1 and u2.
+
+        Params:
+            contact - numpy 3 array of the surface contact in obj frame
+            u1, u2 - orthogonal numpy 3 arrays
+
+            width - float width of the window in obj frame
+            num_steps - int number of steps
+            max_projection - float maximum amount to search forward for a
+                contact (meters)
+
+            back_up_units - float amount to back up before finding a contact (grid coords)
+            samples_per_grid - float number of samples per grid when finding contacts
+            sigma - bandwidth of gaussian filter on window
+        Returns:
+            window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
+                plane to obj, False if surface window can't be computed
+        """
+        normal, t1, t2 = self._contact_normal_and_tangent(contact)
+        if normal is None: # normal and tangents not found
+            return False
+        if u1 is not None and u2 is not None: # use given basis
+            t1, t2 = u1, u2
+
+        # display sdf for debugging
+        if vis:
+            plt.figure()
+            self.sdf.scatter()
+
+        # number of samples used when looking for contacts
+        no_contact = 0.2
+        back_up = back_up_units * self.sdf.resolution
+        num_samples = int(samples_per_grid * (max_projection + back_up) / self.sdf.resolution)
+        scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
+        window = np.zeros(num_steps**2)
+        for i, (c1, c2) in enumerate(it.product(scales, repeat=2)):
+            curr_loc = contact + c1 * t1 + c2 * t2
+            curr_loc_grid = self.sdf.transform_pt_obj_to_grid(curr_loc)
+            if self.sdf.is_out_of_bounds(curr_loc_grid):
+                window[i] = 0.0
+                continue
+
+            found, projection_contact = self._find_projection(
+                curr_loc, normal, max_projection, back_up, num_samples, vis)
+
+            if found:
+                logging.debug('%d found.' %(i))
+                sign = normal.dot(projection_contact - curr_loc)
+                projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
+            else:
+                projection = no_contact
+
+            window[i] = projection
+
+        window = window.reshape((num_steps, num_steps))
+
+        # apply gaussian filter to window (should be narrow bandwidth)
+        if sigma > 0.0:
+            window = spfilt.gaussian_filter(window, sigma)
+        return window
+
     def contact_surface_window_projection(self, contact, width=1e-2, num_steps=21,
                                           max_projection=0.1,
                                           back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
@@ -281,9 +380,41 @@ class GraspableObject3D(GraspableObject):
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
         """
+        return self._compute_surface_window_projection(contact, width=width, num_steps=num_steps,
+            max_projection=max_projection, back_up_units=back_up_units,
+            samples_per_grid=samples_per_grid, sigma=sigma, vis=vis)
+                                                       
+    def contact_surface_window_projection_aligned(self, contact, width=1e-2, num_steps=21,
+                                                  max_projection=0.1,
+                                                  back_up_units=3.0, samples_per_grid=2.0, sigma=1.5,
+                                                  vis=False):
+        """Projects the local surface onto the tangent plane at a contact point.
+        Params:
+            contact - numpy 3 array of the surface contact in obj frame
+            width - float width of the window in obj frame
+            num_steps - int number of steps
+
+            max_projection - float maximum amount to search forward for a contact (meters)
+
+            back_up_units - float amount to back up before finding a contact (grid coords)
+            samples_per_grid - float number of samples per grid when finding contacts
+            sigma - bandwidth of gaussian filter on window
+        Returns:
+            window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
+                plane to obj, False if surface window can't be computed
+        """
         normal, t1, t2 = self._contact_normal_and_tangent(contact)
         if normal is None: # normal and tangents not found
             return False
+
+        # display sdf for debugging
+        if vis:
+            plt.figure()
+            self.sdf.scatter()
+
+        # compute weighted covariance
+        cov = np.zeros((3, 3))
+        cov_weight = 0
 
         # number of samples used when looking for contacts
         no_contact = 0.2
@@ -298,33 +429,19 @@ class GraspableObject3D(GraspableObject):
                 window[i] = 0.0
                 continue
 
-            # get start of projection
-            projection_start = curr_loc - back_up * normal
-            line_of_action = g.ParallelJawPtGrasp3D.create_line_of_action(
-                projection_start, normal, (max_projection + back_up), self, num_samples
-            )
+            found, projection_contact = self._find_projection(
+                curr_loc, normal, max_projection, back_up, num_samples, vis)
 
-            # display sdf for debugging
-            if vis:
-                plt.figure()
-                self.sdf.scatter()
-
-            found, projection_contact = g.ParallelJawPtGrasp3D.find_contact(
-                line_of_action, self, vis=vis
-            )
-
-            if vis:
-                ax = plt.gca(projection = '3d')
-                ax.set_xlim3d(0, self.sdf.dims_[0])
-                ax.set_ylim3d(0, self.sdf.dims_[1])
-                ax.set_zlim3d(0, self.sdf.dims_[2])
-                plt.show()
-
-            # log distance along ray to projected point
             if found:
-                logging.debug('{} found.'.format(i))
+                logging.debug('%d found.' %(i))
                 sign = normal.dot(projection_contact - curr_loc)
                 projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
+
+                # weight according to SHOT: R - d_i,
+                weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
+                diff = (projection_contact - contact).reshape((3, 1))
+                cov += weight * (diff * diff.T)
+                cov_weight += weight
             else:
                 projection = no_contact
 
@@ -332,11 +449,30 @@ class GraspableObject3D(GraspableObject):
 
         window = window.reshape((num_steps, num_steps))
 
-        # apply gaussian filter to window (should be narrow bandwidth)
-        if sigma > 0.0:
-            window = spfilt.gaussian_filter(window, sigma)
-        return window
-        
+        # compute principal axis
+        pca = PCA()
+        cov = cov / cov_weight
+        pca.fit(cov)
+        R = pca.components_
+        principal_axis = R[0, :]
+        if np.isclose(abs(np.dot(principal_axis, normal)), 1):
+            # principal axis is aligned with normal, use secondary axis
+            principal_axis = R[1, :]
+
+        # project principal axis onto tangent plane (t1, t2) to get u1
+        # u1 = np.array([np.dot(principal_axis, t1), np.dot(principal_axis, t2)])
+        # u2 = np.array([-u1[1], u1[0]])
+        u1 = np.dot(principal_axis, t1) * t1 + np.dot(principal_axis, t2) * t2
+        u1 = u1 / np.linalg.norm(u1)
+
+        # TODO: fix sign of u1 a la SHOT?
+
+        u2 = np.cross(normal, u1) # u2 must be orthogonal to u1 on plane
+
+        return self._compute_surface_window_projection(contact, u1=u1, u2=u2,
+            width=width, num_steps=num_steps, max_projection=max_projection,
+            back_up_units=back_up_units, samples_per_grid=samples_per_grid,
+            sigma=sigma, vis=vis)
 
 def test_windows(width, num_steps, plot=None):
     import sdf_file, obj_file
@@ -368,6 +504,10 @@ def test_windows(width, num_steps, plot=None):
     proj_window = graspable.contact_surface_window_projection(
         contact, width, num_steps)
 
+    print 'aligned projection window'
+    aligned_window = graspable.contact_surface_window_projection_aligned(
+        contact, width, num_steps)
+
     print 'proj, sdf, proj - sdf at contact'
     contact_index = num_steps // 2
     if num_steps % 2 == 0:
@@ -376,11 +516,12 @@ def test_windows(width, num_steps, plot=None):
     print proj_window[contact_index], sdf_window[contact_index], proj_window[contact_index] - sdf_window[contact_index]
 
     if plot:
-        plot(sdf_window, num_steps)
-        plot(proj_window, num_steps)
+        plot(sdf_window, num_steps, 'SDF Window')
+        plot(proj_window, num_steps, 'Projection Window')
+        plot(aligned_window, num_steps, 'Aligned Projection Window')
         plt.show()
 
-    return sdf_window, proj_window
+    return sdf_window, proj_window, aligned_window
 
 def plot_graspable(graspable, contact, c1=0, c2=0, draw_plane=False):
     """Plot a graspable and the tangent plane at the point of contact."""
@@ -431,7 +572,7 @@ def plot_graspable(graspable, contact, c1=0, c2=0, draw_plane=False):
         z = (-n_[0] * xx - n_[1] * yy - d) * 1. / n_[2]
         ax.plot_surface(xx, yy, z, rstride=1, cstride=1, color='r')
 
-def plot_window_3d(window, num_steps):
+def plot_window_3d(window, num_steps, title=''):
     """Make a 3D histogram of a window."""
     if num_steps % 2 == 1: # center window at contact
         indices = np.array(range(-(num_steps // 2), (num_steps // 2) + 1))
@@ -453,7 +594,7 @@ def plot_window_3d(window, num_steps):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
 
-def plot_window_2d(window, num_steps):
+def plot_window_2d(window, num_steps, title=''):
     """Plot a 2D image of a window."""
     if num_steps % 2 == 1: # center window at contact
         indices = np.array(range(-(num_steps // 2), (num_steps // 2) + 1))
@@ -462,6 +603,7 @@ def plot_window_2d(window, num_steps):
     indices = np.array(range(num_steps)) # for easier debugging
 
     fig = plt.figure()
+    plt.title(title)
     imgplot = plt.imshow(window, extent=[indices[0], indices[-1], indices[-1], indices[0]],
                          interpolation='none', cmap=plt.cm.binary)
     plt.colorbar()
