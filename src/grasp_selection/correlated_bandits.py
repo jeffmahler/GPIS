@@ -45,6 +45,24 @@ def save_results(results, file='bandit_results.npy'):
     asarray = np.array(results)
     np.save(file, asarray)
 
+WEIGHTS = {
+    'proj_win_weight': config['weight_proj_win'],
+    'grad_x_weight': config['weight_grad_x'],
+    'grad_y_weight': config['weight_grad_y'],
+    'curvature_weight': config['weight_curvature'],
+}
+
+def phi(rv, weight_names=list(WEIGHTS)):
+    weights = {k : WEIGHTS[v] for k in weight_names}
+    w1, w2 = rv.grasp.surface_information(obj, config['window_width'], config['window_steps'])
+    return np.concatenate(w1.asarray(**weights), w2.asarray(**weights))
+
+def window_phi(rv):
+    return phi(rv, ['proj_win_weight'])
+
+def curvature_phi(rv):
+    return phi(rv, ['curvature_weight'])
+
 def label_correlated(obj, dest, config):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
@@ -80,14 +98,12 @@ def label_correlated(obj, dest, config):
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         candidates.append(pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config))
 
-    def phi(rv):
-        windows = rv.grasp.surface_window(obj, config['window_width'], config['window_steps'])
-        clean_windows = windows # align and filter window
-        window_vec = np.ravel(clean_windows)
-        return window_vec
     nn = kernels.KDTree(phi=phi)
-    kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+    window_kernel = kernels.SquaredExponentialKernel(
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=window_phi)
+    curvature_kernel = kernels.SquaredExponentialKernel(
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=curvature_phi)
+    kernel = KernelProduct([window_kernel, curvature_kernel])
 
     objective = objectives.RandomBinaryObjective()
     ts = das.CorrelatedThompsonSampling(

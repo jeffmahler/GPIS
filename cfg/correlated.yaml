@@ -35,6 +35,10 @@ window_steps: 21
 kernel_sigma: 1.0
 kernel_l: 1.0
 kernel_tolerance: 0.5
+weight_proj_win: 1.0
+weight_grad_x: 1.0
+weight_grad_y: 1.0
+weight_curvature: 1.0
 
 # Grasp sampling
 min_num_grasps: 100

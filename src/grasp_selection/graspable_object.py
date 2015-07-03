@@ -26,17 +26,30 @@ from sklearn.decomposition import PCA
 class SurfaceWindow:
     """ Struct for encapsulating local surface windows """
     def __init__(self, proj_win, grad, hess_x, hess_y, gauss_curvature):
-        self.proj_win = proj_win
-        self.grad = grad
-        self.hess_x = hess_x
-        self.hess_y = hess_y
-        self.gauss_curvature = gauss_curvature
+        self.proj_win_ = proj_win
+        self.grad_ = grad
+        self.hess_x_ = hess_x
+        self.hess_y_ = hess_y
+        self.gauss_curvature_ = gauss_curvature
 
-    def asarray(self, proj_win=True, grad_x=True, grad_y=True, curvature=True):
-        proj_win = self.proj_win.flatten() if proj_win else []
-        grad_x = self.grad[0].flatten() if grad_x else []
-        grad_y = self.grad[1].flatten() if grad_y else []
-        curvature = self.gauss_curvature.flatten() if curvature else []
+    def proj_win(self):
+        return self.proj_win_.flatten()
+
+    def grad_x(self):
+        return self.grad_[0].flatten()
+
+    def grad_y(self):
+        return self.grad_[1].flatten()
+
+    def curvature(self):
+        return self.gauss_curvature.flatten()
+
+    def asarray(self, proj_win_weight=0.0, grad_x_weight=0.0,
+                grad_y_weight=0.0, curvature_weight=0.0):
+        proj_win = proj_win_weight * self.proj_win.flatten()
+        grad_x = grad_x_weight * self.grad[0].flatten()
+        grad_y = grad_y_weight * self.grad[0].flatten()
+        curvature = curvature_weight * self.gauss_curvature.flatten()
         return np.append([], [proj_win, grad_x, grad_y, curvature])
 
 class GraspableObject:
