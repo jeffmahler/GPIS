@@ -32,6 +32,13 @@ class SurfaceWindow:
         self.hess_y = hess_y
         self.gauss_curvature = gauss_curvature
 
+    def asarray(self, proj_win=True, grad_x=True, grad_y=True, curvature=True):
+        proj_win = self.proj_win.flatten() if proj_win else []
+        grad_x = self.grad[0].flatten() if grad_x else []
+        grad_y = self.grad[1].flatten() if grad_y else []
+        curvature = self.gauss_curvature.flatten() if curvature else []
+        return np.append([], [proj_win, grad_x, grad_y, curvature])
+
 class GraspableObject:
     __metaclass__ = ABCMeta
 
@@ -224,7 +231,7 @@ class GraspableObject3D(GraspableObject):
         for j in range(num_cone_faces):
             tan_vec = t1 * np.cos(2 * np.pi * (float(j) / num_cone_faces)) + t2 * np.sin(2 * np.pi * (float(j) / num_cone_faces))
             cone_support[:, j] = force + friction_coef * tan_vec
-            
+
         return True, cone_support, normal
 
     def contact_torques(self, contact, forces):
@@ -398,7 +405,7 @@ class GraspableObject3D(GraspableObject):
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
-                                                       
+
     def contact_surface_window_projection(self, contact, width=1e-2,
         num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
         sigma=1.5, direction=None, vis=False):
@@ -413,7 +420,7 @@ class GraspableObject3D(GraspableObject):
             back_up_units - float amount to back up before finding a contact (grid coords)
             samples_per_grid - float number of samples per grid when finding contacts
             sigma - bandwidth of gaussian filter on window
-            direction - dir to do the projection along            
+            direction - dir to do the projection along
         Returns:
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
@@ -520,20 +527,20 @@ class GraspableObject3D(GraspableObject):
         hess_y = np.gradient(grad_win[1])
 
         gauss_curvature = np.zeros(proj_window.shape)
-        for i in range(proj_window.shape[0]):
-            for j in range(proj_window.shape[0]):
-                local_hess = np.array([[hess_x[0][i,j], hess_x[1][i,j]], [hess_y[0][i,j], hess_y[1][i,j]]])
+        for i in range(num_steps):
+            for j in range(num_steps):
+                local_hess = np.array([[hess_x[0][i, j], hess_x[1][i, j]],
+                                       [hess_y[0][i, j], hess_y[1][i, j]]])
                 # symmetrize
                 local_hess = (local_hess + local_hess.T) / 2.0
-                 # curavture
-                gauss_curvature[i,j] = np.linalg.det(local_hess)
-        
+                # curvature
+                gauss_curvature[i, j] = np.linalg.det(local_hess)
+
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def grasp_feature_rep(self, grasp, width, num_steps, plot=True):
+    def surface_information(self, grasp, width, num_steps, plot=True):
         _, contacts = grasp.close_fingers(self)
-        contact1 = contacts[0]
-        contact2 = contacts[1]
+        contact1, contact2 = contacts
 
         if plot:
             plot_graspable(self, contact1)
@@ -541,10 +548,8 @@ class GraspableObject3D(GraspableObject):
 
         window1 = self.surface_window_grad_curvature(
             contact1, width, num_steps, direction=None)#grasp.axis)
-
         window2 = self.surface_window_grad_curvature(
             contact2, width, num_steps, direction=None)#-grasp.axis)
-
         return window1, window2
 
 def test_windows(width, num_steps, plot=None):
@@ -570,7 +575,7 @@ def test_windows(width, num_steps, plot=None):
     grasp2 = g.ParallelJawPtGrasp3D(grasp2_center, grasp_axis, grasp_width)
     _, contacts2 = grasp2.close_fingers(graspable)
     contact2 = contacts2[0]
-    
+
     if plot:
         plot_graspable(graspable, contact1)
 
@@ -625,11 +630,11 @@ def test_window_distance(width, num_steps, plot=None):
 
     grasp1_center = np.array([0, 0, -0.025])
     grasp1 = g.ParallelJawPtGrasp3D(grasp1_center, grasp_axis, grasp_width)
-    grasp2_center = np.array([0, 0, -0.035])
+    grasp2_center = np.array([0, 0, -0.030])
     grasp2 = g.ParallelJawPtGrasp3D(grasp2_center, grasp_axis, grasp_width)
-    
-    w1, w2 = graspable.grasp_feature_rep(grasp1, width, num_steps)
-    v1, v2 = graspable.grasp_feature_rep(grasp2, width, num_steps)
+
+    w1, w2 = graspable.surface_information(grasp1, width, num_steps)
+    v1, v2 = graspable.surface_information(grasp2, width, num_steps)
 
 #    IPython.embed()
 
@@ -643,7 +648,7 @@ def test_window_distance(width, num_steps, plot=None):
     IPython.embed()
 
     return
-    
+
 
 def plot_graspable(graspable, contact, c1=0, c2=0, draw_plane=False):
     """Plot a graspable and the tangent plane at the point of contact."""
@@ -737,7 +742,6 @@ def plot_window_both(window, num_steps):
     plot_window_3d(window, num_steps)
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
-    test_windows(width=2.5e-2, num_steps=27, plot=plot_window_2d)
-    # test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
-    # test_window_distance(width=2e-2, num_steps=21, plot=plot_window_2d)
+    logging.getLogger().setLevel(logging.DEBUG)
+    test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
+    test_window_distance(width=2e-2, num_steps=21)
