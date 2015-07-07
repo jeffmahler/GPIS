@@ -31,7 +31,7 @@ def skew(xi):
                   [xi[2], 0, -xi[0]],
                   [-xi[1], xi[0], 0]])
     return S
-    
+
 class GraspableObjectGaussianPose:
     def __init__(self, obj, config):
         self.obj_ = obj
@@ -80,7 +80,7 @@ class GraspableObjectGaussianPose:
         # not a list if only 1 sample
         if size == 1:
             return samples[0]
-        return samples        
+        return samples
 
     def rvs(self, size=1, iteration=1):
         """ Samples random variables """
@@ -90,7 +90,7 @@ class GraspableObjectGaussianPose:
                 samples.append(self.prealloc_samples_[(iteration + i) % self.num_prealloc_samples_])
             if size == 1:
                 return samples[0]
-            return samples        
+            return samples
         # generate a new sample
         return self.sample(size=size)
 
@@ -116,7 +116,7 @@ class ParallelJawGraspGaussian:
         self.prealloc_samples_ = []
         for i in range(self.num_prealloc_samples_):
             self.prealloc_samples_.append(self.sample())
-    
+
     @property
     def grasp(self):
         return self.grasp_
@@ -148,7 +148,7 @@ class ParallelJawGraspGaussian:
                 samples.append(self.prealloc_samples_[(iteration + i) % self.num_prealloc_samples_])
             if size == 1:
                 return samples[0]
-            return samples        
+            return samples
         # generate a new sample
         return self.sample(size=size)
 
@@ -158,7 +158,8 @@ class ForceClosureRV:
         self.grasp_rv_ = grasp_rv
         self.obj_rv_ = obj_rv
         self.friction_coef_rv_ = friction_coef_rv # scipy stat rv
-        self.phi_ = None
+        self.surface_features_ = self.features_ = None
+        self.initialized = False
 
         self._parse_config(config)
         self._generate_feature_rep()
@@ -173,27 +174,56 @@ class ForceClosureRV:
         self.window_steps_ = config['window_steps']
         self.window_sigma_ = config['window_sigma']
 
+        # feature weights
+        self.proj_win_weight_ = config['weight_proj_win']
+        self.grad_x_weight_ = config['weight_grad_x']
+        self.grad_y_weight_ = config['weight_grad_y']
+        self.curvature_weight_ = config['weight_curvature']
+
     def _generate_feature_rep(self):
         """ Compute feature rep and cache for quick lookups """
         # get grasp windows
-        clean_windows = self.grasp.surface_window(self.obj_rv_.obj, self.window_width_, self.window_steps_)
+        s1, s2 = self.grasp.surface_information(self.obj_rv_.obj, self.window_width_, self.window_steps_)
 
-        # flatten if successfully extracted the window
-        if clean_windows[0] is not None and clean_windows[1] is not None:
-            window_vec = np.ravel(clean_windows)        
-            self.phi_ = window_vec / self.window_sigma_
+        # if either surface fails, don't set self.surface_features_
+        if s1 is None or s2 is None:
+            return
 
-    def initialized(self):
-        """ Whether or not the RV was initialized successfully """
-        return self.phi_ is not None
+        self.surface_features_ = []
+        for s in (s1, s2):
+            feature = SurfaceGraspFeatureExtractor([
+                WindowGraspFeatureExtractor(s, self.proj_win_weight_),
+                GradXGraspFeatureExtractor(s, self.grad_x_weight_),
+                GradYGraspFeatureExtractor(s, self.grad_y_weight_),
+                CurvatureGraspFeatureExtractor(s, self.curvature_weight_),
+            ])
+            self.surface_features_.append(feature)
+        self.initialized = True
+
+        self.features_ = list(self.surface_features_)
+        # Example:
+        # self.features_.append(GravityGraspFeatureExtractor(...))
 
     @property
     def grasp(self):
         return self.grasp_rv_.grasp
 
     @property
-    def phi(self):
-        return self.phi_
+    def surface_features(self):
+        if not self.initialized:
+            logging.warning('Features are uninitialized.')
+        return self.surface_features_
+
+    @property
+    def features(self):
+        if not self.initialized:
+            logging.warning('Features are uninitialized.')
+        return self.features_
+
+    def phi(self, features=None):
+        if features is None:
+            features = self.features
+        return np.concatenate([f.phi for f in features])
 
     def sample_success(self):
         # sample grasp
@@ -251,7 +281,7 @@ def space_partition_grasps(grasps, config):
     Sigma = np.cov(grasp_features.T)
     Sigma_sqrt = scipy.linalg.sqrtm(Sigma)
     grasp_features_whitened = np.linalg.inv(Sigma_sqrt).dot(grasp_features.T)
-    
+
     # run kmeans
     km = sklearn.cluster.KMeans(n_clusters=num_clusters)
     labels = km.fit_predict(grasp_features_whitened.T)
@@ -353,10 +383,10 @@ def test_antipodal_grasp_thompson():
     plt.show()
 
     das.plot_num_pulls_beta_bernoulli(ua_result)
-    plt.title('Observations Per Variable for Uniform allocation')    
+    plt.title('Observations Per Variable for Uniform allocation')
 
     das.plot_num_pulls_beta_bernoulli(ts_result)
-    plt.title('Observations Per Variable for Thompson sampling')    
+    plt.title('Observations Per Variable for Thompson sampling')
 
     plt.show()
 

@@ -95,26 +95,8 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
 def save_results(results, filename='corr_bandit_results.npy'):
     """Saves results to a file."""
-    f = open(filename, 'w')
-    pkl.dump(results, filename)
-
-WEIGHTS = {
-    'proj_win_weight': config['weight_proj_win'],
-    'grad_x_weight': config['weight_grad_x'],
-    'grad_y_weight': config['weight_grad_y'],
-    'curvature_weight': config['weight_curvature'],
-}
-
-def phi(rv, weight_names=list(WEIGHTS)):
-    weights = {k : WEIGHTS[v] for k in weight_names}
-    w1, w2 = rv.grasp.surface_information(obj, config['window_width'], config['window_steps'])
-    return np.concatenate(w1.asarray(**weights), w2.asarray(**weights))
-
-def window_phi(rv):
-    return phi(rv, ['proj_win_weight'])
-
-def curvature_phi(rv):
-    return phi(rv, ['curvature_weight'])
+    with open(filename, 'w') as f:
+        pkl.dump(results, f)
 
 def label_correlated(obj, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
@@ -141,7 +123,7 @@ def label_correlated(obj, dest, config, plot=False):
     confidence = config['bandit_confidence']
     snapshot_rate = config['bandit_snapshot_rate']
     tc_list = [
-        tc.MaxIterTerminationCondition(max_iter)#,
+        tc.MaxIterTerminationCondition(max_iter),
 #        tc.ConfidenceTerminationCondition(confidence)
     ]
 
@@ -154,18 +136,22 @@ def label_correlated(obj, dest, config, plot=False):
         logging.info('Adding grasp %d' %len(candidates))
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if pfc_rv.initialized():
+        if pfc_rv.initialized:
             candidates.append(pfc_rv)
 
     # feature transform
-    def phi(rv):
-        return rv.phi
+    def surface_phi(rv):
+        return rv.phi([f for f in rv.surface_features])
+    def window_phi(rv):
+        return rv.phi([f.proj_win for f in rv.surface_features])
+    def curvature_phi(rv):
+        return rv.phi([f.curvature for f in rv.surface_features])
 
-    nn = kernels.KDTree(phi=phi)
+    nn = kernels.KDTree(phi=surface_phi)
     window_kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=window_phi)
     curvature_kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=curvature_phi)
     kernel = KernelProduct([window_kernel, curvature_kernel])
 
     objective = objectives.RandomBinaryObjective()
@@ -201,16 +187,15 @@ def label_correlated(obj, dest, config, plot=False):
     pr2_grasp_qualities = []
     theta_res = config['grasp_theta_res'] * np.pi
     grasp_checker = pgc.OpenRaveGraspChecker(view=config['vis_grasps'])
-    i = 0
+
     if config['vis_grasps']:
         delay = config['vis_delay']
 
-    for grasp in object_grasps:
+    for grasp, grasp_quality in zip(object_grasps, grasp_qualities):
         rotated_grasps = grasp.transform(obj.tf, theta_res)
         rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay=delay)
         pr2_grasps.extend(rotated_grasps)
-        pr2_grasp_qualities.extend([grasp_qualities[i]] * len(rotated_grasps))
-        i = i+1
+        pr2_grasp_qualities.extend([grasp_quality] * len(rotated_grasps))
 
     logging.info('Num grasps: %d' %(len(pr2_grasps)))
 
