@@ -69,7 +69,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.jaw_width_ = jaw_width
         self.approach_angle_ = grasp_angle
         self.tf_ = tf
-        self.surface_windows_ = {}
+        self.surface_info_ = {}
 
     @property
     def center(self):
@@ -377,25 +377,20 @@ class ParallelJawPtGrasp3D(PointGrasp):
             mv.quiver3d(c2_world[0] + v[0], c2_world[1] + v[1], c2_world[2] + v[2], -v[0], -v[1], -v[2], scale_factor=1.0,
                         mode='arrow', line_width=line_width)
 
-    def surface_window(self, graspable, width=8e-4, num_steps=21, **kwargs):
-        """Return the surface windows at the contacts that this grasp makes on
-        a graspable.
-
+    def surface_information(self, graspable, width=2e-2, num_steps=21, **kwargs):
+        """Return the surface information at the contacts that this grasp makes
+        on a graspable.
         Params:
             graspable - GraspableObject3D instance
+            width - float width of the window in obj frame
+            num_steps - int number of steps
         Returns:
             list of windows, one for each point of contact
         """
-        if graspable in self.surface_windows_:
-            return self.surface_windows_[graspable]
-
-        found, contacts = self.close_fingers(graspable)
-        if not found:
-            logging.debug('Could not compute surface window, grasp does not contact graspable.')
-            self.surface_windows_[graspable] = []
-        else:
-            self.surface_windows_[graspable] = [graspable.contact_surface_window_projection(c, width, num_steps, **kwargs) for c in contacts]
-        return self.surface_windows_[graspable]
+        if graspable not in self.surface_info_:
+            info = graspable.surface_information(self, width, num_steps)
+            self.surface_info_[graspable] = info
+        return self.surface_info_[graspable]
 
     def to_json(self, quality=0, method='PFC'):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
@@ -435,7 +430,7 @@ class ParallelJawPtPose3D(object):
         self.orientation_ = tfx.rotation([orientation[c] for c in 'xyzw'])
         self.position_ = tfx.point([position[c] for c in 'xyz'])
         self.gripper_pose_ = tfx.pose(self.orientation_, self.position_)
-        self.surface_windows_ = {}
+        self.surface_info_ = {}
 
     @staticmethod
     def from_json(data):
@@ -447,7 +442,7 @@ class ParallelJawPtPose3D(object):
     def gripper_pose(self, R_gripper_center=np.eye(3), t_gripper_center=PR2_GRASP_OFFSET):
         return self.gripper_pose_
 
-    surface_window = ParallelJawPtGrasp3D.surface_window
+    surface_information = ParallelJawPtGrasp3D.surface_information
 
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """

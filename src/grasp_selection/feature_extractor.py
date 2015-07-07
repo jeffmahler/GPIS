@@ -4,7 +4,6 @@ import IPython
 import logging
 import numpy as np
 import os
-import sys
 
 import database as db
 import experiment_config as ec

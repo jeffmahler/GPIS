@@ -98,6 +98,24 @@ def save_results(results, filename='corr_bandit_results.npy'):
     f = open(filename, 'w')
     pkl.dump(results, filename)
 
+WEIGHTS = {
+    'proj_win_weight': config['weight_proj_win'],
+    'grad_x_weight': config['weight_grad_x'],
+    'grad_y_weight': config['weight_grad_y'],
+    'curvature_weight': config['weight_curvature'],
+}
+
+def phi(rv, weight_names=list(WEIGHTS)):
+    weights = {k : WEIGHTS[v] for k in weight_names}
+    w1, w2 = rv.grasp.surface_information(obj, config['window_width'], config['window_steps'])
+    return np.concatenate(w1.asarray(**weights), w2.asarray(**weights))
+
+def window_phi(rv):
+    return phi(rv, ['proj_win_weight'])
+
+def curvature_phi(rv):
+    return phi(rv, ['curvature_weight'])
+
 def label_correlated(obj, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
@@ -144,8 +162,11 @@ def label_correlated(obj, dest, config, plot=False):
         return rv.phi
 
     nn = kernels.KDTree(phi=phi)
-    kernel = kernels.SquaredExponentialKernel(
+    window_kernel = kernels.SquaredExponentialKernel(
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+    curvature_kernel = kernels.SquaredExponentialKernel(
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+    kernel = KernelProduct([window_kernel, curvature_kernel])
 
     objective = objectives.RandomBinaryObjective()
 

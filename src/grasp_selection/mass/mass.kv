@@ -45,14 +45,14 @@ FloatLayout:
         padding: 10
         spacing: 10
         size_hint: 1, None
-        pos_hint: {'top': .18, 'x': .52}
+        pos_hint: {'top': .18, 'x': .5}
         height: 10
         Label:
             height: 10
             text_size: self.width, None
             font_size: '14sp'
             color: (1, 1, 1, .8)
-            text: 'Insert Mass Here'
+            text: 'Insert Mass Here (kg)'
 
     # Comparison Image Text
     BoxLayout:
@@ -66,7 +66,7 @@ FloatLayout:
             text_size: self.width, None
             font_size: '14sp'
             color: (1, 1, 1, .8)
-            text: 'Standard Water Bottle : 1kg (check)'
+            text: 'Standard Water Bottle: 0.5 kg'
 
 <NextButton>:
     id: next_button
@@ -95,4 +95,4 @@ FloatLayout:
     source: root.source
     pos_hint: {'x':.3, 'y':.25}
     size_hint: (.4,.5)
-    text: 'Help Screen:\n\nScale right image according to left image\n\nPress "CW" or "CCW" to rotate\nPress "Larger" or "Smaller" to scale\n\nUse "Next" button to proceed\nSave when you are done\n\nClick here to close help screen'
+    text: 'Help Screen:\n\nSee relative mass object on the left\n\nEstimate the mass of the object on the left\nYour input is automatically recorded\n\nUse "Next" button to proceed\nSave when you are done\n\nClick here to close help screen'
