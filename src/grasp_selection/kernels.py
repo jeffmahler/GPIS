@@ -16,14 +16,24 @@ from sklearn import neighbors
 
 from nearpy import Engine
 from nearpy.hashes import RandomBinaryProjections
-from nearpy.distances import EuclideanDistance
+from nearpy.distances import Distance, EuclideanDistance
 from nearpy.filters import NearestFilter
 
 def euclidean_distance(x, y):
     return np.linalg.norm(x - y)
 
+class KLDivergence(Distance):
+    """ Symmetric version of KL divergence """
+
+    def distance(self, x, y):
+        """ Distance between two probability distributions """
+        log_pq_ratio = np.log(x / y)     
+        return (x - y).dot(log_pq_ratio)
+
 DISTANCE_FNS = {
     'euclidean': euclidean_distance,
+    'nearpy_euclidean': EuclideanDistance,
+    'kl_divergence': KLDivergence
 }
 
 class Kernel:
@@ -66,7 +76,7 @@ class SquaredExponentialKernel(Kernel):
     def evaluate(self, x, y):
         if self.phi_ is not None:
             x, y = self.phi_(x), self.phi_(y)
-        return self.sigma_**2 * np.exp(-self.dist_(x, y)**2 / 2 * self.l_**2)
+        return self.sigma_**2 * np.exp(-self.dist_(x, y)**2 / (2 * self.l_**2))
 
     def gradient(self, x):
         todo = 1
@@ -74,10 +84,10 @@ class SquaredExponentialKernel(Kernel):
 class NearestNeighbor:
     __metaclass__ = ABCMeta
 
-    def __init__(self, dist='euclidean', phi=lambda x: x):
+    def __init__(self, dist=neighbors.DistanceMetric.get_metric('euclidean'), phi=lambda x: x):
         self.data_ = None
         self.featurized_ = None
-        self.dist_metric_ = neighbors.DistanceMetric.get_metric(dist)
+        self.dist_metric_ = dist
         self.phi_ = phi # feature fn to extract an np.array from each object
 
     @abstractmethod
@@ -195,10 +205,13 @@ class LSHForest(NearestNeighbor):
             return self.data_[indices], distances
 
 class NearPy(NearestNeighbor):
+    def __init__(self, dist=EuclideanDistance(), phi=lambda x: x):
+        NearestNeighbor.__init__(self, dist, phi)
+
     def _create_engine(self, k, lshashes=None):
         self.k_ = k
         self.engine_ = Engine(self.dimension_, lshashes,
-                              distance=EuclideanDistance(),
+                              distance=self.dist_metric_,
                               vector_filters=[NearestFilter(k)])
 
         for i, feature in enumerate(self.featurized_):
@@ -247,6 +260,9 @@ class NearPy(NearestNeighbor):
             query_result = self.engine_.neighbours(feature.T)
         else:
             query_result = self.engine_.neighbours(feature)
+
+        if len(query_result) == 0:
+            return [], []
 
         features, indices, distances = zip(*query_result)
         if return_indices:

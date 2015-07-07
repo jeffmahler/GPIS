@@ -333,7 +333,7 @@ class GraspableObject3D(GraspableObject):
         """
         direction, t1, t2 = self._contact_tangents(contact, direction)
         if direction is None: # normal and tangents not found
-            return False
+            return None
         if u1 is not None and u2 is not None: # use given basis
             t1, t2 = u1, u2
 
@@ -420,7 +420,7 @@ class GraspableObject3D(GraspableObject):
         """
         direction, t1, t2 = self._contact_tangents(contact, direction)
         if direction is None: # normal and tangents not found
-            return False
+            return None
 
         # display sdf for debugging
         if vis:

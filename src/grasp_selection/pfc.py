@@ -57,6 +57,10 @@ class GraspableObjectGaussianPose:
         for i in range(self.num_prealloc_samples_):
             self.prealloc_samples_.append(self.sample())
 
+    @property
+    def obj(self):
+        return self.obj_
+
     def sample(self, size=1):
         """ Sample |size| random variables from the model """
         samples = []
@@ -154,16 +158,42 @@ class ForceClosureRV:
         self.grasp_rv_ = grasp_rv
         self.obj_rv_ = obj_rv
         self.friction_coef_rv_ = friction_coef_rv # scipy stat rv
+        self.phi_ = None
 
         self._parse_config(config)
+        self._generate_feature_rep()
         self.sample_count_ = 0
 
     def _parse_config(self, config):
+        """ Grab config data from the config file """
         self.num_cone_faces_ = config['num_cone_faces']
+
+        # featurization
+        self.window_width_ = config['window_width']
+        self.window_steps_ = config['window_steps']
+        self.window_sigma_ = config['window_sigma']
+
+    def _generate_feature_rep(self):
+        """ Compute feature rep and cache for quick lookups """
+        # get grasp windows
+        clean_windows = self.grasp.surface_window(self.obj_rv_.obj, self.window_width_, self.window_steps_)
+
+        # flatten if successfully extracted the window
+        if clean_windows[0] is not None and clean_windows[1] is not None:
+            window_vec = np.ravel(clean_windows)        
+            self.phi_ = window_vec / self.window_sigma_
+
+    def initialized(self):
+        """ Whether or not the RV was initialized successfully """
+        return self.phi_ is not None
 
     @property
     def grasp(self):
         return self.grasp_rv_.grasp
+
+    @property
+    def phi(self):
+        return self.phi_
 
     def sample_success(self):
         # sample grasp

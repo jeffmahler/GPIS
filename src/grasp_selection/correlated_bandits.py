@@ -5,10 +5,15 @@ Author: Brian Hou
 """
 import json
 import logging
+import pickle as pkl
 import os
 import time
 
+import random
+import string
+
 import IPython
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
 
@@ -17,38 +22,88 @@ import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
 import kernels
+import models
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
-def best_values_over_time(result, plot=False):
+def experiment_hash(N = 10):
+    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
+
+class BanditCorrelatedExperimentResult:
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, num_objects = 1):
+        self.ua_reward = ua_reward
+        self.ts_reward = ts_reward
+        self.ts_corr_reward = ts_corr_reward
+
+        self.ua_result = ua_result
+        self.ts_result = ts_result
+        self.ts_corr_result = ts_corr_result
+
+        self.num_objects = num_objects
+
+    @staticmethod
+    def compile_results(result_list):
+        """ Put all results in a giant list """
+        if len(result_list) == 0:
+            return None
+
+        ua_reward = np.zeros([len(result_list), result_list[0].ua_reward.shape[0]])
+        ts_reward = np.zeros([len(result_list), result_list[0].ts_reward.shape[0]])
+        ts_corr_reward = np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]])
+
+        i = 0
+        for r in result_list:
+            ua_reward[i,:] = r.ua_reward
+            ts_reward[i,:] = r.ts_reward
+            ts_corr_reward[i,:] = r.ts_corr_reward
+            i = i + 1
+
+        ua_results = [r.ua_result for r in result_list]
+        ts_results = [r.ts_result for r in result_list]
+        ts_corr_results = [r.ts_corr_result for r in result_list]
+
+        return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward,
+                                                ua_results,
+                                                ts_results,
+                                                ts_corr_results,
+                                                len(result_list))
+
+
+def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
     """Computes the expected values for the best arms of a BetaBernoulliModel at
     each time step.
     Params:
         result - AdaptiveSamplingResult instance, from a BetaBernoulliModel
+        normalize - Divide by true best value
     Returns:
         best_values - list of floats, expected values over time
     """
-    best_values = [(m.alphas / m.betas)[m.best_pred_ind] for m in result.models]
+    true_best_value = np.max(true_pfc)
+    best_pred_values = [true_pfc[m.best_pred_ind] for m in result.models]
+    if normalize:
+        best_pred_values = best_pred_values / true_best_value
 
     if plot:
         plt.figure()
-        plt.plot(result.iters, best_values, color='blue', linewidth=2)
+        plt.plot(result.iters, best_pred_values, color='blue', linewidth=2)
         plt.xlabel('Iteration')
         plt.ylabel('P(Success)')
 
-    return best_values
+    return best_pred_values
 
-def save_results(results, file='bandit_results.npy'):
+def save_results(results, filename='corr_bandit_results.npy'):
     """Saves results to a file."""
-    asarray = np.array(results)
-    np.save(file, asarray)
+    f = open(filename, 'w')
+    pkl.dump(results, filename)
 
-def label_correlated(obj, dest, config):
+def label_correlated(obj, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
     bandit_start = time.clock()
+
+    np.random.seed(100)
 
     # sample initial antipodal grasps
     sampler = ags.AntipodalGraspSampler(config)
@@ -60,15 +115,16 @@ def label_correlated(obj, dest, config):
 
     if not grasps:
         logging.info('Skipping %s' %(obj.key))
-        return
+        return None
 
     # bandit params
+    brute_force_iter = config['bandit_brute_force_iter']
     max_iter = config['bandit_max_iter']
     confidence = config['bandit_confidence']
     snapshot_rate = config['bandit_snapshot_rate']
     tc_list = [
-        tc.MaxIterTerminationCondition(max_iter),
-        tc.ConfidenceTerminationCondition(confidence)
+        tc.MaxIterTerminationCondition(max_iter)#,
+#        tc.ConfidenceTerminationCondition(confidence)
     ]
 
     # run bandits!
@@ -77,24 +133,39 @@ def label_correlated(obj, dest, config):
 
     candidates = []
     for grasp in grasps:
+        logging.info('Adding grasp %d' %len(candidates))
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
-        candidates.append(pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config))
+        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
+        if pfc_rv.initialized():
+            candidates.append(pfc_rv)
 
+    # feature transform
     def phi(rv):
-        windows = rv.grasp.surface_window(obj, config['window_width'], config['window_steps'])
-        clean_windows = windows # align and filter window
-        window_vec = np.ravel(clean_windows)
-        return window_vec
+        return rv.phi
+
     nn = kernels.KDTree(phi=phi)
     kernel = kernels.SquaredExponentialKernel(
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
 
     objective = objectives.RandomBinaryObjective()
-    ts = das.CorrelatedThompsonSampling(
-        objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
 
-    logging.info('Solving bandits!')
+    # uniform allocation for true values
+    ua = das.UniformAllocationMean(objective, candidates)
+    logging.info('Running uniform allocation for true pfc!')    
+    ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
+                         snapshot_rate=snapshot_rate)
+    estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+
+    # thomspon sampling for faster convergence
+    ts = das.ThompsonSampling(objective, candidates)
+    logging.info('Running thompson sampling!')
     ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+
+    # thomspon sampling for faster convergence
+    ts_corr = das.CorrelatedThompsonSampling(
+        objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
+    logging.info('Running correlated thompson sampling!')
+    ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     object_grasps = [c.grasp for c in ts_result.best_candidates]
     grasp_qualities = list(ts_result.best_pred_means)
@@ -103,6 +174,7 @@ def label_correlated(obj, dest, config):
     logging.info('Bandits took %f sec' %(bandit_stop - bandit_start))
 
     # get rotated, translated versions of grasps
+    """
     delay = 0
     pr2_grasps = []
     pr2_grasp_qualities = []
@@ -125,8 +197,21 @@ def label_correlated(obj, dest, config):
     with open(grasp_filename, 'w') as f:
         json.dump([g.to_json(quality=q) for g, q in zip(pr2_grasps, pr2_grasp_qualities)], f,
                   sort_keys=True, indent=4, separators=(',', ': '))
+    """
 
-    return best_values_over_time(ts_result)
+    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
+    ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
+    ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
+
+    if plot:
+        plt.figure()
+        plt.plot(ua_result.iters, ua_normalized_reward, c=u'b')
+        plt.plot(ts_result.iters, ts_normalized_reward, c=u'g')
+        plt.plot(ts_corr_result.iters, ts_corr_normalized_reward, c=u'r')
+        plt.show()
+
+    return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
+                                            ua_result, ts_result, ts_corr_result)
 
 if __name__ == '__main__':
     import argparse
@@ -150,11 +235,45 @@ if __name__ == '__main__':
 
     # loop through objects, labelling each
     results = []
+    i = 0
+    avg_experiment_result = None
     for obj in chunk:
-        logging.info('Labelling object {}'.format(obj.key))
-        values_over_time = label_correlated(obj, dest, config)
-        if values_over_time is None:
-            continue # no grasps to run bandits on for this object
-        results.append(values_over_time)
+#    if True:
+#        obj = chunk['cheerios_14oz']
 
-    save_results(results)
+        logging.info('Labelling object {}'.format(obj.key))
+        experiment_result = label_correlated(obj, dest, config)
+        if experiment_result is None:
+            continue # no grasps to run bandits on for this object
+        
+#        if avg_experiment_result is None:
+#            avg_experiment_result = experiment_result
+#        else:
+#            avg_experiment_result = BanditCorrelatedExperimentResult.average(experiment_result, avg_experiment_result)
+
+        results.append(experiment_result)
+        i = i+1
+
+    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+
+    # plotting of final results
+    ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
+    ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
+    ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
+
+    plt.figure()
+    ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward, c=u'b', linewidth=2.0)
+    ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward, c=u'g', linewidth=2.0)
+    ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
+    plt.xlim(0, np.max(all_results.ts_result[0].iters))
+    plt.ylim(0.5, 1)
+    plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)']) 
+    plt.show()
+
+    # generate experiment hash and save
+    eh = experiment_hash()
+    results_filename = os.path.join(config['results_dir'], '%s_results.pkl' %(eh))
+    logging.info('Saving results to %s' %(results_filename))
+    save_results(all_results, filename)
+
+    IPython.embed()
