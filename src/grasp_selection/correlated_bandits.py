@@ -108,7 +108,7 @@ def label_correlated(obj, dest, config, plot=False):
     # sample initial antipodal grasps
     sampler = ags.AntipodalGraspSampler(config)
     antipodal_start = time.clock()
-    grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(obj, vis=False)
+    grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=False)
     antipodal_end = time.clock()
     antipodal_duration = antipodal_end - antipodal_start
     logging.info('Antipodal grasp candidate generation took %f sec' %(antipodal_duration))
@@ -180,19 +180,18 @@ def label_correlated(obj, dest, config, plot=False):
     logging.info('Bandits took %f sec' %(bandit_stop - bandit_start))
 
     # get rotated, translated versions of grasps
-    """
     delay = 0
     pr2_grasps = []
     pr2_grasp_qualities = []
     theta_res = config['grasp_theta_res'] * np.pi
-    grasp_checker = pgc.OpenRaveGraspChecker(view=config['vis_grasps'])
+#    grasp_checker = pgc.OpenRaveGraspChecker(view=config['vis_grasps'])
 
     if config['vis_grasps']:
         delay = config['vis_delay']
 
     for grasp, grasp_quality in zip(object_grasps, grasp_qualities):
         rotated_grasps = grasp.transform(obj.tf, theta_res)
-        rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay=delay)
+#        rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay=delay)
         pr2_grasps.extend(rotated_grasps)
         pr2_grasp_qualities.extend([grasp_quality] * len(rotated_grasps))
 
@@ -202,7 +201,6 @@ def label_correlated(obj, dest, config, plot=False):
     with open(grasp_filename, 'w') as f:
         json.dump([g.to_json(quality=q) for g, q in zip(pr2_grasps, pr2_grasp_qualities)], f,
                   sort_keys=True, indent=4, separators=(',', ': '))
-    """
 
     ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
@@ -231,13 +229,6 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     chunk = db.Chunk(config)
 
-    '''
-    eh = experiment_hash()
-    results_filename = os.path.join(config['results_dir'], '%s_results.pkl' %(eh))
-    logging.info('Saving results to %s' %(results_filename))
-    IPython.embed()
-    '''
-
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
     try:
@@ -250,18 +241,10 @@ if __name__ == '__main__':
     i = 0
     avg_experiment_result = None
     for obj in chunk:
-#    if True:
-#        obj = chunk['cheerios_14oz']
-
         logging.info('Labelling object {}'.format(obj.key))
         experiment_result = label_correlated(obj, dest, config)
         if experiment_result is None:
             continue # no grasps to run bandits on for this object
-
-#        if avg_experiment_result is None:
-#            avg_experiment_result = experiment_result
-#        else:
-#            avg_experiment_result = BanditCorrelatedExperimentResult.average(experiment_result, avg_experiment_result)
 
         results.append(experiment_result)
         i = i+1
@@ -273,6 +256,7 @@ if __name__ == '__main__':
     ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
     ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
 
+    """
     plt.figure()
     ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward, c=u'b', linewidth=2.0)
     ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward, c=u'g', linewidth=2.0)
@@ -281,13 +265,20 @@ if __name__ == '__main__':
     plt.ylim(0.5, 1)
     plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)'])
     plt.show()
+    """
 
     # generate experiment hash and save
+    """
     eh = experiment_hash()
     results_filename = os.path.join(config['results_dir'], '%s_results.pkl' %(eh))
     logging.info('Saving results to %s' %(results_filename))
-    IPython.embed() 
+    save_results(all_results, results_filename)
+    """
+
+    # save to file
+    results_filename = os.path.join(dest, 'bandit_results.pkl')
+    logging.info('Saving results to %s' %(results_filename))
     save_results(all_results, results_filename)
 
-    IPython.embed()
+    #IPython.embed()
 
