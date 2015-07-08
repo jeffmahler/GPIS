@@ -507,6 +507,9 @@ class GraspableObject3D(GraspableObject):
         proj_window = self.contact_surface_window_projection(
             contact, width, num_steps, direction=direction)
 
+        if proj_window is None:
+            return None
+
         grad_win = np.gradient(proj_window)
         hess_x = np.gradient(grad_win[0])
         hess_y = np.gradient(grad_win[1])
