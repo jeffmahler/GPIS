@@ -523,7 +523,7 @@ class GraspableObject3D(GraspableObject):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def surface_information(self, grasp, width, num_steps, plot=True):
+    def surface_information(self, grasp, width, num_steps, plot=False):
         _, contacts = grasp.close_fingers(self)
         contact1, contact2 = contacts
 
