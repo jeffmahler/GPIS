@@ -21,6 +21,7 @@ import antipodal_grasp_sampler as ags
 import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
+import feature_functions as ff
 import kernels
 import models
 import objectives
@@ -132,7 +133,7 @@ def label_correlated(obj, dest, config, plot=False):
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
 
     # compute feature vectors for all grasps
-    feature_extractor = ff.GraspableFeatureExtractor(obj)
+    feature_extractor = ff.GraspableFeatureExtractor(obj, config)
     all_features = feature_extractor.compute_all_features(grasps)
 
     candidates = []

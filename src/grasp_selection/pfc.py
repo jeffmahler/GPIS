@@ -162,7 +162,6 @@ class ForceClosureRV:
         self.features_ = None
 
         self._parse_config(config)
-        self._generate_feature_rep()
         self.sample_count_ = 0
 
     def _parse_config(self, config):

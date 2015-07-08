@@ -124,9 +124,10 @@ class SurfaceGraspFeatureExtractor(GraspFeatureExtractor):
 class GraspableFeatureExtractor:
     """Class for extracting features from a graspable object and an arbitrary
     number of grasps."""
-    def __init__(self, graspable):
+    def __init__(self, graspable, config):
         self.graspable_ = graspable
         self.features_ = {} # to cache feature computation
+        self._parse_config(config)
 
     def _parse_config(self, config):
         # featurization
@@ -181,4 +182,9 @@ class GraspableFeatureExtractor:
 
     def compute_all_features(self, grasps):
         """Convenience function for extracting features from many grasps."""
-        return [self._compute_feature_rep(g) for g in grasps]
+        features = []
+        for i, grasp in enumerate(grasps):
+            logging.info('Computing features for grasp %d' %(i))
+            feature = self._compute_feature_rep(grasp)
+            features.append(feature)
+        return features
