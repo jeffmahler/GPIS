@@ -59,7 +59,7 @@ class SurfaceWindow:
 
     @property
     def curvature(self):
-        return self.gauss_curvature.flatten()
+        return self.gauss_curvature_.flatten()
 
     def asarray(self, proj_win_weight=0.0, grad_x_weight=0.0,
                 grad_y_weight=0.0, curvature_weight=0.0):

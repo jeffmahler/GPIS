@@ -141,7 +141,7 @@ def label_correlated(obj, dest, config, plot=False):
 
     # feature transform
     def surface_phi(rv):
-        return rv.phi([f for f in rv.surface_features])
+        return rv.phi(rv.surface_features)
     def window_phi(rv):
         return rv.phi([f.proj_win for f in rv.surface_features])
     def curvature_phi(rv):
