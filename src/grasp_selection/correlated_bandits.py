@@ -70,7 +70,6 @@ class BanditCorrelatedExperimentResult:
                                                 ts_corr_results,
                                                 len(result_list))
 
-
 def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
     """Computes the expected values for the best arms of a BetaBernoulliModel at
     each time step.
@@ -96,8 +95,9 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 def save_results(results, filename='corr_bandit_results.npy'):
     """Saves results to a file."""
     f = open(filename, 'w')
-    pkl.dump(results, filename)
+    pkl.dump(results, f)
 
+'''
 WEIGHTS = {
     'proj_win_weight': config['weight_proj_win'],
     'grad_x_weight': config['weight_grad_x'],
@@ -115,7 +115,7 @@ def window_phi(rv):
 
 def curvature_phi(rv):
     return phi(rv, ['curvature_weight'])
-
+'''
 def label_correlated(obj, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
@@ -164,9 +164,9 @@ def label_correlated(obj, dest, config, plot=False):
     nn = kernels.KDTree(phi=phi)
     window_kernel = kernels.SquaredExponentialKernel(
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
-    curvature_kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
-    kernel = KernelProduct([window_kernel, curvature_kernel])
+#    curvature_kernel = kernels.SquaredExponentialKernel(
+#        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+    kernel = window_kernel #KernelProduct([window_kernel, curvature_kernel])
 
     objective = objectives.RandomBinaryObjective()
 
@@ -188,7 +188,7 @@ def label_correlated(obj, dest, config, plot=False):
     logging.info('Running correlated thompson sampling!')
     ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
-    object_grasps = [c.grasp for c in ts_result.best_candidates]
+    object_grasps = [candidates[i].grasp for i in ts_result.best_candidates]
     grasp_qualities = list(ts_result.best_pred_means)
 
     bandit_stop = time.clock()
@@ -247,6 +247,13 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     chunk = db.Chunk(config)
 
+    '''
+    eh = experiment_hash()
+    results_filename = os.path.join(config['results_dir'], '%s_results.pkl' %(eh))
+    logging.info('Saving results to %s' %(results_filename))
+    IPython.embed()
+    '''
+
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
     try:
@@ -295,6 +302,8 @@ if __name__ == '__main__':
     eh = experiment_hash()
     results_filename = os.path.join(config['results_dir'], '%s_results.pkl' %(eh))
     logging.info('Saving results to %s' %(results_filename))
-    save_results(all_results, filename)
+    IPython.embed() 
+    save_results(all_results, results_filename)
 
     IPython.embed()
+

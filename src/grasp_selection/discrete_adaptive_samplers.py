@@ -129,7 +129,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
         best_candidates = []
         num_best = best_indices.shape[0]
         for i in range(num_best):
-            best_candidates.append(candidates[best_indices[i]])
+            best_candidates.append(best_indices[i])
         return AdaptiveSamplingResult(best_candidates, best_pred_means, best_pred_vars, total_duration,
                                       times, iters, iter_indices, iter_vals, iter_models)
 
