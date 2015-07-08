@@ -377,7 +377,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             mv.quiver3d(c2_world[0] + v[0], c2_world[1] + v[1], c2_world[2] + v[2], -v[0], -v[1], -v[2], scale_factor=1.0,
                         mode='arrow', line_width=line_width)
 
-    def surface_information(self, graspable, width=2e-2, num_steps=21, **kwargs):
+    def surface_information(self, graspable, width=2e-2, num_steps=21):
         """Return the surface information at the contacts that this grasp makes
         on a graspable.
         Params:

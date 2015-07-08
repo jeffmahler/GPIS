@@ -21,6 +21,7 @@ import antipodal_grasp_sampler as ags
 import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
+import feature_functions as ff
 import kernels
 import models
 import objectives
@@ -94,28 +95,9 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
 def save_results(results, filename='corr_bandit_results.npy'):
     """Saves results to a file."""
-    f = open(filename, 'w')
-    pkl.dump(results, f)
+    with open(filename, 'w') as f:
+        pkl.dump(results, f)
 
-'''
-WEIGHTS = {
-    'proj_win_weight': config['weight_proj_win'],
-    'grad_x_weight': config['weight_grad_x'],
-    'grad_y_weight': config['weight_grad_y'],
-    'curvature_weight': config['weight_curvature'],
-}
-
-def phi(rv, weight_names=list(WEIGHTS)):
-    weights = {k : WEIGHTS[v] for k in weight_names}
-    w1, w2 = rv.grasp.surface_information(obj, config['window_width'], config['window_steps'])
-    return np.concatenate(w1.asarray(**weights), w2.asarray(**weights))
-
-def window_phi(rv):
-    return phi(rv, ['proj_win_weight'])
-
-def curvature_phi(rv):
-    return phi(rv, ['curvature_weight'])
-'''
 def label_correlated(obj, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
@@ -141,7 +123,7 @@ def label_correlated(obj, dest, config, plot=False):
     confidence = config['bandit_confidence']
     snapshot_rate = config['bandit_snapshot_rate']
     tc_list = [
-        tc.MaxIterTerminationCondition(max_iter)#,
+        tc.MaxIterTerminationCondition(max_iter),
 #        tc.ConfidenceTerminationCondition(confidence)
     ]
 
@@ -149,43 +131,46 @@ def label_correlated(obj, dest, config, plot=False):
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
 
+    # compute feature vectors for all grasps
+    feature_extractor = ff.GraspableFeatureExtractor(obj, config)
+    all_features = feature_extractor.compute_all_features(grasps)
+
     candidates = []
-    for grasp in grasps:
+    for grasp, features in zip(grasps, all_features):
         logging.info('Adding grasp %d' %len(candidates))
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if pfc_rv.initialized():
+        if features is None:
+            logging.info('Could not compute features for grasp.')
+        else:
+            pfc_rv.set_features(features)
             candidates.append(pfc_rv)
 
     # feature transform
     def phi(rv):
-        return rv.phi
+        return rv.features
 
     nn = kernels.KDTree(phi=phi)
-    window_kernel = kernels.SquaredExponentialKernel(
+    kernel = kernels.SquaredExponentialKernel(
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
-#    curvature_kernel = kernels.SquaredExponentialKernel(
-#        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
-    kernel = window_kernel #KernelProduct([window_kernel, curvature_kernel])
-
     objective = objectives.RandomBinaryObjective()
 
     # uniform allocation for true values
     ua = das.UniformAllocationMean(objective, candidates)
-    logging.info('Running uniform allocation for true pfc!')    
+    logging.info('Running uniform allocation for true pfc.')
     ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
                          snapshot_rate=snapshot_rate)
     estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
 
-    # thomspon sampling for faster convergence
+    # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
-    logging.info('Running thompson sampling!')
+    logging.info('Running Thompson sampling.')
     ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
-    # thomspon sampling for faster convergence
+    # correlated Thompson sampling for even faster convergence
     ts_corr = das.CorrelatedThompsonSampling(
         objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
-    logging.info('Running correlated thompson sampling!')
+    logging.info('Running correlated Thompson sampling.')
     ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     object_grasps = [candidates[i].grasp for i in ts_result.best_candidates]
@@ -201,16 +186,15 @@ def label_correlated(obj, dest, config, plot=False):
     pr2_grasp_qualities = []
     theta_res = config['grasp_theta_res'] * np.pi
     grasp_checker = pgc.OpenRaveGraspChecker(view=config['vis_grasps'])
-    i = 0
+
     if config['vis_grasps']:
         delay = config['vis_delay']
 
-    for grasp in object_grasps:
+    for grasp, grasp_quality in zip(object_grasps, grasp_qualities):
         rotated_grasps = grasp.transform(obj.tf, theta_res)
         rotated_grasps = grasp_checker.prune_grasps_in_collision(obj, rotated_grasps, auto_step=True, close_fingers=False, delay=delay)
         pr2_grasps.extend(rotated_grasps)
-        pr2_grasp_qualities.extend([grasp_qualities[i]] * len(rotated_grasps))
-        i = i+1
+        pr2_grasp_qualities.extend([grasp_quality] * len(rotated_grasps))
 
     logging.info('Num grasps: %d' %(len(pr2_grasps)))
 
@@ -273,7 +257,7 @@ if __name__ == '__main__':
         experiment_result = label_correlated(obj, dest, config)
         if experiment_result is None:
             continue # no grasps to run bandits on for this object
-        
+
 #        if avg_experiment_result is None:
 #            avg_experiment_result = experiment_result
 #        else:
@@ -295,7 +279,7 @@ if __name__ == '__main__':
     ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
     plt.xlim(0, np.max(all_results.ts_result[0].iters))
     plt.ylim(0.5, 1)
-    plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)']) 
+    plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)'])
     plt.show()
 
     # generate experiment hash and save
