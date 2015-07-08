@@ -12,6 +12,35 @@ import obj_file
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+def compute_basis(vertices):
+    """
+    Computes axes for a transformed basis relative to the plane in which input vertices lies
+
+    vertices -- a list of numpy arrays representing points in 3D space
+    """
+    centroid = compute_centroid(vertices)
+    z_o = np.cross(np.subtract(centroid, vertices[0]), np.subtract(centroid, vertices[1]))
+    z_o = z_o / np.linalg.norm(z_o)
+    x_o = np.array([-z_o[1], z_o[0], 0])
+    x_o = x_o / np.linalg.norm(x_o)
+    y_o = np.cross(z_o, x_o)
+    y_o = y_o / np.linalg.norm(y_o)
+
+    R = np.array([np.transpose(x_o), np.transpose(y_o), np.transpose(z_o)])
+    x_p, y_p, z_p = np.dot(R, x_o), np.dot(R, y_o), np.dot(R, z_o)
+    return (x_p, y_p, z_p)
+
+def compute_centroid(vertices):
+    """
+    Computes the centroid of input points
+
+    vertices -- a list of numpy arrays representing points in 3D space    
+    """
+    centroid = []
+    for i in range(len(vertices)):
+        centroid.append(sum([vertex[i] for vertex in vertices]) / len(vertices))
+    return np.array(centroid)
+
 # A function for computing the statistical distribution of stable poses of a polyhedron.
 def compute_stable_poses(mesh):
     """
@@ -286,3 +315,9 @@ prob_mapping = compute_stable_poses(mesh)
 print(prob_mapping)
 print(sum([val for val in prob_mapping.values()]))
 
+
+new_basis_axes = []
+for face in prob_mapping.keys():
+    vertices = [mesh.vertices()[i] for i in face]
+    new_basis_axes.append(compute_basis(vertices))
+print(new_basis_axes)
