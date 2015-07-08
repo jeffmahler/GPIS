@@ -148,30 +148,27 @@ def label_correlated(obj, dest, config, plot=False):
         return rv.phi([f.curvature for f in rv.surface_features])
 
     nn = kernels.KDTree(phi=surface_phi)
-    window_kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=window_phi)
-    curvature_kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=curvature_phi)
-    kernel = KernelProduct([window_kernel, curvature_kernel])
+    kernel = kernels.SquaredExponentialKernel(
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=surface_phi)
 
     objective = objectives.RandomBinaryObjective()
 
     # uniform allocation for true values
     ua = das.UniformAllocationMean(objective, candidates)
-    logging.info('Running uniform allocation for true pfc!')    
+    logging.info('Running uniform allocation for true pfc.')
     ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
                          snapshot_rate=snapshot_rate)
     estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
 
-    # thomspon sampling for faster convergence
+    # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
-    logging.info('Running thompson sampling!')
+    logging.info('Running Thompson sampling.')
     ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
-    # thomspon sampling for faster convergence
+    # correlated Thompson sampling for even faster convergence
     ts_corr = das.CorrelatedThompsonSampling(
         objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
-    logging.info('Running correlated thompson sampling!')
+    logging.info('Running correlated Thompson sampling.')
     ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     object_grasps = [c.grasp for c in ts_result.best_candidates]
@@ -251,7 +248,7 @@ if __name__ == '__main__':
         experiment_result = label_correlated(obj, dest, config)
         if experiment_result is None:
             continue # no grasps to run bandits on for this object
-        
+
 #        if avg_experiment_result is None:
 #            avg_experiment_result = experiment_result
 #        else:
@@ -273,7 +270,7 @@ if __name__ == '__main__':
     ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
     plt.xlim(0, np.max(all_results.ts_result[0].iters))
     plt.ylim(0.5, 1)
-    plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)']) 
+    plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)'])
     plt.show()
 
     # generate experiment hash and save

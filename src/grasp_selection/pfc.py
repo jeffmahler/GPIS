@@ -17,6 +17,7 @@ import quality as pgq
 import sdf_file
 import similarity_tf as stf
 import tfx
+import feature_functions as ff
 
 import discrete_adaptive_samplers as das
 import models
@@ -189,14 +190,19 @@ class ForceClosureRV:
         if s1 is None or s2 is None:
             return
 
+        extractor_classes = [
+            ff.WindowGraspFeatureExtractor, ff.GradXGraspFeatureExtractor,
+            ff.GradYGraspFeatureExtractor, ff.CurvatureGraspFeatureExtractor
+        ]
+        weights = [
+            self.proj_win_weight_, self.grad_x_weight_,
+            self.grad_y_weight_, self.curvature_weight_
+        ]
+
         self.surface_features_ = []
         for s in (s1, s2):
-            feature = SurfaceGraspFeatureExtractor([
-                WindowGraspFeatureExtractor(s, self.proj_win_weight_),
-                GradXGraspFeatureExtractor(s, self.grad_x_weight_),
-                GradYGraspFeatureExtractor(s, self.grad_y_weight_),
-                CurvatureGraspFeatureExtractor(s, self.curvature_weight_),
-            ])
+            extractors = [e(s, w) for e, w in zip(extractor_classes, weights) if w > 0]
+            feature = ff.SurfaceGraspFeatureExtractor(extractors)
             self.surface_features_.append(feature)
         self.initialized = True
 
