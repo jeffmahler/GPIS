@@ -71,9 +71,9 @@ class SurfaceWindow:
 
 
 class GraspFeatureExtractor:
+    """Abstract class for extracting features from a grasp surface. The `phi`
+    property method returns a feature vector."""
     __metaclass__ = ABCMeta
-
-    name = ''
 
     def __init__(self, surface, weight):
         self.surface_ = surface
@@ -84,44 +84,101 @@ class GraspFeatureExtractor:
         raise NotImplementedError
 
 class WindowGraspFeatureExtractor(GraspFeatureExtractor):
-    name = 'proj_win'
+    """Class for extracting window features."""
 
     @property
     def phi(self):
         return self.weight_ * self.surface_.proj_win
 
 class GradXGraspFeatureExtractor(GraspFeatureExtractor):
-    name = 'grad_x'
+    """Class for extracting gradient wrt x features."""
 
     @property
     def phi(self):
         return self.weight_ * self.surface_.grad_x
 
 class GradYGraspFeatureExtractor(GraspFeatureExtractor):
-    name = 'grad_y'
+    """Class for extracting gradient wrt y features."""
 
     @property
     def phi(self):
         return self.weight_ * self.surface_.grad_y
 
 class CurvatureGraspFeatureExtractor(GraspFeatureExtractor):
-    name = 'curvature'
+    """Class for extracting curvature features."""
 
     @property
     def phi(self):
         return self.weight_ * self.surface_.curvature
 
 class SurfaceGraspFeatureExtractor(GraspFeatureExtractor):
+    """Class for concatenating features."""
     def __init__(self, extractors):
         self.extractors_ = extractors
-        for e in extractors:
-            # for example, if one of the extractors is a
-            # WindowGraspFeatureExtractor, set the self.proj_win
-            # attribute to that extractor
-            assert not hasattr(self, e.name), 'Extractors must be unique.'
-            setattr(self, e.name, e)
 
     @property
     def phi(self):
         phis = [e.phi for e in self.extractors_]
         return np.concatenate(phis)
+
+class GraspableFeatureExtractor:
+    """Class for extracting features from a graspable object and an arbitrary
+    number of grasps."""
+    def __init__(self, graspable):
+        self.graspable_ = graspable
+        self.features_ = {} # to cache feature computation
+
+    def _parse_config(self, config):
+        # featurization
+        self.window_width_ = config['window_width']
+        self.window_steps_ = config['window_steps']
+        self.window_sigma_ = config['window_sigma']
+
+        # feature weights
+        self.proj_win_weight_ = config['weight_proj_win']
+        self.grad_x_weight_ = config['weight_grad_x']
+        self.grad_y_weight_ = config['weight_grad_y']
+        self.curvature_weight_ = config['weight_curvature']
+
+        # for convenience
+        self.weights_ = [
+            self.proj_win_weight_, self.grad_x_weight_,
+            self.grad_y_weight_, self.curvature_weight_
+        ]
+        self.classes_ = [
+            WindowGraspFeatureExtractor, GradXGraspFeatureExtractor,
+            GradYGraspFeatureExtractor, CurvatureGraspFeatureExtractor
+        ]
+
+    def _compute_feature_rep(self, grasp):
+        """Extracts features from a graspable object and a single grasp."""
+        # get grasp windows -- cached
+        s1, s2 = grasp.surface_information(self.graspable_,
+                                           self.window_width_, self.window_steps_)
+
+        # if computing either surface fails, don't set surface_features
+        if s1 is None or s2 is None:
+            return
+
+        # look in cache for features
+        if grasp in self.features_:
+            return self.features_[grasp]
+
+        # compute surface features
+        surface_features = []
+        for s in (s1, s2):
+            extractors = [cls(s, weight) for cls, weight in
+                          zip(self.classes_, self.weights_) if weight > 0]
+            feature = SurfaceGraspFeatureExtractor(extractors)
+            surface_features.append(feature)
+
+        # compute additional features
+        features = list(surface_features)
+        # features.append(GravityGraspFeatureExtractor(...)) # TODO
+        self.features_[grasp] = features
+
+        return features
+
+    def compute_all_features(self, grasps):
+        """Convenience function for extracting features from many grasps."""
+        return [self._compute_feature_rep(g) for g in grasps]

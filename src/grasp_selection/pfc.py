@@ -159,8 +159,7 @@ class ForceClosureRV:
         self.grasp_rv_ = grasp_rv
         self.obj_rv_ = obj_rv
         self.friction_coef_rv_ = friction_coef_rv # scipy stat rv
-        self.surface_features_ = self.features_ = None
-        self.initialized = False
+        self.features_ = None
 
         self._parse_config(config)
         self._generate_feature_rep()
@@ -170,66 +169,19 @@ class ForceClosureRV:
         """ Grab config data from the config file """
         self.num_cone_faces_ = config['num_cone_faces']
 
-        # featurization
-        self.window_width_ = config['window_width']
-        self.window_steps_ = config['window_steps']
-        self.window_sigma_ = config['window_sigma']
-
-        # feature weights
-        self.proj_win_weight_ = config['weight_proj_win']
-        self.grad_x_weight_ = config['weight_grad_x']
-        self.grad_y_weight_ = config['weight_grad_y']
-        self.curvature_weight_ = config['weight_curvature']
-
-    def _generate_feature_rep(self):
-        """ Compute feature rep and cache for quick lookups """
-        # get grasp windows
-        s1, s2 = self.grasp.surface_information(self.obj_rv_.obj, self.window_width_, self.window_steps_)
-
-        # if either surface fails, don't set self.surface_features_
-        if s1 is None or s2 is None:
-            return
-
-        extractor_classes = [
-            ff.WindowGraspFeatureExtractor, ff.GradXGraspFeatureExtractor,
-            ff.GradYGraspFeatureExtractor, ff.CurvatureGraspFeatureExtractor
-        ]
-        weights = [
-            self.proj_win_weight_, self.grad_x_weight_,
-            self.grad_y_weight_, self.curvature_weight_
-        ]
-
-        self.surface_features_ = []
-        for s in (s1, s2):
-            extractors = [e(s, w) for e, w in zip(extractor_classes, weights) if w > 0]
-            feature = ff.SurfaceGraspFeatureExtractor(extractors)
-            self.surface_features_.append(feature)
-        self.initialized = True
-
-        self.features_ = list(self.surface_features_)
-        # Example:
-        # self.features_.append(GravityGraspFeatureExtractor(...))
-
     @property
     def grasp(self):
         return self.grasp_rv_.grasp
 
-    @property
-    def surface_features(self):
-        if not self.initialized:
-            logging.warning('Features are uninitialized.')
-        return self.surface_features_
+    def set_features(self, features):
+        self.features_ = features
 
     @property
     def features(self):
-        if not self.initialized:
+        if self.features_ is None:
             logging.warning('Features are uninitialized.')
-        return self.features_
-
-    def phi(self, features=None):
-        if features is None:
-            features = self.features
-        return np.concatenate([f.phi for f in features])
+        else:
+            return np.concatenate([f.phi for f in self.features_])
 
     def sample_success(self):
         # sample grasp

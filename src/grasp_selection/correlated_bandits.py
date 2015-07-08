@@ -131,25 +131,28 @@ def label_correlated(obj, dest, config, plot=False):
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
 
+    # compute feature vectors for all grasps
+    feature_extractor = ff.GraspableFeatureExtractor(obj)
+    all_features = feature_extractor.compute_all_features(grasps)
+
     candidates = []
-    for grasp in grasps:
+    for grasp, features in zip(grasps, all_features):
         logging.info('Adding grasp %d' %len(candidates))
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if pfc_rv.initialized:
+        if features is None:
+            logging.info('Could not compute features for grasp.')
+        else:
+            pfc_rv.set_features(features)
             candidates.append(pfc_rv)
 
     # feature transform
-    def surface_phi(rv):
-        return rv.phi(rv.surface_features)
-    def window_phi(rv):
-        return rv.phi([f.proj_win for f in rv.surface_features])
-    def curvature_phi(rv):
-        return rv.phi([f.curvature for f in rv.surface_features])
+    def phi(rv):
+        return rv.features
 
-    nn = kernels.KDTree(phi=surface_phi)
+    nn = kernels.KDTree(phi=phi)
     kernel = kernels.SquaredExponentialKernel(
-        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=surface_phi)
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
 
     objective = objectives.RandomBinaryObjective()
 
