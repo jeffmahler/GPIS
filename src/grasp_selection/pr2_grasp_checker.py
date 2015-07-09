@@ -140,13 +140,17 @@ class OpenRaveGraspChecker(object):
         inds = link_tris.indices
         return verts, inds
 
-    def move_to_pregrasp(self, grasp_pose):
+    def move_to_pregrasp(self, grasp_pose, eps=1e-2):
         """ Move the robot to the pregrasp pose given by the grasp object """
         # get grasp pose
         gripper_position = grasp_pose.position
         gripper_orientation = grasp_pose.orientation
         gripper_pose = np.array([gripper_orientation.w, gripper_orientation.x, gripper_orientation.y, gripper_orientation.z, gripper_position.x, gripper_position.y, gripper_position.z])
 
+        if abs(np.linalg.norm(np.array(gripper_orientation.list)) - 1.0) > eps:
+            logging.warning('Illegal pose')
+            return None, None
+ 
         # get grasp pose relative to object
         T_gripper_obj = rave.matrixFromPose(gripper_pose)
         T_obj_world = self.T_gripper_world_.dot(self.T_rviz_or_).dot(np.linalg.inv(T_gripper_obj))
@@ -201,8 +205,11 @@ class OpenRaveGraspChecker(object):
         # loop through grasps and check collisions for each
         for grasp in object_grasps:
             T_gripper_obj, T_robot_world = self.move_to_pregrasp(grasp.gripper_pose())
-#            grasp.close_fingers(graspable, vis=True)
-#            IPython.embed()
+            # grasp.close_fingers(graspable, vis=True)
+            # IPython.embed()
+
+            if T_gripper_obj is None:
+                continue
 
             # only display grasps out of collision
             in_collision = self.env.CheckCollision(self.robot, obj)

@@ -19,12 +19,12 @@ class Model:
     __metaclass__ = ABCMeta
 
     def __call__(self, x):
-        self.predict(x)
-    
+        return self.predict(x)
+
     @abstractmethod
     def predict(self, x):
         """
-        Predict the a function of the data at some point x. For probabilistic models this returns the mean prediction
+        Predict the function of the data at some point x. For probabilistic models this returns the mean prediction
         """
         pass
 
@@ -44,7 +44,7 @@ class Model:
 
 class DiscreteModel(Model):
     """
-    Maintains a prediction over a discrete set of points 
+    Maintains a prediction over a discrete set of points
     """
     @abstractmethod
     def max_prediction(self):
@@ -65,18 +65,29 @@ class DiscreteModel(Model):
         """Returns the number of variables in the model"""
         return self.num_vars_
 
-class BernoulliSnapshot:
-    def __init__(self, best_pred_ind, means, num_obs):
+
+class Snapshot:
+    __metaclass__ = ABCMeta
+    def __init__(self, best_pred_ind, num_obs):
         self.best_pred_ind = best_pred_ind
-        self.means = copy.copy(means)
         self.num_obs = copy.copy(num_obs)
 
-class BetaBernoulliSnapshot:
+class BernoulliSnapshot(Snapshot):
+    def __init__(self, best_pred_ind, means, num_obs):
+        Snapshot.__init__(self, best_pred_ind, num_obs)
+        self.means = copy.copy(means)
+
+class BetaBernoulliSnapshot(Snapshot):
     def __init__(self, best_pred_ind, alphas, betas, num_obs):
-        self.best_pred_ind = best_pred_ind
+        Snapshot.__init__(self, best_pred_ind, num_obs)
         self.alphas = copy.copy(alphas)
         self.betas = copy.copy(betas)
-        self.num_obs = copy.copy(num_obs)
+
+class GaussianSnapshot(Snapshot):
+    def __init__(self, best_pred_ind, means, variances, num_obs):
+        Snapshot.__init__(self, best_pred_ind, num_obs)
+        self.means = copy.copy(means)
+        self.variances = copy.copy(variances)
 
 class BernoulliModel(DiscreteModel):
     """
@@ -107,7 +118,7 @@ class BernoulliModel(DiscreteModel):
         """ Mean of the beta distribution with params alpha and beta """
         return p
 
-    @staticmethod    
+    @staticmethod
     def bernoulli_variance(p, n):
         """ Uses Wald interval for variance prediction """
         sqrt_p_n = np.sqrt(p * (1 - p) / n)
@@ -149,7 +160,7 @@ class BernoulliModel(DiscreteModel):
         """
         ind, mn, var = self.max_prediction()
         return BernoulliSnapshot(ind[0], self.pred_means_, self.num_observations_)
-    
+
     def sample(self):
         """
         Samples probabilities of success from the given values
@@ -162,7 +173,7 @@ class BetaBernoulliModel(DiscreteModel):
     Params:
         num_vars: (int) the number of variables to track
         alpha_prior and beta_prior: (float) the prior parameters of a Beta distribution over the
-        probability of success for each candidate 
+        probability of success for each candidate
     """
     def __init__(self, num_vars, alpha_prior = 1., beta_prior = 1.):
         if num_vars <= 0:
@@ -187,11 +198,11 @@ class BetaBernoulliModel(DiscreteModel):
     def beta_mean(alpha, beta):
         """ Mean of the beta distribution with params alpha and beta """
         return alpha / (alpha + beta)
-    
+
     @staticmethod
     def beta_variance(alpha, beta):
         """ Mean of the beta distribution with params alpha and beta """
-        return (alpha * beta) / ( (alpha + beta)**2 * (alpha + beta + 1)) 
+        return (alpha * beta) / ( (alpha + beta)**2 * (alpha + beta + 1))
 
     @property
     def posterior_alphas(self):
@@ -236,12 +247,12 @@ class BetaBernoulliModel(DiscreteModel):
         """
         ind, mn, var = self.max_prediction()
         return BetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.num_observations_)
-    
+
     def sample(self, vis = False, stop = False):
         """
         Samples probabilities of success from the given values
         """
-        #samples = np.random.beta(self.posterior_alphas_, self.posterior_betas_) 
+        #samples = np.random.beta(self.posterior_alphas_, self.posterior_betas_)
         samples = scipy.stats.beta.rvs(self.posterior_alphas_, self.posterior_betas_)
         if stop:
             IPython.embed()
@@ -253,3 +264,130 @@ class BetaBernoulliModel(DiscreteModel):
             print 'At best index'
             print BetaBernoulliModel.beta_mean(self.posterior_alphas_[21], self.posterior_betas_[21])
         return samples
+
+class GaussianModel(DiscreteModel):
+    """Gaussian model for predictions over a discrete set of candidates.
+    Params:
+        num_vars: (int) the number of variables to track
+        mean_prior: (float) prior parameter
+        sigma: (float) noise
+    """
+    def __init__(self, num_vars, mean_prior=0.5, sigma=1e-2):
+        if num_vars <= 0:
+            raise ValueError('Must provide at least one variable to GaussianModel')
+
+        self.num_vars_ = num_vars
+        self.mean_prior_  = mean_prior
+        self.sigma_ = sigma
+
+        self._init_model_params()
+
+    def _init_model_params(self):
+        self.means_ = self.mean_prior_ * np.ones(self.num_vars_)
+        self.vars_ = np.ones(self.num_vars_)
+        self.num_observations_ = np.zeros(self.num_vars_)
+
+    @property
+    def means(self):
+        return self.means_
+
+    @property
+    def variances(self):
+        return self.vars_
+
+    def predict(self, index):
+        """Predict the value of the index'th variable.
+        Params:
+            index: (int) the variable to find the predicted value for
+        """
+        return self.means_[index]
+
+    def max_prediction(self):
+        """Returns the index, mean, and variance of the variable(s) with the
+        maximal predicted value.
+        """
+        max_mean = np.max(self.means_)
+        max_indices = np.where(self.means_ == max_mean)[0]
+        max_posterior_means = self.means_[max_indices]
+        max_posterior_vars = self.vars_[max_indices]
+
+        return max_indices, max_posterior_means, max_posterior_vars
+
+    def update(self, index, value):
+        """Update the model based on current data.
+        Params:
+            index: (int) the index of the variable that was evaluated
+            value: (float) the value of the variable
+        """
+        if not (0 <= value <= 1):
+            raise ValueError('Values must be between 0 and 1')
+
+        old_mean = self.means_[index]
+        old_var = self.vars_[index]
+        noise = self.sigma_ ** 2
+
+        self.means_[index] = old_mean + ((value - old_mean) * old_var) / (old_var + noise)
+        self.vars_[index] = old_var - (old_var ** 2) / (old_var + noise)
+        self.num_observations_[index] += 1
+
+    def sample(self, stop=False):
+        """Sample discrete predictions from the model."""
+        samples = scipy.stats.multivariate_normal.rvs(self.means_, self.vars_)
+        if stop:
+            IPython.embed()
+        return samples
+
+    def snapshot(self):
+        """Returns a concise description of the current model for debugging and
+        logging purposes.
+        """
+        ind, mn, var = self.max_prediction()
+        return GaussianSnapshot(ind[0], self.means_, self.vars_, self.num_observations_)
+
+class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
+    """Correlated Beta-Bernoulli model for predictions over a discrete set of
+    candidates.
+    Params:
+        candidates: the objects to track
+        nn: a NearestNeighbor instance to use for neighborhood lookups
+        kernel: a Kernel instance to measure similarities
+        tolerance: (float) for computing radius of neighborhood, between 0 and 1
+        alpha_prior and beta_prior: (float) the prior parameters of a Beta
+        distribution over the probability of success for each candidate
+    """
+    def __init__(self, candidates, nn, kernel, tolerance=1e-2,
+                 alpha_prior=1.0, beta_prior=1.0):
+        BetaBernoulliModel.__init__(self, len(candidates), alpha_prior, beta_prior)
+        self.candidates_ = candidates
+
+        self.kernel_ = kernel
+        self.tolerance_ = tolerance
+        self.error_radius_ = kernel.error_radius(tolerance)
+
+        self.nn_ = nn
+        self.nn_.train(candidates)
+
+    def update(self, index, value):
+        """Update the model based on current data
+        Params:
+            index: (int) the index of the variable that was evaluated
+            value: (float) the value of the variable
+        """
+        if not (0 <= value <= 1):
+            raise ValueError('Values must be between 0 and 1')
+
+        # find neighbors within radius
+        candidate = self.candidates_[index]
+        neighbor_indices, _ = self.nn_.within_distance(candidate, self.error_radius_,
+                                                       return_indices=True)
+
+        # create array of correlations
+        correlations = np.zeros(self.num_vars_)
+        for neighbor_index in neighbor_indices:
+            neighbor = self.candidates_[neighbor_index]
+            correlations[neighbor_index] = self.kernel_(candidate, neighbor)
+
+        self.posterior_alphas_ = self.posterior_alphas_ + value * correlations
+        self.posterior_betas_ = self.posterior_betas_ + (1.0 - value) * correlations
+        # TODO: should num_observations_ be updated by correlations instead?
+        self.num_observations_[index] += 1

@@ -100,7 +100,7 @@ class AntipodalGraspSampler(object):
         x_samp = x + (scale / 2.0) * (np.random.rand(3) - 0.5)
         return x_samp
 
-    def generate_grasps(self, graspable, vis = False):
+    def generate_grasps(self, graspable, check_collisions = False, vis = False):
         """Returns a list of candidate grasps for graspable object.
         Params: GraspableObject3D
         Returns:
@@ -112,10 +112,6 @@ class AntipodalGraspSampler(object):
         # get surface points
         ap_grasps = []
         surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
-
-        # load openrave
-        rave.raveSetDebugLevel(rave.DebugLevel.Error)
-        grasp_checker = pgc.OpenRaveGraspChecker(view=vis)
 
         for x_surf in surface_points:
             start_time = time.clock()
@@ -148,12 +144,7 @@ class AntipodalGraspSampler(object):
                             ax.scatter(x1_grid[0] - cone1_grid[0], x1_grid[1] - cone1_grid[1], x1_grid[2] - cone1_grid[2], s = 50, c = u'm') 
 
                     # start searching for contacts
-                    #IPython.embed()
                     grasp, x1_c, x2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
-
-                    #test_center = np.array([ 0.35838462,  0.0851854 , -0.0181023 ])#np.array([0.0589, -0.01609, 0.14805])
-                    #if np.linalg.norm(grasp.center - test_center) < 1e-2:
-                    #    IPython.embed()
 
                     # make sure grasp is wide enough
                     if grasp is None or x2 is None or np.linalg.norm(x1 - x2) < 0.02:
@@ -196,6 +187,12 @@ class AntipodalGraspSampler(object):
                         antipodal_grasp = AntipodalGraspParams(graspable, grasp, alpha1, alpha2, rho1, rho2)
                         ap_grasps.append(antipodal_grasp)
 
+
+        # load openrave
+        if check_collisions:
+            rave.raveSetDebugLevel(rave.DebugLevel.Error)
+            grasp_checker = pgc.OpenRaveGraspChecker(view=vis)
+
         # go back through grasps and threshold            
         grasps = []
         pr2_grasps = []
@@ -210,7 +207,10 @@ class AntipodalGraspSampler(object):
                         max(ap_grasp.rho1, ap_grasp.rho2) < rho_thresh:
                     # convert grasps to PR2 gripper poses
                     rotated_grasps = ap_grasp.grasp.transform(graspable.tf, self.theta_res)
-                    rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=True, delay=0.0)
+
+                    # prune collision grasps if necessary
+                    if check_collisions:
+                        rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=True, delay=0.0)
 
                     # only add grasp if at least 1 is collision free
                     if len(rotated_grasps) > 0:

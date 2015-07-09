@@ -207,6 +207,10 @@ class Sdf:
         """
         return self.gradients_
 
+    def is_out_of_bounds(self, coords):
+        """Returns True if coords is an out of bounds access."""
+        return (coords < 0).any() or (coords >= self.dims_).any()
+
 class Sdf3D(Sdf):
     # static indexing vars
     num_interpolants = 8
@@ -214,8 +218,8 @@ class Sdf3D(Sdf):
     max_coords_x = [1, 4, 6, 7]
     min_coords_y = [0, 1, 3, 6]
     max_coords_y = [2, 4, 5, 7]
-    min_coords_z = [0, 1, 2, 5]
-    max_coords_z = [3, 5 ,6, 7]
+    min_coords_z = [0, 1, 2, 4]
+    max_coords_z = [3, 5, 6, 7]
 
     def __init__(self, sdf_data, origin, resolution, tf = stf.SimilarityTransform3D(tfx.identity_tf(), scale = 1.0), frame = None, use_abs = True):
         self.data_ = sdf_data
@@ -258,7 +262,7 @@ class Sdf3D(Sdf):
         
     def signed_distance(self, coords):
         """
-        Returns the signed distance at the given coordinates, interpolating if necessary
+        Returns the signed distance at the given grid coordinates, interpolating if necessary.
         Params: numpy 3 array
         Returns:
             float: the signed distance and the given coords (interpolated)
@@ -266,8 +270,7 @@ class Sdf3D(Sdf):
         if len(coords) != 3:
             raise IndexError('Indexing must be 3 dimensional')
 
-        # log warning if out of bounds access
-        if coords[0] < 0 or coords[0] >= self.dims_[0] or coords[0] < 0 or coords[1] >= self.dims_[1] or coords[2] < 0 or coords[2] >= self.dims_[2]:
+        if self.is_out_of_bounds(coords):
             logging.debug('Out of bounds access. Snapping to SDF dims')
 
         # snap to grid dims
@@ -282,29 +285,26 @@ class Sdf3D(Sdf):
 
         # otherwise interpolate
         min_coords = np.floor(self.coords_buf_)
-        max_coords = np.ceil(self.coords_buf_)
+        max_coords = min_coords + 1 # assumed to be on grid
         self.points_buf_[Sdf3D.min_coords_x, 0] = min_coords[0]
-        self.points_buf_[Sdf3D.max_coords_x, 0] = min_coords[0]
+        self.points_buf_[Sdf3D.max_coords_x, 0] = max_coords[0]
         self.points_buf_[Sdf3D.min_coords_y, 1] = min_coords[1]
         self.points_buf_[Sdf3D.max_coords_y, 1] = max_coords[1]
         self.points_buf_[Sdf3D.min_coords_z, 2] = min_coords[2]
         self.points_buf_[Sdf3D.max_coords_z, 2] = max_coords[2]
 
-        # interpolate points
+        # bilinearly interpolate points
         sd = 0.0
-        w_sum = 0.0
         for i in range(Sdf3D.num_interpolants):
             p = self.points_buf_[i,:]
-            v = self.data_[p[0], p[1], p[2]]
-            sq_dist = (self.coords_buf_[0] - p[0])**2 + (self.coords_buf_[1] - p[1])**2 + (self.coords_buf_[2] - p[2])**2
-            if sq_dist > 0:
-                w = 1.0 / sq_dist
-                w_sum = w_sum + w
-                sd = sd + w * v
+            if self.is_out_of_bounds(p):
+                v = 0.0
             else:
-                return v
+                v = self.data_[p[0], p[1], p[2]]
+            w = np.prod(-np.abs(p - self.coords_buf_) + 1)
+            sd = sd + w * v
 
-        return sd / w_sum
+        return sd
 
     def gradient(self, coords):
         """
@@ -317,9 +317,8 @@ class Sdf3D(Sdf):
             raise IndexError('Indexing must be 3 dimensional')
 
         # log warning if out of bounds access
-        if coords[0] < 0 or coords[0] >= self.dims_[0] or coords[0] < 0 or coords[1] >= self.dims_[1] or coords[2] < 0 or coords[2] >= self.dims_[2]:
+        if self.is_out_of_bounds(coords):
             logging.debug('Out of bounds access. Snapping to SDF dims')
-            todo = 1
 
         # snap to grid dims
         self.coords_buf_[0] = max(0, min(coords[0], self.dims_[0] - 1))
@@ -333,7 +332,7 @@ class Sdf3D(Sdf):
 
         # otherwise interpolate
         min_coords = np.floor(self.coords_buf_)
-        max_coords = np.ceil(self.coords_buf_)
+        max_coords = min_coords + 1
         self.points_buf_[Sdf3D.min_coords_x, 0] = min_coords[0]
         self.points_buf_[Sdf3D.max_coords_x, 0] = min_coords[0]
         self.points_buf_[Sdf3D.min_coords_y, 1] = min_coords[1]
@@ -341,24 +340,25 @@ class Sdf3D(Sdf):
         self.points_buf_[Sdf3D.min_coords_z, 2] = min_coords[2]
         self.points_buf_[Sdf3D.max_coords_z, 2] = max_coords[2]
 
+        # bilinear interpolation
         g = np.zeros(3)
         gp = np.zeros(3)
         w_sum = 0.0
         for i in range(Sdf3D.num_interpolants):
             p = self.points_buf_[i,:]
-            gp[0] = self.gradients_[0][p[0], p[1], p[2]]
-            gp[1] = self.gradients_[1][p[0], p[1], p[2]]
-            gp[2] = self.gradients_[2][p[0], p[1], p[2]]
-            sq_dist = (self.coords_buf_[0] - p[0])**2 + (self.coords_buf_[1] - p[1])**2 + (self.coords_buf_[2] - p[2])**2
-
-            if sq_dist > 0:
-                w = 1.0 / sq_dist
-                w_sum = w_sum + w
-                g = g + w * gp
+            if self.is_out_of_bounds(p):
+                gp[0] = 0.0
+                gp[1] = 0.0
+                gp[2] = 0.0
             else:
-                return gp
+                gp[0] = self.gradients_[0][p[0], p[1], p[2]]
+                gp[1] = self.gradients_[1][p[0], p[1], p[2]]
+                gp[2] = self.gradients_[2][p[0], p[1], p[2]]
 
-        return g / w_sum
+            w = np.prod(-np.abs(p - self.coords_buf_) + 1)
+            g = g + w * gp
+
+        return g
 
     def max_dim(self):
         """ Find the max dimension of the bounding box """
@@ -559,7 +559,7 @@ class Sdf3D(Sdf):
         else:
             to_add = self.feature_vector
 
-        engine.store_vector(to_add,self.file_name_)
+        engine.store_vector(to_add, self.file_name_)
 
 
     def query_nearpy_engine(self, engine):
@@ -651,9 +651,8 @@ class Sdf2D(Sdf):
         # if len(coords) != 2:
         #     raise IndexError('Indexing must be 2 dimensional')
 
-        # log warning if out of bounds access
-        if coords[0] < 0 or coords[0] >= self.dims_[0] or coords[0] < 0 or coords[1] >= self.dims_[1]:
-            logging.warning('Out of bounds access. Snapping to SDF dims')
+        if self.is_out_of_bounds(coords):
+            logging.debug('Out of bounds access. Snapping to SDF dims')
 
         # snap to grid dims
         new_coords = np.zeros([2,])

@@ -1,0 +1,70 @@
+#:kivy 1.9.0
+#:import kivy kivy
+
+
+FloatLayout:
+	pos_hint: {'center_x':.5,'center_y':.5}
+	canvas:
+		Color:
+			rgba: .15, .15, .15, 1
+		Rectangle: 
+			pos: self.pos
+			size: self.size
+
+    # Title text
+    BoxLayout: 
+        padding: 10
+        spacing: 10
+        size_hint: 1, None
+        pos_hint: {'top': .96, 'x': .05}
+        height: 44
+        Label:
+            height: 24
+            text_size: self.width, None
+            font_size: '30sp'
+            color: (1, 1, 1, .8)
+            text: 'Relative Object Scaling'
+
+    # Subtitle text
+    BoxLayout:
+        padding: 10
+        spacing: 10
+        size_hint: 1, None
+        pos_hint: {'top': .89, 'x': .05}
+        height: 30
+        Label:
+            height: 18
+            text_size: self.width, None
+            font_size: '16sp'
+            color: (1, 1, 1, .8)
+            text: 'Automation Lab, UC Berkeley'
+
+
+<NextButton>:
+    id: next_button
+    source: root.source
+    pos_hint: {'x':.54, 'y':.85}
+    size_hint: (.1,.1)
+    text: 'Next'
+
+<SaveButton>:
+    id: save_button
+    source: root.source
+    pos_hint: {'x':.66, 'y':.85}
+    size_hint: (.1,.1)
+    text: 'Save'
+
+<HelpButton>:
+    id: help_button
+    source: root.source
+    pos_hint: {'x':.78, 'y':.85}
+    size_hint: (.1,.1)
+    text: 'Help'
+
+
+<HelpScreenButton>:
+    id: help_screen_button
+    source: root.source
+    pos_hint: {'x':.3, 'y':.25}
+    size_hint: (.4,.5)
+    text: 'Help Screen:\n\nScale right image according to left image\n\nPress "CW" or "CCW" to rotate\nPress "Larger" or "Smaller" to scale\n\nUse "Next" button to proceed\nSave when you are done\n\nClick here to close help screen'

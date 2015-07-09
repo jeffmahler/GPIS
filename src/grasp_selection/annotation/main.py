@@ -20,9 +20,12 @@ import pickle
 # Grasp: general class for grasps (to be added to in other programs)
 # Should match Grasp class/objects loaded from external file
 class Grasp:
-	def __init__(self, image_path, label = 0):
+	def __init__(self, image_path, obj_file, label=0, scale=1, mass=1):
 		self.image = image_path
-		self.label = 0
+		self.obj_file = obj_file
+		self.label = label
+		self.scale = scale
+		self.mass = mass
 
 	def mark_good(self):
 		self.label = 1
@@ -32,6 +35,12 @@ class Grasp:
 
 	def mark_undecided(self):
 		self.label = 0
+
+	def mark_scale(self, scale_val):
+		self.scale = scale_val
+
+	def mark_mass(self, mass):
+		self.mass = mass
 
 
 # select_animate: turns ImageButtons green/red when selected
@@ -97,10 +106,13 @@ class SaveButton(Button):
 	labeled_grasps = ObjectProperty(None)
 
 	def on_press(self):
-		file_name = "labeled_grasps.dat"
+		file_name = "labeled_grasps/labeled_grasps.dat"
 		file_object = open(file_name, 'wb')
 		pickle.dump(self.labeled_grasps, file_object)
 		file_object.close()
+		disappear_button = Animation(background_color=[0,0,0,0], d=.4) + Animation(background_color=[.6,.6,.6,1], d=.4) 
+		disappear_button.start(gui.save_button)
+
 
 # FinalSaveButton: pops when 'Next' is pressed and there are no more grasps
 class FinalSaveButton(Button):
@@ -115,6 +127,7 @@ class FinalSaveButton(Button):
 		file_object = open(file_name, 'wb')
 		pickle.dump(gui.grasps, file_object)
 		file_object.close()
+
 
 # GraspSelectionApp: Builds application, central class
 class GraspSelectionApp(App):
@@ -135,10 +148,10 @@ class GraspSelectionApp(App):
 		# create and add buttons
 		help_button = HelpButton()
 		next_button = NextButton(old_layout = layout, grasps = self.grasps)
-		save_button = SaveButton(labeled_grasps = self.grasps)
+		self.save_button = SaveButton(labeled_grasps = self.grasps)
 		root.add_widget(help_button)
 		root.add_widget(next_button)
-		root.add_widget(save_button)
+		root.add_widget(self.save_button)
 		return root
 
 	# display_images: makes new grid of images

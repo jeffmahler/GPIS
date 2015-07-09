@@ -65,7 +65,7 @@ class ExperimentConfig(object):
         fh = open(filename, 'r')
         self.file_contents = fh.read()
 
-        # read in disctionary
+        # read in dictionary
         with open(filename) as fh:
             self.config = self.__ordered_load(fh)
 

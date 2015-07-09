@@ -36,7 +36,7 @@ class PointGrasp(Grasp):
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def create_line_of_action(g, axis, width, objj, num_samples):
+    def create_line_of_action(g, axis, width, obj, num_samples):
         """ Creates a line of action, or list of grid points, from a point g in world coordinates on an object """
         pass
 
@@ -69,6 +69,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.jaw_width_ = jaw_width
         self.approach_angle_ = grasp_angle
         self.tf_ = tf
+        self.surface_info_ = {}
 
     @property
     def center(self):
@@ -148,7 +149,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
     @staticmethod
     def create_line_of_action(g, axis, width, obj, num_samples, convert_grid=True):
         """
-        Creates a straight line of action from a given point and direction in world or grid coords
+        Creates a straight line of action, or list of grid points, from a given
+        point and direction in world or grid coords
         Params:
             g - numpy 3 array of the start point
             axis - normalized numpy 3 array of grasp direction
@@ -160,7 +162,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         line_of_action = [g + t * axis for t in np.linspace(0, width, num = num_samples)]
         if convert_grid:
-            line_of_action = [obj.sdf.transform_pt_obj_to_grid(g) for g in line_of_action]
+            as_array = np.array(line_of_action).T
+            transformed = obj.sdf.transform_pt_obj_to_grid(as_array)
+            line_of_action = list(transformed.T)
         return line_of_action
 
     @staticmethod
@@ -168,7 +172,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         Find the point at which a point travelling along a given line of action hits a surface
         Params:
-            line_of_action - list of np 3-arrays, the points visited as the fingers close
+            line_of_action - list of np 3-arrays (grid coords), the points visited as the fingers close
             obj - GraspableObject3D to check contacts on
             vis - whether or not to display the contact check (for debugging)
         Returns:
@@ -210,31 +214,27 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     sdf_after = obj.sdf[pt_after]
                     pt_after_after = line_of_action[i+2]
                     sdf_after_after = obj.sdf[pt_after_after]
-                    if stop:
-                        IPython.embed()
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_grid, sdf_here, pt_after, sdf_after, pt_after_after, sdf_after_after)
 
+                    # contact not yet found if next sdf value is smaller
                     if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
                         contact_found = False
 
 
                 elif i == len(line_of_action) - 1:
-                    if stop:
-                        IPython.embed()
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before_before, sdf_before_before, pt_before, sdf_before, pt_grid, sdf_here)
+
                     if pt_zc is None:
                         contact_found = False
 
                 else:
-                    if stop:
-                        IPython.embed()
                     pt_after = line_of_action[i+1]
                     sdf_after = obj.sdf[pt_after]
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_before, sdf_before, pt_grid, sdf_here, pt_after, sdf_after)
 
+                    # contact not yet found if next sdf value is smaller
                     if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
                         contact_found = False
-
 
             i = i+1
 
@@ -377,6 +377,21 @@ class ParallelJawPtGrasp3D(PointGrasp):
             mv.quiver3d(c2_world[0] + v[0], c2_world[1] + v[1], c2_world[2] + v[2], -v[0], -v[1], -v[2], scale_factor=1.0,
                         mode='arrow', line_width=line_width)
 
+    def surface_information(self, graspable, width=2e-2, num_steps=21):
+        """Return the surface information at the contacts that this grasp makes
+        on a graspable.
+        Params:
+            graspable - GraspableObject3D instance
+            width - float width of the window in obj frame
+            num_steps - int number of steps
+        Returns:
+            list of windows, one for each point of contact
+        """
+        if graspable not in self.surface_info_:
+            info = graspable.surface_information(self, width, num_steps)
+            self.surface_info_[graspable] = info
+        return self.surface_info_[graspable]
+
     def to_json(self, quality=0, method='PFC'):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
         gripper_pose = self.gripper_pose()
@@ -408,23 +423,26 @@ class ParallelJawPtGrasp3D(PointGrasp):
 class ParallelJawPtPose3D(object):
     """A skeleton class that exposes the same attributes as a tfx.transform."""
     def __init__(self, data):
-        self._json = data
+        self.json_ = data
         gripper_pose = data['gripper_pose']
         orientation = gripper_pose['orientation']
         position = gripper_pose['position']
-        self._orientation = tfx.rotation([orientation[c] for c in 'xyzw'])
-        self._position = tfx.point([position[c] for c in 'xyz'])
-        self._gripper_pose = tfx.pose(self._orientation, self._position)
+        self.orientation_ = tfx.rotation([orientation[c] for c in 'xyzw'])
+        self.position_ = tfx.point([position[c] for c in 'xyz'])
+        self.gripper_pose_ = tfx.pose(self.orientation_, self.position_)
+        self.surface_info_ = {}
 
     @staticmethod
     def from_json(data):
         return ParallelJawPtPose3D(data)
 
     def to_json(self):
-        return self._json
+        return self.json_
 
     def gripper_pose(self, R_gripper_center=np.eye(3), t_gripper_center=PR2_GRASP_OFFSET):
-        return self._gripper_pose
+        return self.gripper_pose_
+
+    surface_information = ParallelJawPtGrasp3D.surface_information
 
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """
