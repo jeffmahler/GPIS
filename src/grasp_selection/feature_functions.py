@@ -154,8 +154,14 @@ class GraspableFeatureExtractor:
     def _compute_feature_rep(self, grasp):
         """Extracts features from a graspable object and a single grasp."""
         # get grasp windows -- cached
-        s1, s2 = grasp.surface_information(self.graspable_,
-                                           self.window_width_, self.window_steps_)
+        try:
+            s1, s2 = grasp.surface_information(self.graspable_,
+                                               self.window_width_, self.window_steps_)
+        except ValueError as e:
+            logging.warning('Failed to extract surface info with error');
+            logging.warning(str(e))
+            s1 = None
+            s2 = None
 
         # if computing either surface fails, don't set surface_features
         if s1 is None or s2 is None:

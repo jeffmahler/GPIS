@@ -328,7 +328,7 @@ class GraspableObject3D(GraspableObject):
         """
         direction, t1, t2 = self._contact_tangents(contact, direction)
         if direction is None: # normal and tangents not found
-            return None
+            raise ValueError('Direction could not be computed')
         if u1 is not None and u2 is not None: # use given basis
             t1, t2 = u1, u2
 
@@ -382,7 +382,7 @@ class GraspableObject3D(GraspableObject):
             window = spfilt.gaussian_filter(window, sigma)
         if compute_weighted_covariance:
             return window, cov / cov_weight
-        return window
+        return window, 0.0
 
     def contact_surface_window_projection_unaligned(self, contact, width=1e-2,
         num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
@@ -489,8 +489,8 @@ class GraspableObject3D(GraspableObject):
             back_up_units=back_up_units, direction=direction)
 
         if proj_window is None:
-            return None
-
+            raise ValueError('Surface window could not be computed')
+             
         grad_win = np.gradient(proj_window)
         hess_x = np.gradient(grad_win[0])
         hess_y = np.gradient(grad_win[1])
@@ -514,8 +514,7 @@ class GraspableObject3D(GraspableObject):
         contacts_found, contacts = grasp.close_fingers(self)
         contact1, contact2 = contacts
         if not contacts_found:
-            logging.warning('Failed to find contacts')
-            return None, None
+            raise ValueError('Failed to find contacts')
 
         if plot:
             plot_graspable(self, contact1)
