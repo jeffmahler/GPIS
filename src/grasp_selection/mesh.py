@@ -57,7 +57,7 @@ class Mesh3D:
             return self.metadata_
         return "No metadata available."
 
-    @propert
+    @property
     def center_of_mass(self):
         # TODO: utilize labelled center of mass if we have it
         return self.bb_center_
