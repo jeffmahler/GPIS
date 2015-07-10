@@ -54,6 +54,16 @@ class Kernel:
     def gradient(self, x):
         pass
 
+    def matrix(self, data):
+        """Computes the kernel matrix for a list of data."""
+        num_data = len(data)
+        mat = np.zeros((num_data, num_data))
+        for i, x in enumerate(data):
+            for j, y in enumerate(data):
+                if i <= j:
+                    mat[i, j] = mat[j, i] = self(x, y)
+        return mat
+
     def __call__(self, x, y):
         return self.evaluate(x, y)
 

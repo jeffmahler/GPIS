@@ -123,12 +123,13 @@ class ParallelJawPtGrasp3D(PointGrasp):
         # get grasp endpoints in sdf frame
         g1_world, g2_world = self.endpoints()
 
-        # get line2 of action
+        # get line of action
         line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(g1_world, self.axis_, self.grasp_width_, obj, num_samples)
         line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2_world, -self.axis_, self.grasp_width_, obj, num_samples)
 
         # find contacts
         if vis:
+            plt.figure()
             plt.clf()
             h = plt.gcf()
             plt.ion()

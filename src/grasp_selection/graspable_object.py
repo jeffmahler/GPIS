@@ -182,6 +182,7 @@ class GraspableObject3D(GraspableObject):
             # transform normal to obj frame
             normal = grad / np.linalg.norm(grad)
             direction = self.sdf.transform_pt_grid_to_obj(normal, direction=True)
+            direction = -direction
 
         direction = direction.reshape((3, 1)) # make 2D for SVD
 
@@ -302,7 +303,7 @@ class GraspableObject3D(GraspableObject):
 
     def _compute_surface_window_projection(self, contact, u1=None, u2=None, width=1e-2,
         num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, vis=False):
+        sigma=1.5, direction=None, vis=False, compute_weighted_covariance=False):
         """Compute the projection window at a contact point onto the basis
         defined by u1 and u2.
 
@@ -319,6 +320,8 @@ class GraspableObject3D(GraspableObject):
             samples_per_grid - float number of samples per grid when finding contacts
             sigma - bandwidth of gaussian filter on window
             direction - dir to do the projection along
+            compute_weighted_covariance - whether to return the weighted
+               covariance matrix, along with the window
         Returns:
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
@@ -341,6 +344,11 @@ class GraspableObject3D(GraspableObject):
         scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
         window = np.zeros(num_steps**2)
 
+        # start computing weighted covariance matrix
+        if compute_weighted_covariance:
+            cov = np.zeros((3, 3))
+            cov_weight = 0
+
         for i, (c1, c2) in enumerate(it.product(scales, repeat=2)):
             curr_loc = contact + c1 * t1 + c2 * t2
             curr_loc_grid = self.sdf.transform_pt_obj_to_grid(curr_loc)
@@ -352,10 +360,17 @@ class GraspableObject3D(GraspableObject):
                 curr_loc, direction, max_projection, back_up, num_samples, vis)
 
             if found:
-                logging.debug('%d found.' %(i))
-                sign = direction.dot(projection_contact - curr_loc)
+                # logging.debug('%d found.' %(i))
+                sign = -direction.dot(projection_contact - curr_loc)
                 projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
+                if compute_weighted_covariance:
+                    # weight according to SHOT: R - d_i
+                    weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
+                    diff = (projection_contact - contact).reshape((3, 1))
+                    cov += weight * np.dot(diff, diff.T)
+                    cov_weight += weight
             else:
+                logging.debug('%d not found.' %(i))
                 projection = no_contact
 
             window[i] = projection
@@ -365,6 +380,8 @@ class GraspableObject3D(GraspableObject):
         # apply gaussian filter to window (should be narrow bandwidth)
         if sigma > 0.0:
             window = spfilt.gaussian_filter(window, sigma)
+        if compute_weighted_covariance:
+            return window, cov / cov_weight
         return window
 
     def contact_surface_window_projection_unaligned(self, contact, width=1e-2,
@@ -411,57 +428,13 @@ class GraspableObject3D(GraspableObject):
                 plane to obj, False if surface window can't be computed
         """
         direction, t1, t2 = self._contact_tangents(contact, direction)
-        if direction is None: # normal and tangents not found
-            return None
-
-        # display sdf for debugging
-        if vis:
-            plt.figure()
-            self.sdf.scatter()
-
-        # compute weighted covariance
-        cov = np.zeros((3, 3))
-        cov_weight = 0
-
-        # number of samples used when looking for contacts
-        no_contact = 0.2
-        back_up = back_up_units * self.sdf.resolution
-        num_samples = int(samples_per_grid * (max_projection + back_up) / self.sdf.resolution)
-        scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
-        window = np.zeros(num_steps**2)
-
-        for i, (c1, c2) in enumerate(it.product(scales, repeat=2)):
-            curr_loc = contact + c1 * t1 + c2 * t2
-            curr_loc_grid = self.sdf.transform_pt_obj_to_grid(curr_loc)
-            if self.sdf.is_out_of_bounds(curr_loc_grid):
-                window[i] = 0.0
-                continue
-
-            found, projection_contact = self._find_projection(
-                curr_loc, direction, max_projection, back_up, num_samples, vis)
-
-            if found:
-                logging.debug('%d found.' %(i))
-                sign = direction.dot(projection_contact - curr_loc)
-
-                projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
-
-                # weight according to SHOT: R - d_i,
-                weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
-                diff = (projection_contact - contact).reshape((3, 1))
-                cov += weight * np.dot(diff, diff.T)
-                cov_weight += weight
-            else:
-                projection = no_contact
-
-            window[i] = projection
-
-        # reshape window
-        window = window.reshape((num_steps, num_steps))
+        window, cov = self._compute_surface_window_projection(contact, t1, t2,
+            width=width, num_steps=num_steps, max_projection=max_projection,
+            back_up_units=back_up_units, samples_per_grid=samples_per_grid,
+            sigma=sigma, direction=direction, vis=vis, compute_weighted_covariance=True)
 
         # compute principal axis
         pca = PCA()
-        cov = cov / cov_weight
         pca.fit(cov)
         R = pca.components_
         principal_axis = R[0, :]
@@ -470,6 +443,9 @@ class GraspableObject3D(GraspableObject):
             principal_axis = R[1, :]
 
         if vis:
+            # reshape window
+            window = window.reshape((num_steps, num_steps))
+
             # project principal axis onto tangent plane (t1, t2) to get u1
             u1t = np.array([np.dot(principal_axis, t1), np.dot(principal_axis, t2)])
             u2t = np.array([-u1t[1], u1t[0]])
@@ -490,22 +466,24 @@ class GraspableObject3D(GraspableObject):
         u1 = u1 / np.linalg.norm(u1)
         u2 = u2 / np.linalg.norm(u2)
 
-        window = self._compute_surface_window_projection(contact, u1=u1, u2=u2,
+        window = self._compute_surface_window_projection(contact, u1, u2,
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
 
-        # arbitrarily decide direction of u1: right_avg > left_avg (inspired by SHOT)
-        left_avg = np.average(window[:, :num_steps//2])
-        right_avg = np.average(window[:, num_steps//2:])
-        if left_avg > right_avg:
+        # arbitrarily require that top_avg > bottom_avg (inspired by SHOT)
+        top_avg = np.average(window[:num_steps//2, :])
+        bottom_avg = np.average(window[num_steps//2:, :])
+        if bottom_avg > top_avg:
             # need to flip both u1 and u2, i.e. rotate 180 degrees
             window = np.rot90(window, k=2)
         return window
 
-    def surface_window_grad_curvature(self, contact, width, num_steps, direction=None):
+    def surface_window_grad_curvature(self, contact, width, num_steps,
+                                      back_up_units=3.0, direction=None):
         proj_window = self.contact_surface_window_projection(
-            contact, width, num_steps, direction=direction)
+            contact, width, num_steps,
+            back_up_units=back_up_units, direction=direction)
 
         if proj_window is None:
             return None
@@ -624,7 +602,7 @@ def test_window_distance(width, num_steps, plot=None):
     w1, w2 = graspable.surface_information(grasp1, width, num_steps)
     v1, v2 = graspable.surface_information(grasp2, width, num_steps)
 
-#    IPython.embed()
+    # IPython.embed()
 
     if plot:
         plot(w1.proj_win, num_steps)
@@ -637,6 +615,100 @@ def test_window_distance(width, num_steps, plot=None):
 
     return
 
+def test_window_curvature(width, num_steps, plot=None):
+    import sdf_file, obj_file
+    np.random.seed(100)
+
+    mesh_file_name = 'data/test/meshes/Co_clean.obj'
+    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
+
+    sdf = sdf_file.SdfFile(sdf_3d_file_name).read()
+    mesh = obj_file.ObjFile(mesh_file_name).read()
+    graspable = GraspableObject3D(sdf, mesh)
+
+    grasp_axis = np.array([0, 1, 0])
+    grasp_width = 0.1
+
+    for i, z in enumerate([-0.030, -0.035, -0.040, -0.045], 1):
+        print 'w%d' %(i)
+        grasp_center = np.array([0, 0, z])
+        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        w, _ = graspable.surface_information(grasp, width, num_steps)
+        for info in (w.proj_win_, w.gauss_curvature_):
+            print 'min:', np.min(info), np.argmin(info)
+            print 'max:', np.max(info), np.argmax(info)
+        if plot:
+            plot(w.proj_win_, num_steps, 'w%d proj_win' %(i), save=True)
+            plot(1e4 * w.gauss_curvature_, num_steps, 'w%d curvature' %(i), save=True)
+
+def test_window_correlation(width, num_steps):
+    import scipy
+    import sdf_file, obj_file
+    import discrete_adaptive_samplers as das
+    import experiment_config as ec
+    import feature_functions as ff
+    import graspable_object as go # weird Python issues
+    import kernels
+    import models
+    import objectives
+    import pfc
+    import termination_conditions as tc
+
+    np.random.seed(100)
+
+    mesh_file_name = 'data/test/meshes/Co_clean.obj'
+    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
+
+    config = ec.ExperimentConfig('cfg/correlated.yaml')
+    config['window_width'] = width
+    config['window_steps'] = num_steps
+    brute_force_iter = 100
+    snapshot_rate = config['bandit_snapshot_rate']
+
+    sdf = sdf_file.SdfFile(sdf_3d_file_name).read()
+    mesh = obj_file.ObjFile(mesh_file_name).read()
+    graspable = go.GraspableObject3D(sdf, mesh)
+    grasp_axis = np.array([0, 1, 0])
+    grasp_width = 0.1
+
+    grasps = []
+    for z in [-0.030, -0.035, -0.040, -0.045]:
+        grasp_center = np.array([0, 0, z])
+        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        grasps.append(grasp)
+
+    graspable_rv = pfc.GraspableObjectGaussianPose(graspable, config)
+    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
+
+    # compute feature vectors for all grasps
+    feature_extractor = ff.GraspableFeatureExtractor(graspable, config)
+    all_features = feature_extractor.compute_all_features(grasps)
+
+    candidates = []
+    for grasp, features in zip(grasps, all_features):
+        logging.info('Adding grasp %d' %len(candidates))
+        grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
+        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
+        pfc_rv.set_features(features)
+        candidates.append(pfc_rv)
+
+    objective = objectives.RandomBinaryObjective()
+    ua = das.UniformAllocationMean(objective, candidates)
+    logging.info('Running uniform allocation for true pfc.')
+    ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
+                         snapshot_rate=snapshot_rate)
+    estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+
+    print 'true pfc'
+    print estimated_pfc
+
+    def phi(rv):
+        return rv.features
+    kernel = kernels.SquaredExponentialKernel(
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+
+    print 'kernel matrix'
+    print kernel.matrix(candidates)
 
 def plot_graspable(graspable, contact, c1=0, c2=0, draw_plane=False):
     """Plot a graspable and the tangent plane at the point of contact."""
@@ -709,7 +781,7 @@ def plot_window_3d(window, num_steps, title=''):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
 
-def plot_window_2d(window, num_steps, title=''):
+def plot_window_2d(window, num_steps, title='', save=False):
     """Plot a 2D image of a window."""
     if num_steps % 2 == 1: # center window at contact
         indices = np.array(range(-(num_steps // 2), (num_steps // 2) + 1))
@@ -724,6 +796,11 @@ def plot_window_2d(window, num_steps, title=''):
     plt.colorbar()
     plt.clim(-0.01, 0.01) # fixing color range for visual comparisons
 
+    if save and title:
+        plt.tight_layout()
+        plt.savefig(title.replace(' ', '-'), bbox_inches='tight')
+        plt.close()
+
 def plot_window_both(window, num_steps):
     """Plot window as both 2D and 3D."""
     plot_window_2d(window, num_steps)
@@ -733,3 +810,5 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
     test_window_distance(width=2e-2, num_steps=21)
+    test_window_curvature(width=2e-2, num_steps=21, plot=plot_window_2d)
+    test_window_correlation(width=2e-2, num_steps=21)
