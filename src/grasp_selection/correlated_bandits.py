@@ -248,17 +248,13 @@ if __name__ == '__main__':
 
     # loop through objects, labelling each
     results = []
-    i = 0
     avg_experiment_result = None
     for obj in chunk:
-
         logging.info('Labelling object {}'.format(obj.key))
-        experiment_result = label_correlated(obj, dest, config)
+        experiment_result = label_correlated(obj, dest, config, plot=True)
         if experiment_result is None:
             continue # no grasps to run bandits on for this object
-
         results.append(experiment_result)
-        i = i+1
 
     all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
@@ -274,7 +270,8 @@ if __name__ == '__main__':
     ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
     plt.xlim(0, np.max(all_results.ts_result[0].iters))
     plt.ylim(0.5, 1)
-    plt.legend([ua_obj, ts_obj, ts_corr_obj], ['Uniform Allocation', 'Thompson Samlping (Uncorrelated)', 'Thompson Sampling (Correlated)'])
+    plt.legend([ua_obj, ts_obj, ts_corr_obj],
+               ['Uniform Allocation', 'Thompson Sampling (Uncorrelated)', 'Thompson Sampling (Correlated)'])
     plt.show()
     """
 
@@ -294,4 +291,3 @@ if __name__ == '__main__':
 #    save_results(all_results, results_filename)
 
     #IPython.embed()
-
