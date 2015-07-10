@@ -33,7 +33,7 @@ def experiment_hash(N = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 class BanditCorrelatedExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, num_objects = 1):
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, obj_key = '', num_objects = 1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
@@ -42,7 +42,14 @@ class BanditCorrelatedExperimentResult:
         self.ts_result = ts_result
         self.ts_corr_result = ts_corr_result
 
+        self.obj_key = obj_key
         self.num_objects = num_objects
+
+    def save(self, out_dir):
+        """ Save this object to a pickle file in specified dir """
+        out_filename = os.path.join(out_dir, self.obj_key + '.pkl')
+        with open(out_filename, 'w') as f:
+            pkl.dump(self, f)
 
     @staticmethod
     def compile_results(result_list):
@@ -55,10 +62,12 @@ class BanditCorrelatedExperimentResult:
         ts_corr_reward = np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]])
 
         i = 0
+        obj_keys = []
         for r in result_list:
             ua_reward[i,:] = r.ua_reward
             ts_reward[i,:] = r.ts_reward
             ts_corr_reward[i,:] = r.ts_corr_reward
+            obj_keys.append(r.obj_key)
             i = i + 1
 
         ua_results = [r.ua_result for r in result_list]
@@ -69,6 +78,7 @@ class BanditCorrelatedExperimentResult:
                                                 ua_results,
                                                 ts_results,
                                                 ts_corr_results,
+                                                obj_keys,
                                                 len(result_list))
 
 def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
@@ -214,7 +224,7 @@ def label_correlated(obj, dest, config, plot=False):
         plt.show()
 
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
-                                            ua_result, ts_result, ts_corr_result)
+                                            ua_result, ts_result, ts_corr_result, obj_key=obj.key)
 
 if __name__ == '__main__':
     import argparse
@@ -241,6 +251,7 @@ if __name__ == '__main__':
     i = 0
     avg_experiment_result = None
     for obj in chunk:
+
         logging.info('Labelling object {}'.format(obj.key))
         experiment_result = label_correlated(obj, dest, config)
         if experiment_result is None:
@@ -276,9 +287,11 @@ if __name__ == '__main__':
     """
 
     # save to file
-    results_filename = os.path.join(dest, 'bandit_results.pkl')
-    logging.info('Saving results to %s' %(results_filename))
-    save_results(all_results, results_filename)
+    logging.info('Saving results to %s' %(dest))
+    for r in results:
+        r.save(dest)
+#    results_filename = os.path.join(dest, 'bandit_results.pkl')
+#    save_results(all_results, results_filename)
 
     #IPython.embed()
 
