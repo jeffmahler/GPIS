@@ -410,6 +410,21 @@ class Gce(object):
 
     return response
 
+  def download_from_bucket(self, bucket, file_name, output_dir):
+    """
+    Downloads a file from the specified bucket under the GCE project.
+
+    Args:
+       bucket: String name for the bucket
+       file_name: String name of file to download
+       output_dir: String name of directory to download to
+
+    Returns:
+       True or false depending on success of download
+    """
+    
+
+
   def _blocking_call(self, response, finished_status='DONE'):
     """Blocks until the operation status is done for the given operation.
 
@@ -472,7 +487,6 @@ class Gce(object):
       raise ApiError(e)
 
     return response
-
 
 class Error(Exception):
   """Base class for exceptions in this module."""

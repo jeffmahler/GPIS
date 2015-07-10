@@ -49,17 +49,19 @@ try:
 except:
     import json
 import numpy as np
+import os
 import sys
 import time
 
 from apiclient import discovery
+import gce
+import gcs
 import httplib2
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import argparser, run_flow
 from oauth2client import tools
 import smtplib
-import gce
 
 import experiment_config as ec
 
@@ -198,6 +200,7 @@ def launch_experiment(args, sleep_time):
     instance_name = 'experiment-%s-' % instance_id + '%d'
     disk_name = instance_name + '-disk'
     image_name = config['compute']['image']
+    run_script = config['compute']['run_script']
 
     # Make chunks
     chunks = make_chunks(config)
@@ -205,6 +208,19 @@ def launch_experiment(args, sleep_time):
     # Initialize gce.Gce.
     logging.info('Initializing GCE')
     gce_helper = gce.Gce(auth_http, config, project_id=config['project'])
+    gcs_helper = gcs.Gcs(auth_http, config, project_id=config['project'])
+
+    """
+    instance_results = ['experiment-ilopwbhfgw-0.tar.gz', 'experiment-ilopwbhfgw-1.tar.gz']
+    instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], instance_results)
+    results_script_call = 'python %s' %(config['results_script'])
+    arg_list = '%s ' %(config_file)
+    for d in instance_result_dirs:
+        arg_list += '%s ' %(d)
+    results_script_call = '%s %s' %(results_script_call, arg_list)
+    os.system(results_script_call)
+    exit(0)
+    """
 
     # Start an instance for each chunk
     num_instances = 0
@@ -235,12 +251,13 @@ def launch_experiment(args, sleep_time):
                     {'key': 'dataset', 'value': dataset},
                     {'key': 'chunk_start', 'value': chunk_start},
                     {'key': 'chunk_end', 'value': chunk_end},
+                    {'key': 'run_script', 'value': run_script},
                 ],
                 additional_ro_disks=config['compute']['data_disks']
             )
         except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
             # Delete the disk in case the instance fails to start.
-            delete_resource(gce_helper.delete_disk, disk_name)
+            delete_resource(gce_helper.delete_disk, curr_disk_name)
             logging.error(INSERT_ERROR, {'name': curr_instance_name})
             logging.error(e)
             return
@@ -268,6 +285,7 @@ def launch_experiment(args, sleep_time):
         except (ValueError, Exception) as e:
             logging.info('Connection failed. Retrying...')
 
+    completed_instance_results = []
     while instance_results:
         # Wait before checking again
         time.sleep(sleep_time)
@@ -282,6 +300,7 @@ def launch_experiment(args, sleep_time):
         items = resp['items']
         for item in items:
             if item['name'] in instance_results:
+                completed_instance_results.append(item['name'])
                 instance_results.remove(item['name'])
                 logging.info('Instance %s completed!' % item['name'])
 
@@ -303,6 +322,9 @@ def launch_experiment(args, sleep_time):
     logging.info('These are your running instances:')
     logging.info(instance_list)
 
+    # Download the results
+    instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results)
+
     # Send the user an email
     message = EMAIL_NOTIFICATION % dict(
         instance_id=instance_id,
@@ -314,6 +336,15 @@ def launch_experiment(args, sleep_time):
 
     send_notification_email(message=message, config=config,
                             subject="Your experiment has completed.")
+
+
+    # Run the results script TODO: move above the email
+    results_script_call = 'python %s' %(config['results_script'])
+    arg_list = '%s ' %(config_file)
+    for d in instance_result_dirs:
+        arg_list += '%s ' %(d)
+    results_script_call = '%s %s' %(results_script_call, arg_list)
+    os.system(results_script_call)
 
 
 if __name__ == '__main__':

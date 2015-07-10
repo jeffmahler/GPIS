@@ -5,6 +5,7 @@ feedback/*
 matlab/dependencies/*
 lib/*
 images/*
+results/*
 
 # temp files
 *~

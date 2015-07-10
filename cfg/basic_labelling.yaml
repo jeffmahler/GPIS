@@ -2,18 +2,18 @@
 
 # CORE PARAMS
 # rll4 setup
-root_dir: /home/jmahler/jeff_working/GPIS
-database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
+#root_dir: /home/jmahler/jeff_working/GPIS
+#database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
 
 # GCE setup
-# root_dir:     /home/brian/GPIS
-# database_dir: /home/brian/data
+root_dir:     /home/brian/GPIS
+database_dir: /home/brian/data
 dataset_counts: data/counts.txt
 datasets:
 #  - Cat50_ModelDatabase
-#  - amazon_picking_challenge
-  - SHREC14LSGTB
-max_chunk_size: 4000
+  - amazon_picking_challenge
+#  - SHREC14LSGTB
+max_chunk_size: 26
 
 # Will be overridden by startup script
 #dataset:     amazon_picking_challenge
@@ -73,10 +73,11 @@ compute:
   startup_script: scripts/cm_startup.sh # TODO
   image_project:  *id_project
   image:          dex-net-image
-  data_disk:
+  data_disks:
     - dex-net-data
   service_email:  default
   network:        default
+  run_script:     src/grasp_selection/cm_example.py
   scopes:
     - https://www.googleapis.com/auth/compute
     - https://www.googleapis.com/auth/devstorage.full_control

@@ -3,6 +3,7 @@
 GIT_DIR=/home/brian/GPIS
 DATA_DIR=/home/brian/data
 OUT_DIR=/home/brian/cm_out
+mkdir $OUT_DIR
 
 # Update project
 cd $GIT_DIR
@@ -15,6 +16,7 @@ sudo bash scripts/mount_data_disk.sh
 DATASET=$(curl http://metadata/computeMetadata/v1/instance/attributes/dataset -H "X-Google-Metadata-Request: True")
 CHUNK_START=$(curl http://metadata/computeMetadata/v1/instance/attributes/chunk_start -H "X-Google-Metadata-Request: True")
 CHUNK_END=$(curl http://metadata/computeMetadata/v1/instance/attributes/chunk_end -H "X-Google-Metadata-Request: True")
+RUN_SCRIPT=$(curl http://metadata/computeMetadata/v1/instance/attributes/run_script -H "X-Google-Metadata-Request: True")
 BUCKET_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/bucket_name -H "X-Google-Metadata-Request: True")
 INSTANCE_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/instance_name -H "X-Google-Metadata-Request: True")
 
@@ -28,7 +30,7 @@ chunk_end:   $CHUNK_END
 EOF
 
 # Run experiment
-python src/grasp_selection/cm_example.py config.yaml $OUT_DIR
+python $RUN_SCRIPT config.yaml $OUT_DIR
 cd .. # back to home directory
 
 # Zip directory and upload to bucket
