@@ -256,6 +256,11 @@ if __name__ == '__main__':
             continue # no grasps to run bandits on for this object
         results.append(experiment_result)
 
+    if len(results) == 0:
+        logging.info('Exiting. No grasps found')
+        exit(0)
+
+    # combine results
     all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
     # plotting of final results
@@ -263,17 +268,16 @@ if __name__ == '__main__':
     ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
     ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
 
-    """
-    plt.figure()
-    ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward, c=u'b', linewidth=2.0)
-    ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward, c=u'g', linewidth=2.0)
-    ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
-    plt.xlim(0, np.max(all_results.ts_result[0].iters))
-    plt.ylim(0.5, 1)
-    plt.legend([ua_obj, ts_obj, ts_corr_obj],
-               ['Uniform Allocation', 'Thompson Sampling (Uncorrelated)', 'Thompson Sampling (Correlated)'])
-    plt.show()
-    """
+    if config['plot']:
+        plt.figure()
+        ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward, c=u'b', linewidth=2.0)
+        ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward, c=u'g', linewidth=2.0)
+        ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
+        plt.xlim(0, np.max(all_results.ts_result[0].iters))
+        plt.ylim(0.5, 1)
+        plt.legend([ua_obj, ts_obj, ts_corr_obj],
+                   ['Uniform Allocation', 'Thompson Sampling (Uncorrelated)', 'Thompson Sampling (Correlated)'])
+        plt.show()
 
     # generate experiment hash and save
     """

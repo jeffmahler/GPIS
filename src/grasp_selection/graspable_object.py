@@ -382,7 +382,7 @@ class GraspableObject3D(GraspableObject):
             window = spfilt.gaussian_filter(window, sigma)
         if compute_weighted_covariance:
             return window, cov / cov_weight
-        return window, 0.0
+        return window
 
     def contact_surface_window_projection_unaligned(self, contact, width=1e-2,
         num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
