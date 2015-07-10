@@ -313,7 +313,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
 
     @staticmethod
-    def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, jaw_width_world = 0, vis = False, stop = False):
+    def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, jaw_width_world = 0,
+                                            vis = False, stop = False, backup=0.5):
         """
         Creates a grasp from a single contact point in grid coordinates and direction in grid coordinates
         Params:
@@ -331,9 +332,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_axis_world = grasp_axis_world / np.linalg.norm(grasp_axis_world)
         grasp_axis_grid = obj.sdf.transform_pt_obj_to_grid(grasp_axis_world, direction=True)
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(grasp_width_world)
-        grasp_c1_grid = obj.sdf.transform_pt_obj_to_grid(grasp_c1_world) - (grasp_width_grid / 8) * grasp_axis_grid # subtract to find true point
+        grasp_c1_grid = obj.sdf.transform_pt_obj_to_grid(grasp_c1_world) - backup * grasp_axis_grid # subtract to find true point
         num_samples = int(2 * grasp_width_grid) # at least 2 samples per grid
-        g2 = grasp_c1_grid + grasp_width_grid * grasp_axis_grid
+        g2 = grasp_c1_grid + (grasp_width_grid - backup) * grasp_axis_grid
 
         # get line of action
         line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(grasp_c1_grid, grasp_axis_grid, grasp_width_grid, obj, num_samples,

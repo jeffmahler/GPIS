@@ -481,6 +481,9 @@ class GraspableObject3D(GraspableObject):
 
     def surface_window_grad_curvature(self, contact, width, num_steps,
                                       back_up_units=3.0, direction=None):
+        """
+        Returns the local surface window, gradient, and curvature for a single contact
+        """
         proj_window = self.contact_surface_window_projection(
             contact, width, num_steps,
             back_up_units=back_up_units, direction=direction)
@@ -505,8 +508,14 @@ class GraspableObject3D(GraspableObject):
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
     def surface_information(self, grasp, width, num_steps, plot=False):
-        _, contacts = grasp.close_fingers(self)
+        """
+        Returns the local surface window, gradient, and curvature for the two point contacts of a grasp
+        """
+        contacts_found, contacts = grasp.close_fingers(self)
         contact1, contact2 = contacts
+        if not contacts_found:
+            logging.warning('Failed to find contacts')
+            return None, None
 
         if plot:
             plot_graspable(self, contact1)
