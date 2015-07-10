@@ -641,6 +641,75 @@ def test_window_curvature(width, num_steps, plot=None):
             plot(w.proj_win_, num_steps, 'w%d proj_win' %(i), save=True)
             plot(1e4 * w.gauss_curvature_, num_steps, 'w%d curvature' %(i), save=True)
 
+def test_window_correlation(width, num_steps):
+    import scipy
+    import sdf_file, obj_file
+    import discrete_adaptive_samplers as das
+    import experiment_config as ec
+    import feature_functions as ff
+    import graspable_object as go # weird Python issues
+    import kernels
+    import models
+    import objectives
+    import pfc
+    import termination_conditions as tc
+
+    np.random.seed(100)
+
+    mesh_file_name = 'data/test/meshes/Co_clean.obj'
+    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
+
+    config = ec.ExperimentConfig('cfg/correlated.yaml')
+    config['window_width'] = width
+    config['window_steps'] = num_steps
+    brute_force_iter = 100
+    snapshot_rate = config['bandit_snapshot_rate']
+
+    sdf = sdf_file.SdfFile(sdf_3d_file_name).read()
+    mesh = obj_file.ObjFile(mesh_file_name).read()
+    graspable = go.GraspableObject3D(sdf, mesh)
+    grasp_axis = np.array([0, 1, 0])
+    grasp_width = 0.1
+
+    grasps = []
+    for z in [-0.030, -0.035, -0.040, -0.045]:
+        grasp_center = np.array([0, 0, z])
+        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        grasps.append(grasp)
+
+    graspable_rv = pfc.GraspableObjectGaussianPose(graspable, config)
+    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
+
+    # compute feature vectors for all grasps
+    feature_extractor = ff.GraspableFeatureExtractor(graspable, config)
+    all_features = feature_extractor.compute_all_features(grasps)
+
+    candidates = []
+    for grasp, features in zip(grasps, all_features):
+        logging.info('Adding grasp %d' %len(candidates))
+        grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
+        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
+        pfc_rv.set_features(features)
+        candidates.append(pfc_rv)
+
+    objective = objectives.RandomBinaryObjective()
+    ua = das.UniformAllocationMean(objective, candidates)
+    logging.info('Running uniform allocation for true pfc.')
+    ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
+                         snapshot_rate=snapshot_rate)
+    estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+
+    print 'true pfc'
+    print estimated_pfc
+
+    def phi(rv):
+        return rv.features
+    kernel = kernels.SquaredExponentialKernel(
+        sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+
+    print 'kernel matrix'
+    print kernel.matrix(candidates)
+
 def plot_graspable(graspable, contact, c1=0, c2=0, draw_plane=False):
     """Plot a graspable and the tangent plane at the point of contact."""
     # Plot SDF
@@ -742,3 +811,4 @@ if __name__ == '__main__':
     test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
     test_window_distance(width=2e-2, num_steps=21)
     test_window_curvature(width=2e-2, num_steps=21, plot=plot_window_2d)
+    test_window_correlation(width=2e-2, num_steps=21)

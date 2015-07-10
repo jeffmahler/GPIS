@@ -100,6 +100,9 @@ class ExperimentConfig(object):
             return None
         return retval
 
+    def __setitem__(self, key, val):
+        self.config[key] = val
+
     @staticmethod
     def __convert_key(expression):
         """ Converts keys in YAML that reference other keys """
