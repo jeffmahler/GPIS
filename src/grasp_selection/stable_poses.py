@@ -4,15 +4,19 @@ Author: Nikhil Sharma
 """
 import math
 import sys
+import IPython
 import numpy as np
 import Queue
+import similarity_tf as stf
+import tfx
+
+import mayavi.mlab as mv
 
 import mesh
 import obj_file
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-<<<<<<< HEAD
 def compute_basis(vertices):
     """
     Computes axes for a transformed basis relative to the plane in which input vertices lies
@@ -29,7 +33,9 @@ def compute_basis(vertices):
 
     R = np.array([np.transpose(x_o), np.transpose(y_o), np.transpose(z_o)])
     x_p, y_p, z_p = np.dot(R, x_o), np.dot(R, y_o), np.dot(R, z_o)
-    return (x_p, y_p, z_p)
+#    print x_p, y_p, z_p
+#    return (x_p, y_p, z_p)
+    return R
 
 def compute_centroid(vertices):
     """
@@ -41,9 +47,6 @@ def compute_centroid(vertices):
     for i in range(len(vertices)):
         centroid.append(sum([vertex[i] for vertex in vertices]) / len(vertices))
     return np.array(centroid)
-=======
-import IPython
->>>>>>> 081c08b7ed867ca5dcfa4f5cba88e97d9c6754e8
 
 # A function for computing the statistical distribution of stable poses of a polyhedron.
 def compute_stable_poses(mesh):
@@ -374,19 +377,58 @@ class Vertex:
 ##############
 #TESTING AREA#
 ##############
-filename = "data/test/meshes/Co_clean.obj"
+#filename = "data/test/meshes/Co_clean.obj"
 #filename = "data/test/features/pepper_orig.obj"
+filename = "data/test/meshes/plane.obj"
 ob = obj_file.ObjFile(filename)
 mesh = ob.read()
 mesh.remove_unreferenced_vertices()
 prob_mapping = compute_stable_poses(mesh)
 
+cv_hull = mesh.convex_hull()
+
 print(prob_mapping)
 print 'Total sink sum', sum([val for val in prob_mapping.values()])
 
-
 new_basis_axes = []
-for face in prob_mapping.keys():
-    vertices = [mesh.vertices()[i] for i in face]
+index = 0
+max_p = 0
+j = 0
+best_vertices = []
+best_face = []
+for face, p in prob_mapping.items():
+    print j
+    vertices = [cv_hull.vertices()[i] for i in face]
     new_basis_axes.append(compute_basis(vertices))
+
+    if p > max_p:
+        index = j
+        max_p = p
+        best_face = face
+        best_vertices = vertices
+    j = j+1
+
 print(new_basis_axes)
+
+#IPython.embed()
+
+R = compute_basis(best_vertices)
+t = np.zeros(3)
+pose = tfx.pose(R, t)
+tf = stf.SimilarityTransform3D(pose)
+m = mesh.transform(tf)
+
+#IPython.embed()
+
+mv.figure()
+mesh.visualize()
+mv.points3d(best_vertices[0][0], best_vertices[0][1], best_vertices[0][2], scale_factor=0.002)
+mv.points3d(best_vertices[1][0], best_vertices[1][1], best_vertices[1][2], scale_factor=0.002)
+mv.points3d(best_vertices[2][0], best_vertices[2][1], best_vertices[2][2], scale_factor=0.002)
+#mv.axes()
+
+mv.figure()
+m.convex_hull().visualize()
+mv.axes()
+
+mv.show()

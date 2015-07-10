@@ -13,7 +13,7 @@ import tfx
 import camera_params as cp
 import obj_file
 
-# import mayavi.mlab as mv
+import mayavi.mlab as mv
 import pyhull.convex_hull as cvh
 
 class Mesh3D:
@@ -56,6 +56,11 @@ class Mesh3D:
         if self.metadata_:
             return self.metadata_
         return "No metadata available."
+
+    @propert
+    def center_of_mass(self):
+        # TODO: utilize labelled center of mass if we have it
+        return self.bb_center_
 
     @property
     def pose(self):
@@ -269,6 +274,11 @@ class Mesh3D:
             normals_array_rot = R.dot(normals_array.T)
             self.normals_ = normals_array_rot.tolist()
 
+    def transform(self, tf):
+        vertex_array = np.array(self.vertices_)
+        vertex_array_tf = tf.apply(vertex_array.T)
+        return Mesh3D(vertex_array_tf.T.tolist(), self.triangles_)
+
     def rescale_vertices(self, min_scale):
         '''
         Rescales the vertex coordinates so that the minimum dimension (X, Y, Z) is exactly min_scale
@@ -310,7 +320,7 @@ class Mesh3D:
     def visualize(self):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
-        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface')
+        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe')
 
     """
     def num_connected_components(self):
