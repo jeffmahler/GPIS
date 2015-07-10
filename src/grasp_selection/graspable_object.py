@@ -471,10 +471,10 @@ class GraspableObject3D(GraspableObject):
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
 
-        # arbitrarily decide direction of u1: right_avg > left_avg (inspired by SHOT)
-        left_avg = np.average(window[:, :num_steps//2])
-        right_avg = np.average(window[:, num_steps//2:])
-        if left_avg > right_avg:
+        # arbitrarily require that top_avg > bottom_avg (inspired by SHOT)
+        top_avg = np.average(window[:num_steps//2, :])
+        bottom_avg = np.average(window[num_steps//2:, :])
+        if bottom_avg > top_avg:
             # need to flip both u1 and u2, i.e. rotate 180 degrees
             window = np.rot90(window, k=2)
         return window
