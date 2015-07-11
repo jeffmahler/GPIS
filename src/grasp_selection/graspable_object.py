@@ -167,6 +167,7 @@ class GraspableObject3D(GraspableObject):
             direction - numpy 3 array to find orthogonal plane for
         Returns:
             direction, t1, t2 - numpy 3 arrays in obj coords
+            INWARD FACING NORMALS!
         """
         if direction is None: # compute normal at contact
             contact_grid = self.sdf.transform_pt_obj_to_grid(contact)
@@ -205,12 +206,12 @@ class GraspableObject3D(GraspableObject):
             cone_support - numpy array where each column is a vector on the cone
             normal - direction vector
         """
-        normal, t1, t2 = self._contact_tangents(contact)
-        if normal is None:
+        in_normal, t1, t2 = self._contact_tangents(contact)
+        if in_normal is None:
             return False, None, None
 
         tan_len = friction_coef
-        force = -normal
+        force = in_normal
         cone_support = np.zeros((3, num_cone_faces))
 
         # find convex combinations of tangent vectors
@@ -218,7 +219,7 @@ class GraspableObject3D(GraspableObject):
             tan_vec = t1 * np.cos(2 * np.pi * (float(j) / num_cone_faces)) + t2 * np.sin(2 * np.pi * (float(j) / num_cone_faces))
             cone_support[:, j] = force + friction_coef * tan_vec
 
-        return True, cone_support, normal
+        return True, cone_support, -in_normal
 
     def contact_torques(self, contact, forces):
         """
