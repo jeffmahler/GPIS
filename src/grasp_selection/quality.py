@@ -33,12 +33,12 @@ class PointGraspMetrics3D:
             return -np.inf
 
         # add the forces, torques, etc at each contact point
-        num_contacts = contacts.shape[0]
+        num_contacts = len(contacts)
         forces = np.zeros([3,0])
         torques = np.zeros([3,0])
         normals = np.zeros([3,0])
         for i in range(num_contacts):
-            contact = contacts[i,:]
+            contact = contacts[i].point
             force_success, contact_forces, contact_outward_normal = obj.contact_friction_cone(contact, num_cone_faces=num_cone_faces,
                                                                                               friction_coef=friction_coef)
 

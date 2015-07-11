@@ -271,7 +271,7 @@ def test_grasp_collisions():
     width = 0.1
     grasp = g.ParallelJawPtGrasp3D(center, axis, width)
 
-    grasp.close_fingers(graspable, vis = True)
+    grasp.close_fingers(graspable, vis=True)
     grasp_checker.prune_grasps_in_collision(graspable, [grasp], auto_step=True, close_fingers=True, delay=30)
 
 def test_grasp_poses():

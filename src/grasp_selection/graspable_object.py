@@ -13,7 +13,7 @@ import os
 import scipy.ndimage.filters as spfilt
 import sys
 
-from feature_functions import SurfaceWindow
+from contacts import SurfaceWindow
 import grasp as g
 import mesh as m
 import sdf as s
@@ -282,7 +282,7 @@ class GraspableObject3D(GraspableObject):
             num_samples - float number of samples when finding contacts
         Returns:
             found - True if projection contact is found
-            projection_contact - numpy 3 array of the contact point in obj frame
+            projection_contact - Contact3D instance
         """
         # get start of projection
         projection_start = curr_loc - back_up * direction
@@ -362,12 +362,12 @@ class GraspableObject3D(GraspableObject):
 
             if found:
                 # logging.debug('%d found.' %(i))
-                sign = -direction.dot(projection_contact - curr_loc)
-                projection = (sign / abs(sign)) * np.linalg.norm(projection_contact - curr_loc)
+                sign = -direction.dot(projection_contact.point - curr_loc)
+                projection = (sign / abs(sign)) * np.linalg.norm(projection_contact.point - curr_loc)
                 if compute_weighted_covariance:
                     # weight according to SHOT: R - d_i
                     weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
-                    diff = (projection_contact - contact).reshape((3, 1))
+                    diff = (projection_contact.point - contact).reshape((3, 1))
                     cov += weight * np.dot(diff, diff.T)
                     cov_weight += weight
             else:
@@ -513,18 +513,18 @@ class GraspableObject3D(GraspableObject):
         Returns the local surface window, gradient, and curvature for the two point contacts of a grasp
         """
         contacts_found, contacts = grasp.close_fingers(self)
-        contact1, contact2 = contacts
         if not contacts_found:
             raise ValueError('Failed to find contacts')
+        contact1, contact2 = contacts
 
         if plot:
-            plot_graspable(self, contact1)
-            plot_graspable(self, contact2)
+            plot_graspable(self, contact1.point)
+            plot_graspable(self, contact2.point)
 
         window1 = self.surface_window_grad_curvature(
-            contact1, width, num_steps, direction=None)#grasp.axis)
+            contact1.point, width, num_steps, direction=None)#grasp.axis)
         window2 = self.surface_window_grad_curvature(
-            contact2, width, num_steps, direction=None)#-grasp.axis)
+            contact2.point, width, num_steps, direction=None)#-grasp.axis)
         return window1, window2
 
 def test_windows(width, num_steps, plot=None):
@@ -552,25 +552,26 @@ def test_windows(width, num_steps, plot=None):
     contact2 = contacts2[0]
 
     if plot:
-        plot_graspable(graspable, contact1)
+        plot_graspable(graspable, contact1.point)
+        plot_graspable(graspable, contact2.point)
 
     print 'sdf window'
     sdf_window1 = graspable.contact_surface_window_sdf(
-        contact1, width, num_steps)
+        contact1.point, width, num_steps)
     sdf_window2 = graspable.contact_surface_window_sdf(
-        contact2, width, num_steps)
+        contact2.point, width, num_steps)
 
     print 'unaligned projection window'
     unaligned_window1 = graspable.contact_surface_window_projection_unaligned(
-        contact1, width, num_steps)
+        contact1.point, width, num_steps)
     unaligned_window2 = graspable.contact_surface_window_projection_unaligned(
-        contact2, width, num_steps)
+        contact2.point, width, num_steps)
 
     print 'aligned projection window'
     aligned_window1 = graspable.contact_surface_window_projection(
-        contact1, width, num_steps)
+        contact1.point, width, num_steps)
     aligned_window2 = graspable.contact_surface_window_projection(
-        contact2, width, num_steps)
+        contact2.point, width, num_steps)
 
     print 'proj, sdf, proj - sdf at contact'
     contact_index = num_steps // 2

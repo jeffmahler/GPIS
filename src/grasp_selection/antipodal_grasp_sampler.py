@@ -106,9 +106,6 @@ class AntipodalGraspSampler(object):
         Returns:
             list of ParallelJawPtGrasp3D objects
         """
-        # TODO: remove this!
-        mesh_name = 'data/test/meshes/Co_clean.obj'
-
         # get surface points
         ap_grasps = []
         surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
