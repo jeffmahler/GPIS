@@ -26,6 +26,41 @@ class Contact3D(Contact):
     def point(self):
         return self.point_
 
+    def tangents(self, direction=None):
+        """Returns the direction vector and tangent vectors at a contact point.
+        The direction vector defaults to the *inward-facing* normal vector on
+        the SDF.
+        Params:
+            direction - numpy 3 array to find orthogonal plane for
+        Returns:
+            direction, t1, t2 - numpy 3 arrays in obj coords, where direction
+                points into the object
+        """
+        if direction is None: # compute normal at contact
+            as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
+            on_surface, _ = self.graspable.sdf.on_surface(as_grid)
+            if not on_surface:
+                logging.debug('Contact point not on surface')
+                return None, None, None
+
+            grad = self.graspable.sdf.gradient(as_grid)
+            if np.all(grad == 0):
+                return None, None, None
+
+            # transform normal to obj frame
+            normal = grad / np.linalg.norm(grad) # outward facing
+            direction = self.graspable.sdf.transform_pt_grid_to_obj(normal, direction=True)
+            direction = -direction # inward facing
+
+        direction = direction.reshape((3, 1)) # make 2D for SVD
+
+        # get orthogonal plane
+        U, _, _ = np.linalg.svd(direction)
+
+        # U[:, 1:] spans the tanget plane at the contact
+        t1, t2 = U[:, 1], U[:, 2]
+        return np.squeeze(direction), t1, t2
+
     def friction_cone(self, num_cone_faces=4, friction_coef=0.5):
         """
         Computes the friction cone and normal for a contact point.
@@ -40,7 +75,7 @@ class Contact3D(Contact):
         if self.friction_cone_ is not None and self.normal_ is not None:
             return True, self.friction_cone_, self.normal_
 
-        in_normal, t1, t2 = self.graspable._contact_tangents(self.point)
+        in_normal, t1, t2 = self.tangents()
         if in_normal is None:
             return False, self.friction_cone_, self.normal_
 
@@ -68,7 +103,8 @@ class Contact3D(Contact):
             torques - numpy 3xN array of the torques that can be computed
         """
         as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
-        if not self.graspable.sdf.on_surface(as_grid):
+        on_surface, _ = self.graspable.sdf.on_surface(as_grid)
+        if not on_surface:
             logging.debug('Contact point not on surface')
             return False, None
 
