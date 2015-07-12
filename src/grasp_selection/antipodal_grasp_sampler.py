@@ -6,6 +6,7 @@ import time
 
 import openravepy as rave
 
+import contacts
 import grasp
 import graspable_object
 from grasp import ParallelJawPtGrasp3D
@@ -119,8 +120,8 @@ class AntipodalGraspSampler(object):
                 x1 = self.perturb_point(x_surf, graspable.sdf.resolution) 
 
                 # compute friction cone faces
-                cone_succeeded, cone1, n1 = graspable.contact_friction_cone(x1, num_cone_faces = self.num_cone_faces,
-                                                                            friction_coef = self.friction_coef)
+                c1 = contacts.Contact3D(graspable, x1)
+                cone_succeeded, cone1, n1 = c1.friction_cone(self.num_cone_faces, self.friction_coef)
                 if not cone_succeeded:
                     continue
                 cone_time = time.clock()
@@ -141,17 +142,19 @@ class AntipodalGraspSampler(object):
                             ax.scatter(x1_grid[0] - cone1_grid[0], x1_grid[1] - cone1_grid[1], x1_grid[2] - cone1_grid[2], s = 50, c = u'm') 
 
                     # start searching for contacts
-                    grasp, x1_c, x2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
+                    grasp, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
+                    if grasp is None or c2 is None:
+                        continue
 
                     # make sure grasp is wide enough
-                    if grasp is None or x2 is None or np.linalg.norm(x1 - x2) < 0.02:
+                    x2 = c2.point
+                    if np.linalg.norm(x1 - x2) < 0.02:
                         continue
                     
                     v_true = grasp.axis
 
                     # compute friction cone for contact 2
-                    cone_succeeded, cone2, n2 = graspable.contact_friction_cone(x2, num_cone_faces = self.num_cone_faces,
-                                                                                friction_coef = self.friction_coef)
+                    cone_succeeded, cone2, n2 = c2.friction_cone(self.num_cone_faces, self.friction_coef)
                     if not cone_succeeded:
                         continue
 
@@ -247,10 +250,11 @@ def test_antipodal_grasp_sampling():
         'num_cone_faces': 8,
         'grasp_samples_per_surface_point': 4,
         'dir_prior': 1.0,
-        'alpha_thresh': 1.0 / 32,
+        'alpha_thresh_div': 16.0,
         'rho_thresh': 0.75, # as pct of object max moment
         'grasp_theta_res': 2.0 / 10, 
         'min_num_grasps': 100,
+        'min_num_collision_free_grasps': 1,
         'alpha_inc': 1.1,
         'friction_inc': 0.1,
         'rho_inc': 0.1

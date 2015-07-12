@@ -194,33 +194,6 @@ class GraspableObject3D(GraspableObject):
         t1, t2 = U[:, 1], U[:, 2]
         return np.squeeze(direction), t1, t2
 
-    def contact_friction_cone(self, contact, num_cone_faces=4, friction_coef=0.5):
-        """
-        Computes the friction cone and normal for a contact point.
-        Params:
-            contact - numpy 3 array of the surface contact in obj coords
-            num_cone_faces - int number of cone faces to use
-            friction_coef - float friction coefficient
-        Returns:
-            success - False when cone can't be computed
-            cone_support - numpy array where each column is a vector on the cone
-            normal - direction vector
-        """
-        in_normal, t1, t2 = self._contact_tangents(contact)
-        if in_normal is None:
-            return False, None, None
-
-        tan_len = friction_coef
-        force = in_normal
-        cone_support = np.zeros((3, num_cone_faces))
-
-        # find convex combinations of tangent vectors
-        for j in range(num_cone_faces):
-            tan_vec = t1 * np.cos(2 * np.pi * (float(j) / num_cone_faces)) + t2 * np.sin(2 * np.pi * (float(j) / num_cone_faces))
-            cone_support[:, j] = force + friction_coef * tan_vec
-
-        return True, cone_support, -in_normal
-
     def contact_torques(self, contact, forces):
         """
         Get the torques that can be applied by a set of vectors with a given friction cone
