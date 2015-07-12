@@ -57,6 +57,29 @@ class Contact3D(Contact):
         self.normal_ = -in_normal
         return True, self.friction_cone_, self.normal_
 
+    def torques(self, forces):
+        """
+        Get the torques that can be applied by a set of vectors with a given
+        friction cone.
+        Params:
+            forces - numpy 3xN array of the forces applied at the contact
+        Returns:
+            success - bool, whether or not successful
+            torques - numpy 3xN array of the torques that can be computed
+        """
+        as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
+        if not self.graspable.sdf.on_surface(as_grid):
+            logging.debug('Contact point not on surface')
+            return False, None
+
+        num_forces = forces.shape[1]
+        torques = np.zeros([3, num_forces])
+        moment_arm = self.graspable.moment_arm(self.point)
+        for i in range(num_forces):
+            torques[:,i] = np.cross(moment_arm, forces[:,i])
+
+        return True, torques
+
 class SurfaceWindow:
     """Struct for encapsulating local surface window features."""
     def __init__(self, proj_win, grad, hess_x, hess_y, gauss_curvature):

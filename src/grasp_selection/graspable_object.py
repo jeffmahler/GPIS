@@ -194,29 +194,6 @@ class GraspableObject3D(GraspableObject):
         t1, t2 = U[:, 1], U[:, 2]
         return np.squeeze(direction), t1, t2
 
-    def contact_torques(self, contact, forces):
-        """
-        Get the torques that can be applied by a set of vectors with a given friction cone
-        Params:
-            contact - numpy 3 array of the surface contact in obj frame
-            forces - numpt 3xN array of the forces applied at the contact
-        Returns:
-            success - bool, whether or not successful
-            torques - numpy 3xN array of the torques that can be computed
-        """
-        contact_grid = self.sdf.transform_pt_obj_to_grid(contact)
-        if not self.sdf.on_surface(contact_grid):
-            logging.debug('Contact point not on surface')
-            return False, None
-
-        num_forces = forces.shape[1]
-        torques = np.zeros([3, num_forces])
-        moment_arm = self.moment_arm(contact)
-        for i in range(num_forces):
-            torques[:,i] = np.cross(moment_arm, forces[:,i])
-
-        return True, torques
-
     def contact_surface_window_sdf(self, contact, width=1e-2, num_steps=21):
         """Returns a window of SDF values on the tangent plane at a contact point.
         Params:

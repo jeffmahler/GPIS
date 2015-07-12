@@ -452,7 +452,6 @@ def test_find_contacts():
     sdf_3d = sf3.read()
 
     # create grasp
-    plt.figure()
     test_grasp_center = np.zeros(3)
     test_grasp_axis = np.array([1, 0, 0])
     test_grasp_width = 1.0

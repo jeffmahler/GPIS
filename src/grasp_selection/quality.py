@@ -45,7 +45,7 @@ class PointGraspMetrics3D:
                 logging.debug('Force computation failed')
                 continue
 
-            torque_success, contact_torques = obj.contact_torques(contact.point, contact_forces) # BRIAN TODO
+            torque_success, contact_torques = contact.torques(contact_forces)
             if not force_success:
                 logging.debug('Torque computation failed')
                 continue
