@@ -38,6 +38,7 @@ class Contact3D(Contact):
         """Returns the direction vector and tangent vectors at a contact point.
         The direction vector defaults to the *inward-facing* normal vector on
         the SDF.
+        TODO: fix this so that it always returns an inward facing normal!
         Params:
             direction - numpy 3 array to find orthogonal plane for
         Returns:
@@ -69,7 +70,7 @@ class Contact3D(Contact):
         t1, t2 = U[:, 1], U[:, 2]
         return np.squeeze(direction), t1, t2
 
-    def friction_cone(self, num_cone_faces=4, friction_coef=0.5):
+    def friction_cone(self, num_cone_faces=8, friction_coef=0.5):
         """
         Computes the friction cone and normal for a contact point.
         Params:
@@ -351,6 +352,15 @@ class Contact3D(Contact):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
+    def plot_friction_cone(self):
+        _, cone, _ = self.friction_cone()
+
+        ax = plt.gca(projection='3d')
+        self.graspable.sdf.scatter() # object
+        x, y, z = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
+        ax.scatter([x], [y], [z], c='g', s=40) # contact
+        ax.scatter(x + cone[0], y + cone[1], z + cone[2], c='r', s=40) # cone
+
 class SurfaceWindow:
     """Struct for encapsulating local surface window features."""
     def __init__(self, proj_win, grad, hess_x, hess_y, gauss_curvature):
@@ -383,3 +393,30 @@ class SurfaceWindow:
         grad_y = grad_y_weight * self.grad_y
         curvature = curvature_weight * self.gauss_curvature
         return np.append([], [proj_win, grad_x, grad_y, curvature])
+
+
+def test_plot_friction_cone():
+    import sdf_file, obj_file, grasp as g, graspable_object
+    np.random.seed(100)
+
+    mesh_file_name = 'data/test/meshes/Co_clean.obj'
+    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
+
+    sdf = sdf_file.SdfFile(sdf_3d_file_name).read()
+    mesh = obj_file.ObjFile(mesh_file_name).read()
+    graspable = graspable_object.GraspableObject3D(sdf, mesh)
+
+    grasp_axis = np.array([0, 1, 0])
+    grasp_width = 0.1
+    grasp_center = np.array([0, 0, -0.025])
+    grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+
+    _, (c1, c2) = grasp.close_fingers(graspable)
+    plt.figure()
+    c1.plot_friction_cone()
+    c2.plot_friction_cone()
+    plt.show()
+    IPython.embed()
+
+if __name__ == '__main__':
+    test_plot_friction_cone()
