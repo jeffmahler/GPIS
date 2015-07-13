@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+
+# Copyright 2015 Ben Kehoe
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import roslib
+roslib.load_manifest('tfx')
+import rospy
+import tfx
+import argparse
+from geometry_msgs.msg import Pose, PoseStamped, Transform, TransformStamped
+
+__version__ = '0.1'
+
+class PoseEchoer:
+	def __init__(self):
+		rospy.init_node('pose_echo',anonymous=True)
+		
+		parser = argparse.ArgumentParser()
+		
+		parser.add_argument('topic')
+		parser.add_argument('--stamp',action='store_true',default=False,help='Display stamp')
+		parser.add_argument('--frame',help='explicitly set frame')
+		parser.add_argument('--name',help='explicitly set name')
+		parser.add_argument('--format',help='format argument passed to CanonicalTransform.tostring()')
+		parser.add_argument('--multiline',action='store_true',default=False,help='use multiline format')
+		parser.add_argument('-1','--once',action='store_true',default=False,help='print once and exit')
+		
+		self.args = parser.parse_args(rospy.myargv()[1:])
+		
+		if self.args.multiline:
+			self.args.stamp=True
+		
+		self.printed = False
+	
+	def cb(self,msg):
+		if self.args.once and self.printed:
+			return
+		kwargs = {}
+		if self.args.name:
+			kwargs['name'] = self.args.name
+		pose = tfx.transform(msg,**kwargs)
+		if self.args.frame and pose.frame:
+			tf = tfx.lookupTransform(self.args.frame,pose.frame)
+			pose = tf * pose
+		if not pose.frame:
+			pose.frame = self.args.frame
+		print pose.tostring(fixed_width=True,frame=True,name=True,stamp=self.args.stamp,format=self.args.format,multiline=self.args.multiline)
+		self.printed = True
+		if self.args.once:
+			rospy.signal_shutdown('Printed once')
+			return
+		if self.args.multiline:
+			print ''
+	
+	def run(self):
+		got_topic = False
+		pose_topic = True
+		while not got_topic and not rospy.is_shutdown():
+			for topic in rospy.get_published_topics():
+				if topic[0] == rospy.resolve_name(self.args.topic):
+					got_topic = True
+					stamped = topic[1].endswith('Stamped')
+					pose_topic = 'Pose' in topic[1]
+					break
+			rospy.sleep(0.1)
+		
+		if rospy.is_shutdown():
+			return
+		
+		cls = None
+		if pose_topic:
+			if stamped:
+				cls = PoseStamped
+			else:
+				cls = Pose
+		else:
+			if stamped:
+				cls = TransformStamped
+			else:
+				cls = Transform
+		
+		sub = rospy.Subscriber(self.args.topic,cls,self.cb)
+		
+		rospy.spin()
+
+if __name__ == '__main__':
+	echoer = PoseEchoer()
+	echoer.run()
+	
