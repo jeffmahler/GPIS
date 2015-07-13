@@ -103,11 +103,6 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
     return best_pred_values
 
-def save_results(results, filename='corr_bandit_results.npy'):
-    """Saves results to a file."""
-    with open(filename, 'w') as f:
-        pkl.dump(results, f)
-
 def label_correlated(obj, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
@@ -216,13 +211,6 @@ def label_correlated(obj, dest, config, plot=False):
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
-    if plot:
-        plt.figure()
-        plt.plot(ua_result.iters, ua_normalized_reward, c=u'b')
-        plt.plot(ts_result.iters, ts_normalized_reward, c=u'g')
-        plt.plot(ts_corr_result.iters, ts_corr_normalized_reward, c=u'r')
-        plt.show()
-
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
                                             ua_result, ts_result, ts_corr_result, obj_key=obj.key)
 
@@ -251,7 +239,7 @@ if __name__ == '__main__':
     avg_experiment_result = None
     for obj in chunk:
         logging.info('Labelling object {}'.format(obj.key))
-        experiment_result = label_correlated(obj, dest, config, plot=config['plot'])
+        experiment_result = label_correlated(obj, dest, config)
         if experiment_result is None:
             continue # no grasps to run bandits on for this object
         results.append(experiment_result)
@@ -270,28 +258,18 @@ if __name__ == '__main__':
 
     if config['plot']:
         plt.figure()
-        ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward, c=u'b', linewidth=2.0)
-        ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward, c=u'g', linewidth=2.0)
-        ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward, c=u'r', linewidth=2.0)
+        ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward,
+                          c=u'b', linewidth=2.0, label='Uniform Allocation')
+        ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward,
+                          c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
+        ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward,
+                          c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
         plt.xlim(0, np.max(all_results.ts_result[0].iters))
         plt.ylim(0.5, 1)
-        plt.legend([ua_obj, ts_obj, ts_corr_obj],
-                   ['Uniform Allocation', 'Thompson Sampling (Uncorrelated)', 'Thompson Sampling (Correlated)'])
+        plt.legend(loc='lower right')
         plt.show()
-
-    # generate experiment hash and save
-    """
-    eh = experiment_hash()
-    results_filename = os.path.join(config['results_dir'], '%s_results.pkl' %(eh))
-    logging.info('Saving results to %s' %(results_filename))
-    save_results(all_results, results_filename)
-    """
 
     # save to file
     logging.info('Saving results to %s' %(dest))
     for r in results:
         r.save(dest)
-#    results_filename = os.path.join(dest, 'bandit_results.pkl')
-#    save_results(all_results, results_filename)
-
-    #IPython.embed()
