@@ -25,12 +25,13 @@ num_grasp_clusters: 10
 vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
+plot: True
 
 # Bandits
-bandit_max_iter: 50
+bandit_max_iter: 2000
 bandit_confidence: 0.0005
-bandit_snapshot_rate: 100
-bandit_brute_force_iter: 100
+bandit_snapshot_rate: 10
+bandit_brute_force_iter: 10000
 
 # Correlations
 window_width: 0.001
@@ -39,10 +40,14 @@ window_sigma: 1.0
 kernel_sigma: 1.0
 kernel_l: 1.0
 kernel_tolerance: 0.5
-weight_proj_win: 1.0
-weight_grad_x: 1.0
-weight_grad_y: 1.0
-weight_curvature: 1.0
+
+# Weight
+inf:   &id_inf    100000000000000000000.0
+zero:  &id_zero   0.0
+weight_proj_win:  *id_inf
+weight_grad_x:    *id_inf
+weight_grad_y:    *id_inf
+weight_curvature: *id_inf
 
 # Grasp sampling
 min_num_grasps: 1

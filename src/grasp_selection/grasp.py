@@ -11,6 +11,7 @@ import numpy as np
 import IPython
 import time
 
+import contacts
 import graspable_object as go
 import sdf_file as sf
 import sdf
@@ -69,7 +70,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.jaw_width_ = jaw_width
         self.approach_angle_ = grasp_angle
         self.tf_ = tf
-        self.surface_info_ = {}
 
     @property
     def center(self):
@@ -113,8 +113,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
             num_samples - number of sample points between g1 and g2 to find contact points
             vis - (bool) whether or not to plot the shoe
         Returns:
-            c1 - the point of contact for jaw 1 in obj frame
-            c2 - the point of contact for jaw 2 in obj frame
+            c1 - the Contact3D for jaw 1
+            c2 - the Contact3D for jaw 2
         """
         # compute num samples to use based on sdf resolution
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(self.grasp_width_)
@@ -127,7 +127,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
         line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(g1_world, self.axis_, self.grasp_width_, obj, num_samples)
         line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2_world, -self.axis_, self.grasp_width_, obj, num_samples)
 
-        # find contacts
         if vis:
             plt.figure()
             plt.clf()
@@ -135,8 +134,10 @@ class ParallelJawPtGrasp3D(PointGrasp):
             plt.ion()
             obj.sdf.scatter()
 
-        c1_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis=vis)
-        c2_found, c2_world = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis=vis)
+        # find contacts
+        c1_found, c1 = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis=vis)
+        c2_found, c2 = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis=vis)
+
         if vis:
             ax = plt.gca(projection = '3d')
             ax.set_xlim3d(0, obj.sdf.dims_[0])
@@ -145,7 +146,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             plt.draw()
 
         contacts_found = c1_found and c2_found
-        return contacts_found, np.array([c1_world, c2_world])
+        return contacts_found, [c1, c2]
 
     @staticmethod
     def create_line_of_action(g, axis, width, obj, num_samples, convert_grid=True):
@@ -169,7 +170,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         return line_of_action
 
     @staticmethod
-    def find_contact(line_of_action, obj, vis = True, stop = False):
+    def find_contact(line_of_action, obj, vis=True, stop=False):
         """
         Find the point at which a point travelling along a given line of action hits a surface
         Params:
@@ -178,11 +179,12 @@ class ParallelJawPtGrasp3D(PointGrasp):
             vis - whether or not to display the contact check (for debugging)
         Returns:
             contact_found - whether or not the point contacts the object surface
-            pt_zc - np 3-array of surface along line of action in obj frame(None if contact not found)
+            contact - Contact3D found along line of action (None if contact not found)
         """
         contact_found = False
         pt_zc = None
         pt_zc_world = None
+        contact = None
         num_pts = len(line_of_action)
         sdf_here = 0
         sdf_before = 0
@@ -246,7 +248,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         if contact_found:
             pt_zc_world = obj.sdf.transform_pt_grid_to_obj(pt_zc)
-        return contact_found, pt_zc_world
+            contact = contacts.Contact3D(obj, pt_zc_world)
+        return contact_found, contact
 
     def transform(self, tf, theta_res = 0):
         """
@@ -326,7 +329,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             vis - whether or not to visualize the grasp
         Returns:
             ParallelJawGrasp3D object
-            numpy 3 array of 2nd contact on object
+            Contact3D instance for 2nd contact on object
         """
         # transform to grid basis
         grasp_axis_world = grasp_axis_world / np.linalg.norm(grasp_axis_world)
@@ -348,8 +351,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.scatter(grasp_c1_grid[0], grasp_c1_grid[1], grasp_c1_grid[2], s=80, c=u'b')
 
         # compute the contact points on the object
-        contact1_found, c1_world = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis = vis, stop = stop)
-        contact2_found, c2_world = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis = vis, stop = stop)
+        contact1_found, c1 = ParallelJawPtGrasp3D.find_contact(line_of_action1, obj, vis=vis, stop=stop)
+        contact2_found, c2 = ParallelJawPtGrasp3D.find_contact(line_of_action2, obj, vis=vis, stop=stop)
 
         if vis:
             ax.set_xlim3d(0, obj.sdf.dims_[0])
@@ -358,20 +361,20 @@ class ParallelJawPtGrasp3D(PointGrasp):
             plt.draw()
         if not contact1_found or not contact2_found:
             logging.debug('No contacts found for grasp')
-            return None, None, None
+            return None, None
 
         # create grasp
-        grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c1_world, c2_world)
-        grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c1_world, c2_world)
-        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, grasp_angle=0, tf=obj.tf), c1_world, c2_world # relative to object
+        grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c1.point, c2.point)
+        grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c1.point, c2.point)
+        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, grasp_angle=0, tf=obj.tf), c2 # relative to object
 
-    def visualize(self, obj, arrow_len = 0.01, line_width = 20.0):
+    def visualize(self, obj, arrow_len=0.01, line_width=20.0):
         """ Display point grasp as arrows on the contact points of the mesh """
         contacts_found, contacts = self.close_fingers(obj)
 
         if contacts_found:
-            c1_world = contacts[0,:]
-            c2_world = contacts[1,:]
+            c1_world = contacts[0].point
+            c2_world = contacts[1].point
             v = c2_world - c1_world
             v = arrow_len * v / np.linalg.norm(v)
             mv.quiver3d(c1_world[0] - v[0], c1_world[1] - v[1], c1_world[2] - v[2], v[0], v[1], v[2], scale_factor=1.0,
@@ -387,12 +390,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
             width - float width of the window in obj frame
             num_steps - int number of steps
         Returns:
-            list of windows, one for each point of contact
+            list of SurfaceWindows, one for each contact
         """
-        if graspable not in self.surface_info_:
-            info = graspable.surface_information(self, width, num_steps)
-            self.surface_info_[graspable] = info
-        return self.surface_info_[graspable]
+        return graspable.surface_information(self, width, num_steps)
 
     def to_json(self, quality=0, method='PFC'):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
@@ -432,7 +432,6 @@ class ParallelJawPtPose3D(object):
         self.orientation_ = tfx.rotation([orientation[c] for c in 'xyzw'])
         self.position_ = tfx.point([position[c] for c in 'xyz'])
         self.gripper_pose_ = tfx.pose(self.orientation_, self.position_)
-        self.surface_info_ = {}
 
     @staticmethod
     def from_json(data):
@@ -453,13 +452,12 @@ def test_find_contacts():
     sdf_3d = sf3.read()
 
     # create grasp
-    plt.figure()
     test_grasp_center = np.zeros(3)
     test_grasp_axis = np.array([1, 0, 0])
     test_grasp_width = 1.0
     obj_3d = go.GraspableObject3D(sdf_3d)
     grasp = ParallelJawPtGrasp3D(test_grasp_center, test_grasp_axis, test_grasp_width)
-    contact_found, contacts = grasp.close_fingers(obj_3d, vis=True)
+    contact_found, _ = grasp.close_fingers(obj_3d, vis=True)
     plt.ioff()
     plt.show()
 
@@ -488,7 +486,7 @@ def test_grasp_from_contacts():
     test_grasp_width = 0.8
     ax = plt.gca(projection = '3d')
     ax.scatter(rand_surf_pt_grid[0], rand_surf_pt_grid[1], rand_surf_pt_grid[2], s=80, c=u'g')
-    g, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True)
+    g, _ = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = True)
     plt.show()
 
 def test_to_json():
@@ -511,7 +509,7 @@ def test_to_json():
     axis = obj_3d.sdf.transform_pt_grid_to_obj(axis, direction=True)
 
     test_grasp_width = 0.8
-    g, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = False)
+    g, _ = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(obj_3d, rand_surf_pt, axis, test_grasp_width, vis = False)
     j = g.to_json()
 
     # TODO: hard checks
