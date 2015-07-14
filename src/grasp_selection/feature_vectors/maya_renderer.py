@@ -20,9 +20,10 @@ parser.add_argument("--mesh_dir", default=None,
 					help="the path to the mesh directory. Renders all .obj files in directory")
 parser.add_argument("--name", default="unnamed",
 					help="the name of the image")
-parser.add_argument("--min_dist", type=float, default=0.3,
-					help="the minimun distance from the object to capture images")
-parser.add_argument("--max_dist", type=float, default=0.5,
+parser.add_argument("--min_dist", type=float, default=0,
+					help="the minimun distance from the object to capture images."+
+					"if not defined, auto adjust distance based on the size of the object")
+parser.add_argument("--max_dist", type=float, default=0,
 					help="the maximum distance from the object to capture images")
 parser.add_argument("--num_radial", type=int, default=2,
 					help="the number of radial steps")
@@ -34,8 +35,8 @@ parser.add_argument("--min_range", type=float, default=0,
 					help="the minimum range of the depth image")
 parser.add_argument("--max_range", type=float, default=1,
 					help="the maximum range of the depth image")
-parser.add_argument("-m", "--mesh", action="store_true",
-					help="save mesh images")
+parser.add_argument("-c", "--color", action="store_true",
+					help="save color images")
 parser.add_argument("-s", "--segmask", action="store_true",
 					help="save segmentation mask images")
 parser.add_argument("-d", "--depth", action="store_true",
@@ -50,13 +51,15 @@ mesh_file = args.mesh_file
 mesh_name = args.name
 min_dist = args.min_dist
 max_dist = args.max_dist
+working_min_dist = min_dist
+working_max_dist = max_dist
 num_radial = args.num_radial
 num_lat = args.num_lat
 num_long = args.num_long
 min_range = args.min_range
 max_range = args.max_range
 
-mesh = args.mesh
+color = args.color
 segmask = args.segmask
 depth = args.depth
 table = args.table
@@ -90,6 +93,8 @@ def add_object_segmentation():
 
 def create_scene_with_mesh(mesh_file):
 	global center_of_interest
+	global working_min_dist
+	global working_max_dist
 
 	cmd.file(f=True, new=True)
 
@@ -101,8 +106,13 @@ def create_scene_with_mesh(mesh_file):
 	bounding_box = cmd.polyEvaluate(b=True)
 	cmd.move(-bounding_box[1][0], y=True)
 	object_height = bounding_box[1][1] - bounding_box[1][0]
-
 	center_of_interest = [0, object_height/2, 0]
+
+	if min_dist == 0:
+		major_dist = math.sqrt(math.pow(bounding_box[0][0]-bounding_box[0][1], 2) + math.pow(bounding_box[1][0]-bounding_box[1][1], 2) + math.pow(bounding_box[2][0]-bounding_box[2][1], 2))
+		working_min_dist = major_dist*1.5
+		working_max_dist = major_dist*3
+		print major_dist
 
 	cmd.setAttr("defaultRenderGlobals.imageFormat", 8) # 32)
 	cmd.setAttr("defaultResolution.width", 256)
@@ -172,19 +182,19 @@ def render_mesh(mesh_file, mesh_name, dest_dir):
 		csv_writer = csv.writer(csvfile)
 		csv_writer.writerow(["camera_x", "camera_y", "camera_z", "interest_x", "interest_y", "interest_z", "focal_length", "mesh_name"])
 
-		if mesh:
+		if color:
 			create_scene_with_mesh(mesh_file)
-			create_images_for_scene(csv_writer, mesh_name+"_mesh", dest_dir, min_dist, max_dist, num_radial, num_lat, num_long)
+			create_images_for_scene(csv_writer, mesh_name+"_color", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
 
 		if segmask:
 			create_scene_with_mesh(mesh_file)
 			add_object_segmentation()
-			create_images_for_scene(csv_writer, mesh_name+"_segmask", dest_dir, min_dist, max_dist, num_radial, num_lat, num_long)
+			create_images_for_scene(csv_writer, mesh_name+"_segmask", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
 
 		if depth:
 			create_scene_with_mesh(mesh_file)
 			add_depth_layer()
-			create_images_for_scene(csv_writer, mesh_name+"_depth", dest_dir, min_dist, max_dist, num_radial, num_lat, num_long)
+			create_images_for_scene(csv_writer, mesh_name+"_depth", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
 
 
 if mesh_dir is None:
