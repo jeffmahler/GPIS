@@ -10,8 +10,8 @@ cache_dir: /home/jmahler/jeff_working/GPIS/data/gcs
 
 dataset_counts: data/counts.txt
 datasets:
-  - YCB
-max_chunk_size: 5
+  - test_data
+max_chunk_size: 4
 
 # Will be overridden by startup script
 #dataset:     amazon_picking_challenge
@@ -26,29 +26,35 @@ num_grasp_clusters: 10
 vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
+plot: False
 
 # Bandits
 bandit_max_iter: 5000
 bandit_confidence: 0.0005
-bandit_snapshot_rate: 100
+bandit_snapshot_rate: 20
 bandit_brute_force_iter: 10000
 
 # Correlations
-window_width: 0.001
+window_width: 0.03
 window_steps: 21
 window_sigma: 1.0
 kernel_sigma: 1.0
 kernel_l: 1.0
 kernel_tolerance: 0.5
-weight_proj_win: 1.0
-weight_grad_x: 1.0
-weight_grad_y: 1.0
-weight_curvature: 1.0
+
+# Weights
+inf:   &id_inf    100000000000000000000.0
+zero:  &id_zero   0.0
+weight_proj_win:  500
+weight_grad_x:    *id_inf
+weight_grad_y:    *id_inf
+weight_curvature: *id_inf
 
 # Grasp sampling
 min_num_grasps: 100
 min_num_collision_free_grasps: 200
 grasp_samples_per_surface_point: 5
+
 dir_prior: 1.0
 alpha_thresh_div: 16.0 # in multiples of pi
 grasp_theta_res: 0.1 # in multiples of pi
@@ -59,9 +65,9 @@ friction_inc: 0.1
 
 # Uncertainty
 sigma_mu: 0.1
-sigma_trans_grasp: 0.005
+sigma_trans_grasp: 0.01
 sigma_rot_grasp: 0.2
-sigma_trans_obj: 0.001
+sigma_trans_obj: 0.01
 sigma_rot_obj: 0.1
 sigma_scale_obj: 0.1
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
