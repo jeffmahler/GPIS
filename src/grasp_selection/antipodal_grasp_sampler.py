@@ -27,9 +27,9 @@ def vis_graspable_grasp(graspable, grasp):
     mv.points3d(x[:,0], x[:,1], x[:,2], scale_factor = 0.01)
 
     g1, g2 = grasp.endpoints()
-    mv.points3d(g1[0], g1[1], g1[2], scale_factor = 0.01, color=(0.5,0.5,0.5))                        
-    mv.points3d(g2[0], g2[1], g2[2], scale_factor = 0.01, color=(0.5,0.5,0.5))                        
-    mv.points3d(grasp.center[0], grasp.center[1], grasp.center[2], scale_factor = 0.01, color=(0.5,0.5,0.5))                        
+    mv.points3d(g1[0], g1[1], g1[2], scale_factor = 0.01, color=(0.5,0.5,0.5))
+    mv.points3d(g2[0], g2[1], g2[2], scale_factor = 0.01, color=(0.5,0.5,0.5))
+    mv.points3d(grasp.center[0], grasp.center[1], grasp.center[2], scale_factor = 0.01, color=(0.5,0.5,0.5))
     mv.show()
 
 class AntipodalGraspParams:
@@ -41,7 +41,7 @@ class AntipodalGraspParams:
         self.alpha2 = alpha2
         self.rho1 = rho1
         self.rho2 = rho2
-        
+
 class AntipodalGraspSampler(object):
     def __init__(self, config):
         self._configure(config)
@@ -90,11 +90,11 @@ class AntipodalGraspSampler(object):
             in_cone - True if alpha is within the cone
             alpha - the angle between the normal and v
         """
+        if (v.dot(cone) < 0).any(): # v should point in same direction as cone
+            return False, None
         f = -n / np.linalg.norm(n)
-        cone_norms = np.linalg.norm(cone, axis = 0)
-        theta = np.max(np.arccos(f.T.dot(cone) / cone_norms));
         alpha = np.arccos(f.T.dot(v) / np.linalg.norm(v))
-        return alpha <= theta, alpha
+        return alpha <= np.arctan(self.friction_coef), alpha
 
     def perturb_point(self, x, scale):
         """ Uniform random perturbations to a point """
@@ -117,20 +117,20 @@ class AntipodalGraspSampler(object):
             # perturb grasp for num samples
             for i in range(self.num_samples):
                 # perturb contact (TODO: sample in tangent plane to surface)
-                x1 = self.perturb_point(x_surf, graspable.sdf.resolution) 
+                x1 = self.perturb_point(x_surf, graspable.sdf.resolution)
 
                 # compute friction cone faces
-                c1 = contacts.Contact3D(graspable, x1)
+                c1 = contacts.Contact3D(graspable, x1, in_direction=None)
                 cone_succeeded, cone1, n1 = c1.friction_cone(self.num_cone_faces, self.friction_coef)
                 if not cone_succeeded:
                     continue
                 cone_time = time.clock()
-            
+
                 # sample grasp axes from friction cone
                 v_samples = self.sample_from_cone(cone1, num_samples=1)
                 sample_time = time.clock()
-            
-                for v in v_samples:                
+
+                for v in v_samples:
                     if vis:
                         x1_grid = graspable.sdf.transform_pt_obj_to_grid(x1)
                         cone1_grid = graspable.sdf.transform_pt_obj_to_grid(cone1, direction=True)
@@ -139,7 +139,7 @@ class AntipodalGraspSampler(object):
                         plt.ion()
                         ax = plt.gca(projection = '3d')
                         for i in range(cone1.shape[1]):
-                            ax.scatter(x1_grid[0] - cone1_grid[0], x1_grid[1] - cone1_grid[1], x1_grid[2] - cone1_grid[2], s = 50, c = u'm') 
+                            ax.scatter(x1_grid[0] - cone1_grid[0], x1_grid[1] - cone1_grid[1], x1_grid[2] - cone1_grid[2], s = 50, c = u'm')
 
                     # start searching for contacts
                     grasp, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.grasp_width, vis = vis)
@@ -148,9 +148,9 @@ class AntipodalGraspSampler(object):
 
                     # make sure grasp is wide enough
                     x2 = c2.point
-                    if np.linalg.norm(x1 - x2) < 0.02:
+                    if np.linalg.norm(x1 - x2) < graspable.sdf.resolution:
                         continue
-                    
+
                     v_true = grasp.axis
 
                     # compute friction cone for contact 2
@@ -159,18 +159,14 @@ class AntipodalGraspSampler(object):
                         continue
 
                     if vis:
-                        x2_grid = graspable.sdf.transform_pt_obj_to_grid(x2)
-                        cone2_grid = graspable.sdf.transform_pt_obj_to_grid(cone2, direction=True)
-
-                        ax = plt.gca(projection = '3d')
-                        for i in range(cone1.shape[1]):
-                            ax.scatter(x2_grid[0] - cone2_grid[0], x2_grid[1] - cone2_grid[1], x2_grid[2] - cone2_grid[2], s = 50, c = u'm') 
-                        ax.set_xlim3d(0, graspable.sdf.dims_[0])
-                        ax.set_ylim3d(0, graspable.sdf.dims_[1])
-                        ax.set_zlim3d(0, graspable.sdf.dims_[2])
-                        plt.draw()
-
-                        time.sleep(0.01)
+                        plt.figure()
+                        ax = plt.gca(projection='3d')
+                        c1_proxy = c1.plot_friction_cone(color='m')
+                        c2_proxy = c2.plot_friction_cone(color='y')
+                        ax.view_init(elev=5.0, azim=0)
+                        plt.show(block=False)
+                        time.sleep(0.5)
+                        plt.close() # lol
 
                     # check friction cone
                     in_cone1, alpha1 = self.within_cone(cone1, n1, v_true.T)
@@ -193,7 +189,7 @@ class AntipodalGraspSampler(object):
             rave.raveSetDebugLevel(rave.DebugLevel.Error)
             grasp_checker = pgc.OpenRaveGraspChecker(view=vis)
 
-        # go back through grasps and threshold            
+        # go back through grasps and threshold
         grasps = []
         pr2_grasps = []
         alpha_thresh = self.alpha_thresh
@@ -228,7 +224,7 @@ class AntipodalGraspSampler(object):
 
         return grasps, alpha_thresh, rho_thresh
 
-def test_antipodal_grasp_sampling():
+def test_antipodal_grasp_sampling(vis=False):
     np.random.seed(100)
 
     h = plt.figure()
@@ -252,7 +248,7 @@ def test_antipodal_grasp_sampling():
         'dir_prior': 1.0,
         'alpha_thresh_div': 16.0,
         'rho_thresh': 0.75, # as pct of object max moment
-        'grasp_theta_res': 2.0 / 10, 
+        'grasp_theta_res': 2.0 / 10,
         'min_num_grasps': 100,
         'min_num_collision_free_grasps': 1,
         'alpha_inc': 1.1,
@@ -265,8 +261,27 @@ def test_antipodal_grasp_sampling():
     grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(graspable, vis=False)
     end_time = time.clock()
     duration = end_time - start_time
-    logging.error('Antipodal grasp candidate generation took %f sec' %(duration))
+    logging.info('Antipodal grasp candidate generation took %f sec' %(duration))
+
+    if vis:
+        plt.close() # lol
+        for i, grasp in enumerate(grasps, 1):
+            plt.figure()
+            ax = plt.gca(projection='3d')
+            found, (c1, c2) = grasp.close_fingers(graspable)
+            c1_proxy = c1.plot_friction_cone(color='m')
+            c2_proxy = c2.plot_friction_cone(color='y')
+            ax.set_xlim([5, 20])
+            ax.set_ylim([5, 20])
+            ax.set_zlim([5, 20])
+            plt.title('Grasp %d' %(i))
+            plt.axis('off')
+            plt.show(block=False)
+            for angle in range(0, 360, 10):
+                ax.view_init(elev=5.0, azim=angle)
+                plt.draw()
+            plt.close()
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.ERROR)
+    logging.getLogger().setLevel(logging.INFO)
     test_antipodal_grasp_sampling()

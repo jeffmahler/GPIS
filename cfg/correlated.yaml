@@ -14,8 +14,8 @@ max_chunk_size: 15
 
 # Will be overridden by startup script
 dataset:     YCB
-chunk_start: 2
-chunk_end:  3
+chunk_start: 3
+chunk_end:   4
 
 # Experiment parameters (metadata) ###################################
 grasp_width: 0.1
@@ -28,9 +28,9 @@ check_collisions: False
 plot: True
 
 # Bandits
-bandit_max_iter: 2000
+bandit_max_iter: 3000
 bandit_confidence: 0.0005
-bandit_snapshot_rate: 10
+bandit_snapshot_rate: 20
 bandit_brute_force_iter: 10000
 
 # Correlations

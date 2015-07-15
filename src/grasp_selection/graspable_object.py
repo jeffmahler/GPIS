@@ -187,7 +187,8 @@ class GraspableObject3D(GraspableObject):
 
     def surface_information(self, grasp, width, num_steps, plot=False):
         """
-        Returns the local surface window, gradient, and curvature for the two point contacts of a grasp
+        Returns the local surface window, gradient, and curvature for the two
+        point contacts of a grasp.
         """
         contacts_found, contacts = grasp.close_fingers(self)
         if not contacts_found:
@@ -195,8 +196,10 @@ class GraspableObject3D(GraspableObject):
         contact1, contact2 = contacts
 
         if plot:
-            plot_graspable(self, contact1)
-            plot_graspable(self, contact2)
+            plt.figure()
+            contact1.plot_friction_cone()
+            contact2.plot_friction_cone()
+            plt.show()
 
         window1 = contact1.surface_information(width, num_steps, direction=None)#grasp.axis)
         window2 = contact2.surface_information(width, num_steps, direction=None)#-grasp.axis)
@@ -227,8 +230,9 @@ def test_windows(width, num_steps, plot=None):
     contact2 = contacts2[0]
 
     if plot:
-        plot_graspable(graspable, contact1)
-        plot_graspable(graspable, contact2)
+        plt.figure()
+        contact1.plot_friction_cone()
+        contact2.plot_friction_cone()
 
     print 'sdf window'
     sdf_window1 = contact1.surface_window_sdf(width, num_steps)
@@ -318,9 +322,9 @@ def test_window_curvature(width, num_steps, plot=None):
             print 'max:', np.max(info), np.argmax(info)
         if plot:
             plot(w.proj_win_, num_steps, 'w%d proj_win' %(i), save=True)
-            plot(1e4 * w.gauss_curvature_, num_steps, 'w%d curvature' %(i), save=True)
+            # plot(1e4 * w.gauss_curvature_, num_steps, 'w%d curvature' %(i), save=True)
 
-def test_window_correlation(width, num_steps):
+def test_window_correlation(width, num_steps, vis=True):
     import scipy
     import sdf_file, obj_file
     import discrete_adaptive_samplers as das
@@ -371,6 +375,14 @@ def test_window_correlation(width, num_steps):
         pfc_rv.set_features(features)
         candidates.append(pfc_rv)
 
+        if vis:
+            _, (c1, c2) = grasp.close_fingers(graspable)
+            plt.figure()
+            c1_proxy = c1.plot_friction_cone(color='m')
+            c2_proxy = c2.plot_friction_cone(color='y')
+            plt.legend([c1_proxy, c2_proxy], ['Cone 1', 'Cone 2'])
+            plt.title('Grasp %d' %(len(candidates)))
+
     objective = objectives.RandomBinaryObjective()
     ua = das.UniformAllocationMean(objective, candidates)
     logging.info('Running uniform allocation for true pfc.')
@@ -388,6 +400,9 @@ def test_window_correlation(width, num_steps):
 
     print 'kernel matrix'
     print kernel.matrix(candidates)
+
+    if vis:
+        plt.show()
 
 def plot_graspable(graspable, contact, c1=0, c2=0, draw_plane=False):
     """Plot a graspable and the tangent plane at the point of contact."""
@@ -473,7 +488,7 @@ def plot_window_2d(window, num_steps, title='', save=False):
     imgplot = plt.imshow(window, extent=[indices[0], indices[-1], indices[-1], indices[0]],
                          interpolation='none', cmap=plt.cm.binary)
     plt.colorbar()
-    plt.clim(-0.01, 0.01) # fixing color range for visual comparisons
+    plt.clim(-0.004, 0.004) # fixing color range for visual comparisons
 
     if save and title:
         plt.tight_layout()

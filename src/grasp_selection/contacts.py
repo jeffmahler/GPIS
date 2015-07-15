@@ -17,11 +17,12 @@ class Contact:
     __metaclass__ = ABCMeta
 
 class Contact3D(Contact):
-    def __init__(self, graspable, contact_point):
+    def __init__(self, graspable, contact_point, in_direction=None):
         self.graspable_ = graspable
         self.point_ = contact_point # in world coordinates
 
         # cached attributes
+        self.in_direction_ = in_direction # inward facing grasp axis
         self.friction_cone_ = None
         self.normal_ = None # outward facing normal
         self.surface_info_ = None
@@ -34,33 +35,42 @@ class Contact3D(Contact):
     def point(self):
         return self.point_
 
-    def tangents(self, direction=None):
+    def tangents(self, in_direction=None):
         """Returns the direction vector and tangent vectors at a contact point.
-        The direction vector defaults to the *inward-facing* normal vector on
-        the SDF.
-        TODO: fix this so that it always returns an inward facing normal!
+        The direction vector defaults to the *inward-facing* normal vector at
+        this contact.
         Params:
-            direction - numpy 3 array to find orthogonal plane for
+            in_direction - numpy 3 array to find orthogonal plane for
         Returns:
             direction, t1, t2 - numpy 3 arrays in obj coords, where direction
                 points into the object
         """
-        if direction is None: # compute normal at contact
+        if in_direction is None: # in_direction default is find_contact axis
+            in_direction = self.in_direction_
+
+        if in_direction is None and self.normal_ is not None:
+            # if outward facing normal exists, set direction to inward facing normal
+            direction = -self.normal_
+        elif self.normal_ is None:
+            # compute inward facing normal at contact, according to in_direction
             as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
             on_surface, _ = self.graspable.sdf.on_surface(as_grid)
             if not on_surface:
                 logging.debug('Contact point not on surface')
                 return None, None, None
 
-            grad = self.graspable.sdf.gradient(as_grid)
-            if np.all(grad == 0):
-                return None, None, None
+            # Use Hessian to compute outward facing normal
+            curvature = self.graspable.sdf.curvature(as_grid)
+            U, _, _ = np.linalg.svd(curvature)
+            normal = U[:, 0]
 
-            # transform normal to obj frame
-            normal = grad / np.linalg.norm(grad) # outward facing
+            # flip normal to point inward if in_direction is defined
+            if in_direction is not None and np.dot(in_direction, normal) < 0:
+                normal = -normal
+
             direction = self.graspable.sdf.transform_pt_grid_to_obj(normal, direction=True)
-            direction = -direction # inward facing
 
+        # direction faces inward
         direction = direction.reshape((3, 1)) # make 2D for SVD
 
         # get orthogonal plane
@@ -134,8 +144,8 @@ class Contact3D(Contact):
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
         """
-        normal, t1, t2 = self.tangents()
-        if normal is None: # normal and tangents not found
+        in_normal, t1, t2 = self.tangents()
+        if in_normal is None: # normal and tangents not found
             return False
 
         scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
@@ -315,10 +325,10 @@ class Contact3D(Contact):
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
 
-        # arbitrarily require that top_avg > bottom_avg (inspired by SHOT)
-        top_avg = np.average(window[:num_steps//2, :])
-        bottom_avg = np.average(window[num_steps//2:, :])
-        if bottom_avg > top_avg:
+        # arbitrarily require that right_avg > left_avg (inspired by SHOT)
+        left_avg = np.average(window[:, :num_steps//2])
+        right_avg = np.average(window[:, num_steps//2:])
+        if left_avg > right_avg:
             # need to flip both u1 and u2, i.e. rotate 180 degrees
             window = np.rot90(window, k=2)
         return window
@@ -352,14 +362,18 @@ class Contact3D(Contact):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def plot_friction_cone(self):
-        _, cone, _ = self.friction_cone()
+    def plot_friction_cone(self, color='r'):
+        _, cone, in_normal = self.friction_cone()
 
         ax = plt.gca(projection='3d')
         self.graspable.sdf.scatter() # object
         x, y, z = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
-        ax.scatter([x], [y], [z], c='g', s=40) # contact
-        ax.scatter(x + cone[0], y + cone[1], z + cone[2], c='r', s=40) # cone
+        nx, ny, nz = self.graspable.sdf.transform_pt_obj_to_grid(in_normal, direction=True)
+        ax.scatter([x], [y], [z], c=color, s=60) # contact
+        ax.scatter([x - nx], [y - ny], [z - nz], c=color, s=60) # normal
+        ax.scatter(x + cone[0], y + cone[1], z + cone[2], c=color, s=40) # cone
+
+        return plt.Rectangle((0, 0), 1, 1, fc=color) # return a proxy for legend
 
 class SurfaceWindow:
     """Struct for encapsulating local surface window features."""
@@ -413,8 +427,9 @@ def test_plot_friction_cone():
 
     _, (c1, c2) = grasp.close_fingers(graspable)
     plt.figure()
-    c1.plot_friction_cone()
-    c2.plot_friction_cone()
+    c1_proxy = c1.plot_friction_cone(color='m')
+    c2_proxy = c2.plot_friction_cone(color='y')
+    plt.legend([c1_proxy, c2_proxy], ['Cone 1', 'Cone 2'])
     plt.show()
     IPython.embed()
 
