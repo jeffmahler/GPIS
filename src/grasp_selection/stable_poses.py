@@ -6,7 +6,6 @@ import math
 import sys
 import IPython
 import numpy as np
-import Queue
 import similarity_tf as stf
 import tfx
 
@@ -16,6 +15,7 @@ import mesh
 import obj_file
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from os import listdir
 
 def compute_basis(vertices):
     """
@@ -32,9 +32,6 @@ def compute_basis(vertices):
     y_o = y_o / np.linalg.norm(y_o)
 
     R = np.array([np.transpose(x_o), np.transpose(y_o), np.transpose(z_o)])
-    x_p, y_p, z_p = np.dot(R, x_o), np.dot(R, y_o), np.dot(R, z_o)
-#    print x_p, y_p, z_p
-#    return (x_p, y_p, z_p)
     return R
 
 def compute_centroid(vertices):
@@ -153,17 +150,7 @@ def compute_stable_poses(mesh):
             predecessor, successor = triangle_to_vertex[tuple(triangle)], triangle_to_vertex[tuple(topple_face)]
             predecessor.add_edge(successor)
 
-
-    # computes dictionary mapping faces to probabilities
-    """
-    top_vertices = []
-    prob_sum = 0
-    for vertex in triangle_to_vertex.values():
-        prob_sum += vertex.probability
-        if not vertex.has_parent:
-            top_vertices.append(vertex)
-    """
-    probabilities = prop_probs_slow(triangle_to_vertex.values())
+    probabilities = propagate_probabilities(triangle_to_vertex.values())
 
     return probabilities
 
@@ -185,7 +172,7 @@ def compute_projected_area(vertices, cm):
     return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
     
 
-def prop_probs_slow(vertices):
+def propagate_probabilities(vertices):
     """
     Pushes the probability of each vertex onto it sink by traversing the graph for each vertex. Slow, but works
 
@@ -201,49 +188,6 @@ def prop_probs_slow(vertices):
         if not vertex.is_sink:
             c.probability += vertex.probability
         prob_mapping[tuple(c.face)] = c.probability
-
-    return prob_mapping
-        
-
-def propagate_probabilities(top_vertices):
-    """
-    Traverses graph of faces with depth first search, setting all non-sink
-    probabilities to 0 and all sink probabilities to the sum of all parent
-    vertices from vertex to sink vertex
-
-    vertex -- starting vertex from which graph is to be traversed
-    prob_sum -- current probability sum
-    prob_mapping -- mapping of sink vertices to their propogated probabilities
-
-    NOTE: DOES NOT WORK. DO NOT USE
-    """
-    q, prob_mapping = Queue.Queue(), {}
-    for vertex in top_vertices:
-        q.put(vertex)
-
-    while not q.empty():
-        curr_vertex = q.get()
-
-        if curr_vertex.is_sink:
-            prob_mapping[tuple(curr_vertex.face)] = curr_vertex.probability
-            curr_vertex.marked = True;
-
-        else:
-            num_children = len(curr_vertex.children)
-            curr_vertex.probability /= num_children
-            for child in curr_vertex.children:
-                if curr_vertex in child.children:
-                    print 'SMALL LOOP', curr_vertex.face
-
-                if child.marked:
-                    c = child
-                    while not c.is_sink:
-                        c = c.children[0]
-                    c.probability += curr_vertex.probability
-                else:
-                    child.probability += curr_vertex.probability
-                    q.put(child)
-            curr_vertex.marked = True;
 
     return prob_mapping
 
@@ -320,6 +264,7 @@ def project(point, segment):
     y = np.linalg.norm(np.subtract(point, segment.endpoint_2))
     z = np.linalg.norm(np.subtract(segment.endpoint_2, segment.endpoint_1))
     scale_factor = 0.5*(z - ((x**2 - y**2) / z))
+    
     return np.add(segment.endpoint_2, scale_factor * (np.subtract(segment.endpoint_1, segment.endpoint_2) / np.linalg.norm(np.subtract(segment.endpoint_1, segment.endpoint_2))))
 
 
@@ -374,61 +319,44 @@ class Vertex:
         child.num_parents += 1
 
 
-##############
-#TESTING AREA#
-##############
-#filename = "data/test/meshes/Co_clean.obj"
-#filename = "data/test/features/pepper_orig.obj"
-filename = "data/test/meshes/plane.obj"
-ob = obj_file.ObjFile(filename)
-mesh = ob.read()
-mesh.remove_unreferenced_vertices()
-prob_mapping = compute_stable_poses(mesh)
 
-cv_hull = mesh.convex_hull()
+def transform_meshes(path):
+    """
+    Transforms meshes in the directory given by path based on their highest probability stable poses.
 
-print(prob_mapping)
-print 'Total sink sum', sum([val for val in prob_mapping.values()])
+    path -- path leading to directory containing meshes
+    num_poses -- variable denoting number of desired poses per object
+    """
+    f = open()
 
-new_basis_axes = []
-index = 0
-max_p = 0
-j = 0
-best_vertices = []
-best_face = []
-for face, p in prob_mapping.items():
-    print j
-    vertices = [cv_hull.vertices()[i] for i in face]
-    new_basis_axes.append(compute_basis(vertices))
+    # write header
+    f.write('###########################################################\n')
+    f.write('# POSE TRANSFORM DATA file generated by UC Berkeley Automation Sciences Lab\n')
+    f.write('#\n')
+    
+    min_prob = sys.argv[1]
+    for filename in os.listdir(path):
+        if filename[-4:] == ".obj":
+            ob = obj_file.ObjFile(path + "/" + filename)
+            mesh = ob.read()
+            mesh.remove_unreferenced_vertices()
+            prob_mapping, cv_hull = compute_stable_poses(mesh), mesh.convex_hull()
 
-    if p > max_p:
-        index = j
-        max_p = p
-        best_face = face
-        best_vertices = vertices
-    j = j+1
+            R_list = []
+            for face, p in prob_mapping.items():
+                if p >= min_prob:
+                    R_list.append([p, compute_basis([cv_hull.vertices()[i] for i in face])])
 
-print(new_basis_axes)
+            # write necessary data to compute each pose (R and pose probability)
+            for i in range(len(R_list)):
+                f.write('# Pose ' + str(i + 1) + ':\n')
+                f.write('# Probability: ' + str(R_list[i][0]) + '\n')
+                for p in range(3):
+                    f.write(str(R_list[i][1][p][0]) + ' ' + str(R_list[i][1][p][1]) + ' ' + str(R_list[i][1][p][2]) + '\n')
+                f.write('#\n')
 
-#IPython.embed()
+    f.write('###########################################################\n')
+    f.write('\n')
 
-R = compute_basis(best_vertices)
-t = np.zeros(3)
-pose = tfx.pose(R, t)
-tf = stf.SimilarityTransform3D(pose)
-m = mesh.transform(tf)
 
-#IPython.embed()
 
-mv.figure()
-mesh.visualize()
-mv.points3d(best_vertices[0][0], best_vertices[0][1], best_vertices[0][2], scale_factor=0.002)
-mv.points3d(best_vertices[1][0], best_vertices[1][1], best_vertices[1][2], scale_factor=0.002)
-mv.points3d(best_vertices[2][0], best_vertices[2][1], best_vertices[2][2], scale_factor=0.002)
-#mv.axes()
-
-mv.figure()
-m.convex_hull().visualize()
-mv.axes()
-
-mv.show()
