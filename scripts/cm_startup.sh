@@ -31,6 +31,7 @@ EOF
 
 # Run experiment
 python $RUN_SCRIPT config.yaml $OUT_DIR
+cp config.yaml $OUT_DIR
 cd .. # back to home directory
 
 # Zip directory and upload to bucket

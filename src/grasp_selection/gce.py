@@ -31,6 +31,8 @@ import IPython
 import time
 import traceback
 
+import multiprocessing as mp
+
 from apiclient.discovery import build
 from apiclient.errors import HttpError
 from httplib2 import HttpLib2Error
@@ -366,7 +368,7 @@ class Gce(object):
     """
 
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
 
     request = self.service.disks().get(
         project=self.project_id, zone=zone, disk=disk_name)
@@ -469,7 +471,6 @@ class Gce(object):
     Raises:
       ApiError: Error occurred during API call.
     """
-
     try:
       response = request.execute()
     except AccessTokenRefreshError, e:
@@ -477,6 +478,7 @@ class Gce(object):
       raise ApiError(e)
     except HttpError, e:
       logging.error('Http response was not 2xx.')
+      loggign.error(str(e))
       raise ApiError(e)
     except HttpLib2Error, e:
       logging.error('Transport error.')
@@ -485,7 +487,6 @@ class Gce(object):
       logging.error('Unexpected error occured.')
       traceback.print_stack()
       raise ApiError(e)
-
     return response
 
 class Error(Exception):
