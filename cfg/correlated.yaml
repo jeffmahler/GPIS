@@ -34,7 +34,7 @@ bandit_snapshot_rate: 20
 bandit_brute_force_iter: 10000
 
 # Correlations
-window_width: 0.001
+window_width: 0.03
 window_steps: 21
 window_sigma: 1.0
 kernel_sigma: 1.0
@@ -52,7 +52,8 @@ weight_curvature: *id_inf
 # Grasp sampling
 min_num_grasps: 1
 min_num_collision_free_grasps: 1
-grasp_samples_per_surface_point: 1
+grasp_samples_per_surface_point: 1 # lower for fewer samples
+max_num_grasps: 20 # per object
 
 dir_prior: 1.0
 alpha_thresh_div: 16.0 # in multiples of pi

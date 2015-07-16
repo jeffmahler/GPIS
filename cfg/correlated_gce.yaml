@@ -53,7 +53,8 @@ weight_curvature: *id_inf
 # Grasp sampling
 min_num_grasps: 100
 min_num_collision_free_grasps: 200
-grasp_samples_per_surface_point: 5
+grasp_samples_per_surface_point: 4 # lower for fewer samples
+max_num_grasps: 200 # per object
 
 dir_prior: 1.0
 alpha_thresh_div: 16.0 # in multiples of pi
