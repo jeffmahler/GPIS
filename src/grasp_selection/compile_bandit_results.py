@@ -14,6 +14,7 @@ if __name__ == '__main__':
     config_file = sys.argv[1]
     result_dirs = sys.argv[2:]
 
+    logging.getLogger().setLevel(logging.INFO)
     config = ec.ExperimentConfig(config_file)
 
     # read in all pickle files
@@ -49,8 +50,8 @@ if __name__ == '__main__':
     plt.figure()
 
     plt.plot(all_results.ua_result[0].iters, ua_avg_norm_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
-    plt.plot(all_results.ts_result[0].iters, ts_avg_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Correlated)')
-    plt.plot(all_results.ts_corr_result[0].iters, ts_corr_avg_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+    plt.plot(all_results.ts_result[0].iters, ts_avg_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+    plt.plot(all_results.ts_corr_result[0].iters, ts_corr_avg_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
 
     plt.xlim(0, np.max(all_results.ts_result[0].iters))
     plt.ylim(0.5, 1)

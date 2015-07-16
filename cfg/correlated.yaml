@@ -54,6 +54,7 @@ min_num_grasps: 100
 min_num_collision_free_grasps: 200
 max_num_grasps: 200
 grasp_samples_per_surface_point: 5
+
 dir_prior: 1.0
 alpha_thresh_div: 16.0 # in multiples of pi
 grasp_theta_res: 0.1 # in multiples of pi

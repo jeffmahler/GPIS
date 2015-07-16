@@ -236,6 +236,10 @@ def launch_experiment(args, sleep_time):
     """
     Perform OAuth 2 authorization, then start, list, and stop instance(s).
     """
+    # Get total runtime
+    start_time = time.time()
+    launch_prep_start_time = time.time()
+    
     # Parse arguments and load config file.
     config_file = args.config
     config = ec.ExperimentConfig(config_file)
@@ -318,14 +322,17 @@ def launch_experiment(args, sleep_time):
             break
 
     # launch all instances using multiprocessing
-#    for instance in instances:
-#        instance.start()
-        
-    pool = mp.Pool(min(config['num_processes'], len(instances)))
-    pool.map(launch_instance, instances)
+    launch_start_time = time.time()
+    if config['num_processes'] == 1:
+        for instance in instances:
+            instance.start()
+    else:
+        pool = mp.Pool(min(config['num_processes'], len(instances)))
+        pool.map(launch_instance, instances)
     logging.info('Done launching instances')
 
     # set up service
+    result_dl_start_time = time.time()
     service_not_ready = True
     while service_not_ready:
         try:
@@ -389,6 +396,7 @@ def launch_experiment(args, sleep_time):
 
 
     # Run the results script TODO: move above the email
+    result_agg_start_time = time.time()
     results_script_call = 'python %s' %(config['results_script'])
     arg_list = '%s ' %(config_file)
     for d in instance_result_dirs:
@@ -396,6 +404,19 @@ def launch_experiment(args, sleep_time):
     results_script_call = '%s %s' %(results_script_call, arg_list)
     os.system(results_script_call)
 
+    # get runtime
+    end_time = time.time()
+    total_runtime = end_time - start_time
+    launch_prep_time = launch_start_time - launch_prep_start_time
+    launch_time = result_dl_start_time - launch_start_time
+    dl_time = result_agg_start_time - result_dl_start_time
+    agg_time = end_time - result_agg_start_time
+
+    logging.info('Total runtime: %f' %(total_runtime))
+    logging.info('Prep time: %f' %(launch_prep_time))
+    logging.info('Total runtime: %f' %(launch_time))
+    logging.info('Total runtime: %f' %(dl_time))
+    logging.info('Total runtime: %f' %(agg_time))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(parents=[argparser])
