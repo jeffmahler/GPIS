@@ -19,7 +19,7 @@ chunk_end:   4
 
 # Experiment parameters (metadata) ###################################
 grasp_width: 0.1
-friction_coef: 0.9
+friction_coef: 0.5
 num_cone_faces: 8
 num_grasp_clusters: 10
 vis_grasps: False
@@ -28,13 +28,13 @@ check_collisions: False
 plot: True
 
 # Bandits
-bandit_max_iter: 3000
+bandit_max_iter: 5000
 bandit_confidence: 0.0005
-bandit_snapshot_rate: 20
+bandit_snapshot_rate: 100
 bandit_brute_force_iter: 10000
 
 # Correlations
-window_width: 0.001
+window_width: 0.03
 window_steps: 21
 window_sigma: 1.0
 kernel_sigma: 1.0
@@ -50,10 +50,10 @@ weight_grad_y:    *id_inf
 weight_curvature: *id_inf
 
 # Grasp sampling
-min_num_grasps: 1
-min_num_collision_free_grasps: 1
-grasp_samples_per_surface_point: 1
-
+min_num_grasps: 100
+min_num_collision_free_grasps: 200
+max_num_grasps: 200
+grasp_samples_per_surface_point: 5
 dir_prior: 1.0
 alpha_thresh_div: 16.0 # in multiples of pi
 grasp_theta_res: 0.1 # in multiples of pi
@@ -64,13 +64,18 @@ friction_inc: 0.1
 
 # Uncertainty
 sigma_mu: 0.1
-sigma_trans_grasp: 0.005
-sigma_rot_grasp: 0.2
-sigma_trans_obj: 0.001
+sigma_trans_grasp: 0.0025
+sigma_rot_grasp: 0.1
+sigma_trans_obj: 0.0025
 sigma_rot_obj: 0.1
-sigma_scale_obj: 0.1
+sigma_scale_obj: 0.02
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
 num_prealloc_grasp_samples: 0
+
+# Plotting
+line_width: 2.5
+font_size: 15
+plot: True
 
 # GCE parameters #####################################################
 project:        &id_project        nth-clone-620

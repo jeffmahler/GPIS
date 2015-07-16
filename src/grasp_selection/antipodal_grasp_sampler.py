@@ -2,6 +2,7 @@ import logging
 import matplotlib.pyplot as plt
 import mayavi.mlab as mv
 import numpy as np
+import random
 import time
 
 import openravepy as rave
@@ -56,6 +57,7 @@ class AntipodalGraspSampler(object):
         self.alpha_thresh = 2 * np.pi / config['alpha_thresh_div']
         self.rho_thresh = config['rho_thresh']
         self.min_num_grasps = config['min_num_grasps']
+        self.max_num_grasps = config['max_num_grasps']
         self.min_num_collision_free = config['min_num_collision_free_grasps']
         self.theta_res = 2 * np.pi * config['grasp_theta_res']
         self.alpha_inc = config['alpha_inc']
@@ -183,6 +185,10 @@ class AntipodalGraspSampler(object):
                         antipodal_grasp = AntipodalGraspParams(graspable, grasp, alpha1, alpha2, rho1, rho2)
                         ap_grasps.append(antipodal_grasp)
 
+        # randomly sample max num grasps from total list
+        max_grasp_index = min(len(ap_grasps), self.max_num_grasps)
+        random.shuffle(ap_grasps)
+        ap_grasps = ap_grasps[:max_grasp_index]
 
         # load openrave
         if check_collisions:
