@@ -118,7 +118,7 @@ def label_correlated(obj, dest, config, plot=False):
     antipodal_duration = antipodal_end - antipodal_start
     logging.info('Antipodal grasp candidate generation took %f sec' %(antipodal_duration))
 
-    max_num_grasps = config['max_num_grasps']:
+    max_num_grasps = config['max_num_grasps']
     if len(grasps) > max_num_grasps:
         np.random.shuffle(grasps)
         grasps = grasps[:max_num_grasps]
