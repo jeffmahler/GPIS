@@ -478,7 +478,7 @@ class Gce(object):
       raise ApiError(e)
     except HttpError, e:
       logging.error('Http response was not 2xx.')
-      loggign.error(str(e))
+      logging.error(str(e))
       raise ApiError(e)
     except HttpLib2Error, e:
       logging.error('Transport error.')
