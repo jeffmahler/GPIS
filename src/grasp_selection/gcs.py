@@ -72,25 +72,26 @@ class Gcs(object):
 
     self.cache_dir = self.config['cache_dir'] # directory to cache downloads
 
-  def retrieve(self, bucket_name, file_name, dir_name):
+  def retrieve(self, bucket_name, file_name, out_dir):
     """
     Downloads a file from the specified bucket under the GCE project.
 
     Args:
        bucket_name: String name for the bucket
        file_name: String name of file to download
-       dir_name: String name of subdir of cahce dir to store
+       out_dir: String name of dir to store to
 
     Returns:
        True or false depending on success of download
     """
     if not bucket_name:
-        raise ValueError('bucket_name required.')
+      raise ValueError('bucket_name required.')
     if not file_name:
-        raise ValueError('file_name required.')
+      raise ValueError('file_name required.')
+    if not out_dir:
+      out_dir = self.cache_dir
 
     # create output directory
-    out_dir = os.path.join(config['cache_dir'], dir_name)
     if not os.path.exists(out_dir):
       os.mkdir(out_dir)
 
@@ -98,7 +99,7 @@ class Gcs(object):
     os.system('gsutil cp gs://%s/%s %s' %(bucket_name, file_name, out_dir))
     
     # check that file was downloaded
-    local_file_name = os.path.join(self.cache_dir, file_name)
+    local_file_name = os.path.join(out_dir, file_name)
     if not os.path.exists(local_file_name):
         logging.error('Failed to download %s from bucket %s!' %(file_name, bucket_name))
         return False
@@ -109,13 +110,15 @@ class Gcs(object):
       Retrieves and extracts an entire list of results (which must be .tar.gz)
       """
       result_dirs = []
+      store_dir = os.path.join(self.cache_dir, dir_name)
+
       # download each result
       for result_name in results_list:
           logging.info('Retrieving %s' %(result_name))
 
           # retrive file
-          if self.retrieve(bucket_name, result_name, dir_name):
-              local_file_name = os.path.join(self.cache_dir, result_name)
+          if self.retrieve(bucket_name, result_name, store_dir):
+              local_file_name = os.path.join(store_dir, result_name)
               local_file_root, ext = os.path.splitext(local_file_name)
 
               # check extensions and extract
@@ -124,7 +127,7 @@ class Gcs(object):
 
                   if ext == '.tar':
                       tar_file = tarfile.open(local_file_name)
-                      local_result_dir = os.path.join(self.cache_dir, local_file_root)
+                      local_result_dir = os.path.join(store_dir, local_file_root)
                       tar_file.extractall(local_result_dir)
                       result_dirs.append(local_result_dir)
       return result_dirs

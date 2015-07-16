@@ -5,6 +5,13 @@ DATA_DIR=/home/brian/data
 OUT_DIR=/home/brian/cm_out
 mkdir $OUT_DIR
 
+# Sleep a random amount to fend off github
+MAX_TIME=$15
+SLEEP_TIME=$(expr $RANDOM \% $MAX_TIME + 1)
+
+echo 'Sleeping for' $SLEEP_TIME 'seconds'
+sleep ${SLEEP_TIME}
+
 # Update project
 cd $GIT_DIR
 git pull

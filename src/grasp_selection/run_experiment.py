@@ -93,26 +93,13 @@ Here's the output of `gcloud compute instances list`:
 
 %(listinstances_output)s
 """
-
-def delete_resource(delete_method, *args):
-    """
-    Delete a Compute Engine resource using the supplied method and args.
-
-    Args:
-      delete_method: The gce.Gce method for deleting the resource.
-    """
-    resource_name = args[0]
-    logging.info('Deleting %s' % resource_name)
-
-    try:
-        delete_method(*args)
-    except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
-        logging.error(DELETE_ERROR, {'name': resource_name})
-        logging.error(e)
-
 def launch_instance(instance):
     """ Launches an instance object """
     instance.start()
+
+def stop_instance(instance):
+    """ Stops an instance object """
+    instance.stop()
 
 class GceInstance:
     def __init__(self, instance_name, disk_name, image_name, zone, metadata, config):
@@ -124,15 +111,42 @@ class GceInstance:
         self.project = config['project']
         self.config = config
 
+    def create_gce_helper(self):
+        """ Create a gce helper class configured and authenticated by this object """
+        # authorize local process
+        auth_http = oauth_authorization(self.config, None)
+
+        # helper for gce api calls
+        gce_helper = gce.Gce(auth_http, self.config, self.project)
+        return gce_helper
+
+    def delete_disk(self):
+        """ Attempt to delete the instance disk """
+        try:
+            logging.info('Deleting %s' % self.disk_name)
+            gce_helper = self.create_gce_helper()
+            gce_helper.delete_disk(self.disk_name, self.zone)
+        except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
+            logging.error(DELETE_ERROR, {'name': self.disk_name})
+            logging.error(e)
+
+    def terminate_instance(self):
+        """ Attempt to terminate the running instance """
+        try:
+            logging.info('Stopping %s' % self.instance_name)
+            gce_helper = self.create_gce_helper()
+            gce_helper.stop_instance(self.instance_name, self.zone)
+        except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
+            logging.error(DELETE_ERROR, {'name': self.instance_name})
+            logging.error(e)
+
     def start(self):
+        """ Launch a gce instance """
         logging.info('Starting GCE instance %s' % self.instance_name)
         try:
-            # authorize local process 
-            self.auth_http = oauth_authorization(self.config, None)
-
-            # create gce
-            self.gce_helper = gce.Gce(self.auth_http, self.config, self.project)
-            self.gce_helper.start_instance(
+            # create gce and launch
+            gce_helper = self.create_gce_helper()
+            gce_helper.start_instance(
                 self.instance_name, self.disk_name, self.image_name,
                 service_email = self.config['compute']['service_email'],
                 scopes = self.config['compute']['scopes'],
@@ -143,7 +157,7 @@ class GceInstance:
             )
         except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
             # Delete the disk in case the instance fails to start.
-            delete_resource(self.gce_helper.delete_disk, self.disk_name)
+            self.delete_disk()
             logging.error(INSERT_ERROR, {'name': self.instance_name})
             logging.error(e)
             return
@@ -155,7 +169,14 @@ class GceInstance:
         instance_console = ('https://console.developers.google.com/'
                             'project/nth-clone-620/compute/instancesDetail/'
                             'zones/us-central1-a/instances/%s/console#end') % self.instance_name
-        logging.info('Instance is running! Check it out: %s' % instance_console)
+        logging.info('Instance is running! Check it out: %s' % instance_console)        
+
+    def stop(self):
+        """ Stop and cleanup this instance """
+        # stop instance
+        self.terminate_instance()
+        # delete disk
+        self.delete_disk()
 
 def send_notification_email(message, config, subject="Your experiment has completed."):
     # http://stackoverflow.com/questions/10147455/trying-to-send-email-gmail-as-mail-provider-using-python
@@ -317,7 +338,7 @@ def launch_experiment(args, sleep_time):
             instances_per_region = 0
             zone_index += 1
 
-        if zone_index > num_zones:
+        if zone_index >= num_zones:
             logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
             break
 
@@ -362,22 +383,27 @@ def launch_experiment(args, sleep_time):
                 logging.info('Instance %s completed!' % item['name'])
 
     # Delete the instances.
-    for curr_instance_name in instance_names:
-        delete_resource(gce_helper.stop_instance, curr_instance_name)
-
-    # Delete the disk.
-    for curr_disk_name in disk_names:
-        delete_resource(gce_helper.delete_disk, curr_disk_name)
-
-    instances = gce_helper.list_instances()
-    instance_list = ''
-    for instance in instances:
-        logging.info(instance['name'])
-        instance_list += '    ' + instance['name'] + '\n'
-    if not instances:
-        instance_list = '    (none)'
-    logging.info('These are your running instances:')
-    logging.info(instance_list)
+    if config['num_processes'] == 1:
+        for instance in instances :
+            instance.stop()
+    else:
+        pool = mp.Pool(min(config['num_processes'], len(instances)))
+        pool.map(stop_instance, instances)
+    logging.info('Done stopping instances')
+        
+    # Print running instances
+    all_running_instances = []
+    for zone in config['compute']['zones']:
+        zone_instances = gce_helper.list_instances(zone)
+        zone_instance_list = ''
+        for zone_instance in zone_instances:
+            logging.info(zone_instance['name'])
+            zone_instance_list += '    ' + zone_instance['name'] + '\n'
+        if not zone_instances:
+            zone_instance_list = '    (none)'
+        all_running_instances.extend(zone_instance_list) 
+        logging.info('These are your running instances in zone %s:' %(zone))
+        logging.info(zone_instance_list)
 
     # Download the results
     instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
@@ -388,7 +414,7 @@ def launch_experiment(args, sleep_time):
         instance_names='\n'.join(map(lambda n: '    ' + n, instance_names)),
         experiment_config=config_file,
         script_commands=config['compute']['startup_script'],
-        listinstances_output=instance_list
+        listinstances_output=all_running_instances
     )
 
     send_notification_email(message=message, config=config,
@@ -414,9 +440,9 @@ def launch_experiment(args, sleep_time):
 
     logging.info('Total runtime: %f' %(total_runtime))
     logging.info('Prep time: %f' %(launch_prep_time))
-    logging.info('Total runtime: %f' %(launch_time))
-    logging.info('Total runtime: %f' %(dl_time))
-    logging.info('Total runtime: %f' %(agg_time))
+    logging.info('Launch time: %f' %(launch_time))
+    logging.info('Download time: %f' %(dl_time))
+    logging.info('Result aggregation time: %f' %(agg_time))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(parents=[argparser])

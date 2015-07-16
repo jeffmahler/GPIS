@@ -45,15 +45,15 @@ kernel_tolerance: 0.5
 # Weights
 inf:   &id_inf    100000000000000000000.0
 zero:  &id_zero   0.0
-weight_proj_win:  500
+weight_proj_win:  1
 weight_grad_x:    *id_inf
 weight_grad_y:    *id_inf
 weight_curvature: *id_inf
 
 # Grasp sampling
-min_num_grasps: 100
+min_num_grasps: 50
+max_num_grasps: 100 # per object
 min_num_collision_free_grasps: 200
-max_num_grasps: 200 # per object
 grasp_samples_per_surface_point: 4 # lower for fewer samples
 
 dir_prior: 1.0
@@ -92,7 +92,7 @@ compute:
   machine_type:   n1-standard-1
   zones:
     - us-central1-a
-    - europe_west1-b
+    - europe-west1-b
     - asia-east1-a
   instance_quota: 200
   startup_script: scripts/cm_startup.sh # TODO

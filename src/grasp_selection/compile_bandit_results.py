@@ -28,9 +28,13 @@ if __name__ == '__main__':
                     
                     logging.info('Reading %s' %(result_pkl))
                     p = pkl.load(f)
-                    results.append(p)
+                    if p is not None:
+                        results.append(p)
 
     # aggregate results
+    if len(results) == 0:
+        exit(0)
+
     all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
     # plotting of final results
