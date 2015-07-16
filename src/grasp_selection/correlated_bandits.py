@@ -237,13 +237,11 @@ if __name__ == '__main__':
     # loop through objects, labelling each
     results = []
     avg_experiment_result = None
-#    for obj in chunk:
-    if True:
-        obj = chunk['dove_beauty_bar']
+    for obj in chunk:
         logging.info('Labelling object {}'.format(obj.key))
         experiment_result = label_correlated(obj, dest, config, plot=config['plot'])
-#        if experiment_result is None:
-#            continue # no grasps to run bandits on for this object
+        if experiment_result is None:
+            continue # no grasps to run bandits on for this object
         results.append(experiment_result)
 
     if len(results) == 0:
