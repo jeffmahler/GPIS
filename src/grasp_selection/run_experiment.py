@@ -317,7 +317,7 @@ def launch_experiment(args, sleep_time):
             instances_per_region = 0
             zone_index += 1
 
-        if zone_index > num_zones:
+        if zone_index >= num_zones:
             logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
             break
 
