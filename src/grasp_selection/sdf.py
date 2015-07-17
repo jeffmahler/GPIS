@@ -1,4 +1,4 @@
-""" 
+"""
 Definition of SDF Class
 Author: Sahaana Suri & Jeff Mahler
 
@@ -37,13 +37,13 @@ MAX_CHAR = 255
 
 def crosses_threshold(threshold):
     def crosses(elems):
-        """ 
-        Function to determine if a np array has values both above and below a threshold (moved edge). Generalized "has positive and negative" function. 
-        For use with filter(-,-). 
-        Params: 
+        """
+        Function to determine if a np array has values both above and below a threshold (moved edge). Generalized "has positive and negative" function.
+        For use with filter(-,-).
+        Params:
             elems: np array of numbers
             threshold: any number used as a threshold
-        Returns: 
+        Returns:
             (bool): True if elems has both negative and positive numbers, False otherwise
         """
         return (elems>threshold).any() and (elems<threshold).any()
@@ -60,9 +60,9 @@ class Sdf:
 
     @property
     def dimensions(self):
-        """ 
+        """
         SDF dimension information
-        Returns: 
+        Returns:
             numpy 2 or 3 array: the dimensions of the sdf
         """
         return self.dims_
@@ -182,7 +182,7 @@ class Sdf:
             numpy arr: the points on the surfaec
             numpy arr: the sdf values on the surface
         """
-        pass        
+        pass
 
     def on_surface(self, coords):
         """ Determines whether or not a point is on the object surface """
@@ -259,7 +259,7 @@ class Sdf3D(Sdf):
 
     def __getitem__(self, coords):
         return self.signed_distance(coords)
-        
+
     def signed_distance(self, coords):
         """
         Returns the signed distance at the given grid coordinates, interpolating if necessary.
@@ -368,21 +368,22 @@ class Sdf3D(Sdf):
         max_dim = np.max(max_pts - min_pts)
         return max_dim
 
-    def curvature(self, coords, delta = 0.1):
+    def curvature(self, coords, delta=1.0):
         """
-        Returns an approximation to the local SDF curvature (hessian) at the given coordinate in GRID BASIS
+        Returns an approximation to the local SDF curvature (Hessian) at the
+        given coordinate in GRID BASIS
         Params: numpy 9 array
         Returns:
             float: the approximate hessian (interpolated)
         """
         # perturb local coords
-        coords_x_up = coords + np.array([delta, 0, 0])
+        coords_x_up   = coords + np.array([delta, 0, 0])
         coords_x_down = coords + np.array([-delta, 0, 0])
-        coords_y_up = coords + np.array([0, delta, 0])
+        coords_y_up   = coords + np.array([0, delta, 0])
         coords_y_down = coords + np.array([0, -delta, 0])
-        coords_z_up = coords + np.array([0, 0, delta])
+        coords_z_up   = coords + np.array([0, 0, delta])
         coords_z_down = coords + np.array([0, 0, -delta])
-        
+
         # get gradient
         grad_x_up = self.gradient(coords_x_up)
         grad_x_down = self.gradient(coords_x_down)
@@ -390,12 +391,12 @@ class Sdf3D(Sdf):
         grad_y_down = self.gradient(coords_y_down)
         grad_z_up = self.gradient(coords_z_up)
         grad_z_down = self.gradient(coords_z_down)
-        
+
         # finite differences
         curvature_x = (grad_x_up - grad_x_down) / (2 * delta)
         curvature_y = (grad_y_up - grad_y_down) / (2 * delta)
         curvature_z = (grad_z_up - grad_z_down) / (2 * delta)
-        print curvature_x
+        # print curvature_x
         curvature = np.c_[curvature_x, np.c_[curvature_y, curvature_z]]
         return curvature
 
@@ -453,7 +454,7 @@ class Sdf3D(Sdf):
                 sdf_data_tf[i] = self[pts_tf[i,0], pts_tf[i,1], pts_tf[i,2]]
         else:
             pts_tf_round = np.round(pts_tf).astype(np.int64)
-            
+
             # snap to closest boundary
             pts_tf_round[:,0] = np.max(np.c_[np.zeros([num_pts, 1]), pts_tf_round[:,0]], axis=1)
             pts_tf_round[:,0] = np.min(np.c_[(self.dims_[0] - 1) * np.ones([num_pts, 1]), pts_tf_round[:,0]], axis=1)
@@ -465,10 +466,10 @@ class Sdf3D(Sdf):
             pts_tf_round[:,2] = np.min(np.c_[(self.dims_[2] - 1) * np.ones([num_pts, 1]), pts_tf_round[:,2]], axis=1)
 
             sdf_data_tf = self.data_[pts_tf_round[:,0], pts_tf_round[:,1], pts_tf_round[:,2]]
-            
+
         sdf_data_tf_grid = sdf_data_tf.reshape(self.dims_)
         tf_t = time.clock()
-        
+
         logging.debug('Sdf3D: Time to transform coords: %f' %(all_points_t - start_t))
         logging.debug('Sdf3D: Time to transform origin: %f' %(origin_res_t - all_points_t))
         logging.debug('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
@@ -482,21 +483,21 @@ class Sdf3D(Sdf):
         """ Converts a point in grid coords to the world basis. If direction then don't translate """
         return self.tf_grid_sdf_.apply(x_grid, direction=direction)
 
-    def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1): 
-        """ 
+    def make_windows(self, W, S, target=False, filtering_function=crosses_threshold, threshold=.1):
+        """
         Function for windowing the SDF grid
-        Params: 
+        Params:
             W: the side length of the window (currently assumed to be odd so centering makes sense)
             S: stride length between cubes (x axis "wraps" around)
             target: True for targetted windowing (filters for cubes containing both positive and negative values)
             filtering_function: function to filter windows out with
-        Returns: 
+        Returns:
             ([np.array,...,np.array]): contains a list of numpy arrays, each of which is an unrolled window/cube.
                                        window order based on center coordinate (increasing order of x, y, then z)
         """
         windows = []
         window_center = (W-1)/2 #assuming odd window
-        offset = 0 #parameter used to "wrap around" x / not start back at x=1 each time  
+        offset = 0 #parameter used to "wrap around" x / not start back at x=1 each time
 
         nx = self.dims_[0]
         ny = self.dims_[1]
@@ -505,8 +506,8 @@ class Sdf3D(Sdf):
         newy = 2*window_center + ny
         newz = 2*window_center + nz
         padded_vals = np.zeros(newx*newy*newz)
-    
-        #padding the original values list 
+
+        #padding the original values list
         for k in range(nz):
             for j in range(ny):
                 for i in range(nx):
@@ -518,19 +519,19 @@ class Sdf3D(Sdf):
             for y in range(window_center, ny + window_center, S):
                 for x in range(window_center+offset, nx + window_center, S):
                         #print map(lambda x: x-window_center,[x,y,z])
-                    new_window = np.zeros(W**3) 
+                    new_window = np.zeros(W**3)
                     count = 0
-                    for k in range(-window_center, window_center+1):    
+                    for k in range(-window_center, window_center+1):
                         for j in range(-window_center, window_center+1):
                             for i in range(-window_center, window_center+1):
-                                new_window[count] = padded_vals[(x+i) + (y+j)*newx + (z+k)*newx*newy] 
+                                new_window[count] = padded_vals[(x+i) + (y+j)*newx + (z+k)*newx*newy]
                                 count += 1
                     windows.append(new_window)
                 offset = (x+S) - (nx+window_center)
         #print windows, len(windows), type(windows)
         if target:
-            windows = filter(filtering_function(threshold), windows)          
-        return windows       
+            windows = filter(filtering_function(threshold), windows)
+        return windows
 
     def set_feature_vector(self, vector):
         """
@@ -542,17 +543,17 @@ class Sdf3D(Sdf):
     def feature_vector(self):
         """
         Sets the features vector of the SDF
-        TODO: object oriented feature extractor 
+        TODO: object oriented feature extractor
         """
         return self.feature_vector_
-     
+
 
     def add_to_nearpy_engine(self, engine):
         """
         Inserts the SDF into the provided nearpy Engine
-        Params: 
-            engine: nearpy.engine.Engine 
-        Returns: - 
+        Params:
+            engine: nearpy.engine.Engine
+        Returns: -
         """
         if self.feature_vector_ is None:
             to_add = self.data_[:]
@@ -566,7 +567,7 @@ class Sdf3D(Sdf):
         """
         Queries the provided nearpy Engine for the SDF closest to this one
         Params:
-            engine: nearpy.engine.Engine 
+            engine: nearpy.engine.Engine
         Returns:
             (list (strings), list (tuples))
             list (strings): Names of the files that most closely match this one
@@ -588,7 +589,7 @@ class Sdf3D(Sdf):
         Saves the SDF's coordinate and value information to the provided matlab workspace
         Params:
             out_file: string
-        Returns: - 
+        Returns: -
         """
         # TODO: fix this
 #        scipy.io.savemat(out_file, mdict={'X':self.xlist_, 'Y': self.ylist_, 'Z': self.zlist_, 'vals': self.values_in_order_})
@@ -597,8 +598,8 @@ class Sdf3D(Sdf):
     def scatter(self):
         """
         Plots the SDF as a matplotlib 3D scatter plot, and displays the figure
-        Params: - 
-        Returns: - 
+        Params: -
+        Returns: -
         """
         ax = plt.gca(projection = '3d')
 
@@ -756,17 +757,17 @@ class Sdf2D(Sdf):
     def feature_vector(self):
         """
         Sets the features vector of the SDF
-        TODO: object oriented feature extractor 
+        TODO: object oriented feature extractor
         """
         return self.feature_vector_
-     
+
 
     def add_to_nearpy_engine(self, engine):
         """
         Inserts the SDF into the provided nearpy Engine
-        Params: 
-            engine: nearpy.engine.Engine 
-        Returns: - 
+        Params:
+            engine: nearpy.engine.Engine
+        Returns: -
         """
         if self.feature_vector_ is None:
             to_add = self.data_[:]
@@ -780,7 +781,7 @@ class Sdf2D(Sdf):
         """
         Queries the provided nearpy Engine for the SDF closest to this one
         Params:
-            engine: nearpy.engine.Engine 
+            engine: nearpy.engine.Engine
         Returns:
             (list (strings), list (tuples))
             list (strings): Names of the files that most closely match this one
@@ -802,7 +803,7 @@ class Sdf2D(Sdf):
         Saves the SDF's coordinate and value information to the provided matlab workspace
         Params:
             out_file: string
-        Returns: - 
+        Returns: -
         """
         # TODO: fix this
 #        scipy.io.savemat(out_file, mdict={'X':self.xlist_, 'Y': self.ylist_, 'Z': self.zlist_, 'vals': self.values_in_order_})
@@ -811,8 +812,8 @@ class Sdf2D(Sdf):
     def scatter(self):
         """
         Plots the SDF as a matplotlib 2D scatter plot, and displays the figure
-        Params: - 
-        Returns: - 
+        Params: -
+        Returns: -
         """
         h = plt.figure()
         ax = h.add_subplot(111)
@@ -861,7 +862,7 @@ def find_zero_crossing_quadratic(x1, y1, x2, y2, x3, y3):
     v = x2 - x1
     v = v / np.linalg.norm(v)
     if v[v!=0].shape[0] == 0:
-        logging.error('Difference is 0. Probably a bug')        
+        logging.error('Difference is 0. Probably a bug')
 
     t1 = 0
     t2 = (x2 - x1)[v!=0] / v[v!=0]
@@ -932,7 +933,7 @@ def test_3d_transform():
     tf.position = 0.01 * np.random.rand(3)
 
     start_t = time.clock()
-    s_tf = stf.SimilarityTransform3D(tf, scale = 1.2) 
+    s_tf = stf.SimilarityTransform3D(tf, scale = 1.2)
     sdf_tf = sdf_3d.transform(s_tf)
     end_t = time.clock()
     duration = end_t - start_t
@@ -950,7 +951,7 @@ def test_3d_transform():
     plt.figure()
     sdf_3d.scatter()
     plt.title('Original')
-    
+
     plt.figure()
     sdf_tf.scatter()
     plt.title('Transformed')
@@ -959,7 +960,7 @@ def test_3d_transform():
     sdf_tf_d.scatter()
     plt.title('Detailed Transformed')
     plt.show()
-    
+
 def test_2d_transform():
     sdf_2d_file_name = 'data/test/sdf/medium_black_spring_clamp_optimized_poisson_texture_mapped_mesh_clean_0.csv'
     sf2 = sf.SdfFile(sdf_2d_file_name)
@@ -1002,4 +1003,3 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
 #    test_2d_transform()
     test_3d_transform()
-

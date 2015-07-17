@@ -50,8 +50,11 @@ except:
     import json
 import numpy as np
 import os
+import shutil
 import sys
 import time
+
+import multiprocessing as mp
 
 from apiclient import discovery
 import gce
@@ -90,22 +93,90 @@ Here's the output of `gcloud compute instances list`:
 
 %(listinstances_output)s
 """
+def launch_instance(instance):
+    """ Launches an instance object """
+    instance.start()
 
-def delete_resource(delete_method, *args):
-    """
-    Delete a Compute Engine resource using the supplied method and args.
+def stop_instance(instance):
+    """ Stops an instance object """
+    instance.stop()
 
-    Args:
-      delete_method: The gce.Gce method for deleting the resource.
-    """
-    resource_name = args[0]
-    logging.info('Deleting %s' % resource_name)
+class GceInstance:
+    def __init__(self, instance_name, disk_name, image_name, zone, metadata, config):
+        self.instance_name = instance_name
+        self.disk_name = disk_name
+        self.image_name = image_name
+        self.zone = zone
+        self.metadata = metadata
+        self.project = config['project']
+        self.config = config
 
-    try:
-        delete_method(*args)
-    except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
-        logging.error(DELETE_ERROR, {'name': resource_name})
-        logging.error(e)
+    def create_gce_helper(self):
+        """ Create a gce helper class configured and authenticated by this object """
+        # authorize local process
+        auth_http = oauth_authorization(self.config, None)
+
+        # helper for gce api calls
+        gce_helper = gce.Gce(auth_http, self.config, self.project)
+        return gce_helper
+
+    def delete_disk(self):
+        """ Attempt to delete the instance disk """
+        try:
+            logging.info('Deleting %s' % self.disk_name)
+            gce_helper = self.create_gce_helper()
+            gce_helper.delete_disk(self.disk_name, self.zone)
+        except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
+            logging.error(DELETE_ERROR, {'name': self.disk_name})
+            logging.error(e)
+
+    def terminate_instance(self):
+        """ Attempt to terminate the running instance """
+        try:
+            logging.info('Stopping %s' % self.instance_name)
+            gce_helper = self.create_gce_helper()
+            gce_helper.stop_instance(self.instance_name, self.zone)
+        except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
+            logging.error(DELETE_ERROR, {'name': self.instance_name})
+            logging.error(e)
+
+    def start(self):
+        """ Launch a gce instance """
+        logging.info('Starting GCE instance %s' % self.instance_name)
+        try:
+            # create gce and launch
+            gce_helper = self.create_gce_helper()
+            gce_helper.start_instance(
+                self.instance_name, self.disk_name, self.image_name,
+                service_email = self.config['compute']['service_email'],
+                scopes = self.config['compute']['scopes'],
+                startup_script = self.config['compute']['startup_script'],
+                zone = self.zone,
+                metadata = self.metadata,
+                additional_ro_disks = self.config['compute']['data_disks']
+            )
+        except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
+            # Delete the disk in case the instance fails to start.
+            self.delete_disk()
+            logging.error(INSERT_ERROR, {'name': self.instance_name})
+            logging.error(e)
+            return
+        except gce.DiskDoesNotExistError as e:
+            logging.error(INSERT_ERROR, {'name': self.instance_name})
+            logging.error(e)
+            return
+
+        instance_console = ('https://console.developers.google.com/'
+                            'project/nth-clone-620/compute/instancesDetail/'
+                            'zones/us-central1-a/instances/%s/console#end') % self.instance_name
+        logging.info('Instance is running! Check it out: %s' % instance_console)
+
+    def stop(self):
+        """ Stop and cleanup this instance """
+        # stop instance
+        self.terminate_instance()
+        # delete disk
+        self.delete_disk()
 
 def send_notification_email(message, config, subject="Your experiment has completed."):
     # http://stackoverflow.com/questions/10147455/trying-to-send-email-gmail-as-mail-provider-using-python
@@ -181,10 +252,15 @@ def oauth_authorization(config, args):
     auth_http = credentials.authorize(http)
     return auth_http
 
+
 def launch_experiment(args, sleep_time):
     """
     Perform OAuth 2 authorization, then start, list, and stop instance(s).
     """
+    # Get total runtime
+    start_time = time.time()
+    launch_prep_start_time = time.time()
+
     # Parse arguments and load config file.
     config_file = args.config
     config = ec.ExperimentConfig(config_file)
@@ -197,7 +273,8 @@ def launch_experiment(args, sleep_time):
         logging.error('Cloud Storage bucket required.')
         return
     instance_id = random_string(INSTANCE_NAME_LENGTH)
-    instance_name = 'experiment-%s-' % instance_id + '%d'
+    instance_root = 'experiment-%s' %(instance_id)
+    instance_name = '%s-' %(instance_root) + '%d'
     disk_name = instance_name + '-disk'
     image_name = config['compute']['image']
     run_script = config['compute']['run_script']
@@ -205,77 +282,78 @@ def launch_experiment(args, sleep_time):
     # Make chunks
     chunks = make_chunks(config)
 
-    # Initialize gce.Gce.
+    # Initialize gce.Gce
     logging.info('Initializing GCE')
     gce_helper = gce.Gce(auth_http, config, project_id=config['project'])
     gcs_helper = gcs.Gcs(auth_http, config, project_id=config['project'])
 
-    """
-    instance_results = ['experiment-ilopwbhfgw-0.tar.gz', 'experiment-ilopwbhfgw-1.tar.gz']
-    instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], instance_results)
-    results_script_call = 'python %s' %(config['results_script'])
-    arg_list = '%s ' %(config_file)
-    for d in instance_result_dirs:
-        arg_list += '%s ' %(d)
-    results_script_call = '%s %s' %(results_script_call, arg_list)
-    os.system(results_script_call)
-    exit(0)
-    """
-
     # Start an instance for each chunk
     num_instances = 0
+    instances_per_region = 0
+    zone_index = 0
+    instances = []
     instance_names = []
     disk_names = []
     instance_results = []
+    num_zones = len(config['compute']['zones'])
+
     for chunk in chunks:
+        # Create instance-specific configuration
         dataset = chunk['dataset']
         chunk_start, chunk_end = chunk['chunk']
 
         curr_instance_name = instance_name % num_instances
         curr_disk_name = disk_name % num_instances
 
-        # Start an instance with a local start-up script and boot disk.
-        logging.info('Starting GCE instance %s' % curr_instance_name)
-        try:
-            gce_helper.start_instance(
-                curr_instance_name, curr_disk_name, image_name,
-                service_email=config['compute']['service_email'],
-                scopes=config['compute']['scopes'],
-                startup_script=config['compute']['startup_script'],
-                metadata=[
-                    {'key': 'config', 'value': config.file_contents},
-                    {'key': 'instance_name', 'value': curr_instance_name},
-                    {'key': 'project_name', 'value': config['project']},
-                    {'key': 'bucket_name', 'value': bucket},
-                    # chunking metadata
-                    {'key': 'dataset', 'value': dataset},
-                    {'key': 'chunk_start', 'value': chunk_start},
-                    {'key': 'chunk_end', 'value': chunk_end},
-                    {'key': 'run_script', 'value': run_script},
-                ],
-                additional_ro_disks=config['compute']['data_disks']
-            )
-        except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
-            # Delete the disk in case the instance fails to start.
-            delete_resource(gce_helper.delete_disk, curr_disk_name)
-            logging.error(INSERT_ERROR, {'name': curr_instance_name})
-            logging.error(e)
-            return
-        except gce.DiskDoesNotExistError as e:
-            logging.error(INSERT_ERROR, {'name': curr_instance_name})
-            logging.error(e)
-            return
+        # Create instance metadata
+        metadata=[
+            {'key': 'config', 'value': config.file_contents},
+            {'key': 'instance_name', 'value': curr_instance_name},
+            {'key': 'project_name', 'value': config['project']},
+            {'key': 'bucket_name', 'value': bucket},
+            # chunking metadata
+            {'key': 'dataset', 'value': dataset},
+            {'key': 'chunk_start', 'value': chunk_start},
+            {'key': 'chunk_end', 'value': chunk_end},
+            {'key': 'run_script', 'value': run_script}
+            ]
 
+        # Create a new instance
+        logging.info('Creating GCE instance %s' % curr_instance_name)
+        instances.append(GceInstance(curr_instance_name, curr_disk_name, image_name, config['compute']['zones'][zone_index],
+                                     metadata, config))
+
+        # update loop info
         num_instances += 1
+        instances_per_region += 1
         instance_names.append(curr_instance_name)
         disk_names.append(curr_disk_name)
         instance_results.append('%s.tar.gz' % curr_instance_name)
         instance_console = ('https://console.developers.google.com/'
                             'project/nth-clone-620/compute/instancesDetail/'
                             'zones/us-central1-a/instances/%s/console#end') % curr_instance_name
-        logging.info('Instance is running! Check it out: %s' % instance_console)
+
+        # switch to new region if known to be above quota
+        if instances_per_region >= config['compute']['instance_quota']:
+            instances_per_region = 0
+            zone_index += 1
+
+        if zone_index >= num_zones:
+            logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
+            break
+
+    # launch all instances using multiprocessing
+    launch_start_time = time.time()
+    if config['num_processes'] == 1:
+        for instance in instances:
+            instance.start()
+    else:
+        pool = mp.Pool(min(config['num_processes'], len(instances)))
+        pool.map(launch_instance, instances)
+    logging.info('Done launching instances')
 
     # set up service
+    result_dl_start_time = time.time()
     service_not_ready = True
     while service_not_ready:
         try:
@@ -297,7 +375,13 @@ def launch_experiment(args, sleep_time):
             logging.info('Connection failed. Retrying...')
             continue
 
-        items = resp['items']
+        try:
+            items = resp['items']
+        except KeyError as e:
+            logging.error(e)
+            logging.error(resp)
+            continue
+
         for item in items:
             if item['name'] in instance_results:
                 completed_instance_results.append(item['name'])
@@ -305,25 +389,30 @@ def launch_experiment(args, sleep_time):
                 logging.info('Instance %s completed!' % item['name'])
 
     # Delete the instances.
-    for curr_instance_name in instance_names:
-        delete_resource(gce_helper.stop_instance, curr_instance_name)
+    if config['num_processes'] == 1:
+        for instance in instances :
+            instance.stop()
+    else:
+        pool = mp.Pool(min(config['num_processes'], len(instances)))
+        pool.map(stop_instance, instances)
+    logging.info('Done stopping instances')
 
-    # Delete the disk.
-    for curr_disk_name in disk_names:
-        delete_resource(gce_helper.delete_disk, curr_disk_name)
-
-    instances = gce_helper.list_instances()
-    instance_list = ''
-    for instance in instances:
-        logging.info(instance['name'])
-        instance_list += '    ' + instance['name'] + '\n'
-    if not instances:
-        instance_list = '    (none)'
-    logging.info('These are your running instances:')
-    logging.info(instance_list)
+    # Print running instances
+    all_running_instances = []
+    for zone in config['compute']['zones']:
+        zone_instances = gce_helper.list_instances(zone)
+        lines = ['These are your running instances in zone %s:' %(zone)]
+        for zone_instance in zone_instances:
+            logging.info(zone_instance['name'])
+            lines.append('    ' + zone_instance['name'])
+        if not zone_instances:
+            lines.append('    (none)')
+        zone_instances_text = '\n'.join(lines)
+        all_running_instances.append(zone_instances_text)
+        logging.info(zone_instances_text)
 
     # Download the results
-    instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results)
+    instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
 
     # Send the user an email
     message = EMAIL_NOTIFICATION % dict(
@@ -331,7 +420,7 @@ def launch_experiment(args, sleep_time):
         instance_names='\n'.join(map(lambda n: '    ' + n, instance_names)),
         experiment_config=config_file,
         script_commands=config['compute']['startup_script'],
-        listinstances_output=instance_list
+        listinstances_output='\n\n'.join(all_running_instances)
     )
 
     send_notification_email(message=message, config=config,
@@ -339,6 +428,7 @@ def launch_experiment(args, sleep_time):
 
 
     # Run the results script TODO: move above the email
+    result_agg_start_time = time.time()
     results_script_call = 'python %s' %(config['results_script'])
     arg_list = '%s ' %(config_file)
     for d in instance_result_dirs:
@@ -346,6 +436,19 @@ def launch_experiment(args, sleep_time):
     results_script_call = '%s %s' %(results_script_call, arg_list)
     os.system(results_script_call)
 
+    # get runtime
+    end_time = time.time()
+    total_runtime = end_time - start_time
+    launch_prep_time = launch_start_time - launch_prep_start_time
+    launch_time = result_dl_start_time - launch_start_time
+    dl_time = result_agg_start_time - result_dl_start_time
+    agg_time = end_time - result_agg_start_time
+
+    logging.info('Total runtime: %f' %(total_runtime))
+    logging.info('Prep time: %f' %(launch_prep_time))
+    logging.info('Launch time: %f' %(launch_time))
+    logging.info('Download time: %f' %(dl_time))
+    logging.info('Result aggregation time: %f' %(agg_time))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(parents=[argparser])

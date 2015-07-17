@@ -248,7 +248,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         if contact_found:
             pt_zc_world = obj.sdf.transform_pt_grid_to_obj(pt_zc)
-            contact = contacts.Contact3D(obj, pt_zc_world)
+            in_direction = obj.sdf.transform_pt_grid_to_obj(line_of_action[-1] - line_of_action[0], direction=True)
+            contact = contacts.Contact3D(obj, pt_zc_world, in_direction=in_direction)
         return contact_found, contact
 
     def transform(self, tf, theta_res = 0):

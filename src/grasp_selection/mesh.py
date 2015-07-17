@@ -37,9 +37,9 @@ class Mesh3D:
         self.scale_ = scale
 
         # compute mesh properties
-        self.compute_bb_center()
-        self.compute_centroid()
-        self.compute_com_uniform()
+        self._compute_bb_center()
+        self._compute_centroid()
+        self._compute_com_uniform()
 
     def vertices(self):
         return self.vertices_
@@ -90,7 +90,7 @@ class Mesh3D:
     def set_metadata(self, metadata):
         self.metadata_ = metadata
 
-    def compute_bb_center(self):
+    def _compute_bb_center(self):
         """ Get the bounding box center of the mesh  """
         vertex_array = np.array(self.vertices_)
         min_vertices = np.min(vertex_array, axis=0)
@@ -107,7 +107,7 @@ class Mesh3D:
         center = (1.0 / 3.0) * (v1 + v2 + v3)
         return volume, center
 
-    def compute_com_uniform(self):
+    def _compute_com_uniform(self):
         """ Computes the center of mass using a uniform mass distribution assumption """
         total_volume = 0
         weighted_point_sum = np.zeros([1, 3])
@@ -121,10 +121,18 @@ class Mesh3D:
         self.center_of_mass_ = weighted_point_sum / total_volume
         self.center_of_mass_ = np.abs(self.center_of_mass_[0])
 
-    def compute_centroid(self):
+    def _compute_centroid(self):
         vertex_array = np.array(self.vertices_)
         self.vertex_mean_ = np.mean(vertex_array, axis=0)
     
+    def principal_dims(self):
+        """ Return the mesh principal dimensions """
+        vertex_array = np.array(self.vertices_)
+        min_vertex_coords = np.min(self.vertices_, axis=0)
+        max_vertex_coords = np.max(self.vertices_, axis=0)
+        vertex_extent = max_vertex_coords - min_vertex_coords
+        return vertex_extent
+
     def project_binary(self, camera_params):
         '''
         Project the triangles of the mesh into a binary image which is 1 if the mesh is

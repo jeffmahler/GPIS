@@ -7,4 +7,5 @@
 10904 NTU3D
 1814 PrincetonShapeBenchmark
 8987 SHREC14LSGTB
+28 test_data
 160 YCB
