@@ -1,15 +1,18 @@
 import random
-import pickle
-import object_database
+import mesh_database
+from feature_database import FeatureDatabase
 
 class DatasetSorter:
-	def __init__(self, )
-	# def __init__(self, object_database, portion_training=0.75):
-	# 	object_ids = object_database.object_ids().keys()
-	# 	random.shuffle(object_ids)
-	# 	length = len(object_ids)
-	# 	self.train_object_names = object_ids[:int(length*portion_training)]
-	# 	self.test_object_names = object_ids[int(length*portion_training):length]
+	def __init__(self, feature_database):
+		object_keys = feature_database.mesh_database().object_keys().keys()
+		random.shuffle(object_keys)
+		length = len(object_keys)
+		self.train_object_keys_ = object_keys[:int(length*portion_training)]
+		self.test_object_keys_ = object_keys[int(length*portion_training):length]
 
-	def save_to_dir(self, path_to_data_dir):
-		pickle.dump(self, open(path_to_data_dir+'dataset_sorter.p', "wb"), protocol=2)
+	def train_object_keys(self):
+		return self.train_object_keys_
+
+	def test_object_keys(self):
+		return self.test_object_keys_
+
