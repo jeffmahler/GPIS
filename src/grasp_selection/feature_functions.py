@@ -5,6 +5,8 @@ import logging
 import numpy as np
 import os
 
+# Unused FeatureFunction classes
+
 class FeatureFunction:
     __metaclass__ = ABCMeta
 
@@ -33,6 +35,7 @@ class LinearFeatureFunctionSum(LinearFeatureFunction):
         self.feature_fns_ = feature_fns
         all_weights = [fn.weights_ for fn in feature_fns]
         self.weights_ = np.sum(np.array(all_weights), axis=0)
+
 
 # Grasp-specific feature functions
 

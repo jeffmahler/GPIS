@@ -375,7 +375,13 @@ def launch_experiment(args, sleep_time):
             logging.info('Connection failed. Retrying...')
             continue
 
-        items = resp['items']
+        try:
+            items = resp['items']
+        except KeyError as e:
+            logging.error(e)
+            logging.error(resp)
+            continue
+
         for item in items:
             if item['name'] in instance_results:
                 completed_instance_results.append(item['name'])

@@ -6,7 +6,12 @@
 # GCE setup
 root_dir:     /home/brian/GPIS
 database_dir: /home/brian/data
-cache_dir:    /home/brian/research/GPIS/data/gcs
+
+# tank setup
+# cache_dir:    /home/brian/research/GPIS/data/gcs
+
+# rll setup
+cache_dir:    /home/jmahler/brian/GPIS/data/gcs
 
 dataset_counts: data/counts.txt
 datasets:
@@ -53,7 +58,7 @@ weight_curvature: *id_inf
 # Grasp sampling
 min_num_grasps: 100
 min_num_collision_free_grasps: 200
-max_num_grasps: 2 # per object
+max_num_grasps: 200 # per object
 grasp_samples_per_surface_point: 4 # lower for fewer samples
 
 dir_prior: 1.0
@@ -66,11 +71,11 @@ friction_inc: 0.1
 
 # Uncertainty
 sigma_mu: 0.1
-sigma_trans_grasp: 0.01
-sigma_rot_grasp: 0.2
-sigma_trans_obj: 0.01
-sigma_rot_obj: 0.1
-sigma_scale_obj: 0.1
+sigma_trans_grasp: 0.025
+sigma_rot_grasp: 0.3
+sigma_trans_obj: 0.025
+sigma_rot_obj: 0.3
+sigma_scale_obj: 0.05
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
 num_prealloc_grasp_samples: 0
 

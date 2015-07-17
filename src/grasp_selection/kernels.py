@@ -27,7 +27,7 @@ class KLDivergence(Distance):
 
     def distance(self, x, y):
         """ Distance between two probability distributions """
-        log_pq_ratio = np.log(x / y)     
+        log_pq_ratio = np.log(x / y)
         return (x - y).dot(log_pq_ratio)
 
 DISTANCE_FNS = {
@@ -154,9 +154,13 @@ class NearestNeighbor:
             list of indices, list of distances (when return_indices is True)
         """
 
-class BinaryTree(NearestNeighbor):
-    def train(self, data, tree_class=neighbors.KDTree):
-        self.data_ = np.array(data)
+    def featurize(self, data):
+        """Computes features for each object in data.
+        Params:
+            data - list of objects to compute features for
+        Returns:
+            numpy array of feature values (num_data x num_features)
+        """
         featurized = []
         for i, d in enumerate(data, 1):
             logging.info('Extracting features from object %d (of %d).' %(i, len(data)))
@@ -164,7 +168,12 @@ class BinaryTree(NearestNeighbor):
             featurized.append(self.phi_(d))
             featurize_end = time.clock()
             logging.info('Took %f sec' %(featurize_end - featurize_start))
-        self.featurized_ = np.array(featurized)
+        return np.array(featurized)
+
+class BinaryTree(NearestNeighbor):
+    def train(self, data, tree_class=neighbors.KDTree):
+        self.data_ = np.array(data)
+        self.featurized_ = self.featurize(data)
 
         logging.info('Constructing nearest neighbor data structure.')
         train_start = time.clock()
@@ -202,14 +211,7 @@ class LSHForest(NearestNeighbor):
 
     def train(self, data):
         self.data_ = np.array(data)
-        featurized = []
-        for i, d in enumerate(data, 1):
-            logging.info('Extracting features from object %d (of %d).' %(i, len(data)))
-            featurize_start = time.clock()
-            featurized.append(self.phi_(d))
-            featurize_end = time.clock()
-            logging.info('Took %f sec' %(featurize_end - featurize_start))
-        self.featurized_ = np.array(featurized)
+        self.featurized_ = self.featurize(data)
 
         logging.info('Constructing nearest neighbor data structure.')
         train_start = time.clock()
@@ -253,14 +255,7 @@ class NearPy(NearestNeighbor):
 
     def train(self, data, k=10):
         self.data_ = np.array(data)
-        featurized = []
-        for i, d in enumerate(data, 1):
-            logging.info('Extracting features from object %d (of %d).' %(i, len(data)))
-            featurize_start = time.clock()
-            featurized.append(self.phi_(d))
-            featurize_end = time.clock()
-            logging.info('Took %f sec' %(featurize_end - featurize_start))
-        self.featurized_ = np.array(featurized)
+        self.featurized_ = self.featurize(data)
 
         shape = featurized[0].shape
         assert len(shape) <= 2, 'Feature shape must be (1, N), (N, 1), or (N,)'
@@ -379,8 +374,8 @@ def test_kernels():
     assert k1221_result == k12_result**2
 
 if __name__ == '__main__':
-    #test_kdtree()
-    #test_balltree()
-    #test_lshf()
+    test_kdtree()
+    test_balltree()
+    test_lshf()
     test_sparse()
     test_kernels()
