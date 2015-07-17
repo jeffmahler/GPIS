@@ -34,7 +34,7 @@ class GraspSampler:
         """
         pass
 
-    
+
 class GaussianGraspSampler(GraspSampler):
     def __init__(self, config):
         self._configure(config)
@@ -141,7 +141,9 @@ class GaussianGraspSampler(GraspSampler):
         # return only the number requested
         random.shuffle(grasps)
         grasps = grasps[:min(len(grasps), target_num_grasps)]
-        
+
+        logging.info('Found %d random grasps' %(len(grasps)))
+
         return grasps
 
 def test_gaussian_grasp_sampling(vis=False):
@@ -174,4 +176,3 @@ def test_gaussian_grasp_sampling(vis=False):
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     test_gaussian_grasp_sampling()
-
