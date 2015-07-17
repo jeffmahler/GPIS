@@ -113,7 +113,7 @@ def label_correlated(obj, dest, config, plot=False):
     # sample initial antipodal grasps
     sampler = ags.AntipodalGraspSampler(config)
     antipodal_start = time.clock()
-    grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=True)
+    grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
     antipodal_end = time.clock()
     antipodal_duration = antipodal_end - antipodal_start
     logging.info('Antipodal grasp candidate generation took %f sec' %(antipodal_duration))
