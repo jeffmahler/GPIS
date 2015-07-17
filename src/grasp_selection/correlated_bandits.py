@@ -116,7 +116,7 @@ def label_correlated(obj, dest, config, plot=False):
         logging.info('Using antipodal grasp sampling')
         sampler = ags.AntipodalGraspSampler(config)
     else:
-        logging.info('Using gaussian grasp sampling')
+        logging.info('Using Gaussian grasp sampling')
         sampler = gs.GaussianGraspSampler(config)        
 
     sample_start = time.clock()

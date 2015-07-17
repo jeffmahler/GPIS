@@ -169,7 +169,7 @@ class GceInstance:
         instance_console = ('https://console.developers.google.com/'
                             'project/nth-clone-620/compute/instancesDetail/'
                             'zones/us-central1-a/instances/%s/console#end') % self.instance_name
-        logging.info('Instance is running! Check it out: %s' % instance_console)        
+        logging.info('Instance is running! Check it out: %s' % instance_console)
 
     def stop(self):
         """ Stop and cleanup this instance """
@@ -260,7 +260,7 @@ def launch_experiment(args, sleep_time):
     # Get total runtime
     start_time = time.time()
     launch_prep_start_time = time.time()
-    
+
     # Parse arguments and load config file.
     config_file = args.config
     config = ec.ExperimentConfig(config_file)
@@ -296,7 +296,7 @@ def launch_experiment(args, sleep_time):
     disk_names = []
     instance_results = []
     num_zones = len(config['compute']['zones'])
-    
+
     for chunk in chunks:
         # Create instance-specific configuration
         dataset = chunk['dataset']
@@ -396,20 +396,20 @@ def launch_experiment(args, sleep_time):
         pool = mp.Pool(min(config['num_processes'], len(instances)))
         pool.map(stop_instance, instances)
     logging.info('Done stopping instances')
-        
+
     # Print running instances
     all_running_instances = []
     for zone in config['compute']['zones']:
         zone_instances = gce_helper.list_instances(zone)
-        zone_instance_list = ''
+        lines = ['These are your running instances in zone %s:' %(zone)]
         for zone_instance in zone_instances:
             logging.info(zone_instance['name'])
-            zone_instance_list += '    ' + zone_instance['name'] + '\n'
+            lines.append('    ' + zone_instance['name'])
         if not zone_instances:
-            zone_instance_list = '    (none)'
-        all_running_instances.extend(zone_instance_list) 
-        logging.info('These are your running instances in zone %s:' %(zone))
-        logging.info(zone_instance_list)
+            lines.append('    (none)')
+        zone_instances_text = '\n'.join(lines)
+        all_running_instances.append(zone_instances_text)
+        logging.info(zone_instances_text)
 
     # Download the results
     instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
@@ -420,7 +420,7 @@ def launch_experiment(args, sleep_time):
         instance_names='\n'.join(map(lambda n: '    ' + n, instance_names)),
         experiment_config=config_file,
         script_commands=config['compute']['startup_script'],
-        listinstances_output=all_running_instances
+        listinstances_output='\n\n'.join(all_running_instances)
     )
 
     send_notification_email(message=message, config=config,

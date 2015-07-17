@@ -56,6 +56,8 @@ weight_grad_y:    *id_inf
 weight_curvature: *id_inf
 
 # Grasp sampling
+grasp_sampler: antipodal
+min_contact_dist: 0.005
 min_num_grasps: 100
 min_num_collision_free_grasps: 200
 max_num_grasps: 200 # per object
