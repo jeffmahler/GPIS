@@ -22,6 +22,7 @@ import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
 import feature_functions as ff
+import grasp_sampler as gs
 import kernels
 import models
 import objectives
@@ -111,12 +112,18 @@ def label_correlated(obj, dest, config, plot=False):
     np.random.seed(100)
 
     # sample initial antipodal grasps
-    sampler = ags.AntipodalGraspSampler(config)
-    antipodal_start = time.clock()
-    grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
-    antipodal_end = time.clock()
-    antipodal_duration = antipodal_end - antipodal_start
-    logging.info('Antipodal grasp candidate generation took %f sec' %(antipodal_duration))
+    if config['grasp_sampler'] == 'antipodal':
+        logging.info('Using antipodal grasp sampling')
+        sampler = ags.AntipodalGraspSampler(config)
+    else:
+        logging.info('Using gaussian grasp sampling')
+        sampler = gs.GaussianGraspSampler(config)        
+
+    sample_start = time.clock()
+    grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
+    sample_end = time.clock()
+    sample_duration = sample_end - sample_start
+    logging.info('Grasp candidate generation took %f sec' %(sample_duration))
 
     if not grasps:
         logging.info('Skipping %s' %(obj.key))

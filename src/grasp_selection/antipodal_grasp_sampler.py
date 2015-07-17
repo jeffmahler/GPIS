@@ -1,3 +1,9 @@
+"""
+Class for sampling grasps using an antipodallity heuristic derived from "Computing Parallel-Jaw Grasps"
+by Smith et al., ICRA 1999 *from Ken's old ALPHA lab
+
+Author: Jeff Mahler
+"""
 import logging
 import matplotlib.pyplot as plt
 import mayavi.mlab as mv
@@ -11,6 +17,7 @@ import contacts
 import grasp
 import graspable_object
 from grasp import ParallelJawPtGrasp3D
+import grasp_sampler as gs
 import obj_file
 import pr2_grasp_checker as pgc
 import quality as pgq
@@ -43,7 +50,7 @@ class AntipodalGraspParams:
         self.rho1 = rho1
         self.rho2 = rho2
 
-class AntipodalGraspSampler(object):
+class AntipodalGraspSampler(gs.GraspSampler):
     def __init__(self, config):
         self._configure(config)
 
@@ -154,7 +161,6 @@ class AntipodalGraspSampler(object):
                         continue
 
                     v_true = grasp.axis
-
                     # compute friction cone for contact 2
                     cone_succeeded, cone2, n2 = c2.friction_cone(self.num_cone_faces, self.friction_coef)
                     if not cone_succeeded:
@@ -228,7 +234,7 @@ class AntipodalGraspSampler(object):
 
         logging.info('Found %d antipodal grasps' %(len(grasps)))
 
-        return grasps, alpha_thresh, rho_thresh
+        return grasps
 
 def test_antipodal_grasp_sampling(vis=False):
     np.random.seed(100)
