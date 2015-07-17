@@ -123,6 +123,7 @@ def label_correlated(obj, dest, config, plot=False):
     grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
     sample_end = time.clock()
     sample_duration = sample_end - sample_start
+    logging.info('Generated %d grasps' %(len(grasps)))
     logging.info('Grasp candidate generation took %f sec' %(sample_duration))
 
     if not grasps:
