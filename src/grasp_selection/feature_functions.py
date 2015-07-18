@@ -39,49 +39,59 @@ class LinearFeatureFunctionSum(LinearFeatureFunction):
 
 # Grasp-specific feature functions
 
-class GraspFeatureExtractor:
-    """Abstract class for extracting features from a grasp surface. The `phi`
-    property method returns a feature vector."""
+class FeatureExtractor:
+    """Abstract class for extracting grasp features. The `phi` property method
+    returns a feature vector."""
     __metaclass__ = ABCMeta
+    use_unity_weights = False
 
-    def __init__(self, surface, weight):
-        self.surface_ = surface
-        self.weight_ = weight
+    def __init__(self, feature_weight):
+        self.feature_weight_ = feature_weight
+
+    @property
+    def feature_weight(self):
+        return 1.0 if self.use_unity_weights else self.feature_weight_
 
     @property
     def phi(self):
         raise NotImplementedError
 
-class WindowGraspFeatureExtractor(GraspFeatureExtractor):
+class WindowFeatureExtractor(FeatureExtractor):
+    """Abstract class for extracting features from a grasp surface."""
+    def __init__(self, surface, feature_weight=1.0):
+        self.surface_ = surface
+        self.feature_weight_ = feature_weight
+
+class ProjectionWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting window features."""
 
     @property
     def phi(self):
-        return self.weight_ * self.surface_.proj_win
+        return self.feature_weight * self.surface_.proj_win
 
-class GradXGraspFeatureExtractor(GraspFeatureExtractor):
+class GradXWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting gradient wrt x features."""
 
     @property
     def phi(self):
-        return self.weight_ * self.surface_.grad_x
+        return self.feature_weight * self.surface_.grad_x
 
-class GradYGraspFeatureExtractor(GraspFeatureExtractor):
+class GradYWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting gradient wrt y features."""
 
     @property
     def phi(self):
-        return self.weight_ * self.surface_.grad_y
+        return self.feature_weight * self.surface_.grad_y
 
-class CurvatureGraspFeatureExtractor(GraspFeatureExtractor):
+class CurvatureWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting curvature features."""
 
     @property
     def phi(self):
-        return self.weight_ * self.surface_.curvature
+        return self.feature_weight * self.surface_.curvature
 
-class SurfaceGraspFeatureExtractor(GraspFeatureExtractor):
-    """Class for concatenating features."""
+class SurfaceWindowFeatureExtractor(WindowFeatureExtractor):
+    """Class for concatenating window features."""
     def __init__(self, extractors):
         self.extractors_ = extractors
 
@@ -89,6 +99,42 @@ class SurfaceGraspFeatureExtractor(GraspFeatureExtractor):
     def phi(self):
         phis = [e.phi for e in self.extractors_]
         return np.concatenate(phis)
+
+class GravityFeatureExtractor(FeatureExtractor):
+    """Abstract class for extracting gravity-related features."""
+    def __init__(self, graspable, grasp, gravity_force, feature_weight=1.0):
+        self.graspable_ = graspable
+        self.grasp_ = grasp
+        self.gravity_force_ = gravity_force # np 3 array, e.g. np.array([0, 0, -mg])
+        self.feature_weight_ = feature_weight
+
+        # Compute moment arms
+        _, (c1, c2) = grasp.close_fingers(graspable)
+        self.moment1_ = self.graspable_.moment_arm(c1.point)
+        self.moment2_ = self.graspable_.moment_arm(c2.point)
+
+    def angle(self, v1, v2):
+        v1 = v1 / np.linalg.norm(v1)
+        v2 = v2 / np.linalg.norm(v2)
+        return np.arccos(np.dot(v1, v2))
+
+class MomentArmFeatureExtractor(GravityFeatureExtractor):
+    @property
+    def phi(self):
+        return self.feature_weight * np.r_[self.moment1_, self.moment2_]
+
+class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
+    @property
+    def phi(self):
+        angle = self.angle(self.grasp_.axis, self.gravity_force_)
+        normalized_angle = np.pi - angle # flipped grasp axis should be same
+        return self.feature_weight * np.array([normalized_angle])
+
+class MomentArmGravityAngleFeatureExtractor(GravityFeatureExtractor):
+    @property
+    def phi(self):
+        angles = [self.angle(m, self.gravity_force_) for m in (self.moment1_, self.moment2_)]
+        return self.feature_weight * np.array(angles)
 
 class GraspableFeatureExtractor:
     """Class for extracting features from a graspable object and an arbitrary
@@ -116,8 +162,8 @@ class GraspableFeatureExtractor:
             self.grad_y_weight_, self.curvature_weight_
         ]
         self.classes_ = [
-            WindowGraspFeatureExtractor, GradXGraspFeatureExtractor,
-            GradYGraspFeatureExtractor, CurvatureGraspFeatureExtractor
+            ProjectionWindowFeatureExtractor, GradXWindowFeatureExtractor,
+            GradYWindowFeatureExtractor, CurvatureWindowFeatureExtractor
         ]
 
     def _compute_feature_rep(self, grasp):
@@ -145,14 +191,21 @@ class GraspableFeatureExtractor:
         for s in (s1, s2):
             extractors = [cls(s, weight) for cls, weight in
                           zip(self.classes_, self.weights_) if weight > 0]
-            feature = SurfaceGraspFeatureExtractor(extractors)
+            feature = SurfaceWindowFeatureExtractor(extractors)
             surface_features.append(feature)
 
-        # compute additional features
-        features = list(surface_features)
-        # features.append(GravityGraspFeatureExtractor(...)) # TODO
-        self.features_[grasp] = features
+        # compute gravity features
+        gravity_force = 1.0 * np.array([0, 0, -9.8])
+        gravity_args = (self.graspable_, grasp, gravity_force)
+        gravity_features = [
+            MomentArmFeatureExtractor(*gravity_args),
+            GraspAxisGravityAngleFeatureExtractor(*gravity_args),
+            MomentArmGravityAngleFeatureExtractor(*gravity_args),
+        ]
 
+        # compute additional features
+        features = surface_features + gravity_features
+        self.features_[grasp] = features
         return features
 
     def compute_all_features(self, grasps):
