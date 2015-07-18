@@ -112,15 +112,26 @@ def label_correlated(obj, dest, config, plot=False):
     np.random.seed(100)
 
     # sample initial antipodal grasps
+    sample_start = time.clock()
     if config['grasp_sampler'] == 'antipodal':
         logging.info('Using antipodal grasp sampling')
         sampler = ags.AntipodalGraspSampler(config)
+        grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
+
+        # pad with gaussian grasps
+        num_grasps = len(grasps)
+        min_num_grasps = config['min_num_grasps']
+        if num_grasps < min_num_grasps:
+            target_num_grasps = min_num_grasps - num_grasps
+            gaussian_sampler = gs.GaussianGraspSampler(config)        
+            gaussian_grasps = gaussian_sampler.generate_grasps(obj, target_num_grasps=target_num_grasps,
+                                                               check_collisions=config['check_collisions'], vis=plot)
+            grasps.extend(gaussian_grasps)
     else:
         logging.info('Using Gaussian grasp sampling')
         sampler = gs.GaussianGraspSampler(config)        
+        grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
 
-    sample_start = time.clock()
-    grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
     sample_end = time.clock()
     sample_duration = sample_end - sample_start
     logging.info('Generated %d grasps' %(len(grasps)))

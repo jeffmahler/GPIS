@@ -10,7 +10,7 @@ cache_dir: /home/jmahler/jeff_working/GPIS/data/gcs
 
 dataset_counts: data/counts.txt
 datasets:
-  - amazon_picking_challenge
+  - test_data
 max_chunk_size: 1
 
 # Will be overridden by startup script
@@ -20,19 +20,20 @@ max_chunk_size: 1
 
 # Experiment parameters (metadata) ###################################
 grasp_width: 0.1
-friction_coef: 1.0
+friction_coef: 0.5
 num_cone_faces: 8
 num_grasp_clusters: 10
 vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
 plot: False
+grasp_sampler: gaussian
 
 # Bandits
 bandit_max_iter: 5000
 bandit_confidence: 0.0005
 bandit_snapshot_rate: 20
-bandit_brute_force_iter: 10000
+bandit_brute_force_iter: 100000
 
 # Correlations
 window_width: 0.03
@@ -45,15 +46,16 @@ kernel_tolerance: 0.5
 # Weights
 inf:   &id_inf    100000000000000000000.0
 zero:  &id_zero   0.0
-weight_proj_win:  1
+weight_proj_win:  0.001
 weight_grad_x:    *id_inf
 weight_grad_y:    *id_inf
 weight_curvature: *id_inf
 
 # Grasp sampling
-min_num_grasps: 50
-max_num_grasps: 100 # per object
+min_num_grasps: 100
+max_num_grasps: 200 # per object
 min_num_collision_free_grasps: 200
+min_contact_dist: 0.01
 grasp_samples_per_surface_point: 4 # lower for fewer samples
 
 dir_prior: 1.0
@@ -67,7 +69,7 @@ friction_inc: 0.1
 # Uncertainty
 sigma_mu: 0.1
 sigma_trans_grasp: 0.01
-sigma_rot_grasp: 0.2
+sigma_rot_grasp: 0.1
 sigma_trans_obj: 0.01
 sigma_rot_obj: 0.1
 sigma_scale_obj: 0.02
@@ -77,6 +79,7 @@ num_prealloc_grasp_samples: 0
 # Plotting
 line_width: 2.5
 font_size: 15
+dpi: 400
 plot: False
 
 # GCE parameters #####################################################
