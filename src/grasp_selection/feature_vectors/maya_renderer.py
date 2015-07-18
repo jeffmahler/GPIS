@@ -2,6 +2,7 @@ import csv
 import shutil
 import glob
 import os
+import os.path as path
 import math
 import argparse
 
@@ -101,7 +102,13 @@ def create_scene_with_mesh(mesh_file):
 	if table:
 		cmd.nurbsPlane(name=plane_name, p=(0,0,0), ax=(0,1,0), w=10000, lr=1, d=3, u=1, v=1, ch=1)
 
-	cmd.file(mesh_file, i=True, ns=obj_name)
+	try:
+		cmd.file(mesh_file, i=True, ns=obj_name)
+	except RuntimeError as e:
+		print 'Failed to import mesh file: '+mesh_file
+		print e.message
+		return False
+
 	cmd.select(obj_name+":Mesh", r=True)
 	bounding_box = cmd.polyEvaluate(b=True)
 	cmd.move(-bounding_box[1][0], y=True)
@@ -118,6 +125,8 @@ def create_scene_with_mesh(mesh_file):
 	cmd.setAttr("defaultResolution.width", 256)
 	cmd.setAttr("defaultResolution.height", 256)
 	cmd.setAttr("defaultResolution.deviceAspectRatio", 1.0)
+
+	return True
 
 def create_mask_for_object_with_color(obj_name, color):
 	mask_name = obj_name+"_MASK"
@@ -150,8 +159,9 @@ def save_image_with_camera_pos(csv_writer, mesh_name, file_ext, dest_dir, camera
 	# print focal_length_x_pixel, focal_length_y_pixel
 
 	image_file = mesh_name+"."+file_ext
+	
 	image_src = cmd.render(camera_shape)
-	image_dest = dest_dir+"/"+image_file
+	image_dest = path.join(dest_dir, image_file)
 	shutil.move(image_src, image_dest)
 
 	save_camera_data_to_writer(csv_writer, mesh_name, camera_pos, camera_interest_pos, focal_length)
@@ -164,7 +174,7 @@ def create_images_for_scene(csv_writer, obj_name, dest_dir, min_dist, max_dist, 
 	radial_increment = 0 if num_radial == 1 else (max_dist - min_dist) / (num_radial - 1)
 
 	for r in range(0, num_radial):
-		phi_increment = math.pi / 2 / (num_lat + 1)
+		phi_increment = math.pi / (num_lat + 1)
 		phi = phi_increment
 		for lat in range(0, num_lat):
 			theta = 0
@@ -178,23 +188,26 @@ def create_images_for_scene(csv_writer, obj_name, dest_dir, min_dist, max_dist, 
 		radius += radial_increment
 
 def render_mesh(mesh_file, mesh_name, dest_dir):
-	with open(dest_dir+"/"+'camera_table.csv', 'w') as csvfile:
-		csv_writer = csv.writer(csvfile)
-		csv_writer.writerow(["camera_x", "camera_y", "camera_z", "interest_x", "interest_y", "interest_z", "focal_length", "mesh_name"])
+	import_success = create_scene_with_mesh(mesh_file)
 
-		if color:
-			create_scene_with_mesh(mesh_file)
-			create_images_for_scene(csv_writer, mesh_name+"_color", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
+	if import_success:
+		with open(path.join(dest_dir, 'camera_table.csv'), 'w') as csvfile:
+			csv_writer = csv.writer(csvfile)
+			csv_writer.writerow(["camera_x", "camera_y", "camera_z", "interest_x", "interest_y", "interest_z", "focal_length", "mesh_name"])
 
-		if segmask:
-			create_scene_with_mesh(mesh_file)
-			add_object_segmentation()
-			create_images_for_scene(csv_writer, mesh_name+"_segmask", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
+			if color:
+				create_images_for_scene(csv_writer, mesh_name+"_color", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
 
-		if depth:
-			create_scene_with_mesh(mesh_file)
-			add_depth_layer()
-			create_images_for_scene(csv_writer, mesh_name+"_depth", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
+			if segmask:
+				add_object_segmentation()
+				create_images_for_scene(csv_writer, mesh_name+"_segmask", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
+
+			if depth:
+				add_depth_layer()
+				create_images_for_scene(csv_writer, mesh_name+"_depth", dest_dir, working_min_dist, working_max_dist, num_radial, num_lat, num_long)
+		return True
+	else:
+		return False
 
 
 if mesh_dir is None:
@@ -210,7 +223,9 @@ else:
 		if os.path.isdir(mesh_name):
 			continue
 		os.mkdir(mesh_name)
-		render_mesh(mesh_dir+"/"+mesh_file, mesh_name, dest_dir+"/"+mesh_name)
+		render_success = render_mesh(path.join(mesh_dir, mesh_file), mesh_name, path.join(dest_dir, mesh_name))
+		if not render_success:
+			os.rmdir(mesh_name)
 
 # def create_robot_pose_matrix(camera_pos, camera_interest_pos):
 # 	z_axis = numpy.subtract(camera_interest_pos, camera_pos)
