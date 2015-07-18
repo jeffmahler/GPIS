@@ -9,13 +9,12 @@ import numpy as np
 import similarity_tf as stf
 import tfx
 
-import mayavi.mlab as mv
+# import mayavi.mlab as mv
 
 import mesh
 import obj_file
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from os import listdir
 
 def compute_basis(vertices):
     """
