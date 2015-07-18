@@ -44,6 +44,7 @@ class FeatureExtractor:
     returns a feature vector."""
     __metaclass__ = ABCMeta
     use_unity_weights = False
+    name = ''
 
     def __init__(self, feature_weight):
         self.feature_weight_ = feature_weight
@@ -52,9 +53,35 @@ class FeatureExtractor:
     def feature_weight(self):
         return 1.0 if self.use_unity_weights else self.feature_weight_
 
+    def to_json(self, dest):
+        return {}
+
     @property
     def phi(self):
         raise NotImplementedError
+
+class AggregatedFeatureExtractor(FeatureExtractor):
+    """Class for aggregating features."""
+    def __init__(self, extractors, name):
+        self.extractors_ = extractors
+        self.name = name
+
+    def to_json(self, dest):
+        subdest = os.path.join(dest, self.name)
+        try:
+            os.makedirs(subdest)
+        except os.error:
+            pass
+
+        subjson = {}
+        for e in self.extractors_:
+            subjson.update(e.to_json(subdest))
+        return {self.name : subjson}
+
+    @property
+    def phi(self):
+        phis = [e.phi for e in self.extractors_]
+        return np.concatenate(phis)
 
 class WindowFeatureExtractor(FeatureExtractor):
     """Abstract class for extracting features from a grasp surface."""
@@ -62,8 +89,16 @@ class WindowFeatureExtractor(FeatureExtractor):
         self.surface_ = surface
         self.feature_weight_ = feature_weight
 
+    def to_json(self, dest):
+        # create dest/self.name directory
+        fname = os.path.join(dest, self.name)
+        arr = self.phi.reshape((1, -1))
+        np.savetxt(fname, arr, delimiter=',')
+        return {self.name : fname.split(os.sep, 1)[1]} # strip leading output_dir
+
 class ProjectionWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting window features."""
+    name = 'projection_window'
 
     @property
     def phi(self):
@@ -71,6 +106,7 @@ class ProjectionWindowFeatureExtractor(WindowFeatureExtractor):
 
 class GradXWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting gradient wrt x features."""
+    name = 'gradx_window'
 
     @property
     def phi(self):
@@ -78,6 +114,7 @@ class GradXWindowFeatureExtractor(WindowFeatureExtractor):
 
 class GradYWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting gradient wrt y features."""
+    name = 'grady_window'
 
     @property
     def phi(self):
@@ -85,20 +122,11 @@ class GradYWindowFeatureExtractor(WindowFeatureExtractor):
 
 class CurvatureWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting curvature features."""
+    name = 'curvature_window'
 
     @property
     def phi(self):
         return self.feature_weight * self.surface_.curvature
-
-class SurfaceWindowFeatureExtractor(WindowFeatureExtractor):
-    """Class for concatenating window features."""
-    def __init__(self, extractors):
-        self.extractors_ = extractors
-
-    @property
-    def phi(self):
-        phis = [e.phi for e in self.extractors_]
-        return np.concatenate(phis)
 
 class GravityFeatureExtractor(FeatureExtractor):
     """Abstract class for extracting gravity-related features."""
@@ -118,12 +146,19 @@ class GravityFeatureExtractor(FeatureExtractor):
         v2 = v2 / np.linalg.norm(v2)
         return np.arccos(np.dot(v1, v2))
 
+    def to_json(self, dest):
+        return {self.name : self.phi.tolist()}
+
 class MomentArmFeatureExtractor(GravityFeatureExtractor):
+    name = 'moment_arms'
+
     @property
     def phi(self):
         return self.feature_weight * np.r_[self.moment1_, self.moment2_]
 
 class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
+    name = 'grasp_axis_gravity_angle'
+
     @property
     def phi(self):
         angle = self.angle(self.grasp_.axis, self.gravity_force_)
@@ -131,10 +166,15 @@ class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
         return self.feature_weight * np.array([normalized_angle])
 
 class MomentArmGravityAngleFeatureExtractor(GravityFeatureExtractor):
+    name = 'moment_arms_gravity_angle'
+
     @property
     def phi(self):
         angles = [self.angle(m, self.gravity_force_) for m in (self.moment1_, self.moment2_)]
         return self.feature_weight * np.array(angles)
+
+
+# Graspable feature functions
 
 class GraspableFeatureExtractor:
     """Class for extracting features from a graspable object and an arbitrary
@@ -191,7 +231,8 @@ class GraspableFeatureExtractor:
         for s in (s1, s2):
             extractors = [cls(s, weight) for cls, weight in
                           zip(self.classes_, self.weights_) if weight > 0]
-            feature = SurfaceWindowFeatureExtractor(extractors)
+            feature = AggregatedFeatureExtractor(
+                extractors, 'w%d' %(len(surface_features)+1))
             surface_features.append(feature)
 
         # compute gravity features
@@ -204,7 +245,8 @@ class GraspableFeatureExtractor:
         ]
 
         # compute additional features
-        features = surface_features + gravity_features
+        features = AggregatedFeatureExtractor(
+            surface_features + gravity_features, self.graspable_.key)
         self.features_[grasp] = features
         return features
 

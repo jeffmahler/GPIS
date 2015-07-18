@@ -180,7 +180,7 @@ class ForceClosureRV:
         if self.features_ is None:
             logging.warning('Features are uninitialized.')
         else:
-            return np.concatenate([f.phi for f in self.features_])
+            return self.features_.phi
 
     def sample_success(self):
         # sample grasp
