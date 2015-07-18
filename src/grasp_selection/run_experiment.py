@@ -93,9 +93,20 @@ Here's the output of `gcloud compute instances list`:
 
 %(listinstances_output)s
 """
+
+# global queue variable (stupid, but need to just get it running)
+QUEUE_TIMEOUT = 10
+MAX_QUEUE_SIZE = 1000
+instance_launch_queue = mp.Queue(MAX_QUEUE_SIZE)
+
 def launch_instance(instance):
     """ Launches an instance object """
-    instance.start()
+#    instance.start()
+    try:
+        if instance.start():
+            instance_launch_queue.put(instance.instance_name, timeout=QUEUE_TIMEOUT)
+    except:
+        logging.info('Failed to launch %s' %(instance.instance_name))
 
 def stop_instance(instance):
     """ Stops an instance object """
@@ -129,6 +140,8 @@ class GceInstance:
         except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
             logging.error(DELETE_ERROR, {'name': self.disk_name})
             logging.error(e)
+            return False
+        return True
 
     def terminate_instance(self):
         """ Attempt to terminate the running instance """
@@ -139,6 +152,8 @@ class GceInstance:
         except (gce.ApiError, gce.ApiOperationError, ValueError) as e:
             logging.error(DELETE_ERROR, {'name': self.instance_name})
             logging.error(e)
+            return False
+        return True
 
     def start(self):
         """ Launch a gce instance """
@@ -160,16 +175,17 @@ class GceInstance:
             self.delete_disk()
             logging.error(INSERT_ERROR, {'name': self.instance_name})
             logging.error(e)
-            return
+            return False
         except gce.DiskDoesNotExistError as e:
             logging.error(INSERT_ERROR, {'name': self.instance_name})
             logging.error(e)
-            return
+            return False
 
         instance_console = ('https://console.developers.google.com/'
                             'project/nth-clone-620/compute/instancesDetail/'
                             'zones/us-central1-a/instances/%s/console#end') % self.instance_name
-        logging.info('Instance is running! Check it out: %s' % instance_console)
+        logging.info('Instance %s is running! Check it out: %s' %(self.instance_name, instance_console))        
+        return True
 
     def stop(self):
         """ Stop and cleanup this instance """
@@ -328,7 +344,6 @@ def launch_experiment(args, sleep_time):
         instances_per_region += 1
         instance_names.append(curr_instance_name)
         disk_names.append(curr_disk_name)
-        instance_results.append('%s.tar.gz' % curr_instance_name)
         instance_console = ('https://console.developers.google.com/'
                             'project/nth-clone-620/compute/instancesDetail/'
                             'zones/us-central1-a/instances/%s/console#end') % curr_instance_name
@@ -342,6 +357,11 @@ def launch_experiment(args, sleep_time):
             logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
             break
 
+    # clear global q
+    global instance_launch_queue
+    while not instance_launch_queue.empty():
+        instance_launch_queue.get()
+
     # launch all instances using multiprocessing
     launch_start_time = time.time()
     if config['num_processes'] == 1:
@@ -351,6 +371,12 @@ def launch_experiment(args, sleep_time):
         pool = mp.Pool(min(config['num_processes'], len(instances)))
         pool.map(launch_instance, instances)
     logging.info('Done launching instances')
+
+    # put instance launch names into a queue
+    instance_results = []
+    while not instance_launch_queue.empty():
+        curr_instance_name = instance_launch_queue.get() 
+        instance_results.append('%s.tar.gz' % curr_instance_name)
 
     # set up service
     result_dl_start_time = time.time()
@@ -412,7 +438,7 @@ def launch_experiment(args, sleep_time):
         logging.info(zone_instances_text)
 
     # Download the results
-    instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
+    store_dir, instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
 
     # Send the user an email
     message = EMAIL_NOTIFICATION % dict(
@@ -429,11 +455,7 @@ def launch_experiment(args, sleep_time):
 
     # Run the results script TODO: move above the email
     result_agg_start_time = time.time()
-    results_script_call = 'python %s' %(config['results_script'])
-    arg_list = '%s ' %(config_file)
-    for d in instance_result_dirs:
-        arg_list += '%s ' %(d)
-    results_script_call = '%s %s' %(results_script_call, arg_list)
+    results_script_call = 'python %s %s %s' %(config['results_script'], config_file, store_dir)
     os.system(results_script_call)
 
     # get runtime
@@ -447,7 +469,7 @@ def launch_experiment(args, sleep_time):
     logging.info('Total runtime: %f' %(total_runtime))
     logging.info('Prep time: %f' %(launch_prep_time))
     logging.info('Launch time: %f' %(launch_time))
-    logging.info('Download time: %f' %(dl_time))
+    logging.info('Run and download time: %f' %(dl_time))
     logging.info('Result aggregation time: %f' %(agg_time))
 
 if __name__ == '__main__':

@@ -130,7 +130,7 @@ class Gcs(object):
                       local_result_dir = os.path.join(store_dir, local_file_root)
                       tar_file.extractall(local_result_dir)
                       result_dirs.append(local_result_dir)
-      return result_dirs
+      return store_dir, result_dirs
 
   def _blocking_call(self, response, finished_status='DONE'):
     """Blocks until the operation status is done for the given operation.
