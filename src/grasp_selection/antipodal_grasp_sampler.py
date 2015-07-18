@@ -1,7 +1,14 @@
+"""
+Class for sampling grasps using an antipodallity heuristic derived from "Computing Parallel-Jaw Grasps"
+by Smith et al., ICRA 1999 *from Ken's old ALPHA lab
+
+Author: Jeff Mahler
+"""
 import logging
 import matplotlib.pyplot as plt
 import mayavi.mlab as mv
 import numpy as np
+import random
 import time
 
 import openravepy as rave
@@ -10,6 +17,7 @@ import contacts
 import grasp
 import graspable_object
 from grasp import ParallelJawPtGrasp3D
+import grasp_sampler as gs
 import obj_file
 import pr2_grasp_checker as pgc
 import quality as pgq
@@ -42,7 +50,7 @@ class AntipodalGraspParams:
         self.rho1 = rho1
         self.rho2 = rho2
 
-class AntipodalGraspSampler(object):
+class AntipodalGraspSampler(gs.GraspSampler):
     def __init__(self, config):
         self._configure(config)
 
@@ -56,6 +64,7 @@ class AntipodalGraspSampler(object):
         self.alpha_thresh = 2 * np.pi / config['alpha_thresh_div']
         self.rho_thresh = config['rho_thresh']
         self.min_num_grasps = config['min_num_grasps']
+        self.max_num_grasps = config['max_num_grasps']
         self.min_num_collision_free = config['min_num_collision_free_grasps']
         self.theta_res = 2 * np.pi * config['grasp_theta_res']
         self.alpha_inc = config['alpha_inc']
@@ -152,7 +161,6 @@ class AntipodalGraspSampler(object):
                         continue
 
                     v_true = grasp.axis
-
                     # compute friction cone for contact 2
                     cone_succeeded, cone2, n2 = c2.friction_cone(self.num_cone_faces, self.friction_coef)
                     if not cone_succeeded:
@@ -183,6 +191,10 @@ class AntipodalGraspSampler(object):
                         antipodal_grasp = AntipodalGraspParams(graspable, grasp, alpha1, alpha2, rho1, rho2)
                         ap_grasps.append(antipodal_grasp)
 
+        # randomly sample max num grasps from total list
+        max_grasp_index = min(len(ap_grasps), self.max_num_grasps)
+        random.shuffle(ap_grasps)
+        ap_grasps = ap_grasps[:max_grasp_index]
 
         # load openrave
         if check_collisions:
@@ -222,7 +234,7 @@ class AntipodalGraspSampler(object):
 
         logging.info('Found %d antipodal grasps' %(len(grasps)))
 
-        return grasps, alpha_thresh, rho_thresh
+        return grasps
 
 def test_antipodal_grasp_sampling(vis=False):
     np.random.seed(100)

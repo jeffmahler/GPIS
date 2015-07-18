@@ -5,6 +5,13 @@ DATA_DIR=/home/brian/data
 OUT_DIR=/home/brian/cm_out
 mkdir $OUT_DIR
 
+# Sleep a random amount to fend off github
+MAX_TIME=$15
+SLEEP_TIME=$(expr $RANDOM \% $MAX_TIME + 1)
+
+echo 'Sleeping for' $SLEEP_TIME 'seconds'
+sleep ${SLEEP_TIME}
+
 # Update project
 cd $GIT_DIR
 git pull
@@ -13,15 +20,15 @@ git pull
 sudo bash scripts/mount_data_disk.sh
 
 # Retrieve metadata: dataset, chunk_start, chunk_end, bucket_name, instance_name, config
-DATASET=$(curl http://metadata/computeMetadata/v1/instance/attributes/dataset -H "X-Google-Metadata-Request: True")
-CHUNK_START=$(curl http://metadata/computeMetadata/v1/instance/attributes/chunk_start -H "X-Google-Metadata-Request: True")
-CHUNK_END=$(curl http://metadata/computeMetadata/v1/instance/attributes/chunk_end -H "X-Google-Metadata-Request: True")
-RUN_SCRIPT=$(curl http://metadata/computeMetadata/v1/instance/attributes/run_script -H "X-Google-Metadata-Request: True")
-BUCKET_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/bucket_name -H "X-Google-Metadata-Request: True")
-INSTANCE_NAME=$(curl http://metadata/computeMetadata/v1/instance/attributes/instance_name -H "X-Google-Metadata-Request: True")
+DATASET=$(/usr/share/google/get_metadata_value attributes/dataset)
+CHUNK_START=$(/usr/share/google/get_metadata_value attributes/chunk_start)
+CHUNK_END=$(/usr/share/google/get_metadata_value attributes/chunk_end)
+RUN_SCRIPT=$(/usr/share/google/get_metadata_value attributes/run_script)
+BUCKET_NAME=$(/usr/share/google/get_metadata_value attributes/bucket_name)
+INSTANCE_NAME=$(/usr/share/google/get_metadata_value attributes/instance_name)
 
 # Download config into GIT_DIR/config.yaml
-CONFIG=$(curl http://metadata/computeMetadata/v1/instance/attributes/config -H "X-Google-Metadata-Request: True")
+CONFIG=$(/usr/share/google/get_metadata_value attributes/config)
 cat <<EOF >> config.yaml
 $CONFIG
 dataset:     $DATASET
@@ -31,6 +38,7 @@ EOF
 
 # Run experiment
 python $RUN_SCRIPT config.yaml $OUT_DIR
+cp config.yaml $OUT_DIR
 cd .. # back to home directory
 
 # Zip directory and upload to bucket

@@ -31,6 +31,8 @@ import IPython
 import time
 import traceback
 
+import multiprocessing as mp
+
 from apiclient.discovery import build
 from apiclient.errors import HttpError
 from httplib2 import HttpLib2Error
@@ -124,7 +126,7 @@ class Gce(object):
     # Set required instance fields with defaults if not provided.
     instance['name'] = instance_name
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
     if not machine_type:
       machine_type = self.config['compute']['machine_type']
     instance['machineType'] = '%s/zones/%s/machineTypes/%s' % (
@@ -216,7 +218,7 @@ class Gce(object):
     if not disk_name:
       raise ValueError('disk_name required.')
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
 
     # check if disk name is valid
     if not self.get_disk(disk_name, zone):
@@ -248,7 +250,7 @@ class Gce(object):
     """
 
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
 
     request = None
     if list_filter:
@@ -285,7 +287,7 @@ class Gce(object):
       raise ValueError('instance_name required.')
 
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
 
     # Delete the instance.
     request = self.service.instances().delete(
@@ -331,7 +333,7 @@ class Gce(object):
     # Set required disk fields with defaults if not provided.
     disk['name'] = disk_name
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
     if not image_project:
       image_project = self.config['compute']['image_project']
     if not image:
@@ -366,7 +368,7 @@ class Gce(object):
     """
 
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
 
     request = self.service.disks().get(
         project=self.project_id, zone=zone, disk=disk_name)
@@ -396,7 +398,7 @@ class Gce(object):
       raise ValueError('disk_name required.')
 
     if not zone:
-      zone = self.config['compute']['zone']
+      zone = self.config['compute']['zones'][0]
 
     # Delete the disk.
     request = self.service.disks().delete(
@@ -469,7 +471,6 @@ class Gce(object):
     Raises:
       ApiError: Error occurred during API call.
     """
-
     try:
       response = request.execute()
     except AccessTokenRefreshError, e:
@@ -477,6 +478,7 @@ class Gce(object):
       raise ApiError(e)
     except HttpError, e:
       logging.error('Http response was not 2xx.')
+      logging.error(str(e))
       raise ApiError(e)
     except HttpLib2Error, e:
       logging.error('Transport error.')
@@ -485,7 +487,6 @@ class Gce(object):
       logging.error('Unexpected error occured.')
       traceback.print_stack()
       raise ApiError(e)
-
     return response
 
 class Error(Exception):
