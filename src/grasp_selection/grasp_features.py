@@ -123,6 +123,10 @@ def extract_features(obj, dest, feature_dest, config):
         json.dump([f.to_json(feature_dest) for f in cand_features],
                   feature_file, sort_keys=True, indent=4, separators=(',', ': '))
 
+    brute_filename = os.path.join(dest, obj.key + '_brute.pkl')
+    with open(brute_filename, 'w') as brute_file:
+        pkl.dump(ua_result, brute_file)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('config', default='cfg/correlated.yaml')
