@@ -395,7 +395,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         return graspable.surface_information(self, width, num_steps)
 
-    def to_json(self, quality=0, method='PFC'):
+    def to_json(self, quality=0, method='PFC', num_successes=0, num_failures=0):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
         gripper_pose = self.gripper_pose()
         gripper_position = gripper_pose.position
@@ -421,6 +421,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
             'reference_frame': 'object',
             'quality': quality,
             'metric': method,
+            'successes': num_successes,
+            'failures': num_failures
         }
 
 class ParallelJawPtPose3D(object):

@@ -32,16 +32,28 @@ import termination_conditions as tc
 
 def extract_features(obj, dest, feature_dest, config):
     # sample grasps
+    sample_start = time.clock()
     if config['grasp_sampler'] == 'antipodal':
         logging.info('Using antipodal grasp sampling')
         sampler = ags.AntipodalGraspSampler(config)
+        grasps = sampler.generate_grasps(
+            obj, check_collisions=config['check_collisions'])
+
+        # pad with gaussian grasps
+        num_grasps = len(grasps)
+        min_num_grasps = config['min_num_grasps']
+        if num_grasps < min_num_grasps:
+            target_num_grasps = min_num_grasps - num_grasps
+            gaussian_sampler = gs.GaussianGraspSampler(config)        
+            gaussian_grasps = gaussian_sampler.generate_grasps(obj, target_num_grasps=target_num_grasps,
+                                                               check_collisions=config['check_collisions'], vis=plot)
+            grasps.extend(gaussian_grasps)
     else:
         logging.info('Using Gaussian grasp sampling')
         sampler = gs.GaussianGraspSampler(config)        
+        grasps = sampler.generate_grasps(
+            obj, check_collisions=config['check_collisions'])
 
-    sample_start = time.clock()
-    grasps = sampler.generate_grasps(
-        obj, check_collisions=config['check_collisions'])
     sample_end = time.clock()
     sample_duration = sample_end - sample_start
     logging.info('Grasp candidate generation took %f sec' %(sample_duration))
@@ -87,12 +99,13 @@ def extract_features(obj, dest, feature_dest, config):
         snapshot_rate=snapshot_rate)
     bandit_end = time.clock()
     bandit_duration = bandit_end - bandit_start
-    logging.info('Uniform allocation (%d iters) took %f sec' %(brute_force_iter, sample_duration))
+    logging.info('Uniform allocation (%d iters) took %f sec' %(brute_force_iter, bandit_duration))
 
     cand_grasps = [c.grasp for c in candidates]
     cand_features = [c.features_ for c in candidates]
+    final_model = ua_result.models[-1]
     estimated_pfc = models.BetaBernoulliModel.beta_mean(
-        ua_result.models[-1].alphas, ua_result.models[-1].betas)
+        final_model.alphas, final_model.betas)
 
     if len(cand_grasps) != len(estimated_pfc):
         logging.warning('Number of grasps does not match estimated pfc results.')
@@ -101,7 +114,8 @@ def extract_features(obj, dest, feature_dest, config):
     # write to file
     grasp_filename = os.path.join(dest, obj.key + '.json')
     with open(grasp_filename, 'w') as grasp_file:
-        json.dump([g.to_json(quality=q) for g, q in zip(cand_grasps, estimated_pfc)],
+        json.dump([g.to_json(quality=q, num_successes=a, num_failures=b) for g, q, a, b in zip(cand_grasps, estimated_pfc,
+                                                                                               final_model.alphas, final_model.betas)],
                   grasp_file, sort_keys=True, indent=4, separators=(',', ': '))
 
     feature_filename = os.path.join(feature_dest, obj.key + '.json')
@@ -138,3 +152,4 @@ if __name__ == '__main__':
     for obj in chunk:
         logging.info('Extracting features for object {}'.format(obj.key))
         extract_features(obj, dest, feature_dest, config)
+        exit(0)
