@@ -13,9 +13,9 @@ datasets:
 max_chunk_size: 4
 
 # Will be overridden by startup script
-dataset:     YCB
-chunk_start: 3
-chunk_end:   4
+dataset:     test_data
+chunk_start: 1
+chunk_end:   2
 
 # Experiment parameters (metadata) ###################################
 grasp_width: 0.1
@@ -26,12 +26,13 @@ vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
 plot: True
+grasp_sampler: gaussian
 
 # Bandits
-bandit_max_iter: 5000
+bandit_max_iter: 100
 bandit_confidence: 0.0005
-bandit_snapshot_rate: 100
-bandit_brute_force_iter: 10000
+bandit_snapshot_rate: 10
+bandit_brute_force_iter: 100
 
 # Correlations
 window_width: 0.03
@@ -39,20 +40,21 @@ window_steps: 21
 window_sigma: 1.0
 kernel_sigma: 1.0
 kernel_l: 1.0
-kernel_tolerance: 0.5
+kernel_tolerance: 0.05
 
 # Weight
 inf:   &id_inf    100000000000000000000.0
 zero:  &id_zero   0.0
-weight_proj_win:  *id_inf
-weight_grad_x:    *id_inf
-weight_grad_y:    *id_inf
-weight_curvature: *id_inf
+weight_proj_win:  5.0
+weight_grad_x:    0.0
+weight_grad_y:    0.0
+weight_curvature: 0.0
+weight_gravity:   0.0
 
 # Grasp sampling
-min_num_grasps: 100
+min_num_grasps: 10
 min_num_collision_free_grasps: 200
-max_num_grasps: 200
+max_num_grasps: 20
 grasp_samples_per_surface_point: 4
 
 dir_prior: 1.0
@@ -66,9 +68,9 @@ friction_inc: 0.1
 
 # Uncertainty
 sigma_mu: 0.1
-sigma_trans_grasp: 0.0025
+sigma_trans_grasp: 0.01
 sigma_rot_grasp: 0.1
-sigma_trans_obj: 0.0025
+sigma_trans_obj: 0.01
 sigma_rot_obj: 0.1
 sigma_scale_obj: 0.02
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
@@ -77,7 +79,7 @@ num_prealloc_grasp_samples: 0
 # Plotting
 line_width: 2.5
 font_size: 15
-plot: True
+plot: False
 
 # GCE parameters #####################################################
 project:        &id_project        nth-clone-620

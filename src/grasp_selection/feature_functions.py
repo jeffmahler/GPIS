@@ -196,6 +196,8 @@ class GraspableFeatureExtractor:
         self.grad_y_weight_ = config['weight_grad_y']
         self.curvature_weight_ = config['weight_curvature']
 
+        self.gravity_weight_ = config['weight_gravity']
+
         # for convenience
         self.weights_ = [
             self.proj_win_weight_, self.grad_x_weight_,
@@ -237,7 +239,7 @@ class GraspableFeatureExtractor:
 
         # compute gravity features
         gravity_force = 1.0 * np.array([0, 0, -9.8])
-        gravity_args = (self.graspable_, grasp, gravity_force)
+        gravity_args = (self.graspable_, grasp, gravity_force, self.gravity_weight_)
         gravity_features = [
             MomentArmFeatureExtractor(*gravity_args),
             GraspAxisGravityAngleFeatureExtractor(*gravity_args),
