@@ -208,7 +208,7 @@ class GraspableFeatureExtractor:
             GradYWindowFeatureExtractor, CurvatureWindowFeatureExtractor
         ]
 
-    def _compute_feature_rep(self, grasp):
+    def _compute_feature_rep(self, grasp, root_name=None):
         """Extracts features from a graspable object and a single grasp."""
         # get grasp windows -- cached
         try:
@@ -232,7 +232,7 @@ class GraspableFeatureExtractor:
         surface_features = []
         for s in (s1, s2):
             extractors = [cls(s, weight) for cls, weight in
-                          zip(self.classes_, self.weights_) if weight > 0]
+                          zip(self.classes_, self.weights_)]
             feature = AggregatedFeatureExtractor(
                 extractors, 'w%d' %(len(surface_features)+1))
             surface_features.append(feature)
@@ -247,16 +247,20 @@ class GraspableFeatureExtractor:
         ]
 
         # compute additional features
+        if root_name is None:
+            root_name = self.graspable_.key
         features = AggregatedFeatureExtractor(
-            surface_features + gravity_features, self.graspable_.key)
+            surface_features + gravity_features, root_name)
         self.features_[grasp] = features
         return features
 
     def compute_all_features(self, grasps):
         """Convenience function for extracting features from many grasps."""
+        num_digits = len(str(len(grasps)-1)) # for padding with zeros
         features = []
         for i, grasp in enumerate(grasps):
             logging.info('Computing features for grasp %d' %(i))
-            feature = self._compute_feature_rep(grasp)
+            feature = self._compute_feature_rep(
+                grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
             features.append(feature)
         return features
