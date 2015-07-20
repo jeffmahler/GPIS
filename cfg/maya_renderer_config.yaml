@@ -1,0 +1,9 @@
+path_to_mayapy: '/Applications/Autodesk/maya2016/Maya.app/Contents/bin/mayapy'
+
+dest_dir: '/Users/MelRod/myProjects/GPIS_data/data/tmp/rendered_images/'
+mesh_dir: '/Users/MelRod/myProjects/GPIS/Cat50_ModelDatabase'
+
+render_type: 'color' # or depth
+num_radial: 2
+num_lat: 5
+num_long: 5
