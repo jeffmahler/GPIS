@@ -1,0 +1,124 @@
+# Core parameters ####################################################
+# tank setup
+# root_dir:     /home/brian/research/GPIS
+# database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
+
+# GCE setup
+root_dir:     /home/brian/GPIS
+database_dir: /home/brian/data
+
+# tank setup
+# cache_dir:    /home/brian/research/GPIS/data/gcs
+
+# rll setup
+cache_dir:    /home/jmahler/brian/GPIS/data/gcs/features
+
+dataset_counts: data/counts.txt
+datasets:
+  - test_data
+max_chunk_size: 1
+
+# Will be overridden by startup script
+dataset:     test_data
+chunk_start: 0
+chunk_end:   2
+
+# Experiment parameters (metadata) ###################################
+grasp_width: 0.1
+friction_coef: 0.5
+num_cone_faces: 8
+num_grasp_clusters: 10
+vis_grasps: False
+vis_delay: 0.5
+check_collisions: False
+plot: False
+grasp_sampler: gaussian
+
+# Bandits
+bandit_max_iter: 2000
+bandit_confidence: 0.00025
+bandit_snapshot_rate: 1000
+bandit_brute_force_iter: 1000000
+
+# Correlations
+window_width: 0.03
+window_steps: 21
+window_sigma: 1.0
+kernel_sigma: 1.0
+kernel_l: 1.0
+kernel_tolerance: 0.5
+
+# Weights
+inf:   &id_inf    100000000000000000000.0
+zero:  &id_zero   0.0
+weight_proj_win:  1.0
+weight_grad_x:    1.0
+weight_grad_y:    1.0
+weight_curvature: 1.0
+weight_gravity:   1.0
+
+# Grasp sampling
+min_num_grasps: 250
+max_num_grasps: 500 # per object
+min_num_collision_free_grasps: 200
+min_contact_dist: 0.01
+grasp_samples_per_surface_point: 4 # lower for fewer samples
+
+dir_prior: 1.0
+alpha_thresh_div: 8.0 # in multiples of pi
+grasp_theta_res: 0.1 # in multiples of pi
+rho_thresh: 0.75 # as percentage of object max moment
+alpha_inc: 0.25
+rho_inc: 0.025
+friction_inc: 0.1
+
+# Uncertainty
+sigma_mu: 0.1
+sigma_trans_grasp: 0.01
+sigma_rot_grasp: 0.1
+sigma_trans_obj: 0.01
+sigma_rot_obj: 0.1
+sigma_scale_obj: 0.02
+num_prealloc_obj_samples: 100 # zero if we want to sample on-line
+num_prealloc_grasp_samples: 0
+
+# Plotting
+line_width: 2.5
+font_size: 15
+dpi: 400
+plot: False
+
+# GCE parameters #####################################################
+project:        &id_project        nth-clone-620
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+bucket:         &id_bucket         dex-net-cm # TODO
+disk_type:      &id_disk_type      PERSISTENT
+num_processes: 8
+results_script: src/grasp_selection/compile_bandit_results.py
+compute:
+  api_version:    v1
+  machine_type:   n1-standard-1
+  zones:
+    - us-central1-a
+    - europe_west1-b
+    - asia-east1-a
+  instance_quota: 200
+  startup_script: scripts/cm_startup.sh # TODO
+  image_project:  *id_project
+  image:          dex-net-image
+  data_disks:
+    - dex-net-data
+  service_email:  default
+  network:        default
+  run_script:     src/grasp_selection/correlated_bandits.py
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+# Notification parameters ############################################
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgicallab
+notify_email:   &id_notify_email    brian.hou@berkeley.edu

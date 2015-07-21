@@ -38,6 +38,11 @@ class BanditCorrelatedExperimentResult:
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
 
+        if isinstance(ua_result, list):
+            for result in ua_result:
+                result.only_keep_last() # only care about last model
+        else:
+            ua_result.only_keep_last() # only care about last model
         self.ua_result = ua_result
         self.ts_result = ts_result
         self.ts_corr_result = ts_corr_result
@@ -212,7 +217,7 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         jsons.dump([g.to_json(quality=q) for g, q in
                    zip(pr2_grasps, pr2_grasp_qualities)], f)
 
-    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
+    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)[:max_iter] # truncate to bandit duration
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
@@ -263,11 +268,11 @@ if __name__ == '__main__':
 
     if config['plot']:
         plt.figure()
-        ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward,
+        ua_obj = plt.plot(all_results.ts_result[0].iters, ua_normalized_reward,
                           c=u'b', linewidth=2.0, label='Uniform Allocation')
         ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward,
                           c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
-        ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward,
+        ts_corr_obj = plt.plot(all_results.ts_result[0].iters, ts_corr_normalized_reward,
                           c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
         plt.xlim(0, np.max(all_results.ts_result[0].iters))
         plt.ylim(0.5, 1)
