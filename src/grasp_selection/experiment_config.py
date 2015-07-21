@@ -45,6 +45,19 @@ SAMPLE_KEY = 'sample'
 DECODER_DEPLOY_BATCH_SIZE_EXPR = '2*config[\'hidden_state_dim\']' # hanrcoded param
 OBSERVATION_DIM_EXPR = 'config[\'width\']*config[\'height\']' # hanrcoded param
 
+class IncludeLoader(yaml.Loader):
+    # http://stackoverflow.com/a/9577670
+    def __init__(self, stream):
+        self._root = os.path.split(stream.name)[0]
+        yaml.Loader.__init__(self, stream)
+
+    def include(self, node):
+        filename = os.path.join(self._root, self.construct_scalar(node))
+        print filename
+        with open(filename, 'r') as f:
+            return yaml.load(f, IncludeLoader)
+IncludeLoader.add_constructor('!include', IncludeLoader.include)
+
 class ExperimentConfig(object):
     """
     Class to load a configuration file, parse config, fill templates, and create necessary I/O dirs / databases
@@ -110,7 +123,7 @@ class ExperimentConfig(object):
             expression = eval(expression[2:-1])
         return expression
 
-    def __ordered_load(self, stream, Loader=yaml.Loader, object_pairs_hook=OrderedDict):
+    def __ordered_load(self, stream, Loader=IncludeLoader, object_pairs_hook=OrderedDict):
         """
         Load an ordered dictionary from a yaml file. Borrowed from John Schulman
 

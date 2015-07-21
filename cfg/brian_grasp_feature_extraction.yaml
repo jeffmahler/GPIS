@@ -101,7 +101,7 @@ compute:
   machine_type:   n1-standard-1
   zones:
     - us-central1-a
-    - europe_west1-b
+    - europe-west1-b
     - asia-east1-a
   instance_quota: 200
   startup_script: scripts/cm_startup.sh # TODO

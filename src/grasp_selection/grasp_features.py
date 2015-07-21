@@ -68,7 +68,7 @@ def extract_features(obj, dest, feature_dest, config):
     all_features = feature_extractor.compute_all_features(grasps)
     feature_end = time.clock()
     feature_duration = feature_end - feature_start
-    logging.info('Feature extraction took %f sec' %(sample_duration))
+    logging.info('Feature extraction took %f sec' %(feature_duration))
 
     # generate pfc candidates
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
