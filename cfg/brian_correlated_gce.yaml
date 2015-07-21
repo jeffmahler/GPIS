@@ -50,10 +50,11 @@ kernel_tolerance: 0.5
 # Weights
 inf:   &id_inf    100000000000000000000.0
 zero:  &id_zero   0.0
-weight_proj_win:  500
-weight_grad_x:    *id_inf
-weight_grad_y:    *id_inf
-weight_curvature: *id_inf
+weight_proj_win:  1.0
+weight_grad_x:    1.0
+weight_grad_y:    1.0
+weight_curvature: 1.0
+weight_gravity:   1.0
 
 # Grasp sampling
 grasp_sampler: antipodal

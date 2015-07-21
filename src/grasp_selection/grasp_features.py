@@ -74,6 +74,7 @@ def extract_features(obj, dest, feature_dest, config):
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
     candidates = []
+    logging.info('%d grasps, %d features', len(grasps), len(all_features))
     for grasp, features in zip(grasps, all_features):
         logging.info('Adding grasp %d candidate' %(len(candidates)))
         if features is None:
@@ -128,8 +129,8 @@ def extract_features(obj, dest, feature_dest, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', default='cfg/correlated.yaml')
-    parser.add_argument('output_dest', default='out/')
+    parser.add_argument('config')
+    parser.add_argument('output_dest')
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)

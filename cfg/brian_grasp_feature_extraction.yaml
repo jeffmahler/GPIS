@@ -95,7 +95,7 @@ oauth_storage:  &id_oauth_storage  oauth2.dat
 bucket:         &id_bucket         dex-net-cm # TODO
 disk_type:      &id_disk_type      PERSISTENT
 num_processes: 8
-results_script: src/grasp_selection/compile_bandit_results.py
+results_script: src/grasp_selection/save_grasps_and_features.py
 compute:
   api_version:    v1
   machine_type:   n1-standard-1
@@ -111,7 +111,7 @@ compute:
     - dex-net-data
   service_email:  default
   network:        default
-  run_script:     src/grasp_selection/correlated_bandits.py
+  run_script:     src/grasp_selection/grasp_features.py
   scopes:
     - https://www.googleapis.com/auth/compute
     - https://www.googleapis.com/auth/devstorage.full_control
