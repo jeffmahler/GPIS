@@ -44,13 +44,13 @@ def extract_features(obj, dest, feature_dest, config):
         min_num_grasps = config['min_num_grasps']
         if num_grasps < min_num_grasps:
             target_num_grasps = min_num_grasps - num_grasps
-            gaussian_sampler = gs.GaussianGraspSampler(config)        
+            gaussian_sampler = gs.GaussianGraspSampler(config)
             gaussian_grasps = gaussian_sampler.generate_grasps(obj, target_num_grasps=target_num_grasps,
                                                                check_collisions=config['check_collisions'], vis=plot)
             grasps.extend(gaussian_grasps)
     else:
         logging.info('Using Gaussian grasp sampling')
-        sampler = gs.GaussianGraspSampler(config)        
+        sampler = gs.GaussianGraspSampler(config)
         grasps = sampler.generate_grasps(
             obj, check_collisions=config['check_collisions'])
 
@@ -74,7 +74,7 @@ def extract_features(obj, dest, feature_dest, config):
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
     candidates = []
-    logging.info('%d grasps, %d features', len(grasps), len(all_features))
+    logging.info('%d grasps, %d valid features', len(grasps), len(all_features) - all_features.count(None))
     for grasp, features in zip(grasps, all_features):
         logging.info('Adding grasp %d candidate' %(len(candidates)))
         if features is None:
@@ -84,6 +84,7 @@ def extract_features(obj, dest, feature_dest, config):
         pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
         pfc_rv.set_features(features)
         candidates.append(pfc_rv)
+    logging.info('%d candidates', len(candidates))
 
     # brute force with uniform allocation
     brute_force_iter = config['bandit_brute_force_iter']
@@ -119,9 +120,18 @@ def extract_features(obj, dest, feature_dest, config):
                     in zip(cand_grasps, estimated_pfc, final_model.alphas, final_model.betas)],
                    grasp_file)
 
+    # HACK to make paths relative
+    features_as_json = [f.to_json(feature_dest) for f in cand_features]
+    output_dest = os.path.split(dest)[0]
+    for feature_as_json in features_as_json:
+        feature_as_json = list(feature_as_json.values())[0]
+        for wname in ('w1', 'w2'):
+            wdata = feature_as_json[wname]
+            for k, v in wdata.items():
+                wdata[k] = os.path.relpath(v, output_dest) # relative to output_dest
     feature_filename = os.path.join(feature_dest, obj.key + '.json')
     with open(feature_filename, 'w') as feature_file:
-        jsons.dump([f.to_json(feature_dest) for f in cand_features], feature_file)
+        jsons.dump(features_as_json, feature_file)
 
     brute_filename = os.path.join(dest, obj.key + '_brute.pkl')
     with open(brute_filename, 'w') as brute_file:
