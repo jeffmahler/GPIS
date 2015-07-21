@@ -1,4 +1,3 @@
-import json
 import logging
 import numbers
 import numpy as np
@@ -7,6 +6,7 @@ import sys
 import time
 
 import experiment_config as ec
+import json_serialization as jsons
 import grasp
 import graspable_object as go
 import obj_file
@@ -138,8 +138,8 @@ class Dataset(object):
             grasp_dir = self.dataset_root_dir_
         path = os.path.join(grasp_dir, Dataset.json_filename(key))
         with open(path) as f:
-            grasps = json.load(f)
-        return [grasp.ParallelJawPtPose3D.from_json(g) for g in grasps]
+            grasps = jsons.load(f)
+        return [grasp.ParallelJawPtGrasp3D.from_json(g) for g in grasps]
 
     def save_grasps(self, graspable, grasps):
         """Saves a list of grasps in the database.
@@ -159,8 +159,7 @@ class Dataset(object):
         grasp_filename = Dataset.json_filename(file_root)
         # TODO: what should happen if grasp_filename already exists?
         with open(grasp_filename, 'w') as f:
-            json.dump(grasps, f,
-                      sort_keys=True, indent=4, separators=(',', ': '))
+            jsons.dump(grasps, f)
 
     def __getitem__(self, index):
         """ Index a particular object in the dataset """

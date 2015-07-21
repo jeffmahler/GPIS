@@ -3,7 +3,6 @@ Main file for correlated bandit experiments.
 
 Author: Brian Hou
 """
-import json
 import logging
 import pickle as pkl
 import os
@@ -22,6 +21,7 @@ import discrete_adaptive_samplers as das
 import experiment_config as ec
 import feature_functions as ff
 import grasp_sampler as gs
+import json_serialization as jsons
 import kernels
 import models
 import objectives
@@ -103,42 +103,33 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
     return best_pred_values
 
-def label_correlated(obj, dest, config, plot=False):
+def label_correlated(obj, chunk, dest, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
     bandit_start = time.clock()
 
     np.random.seed(100)
 
-    # sample initial antipodal grasps
+    # load grasps from database
     sample_start = time.clock()
-    if config['grasp_sampler'] == 'antipodal':
-        logging.info('Using antipodal grasp sampling')
-        sampler = ags.AntipodalGraspSampler(config)
-        grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
-
-        # pad with gaussian grasps
-        num_grasps = len(grasps)
-        min_num_grasps = config['min_num_grasps']
-        if num_grasps < min_num_grasps:
-            target_num_grasps = min_num_grasps - num_grasps
-            gaussian_sampler = gs.GaussianGraspSampler(config)        
-            gaussian_grasps = gaussian_sampler.generate_grasps(obj, target_num_grasps=target_num_grasps,
-                                                               check_collisions=config['check_collisions'], vis=plot)
-            grasps.extend(gaussian_grasps)
-    else:
-        logging.info('Using Gaussian grasp sampling')
-        sampler = gs.GaussianGraspSampler(config)        
-        grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
-
+    grasps = chunk.load_grasps(obj.key)
     sample_end = time.clock()
     sample_duration = sample_end - sample_start
-    logging.info('Generated %d grasps' %(len(grasps)))
-    logging.info('Grasp candidate generation took %f sec' %(sample_duration))
+    logging.info('Loaded %d grasps' %(len(grasps)))
+    logging.info('Grasp candidate loading took %f sec' %(sample_duration))
 
     if not grasps:
         logging.info('Skipping %s' %(obj.key))
         return None
+
+    # load features for all grasps
+    feature_start = time.clock()
+    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
+    all_features = feature_loader.load_all_features(grasps) # in same order as grasps
+    feature_end = time.clock()
+    feature_duration = feature_end - feature_start
+    logging.info('Loaded %d features' %(len(all_features)))
+    logging.info('Grasp feature loading took %f sec' %(feature_duration))
 
     # bandit params
     brute_force_iter = config['bandit_brute_force_iter']
@@ -153,10 +144,6 @@ def label_correlated(obj, dest, config, plot=False):
     # run bandits!
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
-
-    # compute feature vectors for all grasps
-    feature_extractor = ff.GraspableFeatureExtractor(obj, config)
-    all_features = feature_extractor.compute_all_features(grasps)
 
     candidates = []
     for grasp, features in zip(grasps, all_features):
@@ -222,8 +209,8 @@ def label_correlated(obj, dest, config, plot=False):
 
     grasp_filename = os.path.join(dest, obj.key + '.json')
     with open(grasp_filename, 'w') as f:
-        json.dump([g.to_json(quality=q) for g, q in zip(pr2_grasps, pr2_grasp_qualities)], f,
-                  sort_keys=True, indent=4, separators=(',', ': '))
+        jsons.dump([g.to_json(quality=q) for g, q in
+                   zip(pr2_grasps, pr2_grasp_qualities)], f)
 
     ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
@@ -257,7 +244,7 @@ if __name__ == '__main__':
     avg_experiment_result = None
     for obj in chunk:
         logging.info('Labelling object {}'.format(obj.key))
-        experiment_result = label_correlated(obj, dest, config, plot=config['plot'])
+        experiment_result = label_correlated(obj, chunk, dest, config)
         if experiment_result is None:
             continue # no grasps to run bandits on for this object
         results.append(experiment_result)

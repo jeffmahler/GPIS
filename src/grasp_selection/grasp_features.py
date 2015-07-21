@@ -4,7 +4,6 @@ Main file for extracting grasp features.
 Author: Brian Hou
 """
 import argparse
-import json
 import logging
 import pickle as pkl
 import os
@@ -23,6 +22,7 @@ import discrete_adaptive_samplers as das
 import experiment_config as ec
 import feature_functions as ff
 import grasp_sampler as gs
+import json_serialization as jsons
 import kernels
 import models
 import objectives
@@ -114,14 +114,13 @@ def extract_features(obj, dest, feature_dest, config):
     # write to file
     grasp_filename = os.path.join(dest, obj.key + '.json')
     with open(grasp_filename, 'w') as grasp_file:
-        json.dump([g.to_json(quality=q, num_successes=a, num_failures=b) for g, q, a, b in zip(cand_grasps, estimated_pfc,
-                                                                                               final_model.alphas, final_model.betas)],
-                  grasp_file, sort_keys=True, indent=4, separators=(',', ': '))
+        jsons.dump([g.to_json(quality=q, num_successes=a, num_failures=b) for g, q, a, b
+                    in zip(cand_grasps, estimated_pfc, final_model.alphas, final_model.betas)],
+                   grasp_file)
 
     feature_filename = os.path.join(feature_dest, obj.key + '.json')
     with open(feature_filename, 'w') as feature_file:
-        json.dump([f.to_json(feature_dest) for f in cand_features],
-                  feature_file, sort_keys=True, indent=4, separators=(',', ': '))
+        jsons.dump([f.to_json(feature_dest) for f in cand_features], feature_file)
 
     brute_filename = os.path.join(dest, obj.key + '_brute.pkl')
     with open(brute_filename, 'w') as brute_file:

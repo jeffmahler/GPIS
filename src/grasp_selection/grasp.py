@@ -110,7 +110,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
         Steps along grasp axis to find the locations of contact
         Params:
             obj - graspable object class
-            num_samples - number of sample points between g1 and g2 to find contact points
             vis - (bool) whether or not to plot the shoe
         Returns:
             c1 - the Contact3D for jaw 1
@@ -397,56 +396,32 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
     def to_json(self, quality=0, method='PFC', num_successes=0, num_failures=0):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
-        gripper_pose = self.gripper_pose()
-        gripper_position = gripper_pose.position
-        gripper_orientation = gripper_pose.orientation
         return {
-            'flag': 0, # what's this?
-            'gripper_width': self.grasp_width,
+            # parameters to reconstruct ParallelJawPtGrasp3D instance
+            'grasp_center': self.center,
+            'grasp_axis': self.axis,
+            'grasp_width': self.grasp_width,
             'jaw_width': self.jaw_width,
-            'gripper_pose': {
-                'position': {
-                    'x': gripper_position.x,
-                    'y': gripper_position.y,
-                    'z': gripper_position.z,
-                },
-                'orientation': {
-                    'w': gripper_orientation.w,
-                    'x': gripper_orientation.x,
-                    'y': gripper_orientation.y,
-                    'z': gripper_orientation.z,
-                }
-            },
+            'grasp_angle': self.approach_angle,
+            # additional data
+            'flag': 0, # what's this?
             'frame': 'gripper_l_tool_frame', # ?
             'reference_frame': 'object',
             'quality': quality,
             'metric': method,
             'successes': num_successes,
-            'failures': num_failures
+            'failures': num_failures,
         }
-
-class ParallelJawPtPose3D(object):
-    """A skeleton class that exposes the same attributes as a tfx.transform."""
-    def __init__(self, data):
-        self.json_ = data
-        gripper_pose = data['gripper_pose']
-        orientation = gripper_pose['orientation']
-        position = gripper_pose['position']
-        self.orientation_ = tfx.rotation([orientation[c] for c in 'xyzw'])
-        self.position_ = tfx.point([position[c] for c in 'xyz'])
-        self.gripper_pose_ = tfx.pose(self.orientation_, self.position_)
 
     @staticmethod
     def from_json(data):
-        return ParallelJawPtPose3D(data)
-
-    def to_json(self):
-        return self.json_
-
-    def gripper_pose(self, R_gripper_center=np.eye(3), t_gripper_center=PR2_GRASP_OFFSET):
-        return self.gripper_pose_
-
-    surface_information = ParallelJawPtGrasp3D.surface_information
+        grasp_center = data['grasp_center']
+        grasp_axis = data['grasp_axis']
+        grasp_width = data['grasp_width']
+        jaw_width = data['jaw_width']
+        grasp_angle = data['grasp_angle']
+        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width,
+                                    jaw_width, grasp_angle)
 
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """
