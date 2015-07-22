@@ -41,7 +41,7 @@ class AdaptiveSamplingResult:
         self.best_pred_ind = [m.best_pred_ind for m in models]
 
     def minify(self, config):
-        amt = config['bandit_max_iter']
+        amt = int(config['bandit_max_iter'] / config['bandit_snapshot_rate']) + 1
 
         self.checkpt_times = []
         self.indices = self.indices[:amt]

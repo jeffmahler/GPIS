@@ -1,17 +1,7 @@
 # Core parameters ####################################################
-# tank setup
-# root_dir:     /home/brian/research/GPIS
-# database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
-
-# GCE setup
-root_dir:     /home/brian/GPIS
-database_dir: /home/brian/data
-
-# tank setup
-# cache_dir:    /home/brian/research/GPIS/data/gcs
-
-# rll setup
-cache_dir:    /home/jmahler/brian/GPIS/data/gcs/features
+!include partials/paths_gce.yaml
+!include partials/paths_tank.yaml
+!include partials/paths_rll4_brian.yaml
 
 dataset_counts: data/counts.txt
 datasets:
@@ -20,35 +10,15 @@ max_chunk_size: 1
 
 # Will be overridden by startup script
 dataset:     test_data
-chunk_start: 0
-chunk_end:   2
+chunk_start: 27
+chunk_end:   28
 
-# Experiment parameters (metadata) ###################################
-grasp_width: 0.1
-friction_coef: 0.5
-num_cone_faces: 8
-num_grasp_clusters: 10
-vis_grasps: False
-vis_delay: 0.5
-check_collisions: False
-plot: False
-grasp_sampler: gaussian
+# Experiment parameters ##############################################
+!include partials/experiment_params.yaml
+!include partials/bandit_params.yaml
+!include partials/window_params.yaml
 
-# Bandits
-bandit_max_iter: 2000
-bandit_confidence: 0.00025
-bandit_snapshot_rate: 1000
-bandit_brute_force_iter: 1000000
-
-# Correlations
-window_width: 0.03
-window_steps: 21
-window_sigma: 1.0
-kernel_sigma: 1.0
-kernel_l: 1.0
-kernel_tolerance: 0.5
-
-# Weights
+# Window weights #####################################################
 inf:   &id_inf    100000000000000000000.0
 zero:  &id_zero   0.0
 weight_proj_win:  1.0
@@ -57,36 +27,8 @@ weight_grad_y:    1.0
 weight_curvature: 1.0
 weight_gravity:   1.0
 
-# Grasp sampling
-min_num_grasps: 250
-max_num_grasps: 500 # per object
-min_num_collision_free_grasps: 200
-min_contact_dist: 0.01
-grasp_samples_per_surface_point: 4 # lower for fewer samples
-
-dir_prior: 1.0
-alpha_thresh_div: 8.0 # in multiples of pi
-grasp_theta_res: 0.1 # in multiples of pi
-rho_thresh: 0.75 # as percentage of object max moment
-alpha_inc: 0.25
-rho_inc: 0.025
-friction_inc: 0.1
-
-# Uncertainty
-sigma_mu: 0.1
-sigma_trans_grasp: 0.01
-sigma_rot_grasp: 0.1
-sigma_trans_obj: 0.01
-sigma_rot_obj: 0.1
-sigma_scale_obj: 0.02
-num_prealloc_obj_samples: 100 # zero if we want to sample on-line
-num_prealloc_grasp_samples: 0
-
-# Plotting
-line_width: 2.5
-font_size: 15
-dpi: 400
-plot: False
+# Post-experiment parameters #########################################
+!include partials/plot_params.yaml
 
 # GCE parameters #####################################################
 project:        &id_project        nth-clone-620
