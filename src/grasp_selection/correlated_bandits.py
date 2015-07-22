@@ -33,16 +33,18 @@ def experiment_hash(N = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 class BanditCorrelatedExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, obj_key = '', num_objects = 1):
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward,
+                 ua_result, ts_result, ts_corr_result, config,
+                 obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
 
         if isinstance(ua_result, list):
             for result in ua_result:
-                result.minify() # only care about last model
+                result.minify(config) # only care about last model
         elif ua_result is not None:
-            ua_result.minify() # only care about last model
+            ua_result.minify(config) # only care about last model
         self.ua_result = ua_result
         self.ts_result = ts_result
         self.ts_corr_result = ts_corr_result
@@ -57,7 +59,7 @@ class BanditCorrelatedExperimentResult:
             pkl.dump(self, f)
 
     @staticmethod
-    def compile_results(result_list):
+    def compile_results(result_list, config):
         """ Put all results in a giant list """
         if len(result_list) == 0:
             return None
@@ -83,6 +85,7 @@ class BanditCorrelatedExperimentResult:
                                                 ua_results,
                                                 ts_results,
                                                 ts_corr_results,
+                                                config,
                                                 obj_keys,
                                                 len(result_list))
 
@@ -96,7 +99,7 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
         best_values - list of floats, expected values over time
     """
     true_best_value = np.max(true_pfc)
-    best_pred_values = [true_pfc[m.best_pred_ind] for m in result.models]
+    best_pred_values = [true_pfc[pred_ind] for pred_ind in result.best_pred_ind]
     if normalize:
         best_pred_values = best_pred_values / true_best_value
 
@@ -173,10 +176,8 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     # pre-computed pfc values
     ua_path = os.path.join(config['database_dir'], config['dataset'],
                            obj.key + '_brute.pkl')
-    ua_result = pkl.load(ua_path)
+    ua_result = pkl.load(open(ua_path))
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
-
-    IPython.embed()
 
     # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
@@ -223,7 +224,7 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
-                                            ua_result, ts_result, ts_corr_result, obj_key=obj.key)
+                                            ua_result, ts_result, ts_corr_result, config, obj_key=obj.key)
 
 if __name__ == '__main__':
     import argparse
@@ -260,7 +261,7 @@ if __name__ == '__main__':
         exit(0)
 
     # combine results
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = BanditCorrelatedExperimentResult.compile_results(results, config)
 
     # plotting of final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
