@@ -37,20 +37,7 @@ class AdaptiveSamplingResult:
         self.indices = indices
         self.vals = vals
         self.models = models
-
         self.best_pred_ind = [m.best_pred_ind for m in models]
-
-    def minify(self, config):
-        amt = int(config['bandit_max_iter'] / config['bandit_snapshot_rate']) + 1
-
-        self.checkpt_times = []
-        self.indices = self.indices[:amt]
-        self.vals = self.vals[:amt]
-
-        # need iters and best_pred_ind_ for plotting
-        self.iters = self.iters[:amt]
-        self.best_pred_ind = self.best_pred_ind[:amt]
-        self.models = self.models[-1:] # only keep true pfc
 
 class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
     __metaclass__ = ABCMeta

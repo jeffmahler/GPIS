@@ -24,10 +24,10 @@ friction_inc: 0.1
 
 # Uncertainty
 sigma_mu: 0.1
-sigma_trans_grasp: 0.01
+sigma_trans_grasp: 0.005
 sigma_rot_grasp: 0.1
-sigma_trans_obj: 0.01
+sigma_trans_obj: 0.005
 sigma_rot_obj: 0.1
-sigma_scale_obj: 0.02
+sigma_scale_obj: 0.025
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
 num_prealloc_grasp_samples: 0

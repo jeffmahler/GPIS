@@ -34,17 +34,12 @@ def experiment_hash(N = 10):
 
 class BanditCorrelatedExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward,
-                 ua_result, ts_result, ts_corr_result, config,
+                 ua_result, ts_result, ts_corr_result,
                  obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
 
-        if isinstance(ua_result, list):
-            for result in ua_result:
-                result.minify(config) # only care about last model
-        elif ua_result is not None:
-            ua_result.minify(config) # only care about last model
         self.ua_result = ua_result
         self.ts_result = ts_result
         self.ts_corr_result = ts_corr_result
@@ -59,7 +54,7 @@ class BanditCorrelatedExperimentResult:
             pkl.dump(self, f)
 
     @staticmethod
-    def compile_results(result_list, config):
+    def compile_results(result_list):
         """ Put all results in a giant list """
         if len(result_list) == 0:
             return None
@@ -85,7 +80,6 @@ class BanditCorrelatedExperimentResult:
                                                 ua_results,
                                                 ts_results,
                                                 ts_corr_results,
-                                                config,
                                                 obj_keys,
                                                 len(result_list))
 
@@ -174,10 +168,12 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     objective = objectives.RandomBinaryObjective()
 
     # pre-computed pfc values
-    ua_path = os.path.join(config['database_dir'], config['dataset'],
-                           obj.key + '_brute.pkl')
-    ua_result = pkl.load(open(ua_path))
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
+
+    # uniform allocation baseline
+    ua = das.UniformAllocationMean(objective, candidates)
+    logging.info('Running uniform allocation.')
+    ua_result = ua.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
@@ -224,7 +220,7 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
-                                            ua_result, ts_result, ts_corr_result, config, obj_key=obj.key)
+                                            ua_result, ts_result, ts_corr_result, obj_key=obj.key)
 
 if __name__ == '__main__':
     import argparse
@@ -261,7 +257,7 @@ if __name__ == '__main__':
         exit(0)
 
     # combine results
-    all_results = BanditCorrelatedExperimentResult.compile_results(results, config)
+    all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
     # plotting of final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)

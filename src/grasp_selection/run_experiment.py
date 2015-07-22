@@ -408,7 +408,6 @@ def launch_experiment(args, sleep_time):
             logging.error(resp)
             continue
 
-        logging.info(items)
         logging.info('Waiting on %s', instance_results)
         for item in items:
             if item['name'] in instance_results:

@@ -1,7 +1,7 @@
 # Core parameters ####################################################
-!include partials/paths_gce.yaml
 !include partials/paths_tank.yaml
 !include partials/paths_rll4_brian.yaml
+!include partials/paths_gce.yaml
 
 dataset_counts: data/counts.txt
 datasets:

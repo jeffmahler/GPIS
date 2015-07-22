@@ -378,14 +378,7 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         Create the full kernel matrix for debugging purposes
         """
         if self.kernel_matrix_ is None:
-            self.kernel_matrix_ = np.zeros([self.num_vars_, self.num_vars_])
-            i = 0
-            for candidate_i in candidates:
-                j = 0
-                for candidate_j in candidates:
-                    self.kernel_matrix_[i,j] = self.kernel_(candidate_i, candidate_j)
-                    j += 1
-                i += 1
+            self.kernel_matrix_ = self.kernel_.matrix(self.candidates_)
         return self.kernel_matrix_
 
     def update(self, index, value):
