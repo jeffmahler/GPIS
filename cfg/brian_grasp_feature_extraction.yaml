@@ -11,7 +11,7 @@ database_dir: /home/brian/data
 # cache_dir:    /home/brian/research/GPIS/data/gcs
 
 # rll setup
-cache_dir:    /home/jmahler/brian/GPIS/data/gcs
+cache_dir:    /home/jmahler/brian/GPIS/data/gcs/features
 
 dataset_counts: data/counts.txt
 datasets:
@@ -25,19 +25,20 @@ chunk_end:   2
 
 # Experiment parameters (metadata) ###################################
 grasp_width: 0.1
-friction_coef: 0.9
+friction_coef: 0.5
 num_cone_faces: 8
 num_grasp_clusters: 10
 vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
 plot: False
+grasp_sampler: gaussian
 
 # Bandits
-bandit_max_iter: 5000
-bandit_confidence: 0.0005
-bandit_snapshot_rate: 20
-bandit_brute_force_iter: 10000
+bandit_max_iter: 2000
+bandit_confidence: 0.00025
+bandit_snapshot_rate: 1000
+bandit_brute_force_iter: 1000000
 
 # Correlations
 window_width: 0.03
@@ -57,15 +58,14 @@ weight_curvature: 1.0
 weight_gravity:   1.0
 
 # Grasp sampling
-grasp_sampler: antipodal
-min_contact_dist: 0.005
-min_num_grasps: 100
+min_num_grasps: 250
+max_num_grasps: 500 # per object
 min_num_collision_free_grasps: 200
-max_num_grasps: 200 # per object
+min_contact_dist: 0.01
 grasp_samples_per_surface_point: 4 # lower for fewer samples
 
 dir_prior: 1.0
-alpha_thresh_div: 16.0 # in multiples of pi
+alpha_thresh_div: 8.0 # in multiples of pi
 grasp_theta_res: 0.1 # in multiples of pi
 rho_thresh: 0.75 # as percentage of object max moment
 alpha_inc: 0.25
@@ -74,17 +74,19 @@ friction_inc: 0.1
 
 # Uncertainty
 sigma_mu: 0.1
-sigma_trans_grasp: 0.025
-sigma_rot_grasp: 0.3
-sigma_trans_obj: 0.025
-sigma_rot_obj: 0.3
-sigma_scale_obj: 0.05
+sigma_trans_grasp: 0.01
+sigma_rot_grasp: 0.1
+sigma_trans_obj: 0.01
+sigma_rot_obj: 0.1
+sigma_scale_obj: 0.02
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
 num_prealloc_grasp_samples: 0
 
 # Plotting
 line_width: 2.5
 font_size: 15
+dpi: 400
+plot: False
 
 # GCE parameters #####################################################
 project:        &id_project        nth-clone-620
@@ -93,7 +95,7 @@ oauth_storage:  &id_oauth_storage  oauth2.dat
 bucket:         &id_bucket         dex-net-cm # TODO
 disk_type:      &id_disk_type      PERSISTENT
 num_processes: 8
-results_script: src/grasp_selection/compile_bandit_results.py
+results_script: src/grasp_selection/save_grasps_and_features.py
 compute:
   api_version:    v1
   machine_type:   n1-standard-1
@@ -109,7 +111,7 @@ compute:
     - dex-net-data
   service_email:  default
   network:        default
-  run_script:     src/grasp_selection/correlated_bandits.py
+  run_script:     src/grasp_selection/grasp_features.py
   scopes:
     - https://www.googleapis.com/auth/compute
     - https://www.googleapis.com/auth/devstorage.full_control

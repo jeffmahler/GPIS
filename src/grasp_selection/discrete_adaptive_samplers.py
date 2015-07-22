@@ -38,6 +38,13 @@ class AdaptiveSamplingResult:
         self.vals = vals
         self.models = models
 
+    def only_keep_last(self):
+        self.checkpt_times = self.checkpt_times[-1:]
+        self.iters = self.iters[-1:]
+        self.indices = self.indices[-1:]
+        self.vals = self.vals[-1:]
+        self.models = self.models[-1:]
+
 class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
     __metaclass__ = ABCMeta
 

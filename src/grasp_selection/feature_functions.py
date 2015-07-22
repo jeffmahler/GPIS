@@ -1,41 +1,12 @@
 from abc import ABCMeta, abstractmethod
 
 import IPython
+import json_serialization as jsons
 import logging
 import numpy as np
 import os
 
-# Unused FeatureFunction classes
-
-class FeatureFunction:
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def evaluate(self, obj):
-        """Evaluates a feature function with an object."""
-
-class LinearFeatureFunction(FeatureFunction):
-    def __init__(self, weights, dim=None):
-        if dim is None:
-            weights = np.array(weights)
-        else:
-            weights = weight * np.ones(dim)
-        if len(weights.shape) > 2:
-            raise ValueError('weights must have shape (1, N), (N, 1), or (N,)')
-        if len(weights.shape) == 2 and 1 not in weights:
-            raise ValueError('weights must have shape (1, N), (N, 1), or (N,)')
-        self.weights_ = weights.reshape((max(weights.shape), 1))
-
-    def evaluate(self, obj):
-        obj = obj.reshape((max(obj.shape), 1))
-        return np.dot(self.weights_.T, obj)
-
-class LinearFeatureFunctionSum(LinearFeatureFunction):
-    def __init__(self, feature_fns):
-        self.feature_fns_ = feature_fns
-        all_weights = [fn.weights_ for fn in feature_fns]
-        self.weights_ = np.sum(np.array(all_weights), axis=0)
-
+from contacts import SurfaceWindow
 
 # Grasp-specific feature functions
 
@@ -59,6 +30,17 @@ class FeatureExtractor:
     @property
     def phi(self):
         raise NotImplementedError
+
+class RawFeatureExtractor(FeatureExtractor):
+    """A skeleton class that exposes the same attributes as a FeatureExtractor."""
+    def __init__(self, name, feature_weight, data):
+        self.name = name
+        self.feature_weight_ = feature_weight
+        self.data_ = data
+
+    @property
+    def phi(self):
+        return self.feature_weight * self.data_
 
 class AggregatedFeatureExtractor(FeatureExtractor):
     """Class for aggregating features."""
@@ -147,7 +129,7 @@ class GravityFeatureExtractor(FeatureExtractor):
         return np.arccos(np.dot(v1, v2))
 
     def to_json(self, dest):
-        return {self.name : self.phi.tolist()}
+        return {self.name : self.phi}
 
 class MomentArmFeatureExtractor(GravityFeatureExtractor):
     name = 'moment_arms'
@@ -173,6 +155,7 @@ class MomentArmGravityAngleFeatureExtractor(GravityFeatureExtractor):
         angles = [self.angle(m, self.gravity_force_) for m in (self.moment1_, self.moment2_)]
         return self.feature_weight * np.array(angles)
 
+GRAVITY_FORCE = 1.0 * np.array([0, 0, -9.8]) # TODO change this
 
 # Graspable feature functions
 
@@ -196,6 +179,8 @@ class GraspableFeatureExtractor:
         self.grad_y_weight_ = config['weight_grad_y']
         self.curvature_weight_ = config['weight_curvature']
 
+        self.gravity_weight_ = config['weight_gravity']
+
         # for convenience
         self.weights_ = [
             self.proj_win_weight_, self.grad_x_weight_,
@@ -206,7 +191,7 @@ class GraspableFeatureExtractor:
             GradYWindowFeatureExtractor, CurvatureWindowFeatureExtractor
         ]
 
-    def _compute_feature_rep(self, grasp):
+    def _compute_feature_rep(self, grasp, root_name=None):
         """Extracts features from a graspable object and a single grasp."""
         # get grasp windows -- cached
         try:
@@ -230,14 +215,13 @@ class GraspableFeatureExtractor:
         surface_features = []
         for s in (s1, s2):
             extractors = [cls(s, weight) for cls, weight in
-                          zip(self.classes_, self.weights_) if weight > 0]
+                          zip(self.classes_, self.weights_)]
             feature = AggregatedFeatureExtractor(
                 extractors, 'w%d' %(len(surface_features)+1))
             surface_features.append(feature)
 
         # compute gravity features
-        gravity_force = 1.0 * np.array([0, 0, -9.8])
-        gravity_args = (self.graspable_, grasp, gravity_force)
+        gravity_args = (self.graspable_, grasp, GRAVITY_FORCE, self.gravity_weight_)
         gravity_features = [
             MomentArmFeatureExtractor(*gravity_args),
             GraspAxisGravityAngleFeatureExtractor(*gravity_args),
@@ -245,16 +229,88 @@ class GraspableFeatureExtractor:
         ]
 
         # compute additional features
+        if root_name is None:
+            root_name = self.graspable_.key
         features = AggregatedFeatureExtractor(
-            surface_features + gravity_features, self.graspable_.key)
+            surface_features + gravity_features, root_name)
         self.features_[grasp] = features
         return features
 
     def compute_all_features(self, grasps):
         """Convenience function for extracting features from many grasps."""
+        num_digits = len(str(len(grasps)-1)) # for padding with zeros
         features = []
         for i, grasp in enumerate(grasps):
             logging.info('Computing features for grasp %d' %(i))
-            feature = self._compute_feature_rep(grasp)
+            feature = self._compute_feature_rep(
+                grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
+            features.append(feature)
+        return features
+
+class GraspableFeatureLoader:
+    """Class for loading pre-computed features for a graspable object."""
+    def __init__(self, graspable, dataset, config):
+        self.graspable_ = graspable
+        self._parse_config(config)
+
+        self.dataset_ = dataset
+        self.features_dir_ = os.path.join(self.database_root_dir_,
+                                          self.dataset_, 'features')
+
+    def _parse_config(self, config):
+        self.database_root_dir_ = config['database_dir']
+        self.proj_win_weight_ = config['weight_proj_win']
+        self.grad_x_weight_ = config['weight_grad_x']
+        self.grad_y_weight_ = config['weight_grad_y']
+        self.curvature_weight_ = config['weight_curvature']
+        self.gravity_weight_ = config['weight_gravity']
+
+    def _load_feature_rep(self, data, grasp, root_name=None):
+        name, feature_data = data.items()[0]
+        surface_features = []
+        for window in ('w1', 'w2'):
+            # read window data from json
+            surface_window_data = feature_data[window]
+            curvature = surface_window_data[CurvatureWindowFeatureExtractor.name]
+            gradx = surface_window_data[GradXWindowFeatureExtractor.name]
+            grady = surface_window_data[GradYWindowFeatureExtractor.name]
+            proj_win = surface_window_data[ProjectionWindowFeatureExtractor.name]
+            surface_window = SurfaceWindow(proj_win, (gradx, grady), None, None, curvature)
+
+            # create window feature extractors
+            surface_extractors = [
+                ProjectionWindowFeatureExtractor(surface_window, self.proj_win_weight_),
+                GradXWindowFeatureExtractor(surface_window, self.grad_x_weight_),
+                GradYWindowFeatureExtractor(surface_window, self.grad_y_weight_),
+                CurvatureWindowFeatureExtractor(surface_window, self.curvature_weight_),
+            ]
+            extractor = AggregatedFeatureExtractor(surface_extractors, window)
+            surface_features.append(extractor)
+
+        gravity_args = (self.graspable_, grasp, GRAVITY_FORCE, self.gravity_weight_)
+        gravity_features = [
+            MomentArmFeatureExtractor(*gravity_args),
+            GraspAxisGravityAngleFeatureExtractor(*gravity_args),
+            MomentArmGravityAngleFeatureExtractor(*gravity_args),
+        ]
+
+        # compute additional features
+        if root_name is None:
+            root_name = self.graspable_.key
+        features = AggregatedFeatureExtractor(
+            surface_features + gravity_features, root_name)
+        return features
+
+    def load_all_features(self, grasps):
+        path = os.path.join(self.features_dir_,
+                            self.graspable_.key + '.json')
+        with open(path) as f:
+            features_json = jsons.load(f)
+        num_digits = len(str(len(grasps)-1)) # for padding with zeros
+        features = []
+        for i, (feature_json, grasp) in enumerate(zip(features_json, grasps)):
+            logging.info('Loading features for grasp %d' %(i))
+            feature = self._load_feature_rep(
+                feature_json, grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
             features.append(feature)
         return features

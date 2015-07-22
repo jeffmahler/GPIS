@@ -4,6 +4,8 @@ import yaml
 import pickle
 import mesh_database
 
+from rendered_object import RenderedObject
+
 DATABASE_DIR_KEY = 'database_dir'
 MESH_DATABASE_ID_KEY = 'mesh_database_id'
 MESH_DATABASE_INDEX_KEY = 'mesh_database_index'
@@ -14,7 +16,7 @@ FEATURE_OBJECT_DATABASE_KEY = 'feature_object_database'
 NEAREST_FEATURES_KEY = 'nearest_features'
 DATASET_SORTER_KEY = 'dataset_sorter'
 
-CAT50_DATASET_KEY = 'Cat50'
+CAT50_DATASET_KEY = 'CAT50'
 SHREC_DATASET_KEY = 'SHREC'
 
 class FeatureDatabase:
@@ -39,7 +41,7 @@ class FeatureDatabase:
 			return None
 
 	def portion_training(self):
-		return self.path_to_image_dir_
+		return self.portion_training_
 
 	def mesh_database(self):
 		return self.mesh_database_

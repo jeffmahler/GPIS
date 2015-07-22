@@ -8,7 +8,7 @@ import kernels
 import database
 
 class PriorComputationEngine:
-	def __init__(nearest_features_path, feature_object_db_path, db, config):
+	def __init__(db, config):
 		self.nearest_features = pickle.load(open(nearest_features_path, "rb"))
 		self.feature_object_db = pickle.load(open(feature_object_db_path, "rb"))
 		self.db = db

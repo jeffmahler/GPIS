@@ -3,7 +3,6 @@ Main file for labelling objects with grasps (local now, will be distributed in f
 
 Author: Jeff Mahler
 """
-import json
 import IPython
 import logging
 import numpy as np
@@ -16,6 +15,7 @@ import antipodal_grasp_sampler as ags
 import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
+import json_serialization as jsons
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
@@ -91,8 +91,7 @@ def label_pfc(obj, dataset, output_dir, config):
     # save grasps locally :( Due to problems with sudo
     grasp_filename = os.path.join(output_dir, obj.key + '.json')
     with open(grasp_filename, 'w') as f:
-        json.dump([pr2_grasps[i].to_json(quality=pr2_grasp_qualities[i]) for i in range(len(pr2_grasps))], f,
-                  sort_keys=True, indent=4, separators=(',', ': '))
+        jsons.dump([pr2_grasps[i].to_json(quality=pr2_grasp_qualities[i]) for i in range(len(pr2_grasps))], f)
 
 if __name__ == '__main__':
     import argparse

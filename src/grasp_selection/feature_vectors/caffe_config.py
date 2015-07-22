@@ -3,7 +3,7 @@ import numpy as np
 import os.path as path
 
 CAFFE_TOOLS_KEY = 'caffe_tools'
-CONFIG_DIR_KEY = 'config_dir'
+CAFFE_DATA_DIR_KEY = 'config_dir'
 PORTION_TRAINING_KEY = 'portion_training'
 CAFFE_MODEL_KEY = 'caffe_model'
 CAFFE_FINETUNING_MODEL_KEY = 'caffe_finetuning_model'
@@ -20,7 +20,7 @@ class CaffeConfig(object):
 
 	def _parse_config(self, config):
 		self.caffe_tools_ = config[CAFFE_TOOLS_KEY]
-		self.config_dir_ = config[CONFIG_DIR_KEY]
+		self.caffe_data_dir_ = config[CAFFE_DATA_DIR_KEY]
 		self.portion_training_ = config[PORTION_TRAINING_KEY]
 		self.caffe_model_ = config[CAFFE_MODEL_KEY]
 		self.caffe_finetuning_model_ = config[CAFFE_FINETUNING_MODEL_KEY]
@@ -31,8 +31,8 @@ class CaffeConfig(object):
 	def caffe_tools(self):
 		return self.caffe_tools_
 
-	def config_dir(self):
-		return self.config_dir_
+	def caffe_data_dir(self):
+		return self.caffe_data_dir_
 
 	def portion_training(self):
 		return self.portion_training_
@@ -41,13 +41,13 @@ class CaffeConfig(object):
 		return self.deploy_mode_
 
 	def deploy_model(self):
-		return path.join(self.config_dir_, 'deploy.prototxt')
+		return path.join(self.caffe_data_dir_, 'deploy.prototxt')
 
 	def solver(self):
-		return path.join(self.config_dir_, 'solver.prototxt')
+		return path.join(self.caffe_data_dir_, 'solver.prototxt')
 
 	def mean(self):
-		return np.load(path.join(self.config_dir_, 'mean.npy')).mean(1).mean(1)
+		return np.load(path.join(self.caffe_data_dir_, 'mean.npy')).mean(1).mean(1)
 
 	def finetuning_model(self):
 		return self.caffe_finetuning_model_

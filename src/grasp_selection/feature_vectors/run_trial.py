@@ -1,13 +1,11 @@
-import os
-import yaml
-from dataset_sorter import DatasetSorter
-from object_database import Cat50ObjectDatabase
 import train_cnn
-
+from dataset_sorter import DatasetSorter
+from feature_database import FeatureDatabase
+from caffe_config import CaffeConfig
 
 if __name__ == '__main__':
-	feature_db = feature_database.FeatureDatabase()
-	caffe_config = caffe_config.CaffeConfig()
+	feature_db = FeatureDatabase()
+	caffe_config = CaffeConfig()
 
 	dataset_sorter = feature_db.feature_dataset_sorter()
 	if dataset_sorter == None:
