@@ -134,6 +134,7 @@ def extract_features(obj, dest, feature_dest, config):
         jsons.dump(features_as_json, feature_file)
 
     brute_filename = os.path.join(dest, obj.key + '_brute.pkl')
+    ua_result.minify()
     with open(brute_filename, 'w') as brute_file:
         pkl.dump(ua_result, brute_file)
 

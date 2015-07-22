@@ -38,9 +38,9 @@ class AdaptiveSamplingResult:
         self.vals = vals
         self.models = models
 
-    def only_keep_last(self):
+    def minify(self):
         self.checkpt_times = self.checkpt_times[-1:]
-        self.iters = self.iters[-1:]
+        # self.iters = self.iters # need iters for plotting
         self.indices = self.indices[-1:]
         self.vals = self.vals[-1:]
         self.models = self.models[-1:]

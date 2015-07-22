@@ -40,9 +40,9 @@ class BanditCorrelatedExperimentResult:
 
         if isinstance(ua_result, list):
             for result in ua_result:
-                result.only_keep_last() # only care about last model
-        else:
-            ua_result.only_keep_last() # only care about last model
+                result.minify() # only care about last model
+        elif ua_result is not None:
+            ua_result.minify() # only care about last model
         self.ua_result = ua_result
         self.ts_result = ts_result
         self.ts_corr_result = ts_corr_result
@@ -170,12 +170,13 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
     objective = objectives.RandomBinaryObjective()
 
-    # uniform allocation for true values
-    ua = das.UniformAllocationMean(objective, candidates)
-    logging.info('Running uniform allocation for true pfc.')
-    ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
-                         snapshot_rate=snapshot_rate)
-    estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+    # pre-computed pfc values
+    ua_path = os.path.join(config['database_dir'], config['dataset'],
+                           obj.key + '_brute.pkl')
+    ua_result = pkl.load(ua_path)
+    estimated_pfc = np.array([c.grasp.quality for c in candidates])
+
+    IPython.embed()
 
     # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
