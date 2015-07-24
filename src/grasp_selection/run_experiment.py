@@ -436,6 +436,7 @@ def launch_experiment(args, sleep_time):
         logging.info('Waiting for %s', ' '.join(instance_results))
 
     # Delete the instances.
+    delete_start_time = time.time()
     if config['num_processes'] == 1:
         for instance in instances :
             instance.stop()
@@ -459,6 +460,7 @@ def launch_experiment(args, sleep_time):
         logging.info(zone_instances_text)
 
     # Download the results
+    download_start_time = time.time()
     store_dir, instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
 
     # Send the user an email
@@ -484,13 +486,17 @@ def launch_experiment(args, sleep_time):
     total_runtime = end_time - start_time
     launch_prep_time = launch_start_time - launch_prep_start_time
     launch_time = result_dl_start_time - launch_start_time
-    dl_time = result_agg_start_time - result_dl_start_time
+    run_time = delete_start_time - result_dl_start_time
+    delete_time = download_start_time - delete_start_time
+    dl_time = result_agg_start_time - download_start_time
     agg_time = end_time - result_agg_start_time
 
     logging.info('Total runtime: %f' %(total_runtime))
     logging.info('Prep time: %f' %(launch_prep_time))
     logging.info('Launch time: %f' %(launch_time))
-    logging.info('Run and download time: %f' %(dl_time))
+    logging.info('Run time: %f' %(run_time))
+    logging.info('Delete time: %f' %(delete_time))
+    logging.info('Download time: %f' %(dl_time))
     logging.info('Result aggregation time: %f' %(agg_time))
 
 if __name__ == '__main__':
