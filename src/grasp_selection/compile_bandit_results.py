@@ -60,21 +60,31 @@ if __name__ == '__main__':
         grasp_qualities = np.r_[grasp_qualities, pfc]
 
         ts_corr_final_model = result.ts_corr_result.models[-1]
+        obj_name = ts_corr_final_model.candidates_[0].obj_rv_.obj.key
         pfc_diff_vec = ssd.squareform(ssd.pdist(np.array([pfc]).T)).ravel()
         k_vec = ts_corr_final_model.correlations.ravel()
+        plt.figure()
+        plt.scatter(k_vec, pfc_diff_vec)
+        plt.xlabel('Kernel', fontsize=font_size)
+        plt.ylabel('PFC Diff', fontsize=font_size)
+        plt.title('%s Correlations' %(obj_name), fontsize=font_size)
+        figname = '%s_correlations.png' %(obj_name)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+        logging.info('Finished plotting %s', figname)
+
         grasp_qualities_diff = np.r_[grasp_qualities_diff, pfc_diff_vec]
         kernel_values = np.r_[kernel_values, k_vec]
 
     # plot pfc difference
-    plt.figure()
-    plt.scatter(kernel_values, grasp_qualities_diff)
-    plt.xlabel('Kernel', fontsize=font_size)
-    plt.ylabel('PFC Diff', fontsize=font_size)
-    plt.title('Correlations', fontsize=font_size)
+    # plt.figure()
+    # plt.scatter(kernel_values, grasp_qualities_diff)
+    # plt.xlabel('Kernel', fontsize=font_size)
+    # plt.ylabel('PFC Diff', fontsize=font_size)
+    # plt.title('Correlations', fontsize=font_size)
 
-    figname = 'correlations.png'
-    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-    logging.info('Finished plotting %s', figname)
+    # figname = 'correlations.png'
+    # plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    # logging.info('Finished plotting %s', figname)
 
     # plot histograms
     num_bins = 100
