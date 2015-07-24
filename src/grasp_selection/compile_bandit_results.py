@@ -1,5 +1,6 @@
 import IPython
 import logging
+import matplotlib as mpl; mpl.use('Agg')
 import matplotlib.pyplot as plt
 import models
 import numpy as np
