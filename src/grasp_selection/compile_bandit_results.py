@@ -113,4 +113,5 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
 
     # finally, show
-    plt.show()
+    if config['plot']:
+        plt.show()
