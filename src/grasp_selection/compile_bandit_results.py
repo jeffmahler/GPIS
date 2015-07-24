@@ -17,6 +17,8 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
     config = ec.ExperimentConfig(config_file)
+    with open(os.path.join(result_dir, 'config.yaml'), 'w') as f:
+        f.write(config.file_contents)
 
     # read in all pickle files
     results = []
