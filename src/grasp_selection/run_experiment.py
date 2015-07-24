@@ -223,6 +223,21 @@ def random_string(n):
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
 
+import signal
+def wait_for_input(timeout, prompt='> ', no_input_msg=''):
+    def handler(signum, frame):
+        raise RuntimeError
+    signal.signal(signal.SIGALRM, handler) # not portable...
+    signal.alarm(timeout)
+    try:
+        text = raw_input(prompt)
+        signal.alarm(0)
+        return text
+    except RuntimeError:
+        print no_input_msg
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    return ''
+
 def make_chunks(config):
     """Chunks datasets according to configuration. Each chunk only contains
     data from one dataset."""
@@ -389,10 +404,15 @@ def launch_experiment(args, sleep_time):
         except (ValueError, Exception) as e:
             logging.info('Connection failed. Retrying...')
 
+    instance_results.sort()
     completed_instance_results = []
     while instance_results:
         # Wait before checking again
-        time.sleep(sleep_time)
+        done_override = wait_for_input(sleep_time, prompt='done? ')
+        if done_override:
+            completed_instance_results.extend(instance_results)
+            instance_results = []
+            break
 
         logging.info('Checking for completion...')
         try:
@@ -413,8 +433,10 @@ def launch_experiment(args, sleep_time):
                 completed_instance_results.append(item['name'])
                 instance_results.remove(item['name'])
                 logging.info('Instance %s completed!' % item['name'])
+        logging.info('Waiting for %s', ' '.join(instance_results))
 
     # Delete the instances.
+    delete_start_time = time.time()
     if config['num_processes'] == 1:
         for instance in instances :
             instance.stop()
@@ -438,6 +460,7 @@ def launch_experiment(args, sleep_time):
         logging.info(zone_instances_text)
 
     # Download the results
+    download_start_time = time.time()
     store_dir, instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
 
     # Send the user an email
@@ -463,13 +486,17 @@ def launch_experiment(args, sleep_time):
     total_runtime = end_time - start_time
     launch_prep_time = launch_start_time - launch_prep_start_time
     launch_time = result_dl_start_time - launch_start_time
-    dl_time = result_agg_start_time - result_dl_start_time
+    run_time = delete_start_time - result_dl_start_time
+    delete_time = download_start_time - delete_start_time
+    dl_time = result_agg_start_time - download_start_time
     agg_time = end_time - result_agg_start_time
 
     logging.info('Total runtime: %f' %(total_runtime))
     logging.info('Prep time: %f' %(launch_prep_time))
     logging.info('Launch time: %f' %(launch_time))
-    logging.info('Run and download time: %f' %(dl_time))
+    logging.info('Run time: %f' %(run_time))
+    logging.info('Delete time: %f' %(delete_time))
+    logging.info('Download time: %f' %(dl_time))
     logging.info('Result aggregation time: %f' %(agg_time))
 
 if __name__ == '__main__':

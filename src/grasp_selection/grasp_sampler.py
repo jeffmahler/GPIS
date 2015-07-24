@@ -57,14 +57,19 @@ class GaussianGraspSampler(GraspSampler):
         self.rho_inc = config['rho_inc']
         self.friction_inc = config['friction_inc']
 
-    def generate_grasps(self, graspable, sigma_scale = 2.5, target_num_grasps = None, grasp_gen_mult = 3, check_collisions = False, vis = False):
+    def generate_grasps(self, graspable, sigma_scale = 2.5, target_num_grasps = None,
+                        grasp_gen_mult = 3, check_collisions = False, vis = False, attempt = 0):
         """
-        Returns a list of candidate grasps for graspable object by Gaussian with variance specified by principal dimensions
+        Returns a list of candidate grasps for graspable object by Gaussian with
+        variance specified by principal dimensions
         Params:
             graspable - (GraspableObject3D) the object to grasp
-            sigma_scale - (float) the number of sigmas on the tails of the Gaussian for each dimension
+            sigma_scale - (float) the number of sigmas on the tails of the
+                Gaussian for each dimension
             target_num_grasps - (int) the number of grasps to generate
-            grasp_gen_mult - (float) how many times the number of target grasps to generate (since some will be pruned)
+            grasp_gen_mult - (float) how many times the number of target grasps
+                to generate (since some will be pruned)
+            attempt - (int) number of times generate_grasps has been called
         Returns:
             list of ParallelJawPtGrasp3D objects
         """
@@ -79,7 +84,8 @@ class GaussianGraspSampler(GraspSampler):
         sigma_dims = principal_dims / (2 * sigma_scale)
 
         # sample centers
-        grasp_centers = stats.multivariate_normal.rvs(mean=center_of_mass, cov=sigma_dims**2, size=num_grasps_generate)
+        grasp_centers = stats.multivariate_normal.rvs(
+            mean=center_of_mass, cov=sigma_dims**2, size=num_grasps_generate)
 
         # samples angles uniformly from sphere
         u = stats.uniform.rvs(size=num_grasps_generate)
@@ -138,12 +144,23 @@ class GaussianGraspSampler(GraspSampler):
 
             grasps = collision_free_grasps
 
-        # return only the number requested
+        # return the number requested
+        if len(grasps) < target_num_grasps:
+            logging.info('Iteration %d of sampling only found %d/%d grasps, trying again.',
+                         attempt, len(grasps), target_num_grasps)
+            additional_grasps = self.generate_grasps(
+                graspable, sigma_scale, target_num_grasps - len(grasps), grasp_gen_mult * 2,
+                check_collisions, vis, attempt+1)
+            grasps = grasps + additional_grasps
+
         random.shuffle(grasps)
-        grasps = grasps[:min(len(grasps), target_num_grasps)]
-
-        logging.info('Found %d random grasps' %(len(grasps)))
-
+        if len(grasps) > target_num_grasps:
+            logging.info('Iteration %d of sampling found %d random grasps, truncating to %d.',
+                         attempt, len(grasps), target_num_grasps)
+            grasps = grasps[:target_num_grasps]
+        else:
+            logging.info('Iteration %d of sampling found %d random grasps.',
+                         attempt, len(grasps))
         return grasps
 
 def test_gaussian_grasp_sampling(vis=False):

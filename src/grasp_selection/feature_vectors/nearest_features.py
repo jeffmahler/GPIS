@@ -11,6 +11,7 @@ from scipy.spatial.distance import euclidean
 import numpy as np
 from numpy import argmin
 from sklearn.decomposition import TruncatedSVD
+from scipy.spatial import distance
 
 from feature_database import FeatureDatabase
 from feature_object import FeatureObject
@@ -24,7 +25,7 @@ class NearestFeatures:
 		train_feature_objects = feature_db.train_feature_objects()
 		self.pca_components = pca_components
 		self.svd = self._create_train_svd(train_feature_objects, pca_components)
-		self.neighbors = self._create_neighbors(self._project_feature_objects(self.svd, train_feature_objects))
+		self.neighbors = self._create_neighbors(self._project_feature_objects(train_feature_objects))
 
 	def within_distance(self, feature_object, dist=0.5):
 		feature_vector = self.svd.transform(feature_object.feature_vector)
@@ -41,9 +42,9 @@ class NearestFeatures:
 		print end - start
 		return svd
 
-	def _project_feature_objects(self, svd, feature_objects):
+	def _project_feature_objects(self, feature_objects):
 		X = map(lambda x: x.feature_vector, feature_objects)
-		feature_vectors = svd.transform(vstack(X))
+		feature_vectors = self.svd.transform(vstack(X))
 		feature_objects = map(lambda obj, vect: FeatureObject(obj.name, vect), feature_objects, feature_vectors)
 		return feature_objects
 
@@ -51,6 +52,24 @@ class NearestFeatures:
 		neighbors = kernels.KDTree(phi=lambda x: x.feature_vector)
 		neighbors.train(feature_objects)
 		return neighbors
+
+	def create_distance_matrix(self, feature_objects, object_database):
+		distance_function = distance.euclidean
+		feature_objects = self._project_feature_objects(feature_objects)
+
+		distance_mat = []
+		for a in feature_objects:
+			distance_vect = []
+			for b in feature_objects:
+				if a == b:
+					dist = 0
+				else:
+					dist = distance_function(a.feature_vector, b.feature_vector)
+				distance_vect.append(dist)
+			distance_mat.append(distance_vect)
+
+		matrix = np.asmatrix(distance_mat)
+		return matrix
 
 	def compute_accuracy(self, test_feature_objects, object_database, K=1):
 		confusion = {}

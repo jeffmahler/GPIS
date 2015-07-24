@@ -4,7 +4,6 @@ YAML Configuration Parser - basically reads everything into a dictionary
 Author : Jeff Mahler
 """
 import argparse
-import gc
 import logging
 import math
 import numpy as np
@@ -65,28 +64,27 @@ class ExperimentConfig(object):
         fh = open(filename, 'r')
         self.file_contents = fh.read()
 
+        # replace !include directives with content
+        config_dir = os.path.split(filename)[0]
+        include_re = re.compile('^!include\s+(.*)$', re.MULTILINE)
+        def include_repl(matchobj):
+            fname = os.path.join(config_dir, matchobj.group(1))
+            with open(fname) as f:
+                return f.read()
+        self.file_contents = re.sub(include_re, include_repl, self.file_contents)
+
         # read in dictionary
-        with open(filename) as fh:
-            self.config = self.__ordered_load(fh)
+        self.config = self.__ordered_load(self.file_contents)
 
-            # convert functions of other params to true expressions
-            for k in self.config.keys():
-                self.config[k] = ExperimentConfig.__convert_key(self.config[k])
+        # convert functions of other params to true expressions
+        for k in self.config.keys():
+            self.config[k] = ExperimentConfig.__convert_key(self.config[k])
 
-            # load core configuration
-            try:
-                self.root_dir = self.config['root_dir']
-            except KeyError:
-                self.root_dir = '' # relative paths
-
-            """ TODO: reinstate template filling if useful
-            try:
-                self.templates = self.config['templates']
-                if self.use_templates:
-                    self.fill_templates()
-            except KeyError:
-                self.templates = None
-            """
+        # load core configuration
+        try:
+            self.root_dir = self.config['root_dir']
+        except KeyError:
+            self.root_dir = '' # relative paths
         return self.config
 
     def __getitem__(self, key):

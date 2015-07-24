@@ -71,6 +71,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.approach_angle_ = grasp_angle
         self.tf_ = tf
 
+        self.quality_ = None
+
     @property
     def center(self):
         return self.center_
@@ -415,6 +417,14 @@ class ParallelJawPtGrasp3D(PointGrasp):
             'failures': num_failures,
         }
 
+    @property
+    def quality(self):
+        return self.quality_
+
+    @quality.setter
+    def quality(self, value):
+        self.quality_ = value
+
     @staticmethod
     def from_json(data):
         grasp_center = data['grasp_center']
@@ -424,7 +434,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_angle = data['grasp_angle']
         grasp = ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width,
                                      jaw_width, grasp_angle)
-        #grasp.q = data['quality']
+
+        # load other attributes
+        grasp.quality = data['quality']
         return grasp
 
 def test_find_contacts():

@@ -33,17 +33,6 @@ class FeatureExtractor:
     def phi(self):
         raise NotImplementedError
 
-class RawFeatureExtractor(FeatureExtractor):
-    """A skeleton class that exposes the same attributes as a FeatureExtractor."""
-    def __init__(self, name, feature_weight, data):
-        self.name = name
-        self.feature_weight_ = feature_weight
-        self.data_ = data
-
-    @property
-    def phi(self):
-        return self.feature_weight * self.data_
-
 class AggregatedFeatureExtractor(FeatureExtractor):
     """Class for aggregating features."""
     def __init__(self, extractors, name):
@@ -130,7 +119,8 @@ class WindowFeatureExtractor(FeatureExtractor):
         fname = os.path.join(dest, self.name)
         arr = self.phi.reshape((1, -1))
         np.savetxt(fname, arr, delimiter=',')
-        return {self.name : fname.split(os.sep, 1)[1]} # strip leading output_dir
+        # need to strip leading output_dir! currently in grasp_features.py
+        return {self.name : fname}
 
 class ProjectionWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting window features."""
@@ -333,16 +323,21 @@ class GraspableFeatureLoader:
         self.curvature_weight_ = config['weight_curvature']
         self.gravity_weight_ = config['weight_gravity']
 
+    def _load_csv_as_array(self, rel_path):
+        # rel_path is path to file relative to database root dir
+        path = os.path.join(self.database_root_dir_, rel_path)
+        return np.loadtxt(path, delimiter=',')
+
     def _load_feature_rep(self, data, grasp, root_name=None):
         name, feature_data = data.items()[0]
         surface_features = []
         for window in ('w1', 'w2'):
             # read window data from json
             surface_window_data = feature_data[window]
-            curvature = surface_window_data[CurvatureWindowFeatureExtractor.name]
-            gradx = surface_window_data[GradXWindowFeatureExtractor.name]
-            grady = surface_window_data[GradYWindowFeatureExtractor.name]
-            proj_win = surface_window_data[ProjectionWindowFeatureExtractor.name]
+            curvature = self._load_csv_as_array(surface_window_data[CurvatureWindowFeatureExtractor.name])
+            gradx = self._load_csv_as_array(surface_window_data[GradXWindowFeatureExtractor.name])
+            grady = self._load_csv_as_array(surface_window_data[GradYWindowFeatureExtractor.name])
+            proj_win = self._load_csv_as_array(surface_window_data[ProjectionWindowFeatureExtractor.name])
             surface_window = SurfaceWindow(proj_win, (gradx, grady), None, None, curvature)
 
             # create window feature extractors

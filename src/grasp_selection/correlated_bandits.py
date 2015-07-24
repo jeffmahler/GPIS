@@ -33,7 +33,9 @@ def experiment_hash(N = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 class BanditCorrelatedExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, obj_key = '', num_objects = 1):
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward,
+                 ua_result, ts_result, ts_corr_result,
+                 obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
@@ -91,7 +93,7 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
         best_values - list of floats, expected values over time
     """
     true_best_value = np.max(true_pfc)
-    best_pred_values = [true_pfc[m.best_pred_ind] for m in result.models]
+    best_pred_values = [true_pfc[pred_ind] for pred_ind in result.best_pred_ind]
     if normalize:
         best_pred_values = best_pred_values / true_best_value
 
@@ -165,12 +167,13 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
     objective = objectives.RandomBinaryObjective()
 
-    # uniform allocation for true values
+    # pre-computed pfc values
+    estimated_pfc = np.array([c.grasp.quality for c in candidates])
+
+    # uniform allocation baseline
     ua = das.UniformAllocationMean(objective, candidates)
-    logging.info('Running uniform allocation for true pfc.')
-    ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
-                         snapshot_rate=snapshot_rate)
-    estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+    logging.info('Running uniform allocation.')
+    ua_result = ua.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
@@ -216,6 +219,9 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
+    ua_result.shrink()
+    ts_result.shrink()
+    ts_corr_result.shrink()
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
                                             ua_result, ts_result, ts_corr_result, obj_key=obj.key)
 
@@ -263,11 +269,11 @@ if __name__ == '__main__':
 
     if config['plot']:
         plt.figure()
-        ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward,
+        ua_obj = plt.plot(all_results.ts_result[0].iters, ua_normalized_reward,
                           c=u'b', linewidth=2.0, label='Uniform Allocation')
         ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward,
                           c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
-        ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward,
+        ts_corr_obj = plt.plot(all_results.ts_result[0].iters, ts_corr_normalized_reward,
                           c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
         plt.xlim(0, np.max(all_results.ts_result[0].iters))
         plt.ylim(0.5, 1)

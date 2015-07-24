@@ -1,0 +1,6 @@
+window_width: 0.03
+window_steps: 11
+window_sigma: 1.0
+kernel_sigma: 1.0
+kernel_l: 1.0
+kernel_tolerance: 0.5

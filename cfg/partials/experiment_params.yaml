@@ -1,0 +1,33 @@
+# Grasp sampling
+grasp_width: 0.1
+friction_coef: 0.5
+num_cone_faces: 8
+num_grasp_clusters: 10
+vis_grasps: False
+vis_delay: 0.5
+check_collisions: False
+
+grasp_sampler: gaussian
+min_num_grasps: 250
+max_num_grasps: 500 # per object
+min_num_collision_free_grasps: 200
+min_contact_dist: 0.01
+grasp_samples_per_surface_point: 4 # lower for fewer samples
+
+dir_prior: 1.0
+alpha_thresh_div: 8.0 # in multiples of pi
+grasp_theta_res: 0.1 # in multiples of pi
+rho_thresh: 0.75 # as percentage of object max moment
+alpha_inc: 0.25
+rho_inc: 0.025
+friction_inc: 0.1
+
+# Uncertainty
+sigma_mu: 0.1
+sigma_trans_grasp: 0.005
+sigma_rot_grasp: 0.1
+sigma_trans_obj: 0.005
+sigma_rot_obj: 0.1
+sigma_scale_obj: 0.025
+num_prealloc_obj_samples: 100 # zero if we want to sample on-line
+num_prealloc_grasp_samples: 0
