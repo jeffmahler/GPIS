@@ -65,6 +65,17 @@ if __name__ == '__main__':
         grasp_qualities_diff = np.r_[grasp_qualities_diff, pfc_diff_vec]
         kernel_values = np.r_[kernel_values, k_vec]
 
+    # plot pfc difference
+    plt.figure()
+    plt.scatter(kernel_values, grasp_qualities_diff)
+    plt.xlabel('Kernel', fontsize=font_size)
+    plt.ylabel('PFC Diff', fontsize=font_size)
+    plt.title('Correlations', fontsize=font_size)
+
+    figname = 'correlations.png'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
+
     # plot histograms
     num_bins = 100
     bin_edges = np.linspace(0, 1, num_bins+1)
@@ -104,17 +115,6 @@ if __name__ == '__main__':
     plt.legend(handles, labels, loc='lower right')
 
     figname = 'avg_reward.png'
-    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-    logging.info('Finished plotting %s', figname)
-
-    # plot pfc difference
-    plt.figure()
-    plt.scatter(kernel_values, grasp_qualities_diff)
-    plt.xlabel('Kernel', fontsize=font_size)
-    plt.ylabel('PFC Diff', fontsize=font_size)
-    plt.title('Correlations', fontsize=font_size)
-
-    figname = 'correlations.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
     logging.info('Finished plotting %s', figname)
 
