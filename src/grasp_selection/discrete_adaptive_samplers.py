@@ -39,6 +39,9 @@ class AdaptiveSamplingResult:
         self.models = models
         self.best_pred_ind = [m.best_pred_ind for m in models]
 
+    def shrink(self):
+        self.models = self.models[-1:]
+
 class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
     __metaclass__ = ABCMeta
 

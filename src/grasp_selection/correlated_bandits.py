@@ -219,6 +219,9 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
+    ua_result.shrink()
+    ts_result.shrink()
+    ts_corr_result.shrink()
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
                                             ua_result, ts_result, ts_corr_result, obj_key=obj.key)
 
