@@ -215,7 +215,7 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         jsons.dump([g.to_json(quality=q) for g, q in
                    zip(pr2_grasps, pr2_grasp_qualities)], f)
 
-    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)[:max_iter] # truncate to bandit duration
+    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
