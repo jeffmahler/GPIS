@@ -223,6 +223,21 @@ def random_string(n):
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
 
+import signal
+def wait_for_input(timeout, prompt='> ', no_input_msg=''):
+    def handler(signum, frame):
+        raise RuntimeError
+    signal.signal(signal.SIGALRM, handler) # not portable...
+    signal.alarm(timeout)
+    try:
+        text = raw_input(prompt)
+        signal.alarm(0)
+        return text
+    except RuntimeError:
+        print no_input_msg
+    signal.signal(signal.SIGALRM, signal.SIG_IGN)
+    return ''
+
 def make_chunks(config):
     """Chunks datasets according to configuration. Each chunk only contains
     data from one dataset."""
@@ -393,7 +408,11 @@ def launch_experiment(args, sleep_time):
     completed_instance_results = []
     while instance_results:
         # Wait before checking again
-        time.sleep(sleep_time)
+        done_override = wait_for_input(sleep_time, prompt='done? ')
+        if done_override:
+            completed_instance_results.extend(instance_results)
+            instance_results = []
+            break
 
         logging.info('Checking for completion...')
         try:
