@@ -10,6 +10,7 @@ import sys
 import scipy.spatial.distance as ssd
 
 import correlated_bandits as cb
+from correlated_bandits import BanditCorrelatedExperimentResult
 import experiment_config as ec
 
 if __name__ == '__main__':
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     if len(results) == 0:
         exit(0)
 
-    all_results = cb.BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
     # plot params
     line_width = config['line_width']
@@ -51,25 +52,18 @@ if __name__ == '__main__':
 
     # plot the prior distribution of grasp quality
     grasp_qualities = np.zeros(0)
+    grasp_qualities_diff = np.zeros(0)
+    kernel_values = np.zeros(0)
     for result in results:
-        final_model = result.ua_result.models[-1]
-        pfc = models.BetaBernoulliModel.beta_mean(final_model.alphas, final_model.betas)
+        ua_final_model = result.ua_result.models[-1]
+        pfc = models.BetaBernoulliModel.beta_mean(ua_final_model.alphas, ua_final_model.betas)
         grasp_qualities = np.r_[grasp_qualities, pfc]
 
-    # plot correlation vs pfc diff
-    for i, obj_result in enumerate(all_results.ts_corr_result):
-        final_model = obj_result.models[-1]
-        k_vec = final_model.correlations.ravel()
-        pfc_arr = np.array([estimated_pfc]).T
-        pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
-        pfc_vec = pfc_diff.ravel()
-        plt.figure()
-        plt.scatter(k_vec, pfc_vec)
-        plt.xlabel('Kernel', fontsize=font_size)
-        plt.ylabel('PFC Diff', fontsize=font_size)
-        plt.title('Correlations for object %d' %(i), fontsize=font_size)
-        figname = 'correlations_obj%d.png' %(i)
-        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+        ts_corr_final_model = result.ts_corr_result.models[-1]
+        pfc_diff_vec = ssd.squareform(ssd.pdist(np.array([pfc]).T)).ravel()
+        k_vec = ts_corr_final_model.correlations.ravel()
+        grasp_qualities_diff = np.r_[grasp_qualities_diff, pfc_diff_vec]
+        kernel_values = np.r_[kernel_values, k_vec]
 
     # plot histograms
     num_bins = 100
@@ -82,6 +76,7 @@ if __name__ == '__main__':
 
     figname = 'histogram_success.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
 
     # plotting of final results
     ua_avg_norm_reward = np.mean(all_results.ua_reward, axis=0)
@@ -110,6 +105,18 @@ if __name__ == '__main__':
 
     figname = 'avg_reward.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
+
+    # plot pfc difference
+    plt.figure()
+    plt.scatter(kernel_values, grasp_qualities_diff)
+    plt.xlabel('Kernel', fontsize=font_size)
+    plt.ylabel('PFC Diff', fontsize=font_size)
+    plt.title('Correlations', fontsize=font_size)
+
+    figname = 'correlations.png'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
 
     # plot avg simple regret w error bars
     plt.figure()
@@ -129,6 +136,7 @@ if __name__ == '__main__':
 
     figname = 'avg_reward_with_error_bars.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
 
     # finally, show
     if config['plot']:
