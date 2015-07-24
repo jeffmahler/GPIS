@@ -31,7 +31,11 @@ if __name__ == '__main__':
                         f = open(result_pkl, 'r')
                         
                         logging.info('Reading %s' %(result_pkl))
-                        p = pkl.load(f)
+                        try:
+                            p = pkl.load(f)
+                        except:
+                            continue
+
                         if p is not None:
                             results.append(p)
 

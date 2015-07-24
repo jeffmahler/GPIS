@@ -27,6 +27,8 @@ class Contact3D(Contact):
         self.normal_ = None # outward facing normal
         self.surface_info_ = None
 
+        self._compute_normal()
+
     @property
     def graspable(self):
         return self.graspable_
@@ -35,7 +37,35 @@ class Contact3D(Contact):
     def point(self):
         return self.point_
 
-    def tangents(self, in_direction=None):
+    @property
+    def normal(self):
+        return self.normal_
+
+    def _compute_normal(self):
+        """ Compute inward facing normal at contact, according to in_direction """
+        # tf to grid
+        as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
+        on_surface, _ = self.graspable.sdf.on_surface(as_grid)
+        if not on_surface:
+            logging.debug('Contact point not on surface')
+            return None
+
+        # Use Hessian to compute outward facing normal
+        curvature = self.graspable.sdf.curvature(as_grid)
+        U, _, _ = np.linalg.svd(curvature)
+        normal = U[:, 0]
+
+        # flip normal to point outward if in_direction is defined
+#        print "In dir", self.in_direction_
+#        print "Normal", normal
+        if self.in_direction_ is not None and np.dot(self.in_direction_, normal) > 0:
+            normal = -normal
+
+        # transform to world frame
+        normal = self.graspable.sdf.transform_pt_grid_to_obj(normal, direction=True)
+        self.normal_ = normal
+
+    def tangents(self, direction=None):
         """Returns the direction vector and tangent vectors at a contact point.
         The direction vector defaults to the *inward-facing* normal vector at
         this contact.
@@ -45,32 +75,19 @@ class Contact3D(Contact):
             direction, t1, t2 - numpy 3 arrays in obj coords, where direction
                 points into the object
         """
-        if in_direction is None: # in_direction default is find_contact axis
-            in_direction = self.in_direction_
+        # illegal contact, cannot return tangents
+        if self.normal_ is None:
+            return None, None, None
 
-        if in_direction is None and self.normal_ is not None:
-            # if outward facing normal exists, set direction to inward facing normal
+        # default to inward pointing normal
+        if direction is None:
             direction = -self.normal_
-        elif self.normal_ is None:
-            # compute inward facing normal at contact, according to in_direction
-            as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
-            on_surface, _ = self.graspable.sdf.on_surface(as_grid)
-            if not on_surface:
-                logging.debug('Contact point not on surface')
-                return None, None, None
 
-            # Use Hessian to compute outward facing normal
-            curvature = self.graspable.sdf.curvature(as_grid)
-            U, _, _ = np.linalg.svd(curvature)
-            normal = U[:, 0]
+        # force direction to face inward
+        if np.dot(self.normal_, direction) > 0:
+            direction = -direction
 
-            # flip normal to point inward if in_direction is defined
-            if in_direction is not None and np.dot(in_direction, normal) < 0:
-                normal = -normal
-
-            direction = self.graspable.sdf.transform_pt_grid_to_obj(normal, direction=True)
-
-        # direction faces inward
+        # transform to 
         direction = direction.reshape((3, 1)) # make 2D for SVD
 
         # get orthogonal plane
@@ -98,6 +115,7 @@ class Contact3D(Contact):
         if in_normal is None:
             return False, self.friction_cone_, self.normal_
 
+#        print 'In normal friction', in_normal
         tan_len = friction_coef
         force = in_normal
         cone_support = np.zeros((3, num_cone_faces))
@@ -189,9 +207,9 @@ class Contact3D(Contact):
             t1, t2 = u1, u2
 
         # display sdf for debugging
-        if vis:
-            plt.figure()
-            self.graspable.sdf.scatter()
+#        if vis:
+#            plt.figure()
+#            self.graspable.sdf.scatter()
 
         # number of samples used when looking for contacts
         no_contact = 0.2
@@ -205,6 +223,10 @@ class Contact3D(Contact):
             cov = np.zeros((3, 3))
             cov_weight = 0
 
+        if vis:
+            ax = plt.gca(projection = '3d')
+            self.graspable_.sdf.scatter()
+
         for i, (c1, c2) in enumerate(it.product(scales, repeat=2)):
             curr_loc = self.point + c1 * t1 + c2 * t2
             curr_loc_grid = self.graspable.sdf.transform_pt_obj_to_grid(curr_loc)
@@ -212,13 +234,17 @@ class Contact3D(Contact):
                 window[i] = 0.0
                 continue
 
+            if vis:
+                ax.scatter(curr_loc_grid[0], curr_loc_grid[1], curr_loc_grid[2], s=130, c=u'y')
+
             found, projection_contact = self.graspable._find_projection(
-                curr_loc, direction, max_projection, back_up, num_samples, vis)
+                curr_loc, direction, max_projection, back_up, num_samples, vis=vis)
 
             if found:
                 # logging.debug('%d found.' %(i))
-                sign = -direction.dot(projection_contact.point - curr_loc)
+                sign = direction.dot(projection_contact.point - curr_loc)
                 projection = (sign / abs(sign)) * np.linalg.norm(projection_contact.point - curr_loc)
+                projection = min(projection, 0.1)
                 if compute_weighted_covariance:
                     # weight according to SHOT: R - d_i
                     weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
@@ -265,7 +291,7 @@ class Contact3D(Contact):
 
     def surface_window_projection(self, width=1e-2, num_steps=21,
         max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, vis=False):
+        sigma_mult=0.07, direction=None, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             width - float width of the window in obj frame
@@ -281,12 +307,16 @@ class Contact3D(Contact):
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
         """
+        # normalize sigma by num steps
+        sigma = sigma_mult * num_steps
+
+        # get initial projection
         direction, t1, t2 = self.tangents(direction)
         window, cov = self._compute_surface_window_projection(t1, t2,
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis, compute_weighted_covariance=True)
-
+        
         # compute principal axis
         pca = PCA()
         pca.fit(cov)
@@ -315,6 +345,21 @@ class Contact3D(Contact):
             plt.scatter([center, center*u1t[0] + center], [center, -center*u1t[1] + center], color='blue')
             plt.scatter([center, center*u2t[0] + center], [center, -center*u2t[1] + center], color='green')
 
+
+            """
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            self.graspable.sdf.scatter()
+            point_grid = self.graspable_.sdf.transform_pt_obj_to_grid(self.point_)
+            dir_grid = self.graspable_.sdf.transform_pt_obj_to_grid(direction, direction=True)
+            ax.scatter(point_grid[0], point_grid[1], point_grid[2], c=u'g', s=100)
+            ax.scatter(point_grid[0] - dir_grid[0], point_grid[1] - dir_grid[1], point_grid[2] - dir_grid[2], c=u'm', s=80)
+            ax.set_xlim3d(0, self.graspable_.sdf.dims_[0])
+            ax.set_ylim3d(0, self.graspable_.sdf.dims_[1])
+            ax.set_zlim3d(0, self.graspable_.sdf.dims_[2])
+            """
+            plt.show()
+
         u1 = np.dot(principal_axis, t1) * t1 + np.dot(principal_axis, t2) * t2
         u2 = np.cross(direction, u1) # u2 must be orthogonal to u1 on plane
         u1 = u1 / np.linalg.norm(u1)
@@ -331,6 +376,18 @@ class Contact3D(Contact):
         if left_avg > right_avg:
             # need to flip both u1 and u2, i.e. rotate 180 degrees
             window = np.rot90(window, k=2)
+
+        if vis:
+            if sigma > 0:
+                window = spfilt.gaussian_filter(window, sigma)
+            plt.figure()
+            plt.title('Tfd')
+            plt.imshow(window, extent=[0, num_steps-1, num_steps-1, 0],
+                    interpolation='none', cmap=plt.cm.binary)
+            plt.colorbar()
+            plt.clim(-0.01, 0.01) # fixing color range for visual comparisons            
+            plt.show()
+
         return window
 
     def surface_information(self, width, num_steps, back_up_units=3.0, direction=None):
@@ -341,7 +398,7 @@ class Contact3D(Contact):
             return self.surface_info_
 
         proj_window = self.surface_window_projection(width, num_steps,
-            back_up_units=back_up_units, direction=direction)
+            back_up_units=back_up_units, direction=direction, vis=False)
 
         if proj_window is None:
             raise ValueError('Surface window could not be computed')
@@ -383,6 +440,10 @@ class SurfaceWindow:
         self.hess_x_ = hess_x
         self.hess_y_ = hess_y
         self.gauss_curvature_ = gauss_curvature
+
+    @property
+    def proj_win_2d(self):
+        return self.proj_win_
 
     @property
     def proj_win(self):
