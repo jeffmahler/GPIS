@@ -4,7 +4,6 @@ YAML Configuration Parser - basically reads everything into a dictionary
 Author : Jeff Mahler
 """
 import argparse
-import gc
 import logging
 import math
 import numpy as np

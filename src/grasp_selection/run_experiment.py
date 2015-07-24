@@ -389,6 +389,7 @@ def launch_experiment(args, sleep_time):
         except (ValueError, Exception) as e:
             logging.info('Connection failed. Retrying...')
 
+    instance_results.sort()
     completed_instance_results = []
     while instance_results:
         # Wait before checking again
@@ -408,12 +409,12 @@ def launch_experiment(args, sleep_time):
             logging.error(resp)
             continue
 
-        logging.info('Waiting on %s', instance_results)
         for item in items:
             if item['name'] in instance_results:
                 completed_instance_results.append(item['name'])
                 instance_results.remove(item['name'])
                 logging.info('Instance %s completed!' % item['name'])
+        logging.info('Waiting for %s', ' '.join(instance_results))
 
     # Delete the instances.
     if config['num_processes'] == 1:

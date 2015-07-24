@@ -31,17 +31,6 @@ class FeatureExtractor:
     def phi(self):
         raise NotImplementedError
 
-class RawFeatureExtractor(FeatureExtractor):
-    """A skeleton class that exposes the same attributes as a FeatureExtractor."""
-    def __init__(self, name, feature_weight, data):
-        self.name = name
-        self.feature_weight_ = feature_weight
-        self.data_ = data
-
-    @property
-    def phi(self):
-        return self.feature_weight * self.data_
-
 class AggregatedFeatureExtractor(FeatureExtractor):
     """Class for aggregating features."""
     def __init__(self, extractors, name):
