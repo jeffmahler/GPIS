@@ -1,15 +1,15 @@
 import IPython
 import logging
-import matplotlib as mpl; mpl.use('Agg')
+import matplotlib as mpl; mpl.use('Agg') # this doesn't seem to work...
 import matplotlib.pyplot as plt
 import models
 import numpy as np
 import pickle as pkl
 import os
 import sys
+import scipy.spatial.distance as ssd
 
 import correlated_bandits as cb
-from correlated_bandits import BanditCorrelatedExperimentResult
 import experiment_config as ec
 
 if __name__ == '__main__':
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     if len(results) == 0:
         exit(0)
 
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = cb.BanditCorrelatedExperimentResult.compile_results(results)
 
     # plot params
     line_width = config['line_width']
@@ -55,6 +55,21 @@ if __name__ == '__main__':
         final_model = result.ua_result.models[-1]
         pfc = models.BetaBernoulliModel.beta_mean(final_model.alphas, final_model.betas)
         grasp_qualities = np.r_[grasp_qualities, pfc]
+
+    # plot correlation vs pfc diff
+    for i, obj_result in enumerate(all_results.ts_corr_result):
+        final_model = obj_result.models[-1]
+        k_vec = final_model.correlations.ravel()
+        pfc_arr = np.array([estimated_pfc]).T
+        pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+        pfc_vec = pfc_diff.ravel()
+        plt.figure()
+        plt.scatter(k_vec, pfc_vec)
+        plt.xlabel('Kernel', fontsize=font_size)
+        plt.ylabel('PFC Diff', fontsize=font_size)
+        plt.title('Correlations for object %d' %(i), fontsize=font_size)
+        figname = 'correlations_obj%d.png' %(i)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
 
     # plot histograms
     num_bins = 100

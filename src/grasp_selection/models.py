@@ -373,6 +373,7 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         self.nn_ = nn
         self.nn_.train(candidates)
 
+    @property
     def kernel_matrix(self):
         """
         Create the full kernel matrix for debugging purposes
@@ -411,4 +412,4 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         Return copys of the model params
         """
         ind, mn, var = self.max_prediction()
-        return CorrelatedBetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.kernel_matrix_, self.num_observations_)
+        return CorrelatedBetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.kernel_matrix, self.num_observations_)
