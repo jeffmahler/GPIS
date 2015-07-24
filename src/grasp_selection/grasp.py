@@ -247,7 +247,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         if contact_found:
             pt_zc_world = obj.sdf.transform_pt_grid_to_obj(pt_zc)
-            in_direction = obj.sdf.transform_pt_grid_to_obj(line_of_action[-1] - line_of_action[0], direction=True)
+            in_direction_grid = line_of_action[-1] - line_of_action[0]
+            in_direction_grid = in_direction_grid / np.linalg.norm(in_direction_grid)
+            in_direction = obj.sdf.transform_pt_grid_to_obj(in_direction_grid, direction=True)
             contact = contacts.Contact3D(obj, pt_zc_world, in_direction=in_direction)
         return contact_found, contact
 
@@ -382,7 +384,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             mv.quiver3d(c2_world[0] + v[0], c2_world[1] + v[1], c2_world[2] + v[2], -v[0], -v[1], -v[2], scale_factor=1.0,
                         mode='arrow', line_width=line_width)
 
-    def surface_information(self, graspable, width=2e-2, num_steps=21):
+    def surface_information(self, graspable, width=2e-2, num_steps=21, direction=None):
         """Return the surface information at the contacts that this grasp makes
         on a graspable.
         Params:
@@ -392,7 +394,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         Returns:
             list of SurfaceWindows, one for each contact
         """
-        return graspable.surface_information(self, width, num_steps)
+        return graspable.surface_information(self, width, num_steps, direction1=self.axis_, direction2=-self.axis_)
 
     def to_json(self, quality=0, method='PFC', num_successes=0, num_failures=0):
         """Converts the grasp to a Python dictionary for serialization to JSON."""
@@ -420,8 +422,10 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_width = data['grasp_width']
         jaw_width = data['jaw_width']
         grasp_angle = data['grasp_angle']
-        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width,
-                                    jaw_width, grasp_angle)
+        grasp = ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width,
+                                     jaw_width, grasp_angle)
+        #grasp.q = data['quality']
+        return grasp
 
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """
