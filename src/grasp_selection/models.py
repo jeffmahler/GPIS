@@ -83,11 +83,6 @@ class BetaBernoulliSnapshot(Snapshot):
         self.alphas = copy.copy(alphas)
         self.betas = copy.copy(betas)
 
-class CorrelatedBetaBernoulliSnapshot(BetaBernoulliSnapshot):
-    def __init__(self, best_pred_ind, alphas, betas, correlations, num_obs):
-        BetaBernoulliSnapshot.__init__(self, best_pred_ind, alphas, betas, num_obs)
-        self.correlations = copy.copy(correlations)
-
 class GaussianSnapshot(Snapshot):
     def __init__(self, best_pred_ind, means, variances, num_obs):
         Snapshot.__init__(self, best_pred_ind, num_obs)
@@ -412,4 +407,4 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         Return copys of the model params
         """
         ind, mn, var = self.max_prediction()
-        return CorrelatedBetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.kernel_matrix, self.num_observations_)
+        return BetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.num_observations_)
