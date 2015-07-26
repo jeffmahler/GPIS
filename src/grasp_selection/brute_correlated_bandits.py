@@ -249,7 +249,7 @@ def label_correlated(obj, chunk, dest, config, plot=False, load=True):
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
-    return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
+    return BanditCorrelatedExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
                                             estimated_pfc, ua_result.iters, kernel_matrix, obj_key=obj.key)
 if __name__ == '__main__':
     import argparse
