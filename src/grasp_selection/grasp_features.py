@@ -80,8 +80,6 @@ def extract_features(obj, dest, feature_dest, config):
         if features is None:
             logging.info('No features computed.')
             continue
-        else:
-            logging.info(features)
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
         pfc_rv.set_features(features)
