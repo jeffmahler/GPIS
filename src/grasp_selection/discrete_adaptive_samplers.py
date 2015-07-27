@@ -99,7 +99,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
 
             # snapshot the model and whatnot
             if (k % snapshot_rate) == 0:
-#                logging.info('Iteration %d' %(k))
+                logging.info('Iteration %d' %(k))
 
                 # log time and stuff
                 checkpt = time.clock()
