@@ -34,15 +34,15 @@ def experiment_hash(N = 10):
 
 class BanditCorrelatedExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward,
-                 ua_result, ts_result, ts_corr_result,
+                 true_avg_reward, iters, kernel_matrix
                  obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
+        self.true_avg_reward = true_avg_reward
 
-        self.ua_result = ua_result
-        self.ts_result = ts_result
-        self.ts_corr_result = ts_corr_result
+        self.iters = iters
+        self.kernel_matrix = kernel_matrix
 
         self.obj_key = obj_key
         self.num_objects = num_objects
@@ -72,14 +72,14 @@ class BanditCorrelatedExperimentResult:
             obj_keys.append(r.obj_key)
             i = i + 1
 
-        ua_results = [r.ua_result for r in result_list]
-        ts_results = [r.ts_result for r in result_list]
-        ts_corr_results = [r.ts_corr_result for r in result_list]
+        true_avg_rewards = [r.true_avg_reward for r in result_list]
+        iters = [r.iters for r in result_list]
+        kernel_matrices = [r.kernel_matrix for r in result_list]
 
         return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward,
-                                                ua_results,
-                                                ts_results,
-                                                ts_corr_results,
+                                                true_avg_rewards,
+                                                iters,
+                                                kernel_matrices,
                                                 obj_keys,
                                                 len(result_list))
 
@@ -219,11 +219,8 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
-    ua_result.shrink()
-    ts_result.shrink()
-    ts_corr_result.shrink()
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
-                                            ua_result, ts_result, ts_corr_result, obj_key=obj.key)
+                                            estimated_pfc, ua_result.iters, kernel.matrix(candidates), obj_key=obj.key)
 
 if __name__ == '__main__':
     import argparse
