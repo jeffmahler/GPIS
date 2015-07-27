@@ -36,6 +36,8 @@ parser.add_argument("--min_range", type=float, default=0,
 					help="the minimum range of the depth image")
 parser.add_argument("--max_range", type=float, default=1,
 					help="the maximum range of the depth image")
+parser.add_argument("--back_color", type=float, nargs=3, default=(1, 1, 1),
+					help="the background color of the rendered images")
 parser.add_argument("-c", "--color", action="store_true",
 					help="save color images")
 parser.add_argument("-s", "--segmask", action="store_true",
@@ -59,6 +61,8 @@ num_lat = args.num_lat
 num_long = args.num_long
 min_range = args.min_range
 max_range = args.max_range
+back_color = args.back_color
+
 
 color = args.color
 segmask = args.segmask
@@ -141,6 +145,7 @@ def create_mask_for_object_with_color(obj_name, color):
 
 def save_image_with_camera_pos(csv_writer, mesh_name, file_ext, dest_dir, camera_pos, camera_interest_pos):
 	camera_name, camera_shape = cmd.camera(p=camera_pos, wci=camera_interest_pos)
+	cmd.setAttr(camera_shape+'.backgroundColor', back_color[0], back_color[1], back_color[2], type="double3")
 	cmd.setAttr(camera_shape+".renderable", 1)
 	focal_length = cmd.camera(camera_shape, q=True, fl=True)
 
@@ -159,7 +164,7 @@ def save_image_with_camera_pos(csv_writer, mesh_name, file_ext, dest_dir, camera
 	# print focal_length_x_pixel, focal_length_y_pixel
 
 	image_file = mesh_name+"."+file_ext
-	
+
 	image_src = cmd.render(camera_shape)
 	image_dest = path.join(dest_dir, image_file)
 	shutil.move(image_src, image_dest)

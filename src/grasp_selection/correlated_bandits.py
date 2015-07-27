@@ -33,19 +33,16 @@ def experiment_hash(N = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 class BanditCorrelatedExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, obj_key = '', num_objects = 1):
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward,
+                 true_avg_reward, iters, kernel_matrix,
+                 obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
+        self.true_avg_reward = true_avg_reward
 
-        if isinstance(ua_result, list):
-            for result in ua_result:
-                result.only_keep_last() # only care about last model
-        else:
-            ua_result.only_keep_last() # only care about last model
-        self.ua_result = ua_result
-        self.ts_result = ts_result
-        self.ts_corr_result = ts_corr_result
+        self.iters = iters
+        self.kernel_matrix = kernel_matrix
 
         self.obj_key = obj_key
         self.num_objects = num_objects
@@ -75,14 +72,14 @@ class BanditCorrelatedExperimentResult:
             obj_keys.append(r.obj_key)
             i = i + 1
 
-        ua_results = [r.ua_result for r in result_list]
-        ts_results = [r.ts_result for r in result_list]
-        ts_corr_results = [r.ts_corr_result for r in result_list]
+        true_avg_rewards = [r.true_avg_reward for r in result_list]
+        iters = [r.iters for r in result_list]
+        kernel_matrices = [r.kernel_matrix for r in result_list]
 
         return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward,
-                                                ua_results,
-                                                ts_results,
-                                                ts_corr_results,
+                                                true_avg_rewards,
+                                                iters,
+                                                kernel_matrices,
                                                 obj_keys,
                                                 len(result_list))
 
@@ -96,7 +93,7 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
         best_values - list of floats, expected values over time
     """
     true_best_value = np.max(true_pfc)
-    best_pred_values = [true_pfc[m.best_pred_ind] for m in result.models]
+    best_pred_values = [true_pfc[pred_ind] for pred_ind in result.best_pred_ind]
     if normalize:
         best_pred_values = best_pred_values / true_best_value
 
@@ -170,12 +167,13 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
     objective = objectives.RandomBinaryObjective()
 
-    # uniform allocation for true values
+    # pre-computed pfc values
+    estimated_pfc = np.array([c.grasp.quality for c in candidates])
+
+    # uniform allocation baseline
     ua = das.UniformAllocationMean(objective, candidates)
-    logging.info('Running uniform allocation for true pfc.')
-    ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
-                         snapshot_rate=snapshot_rate)
-    estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
+    logging.info('Running uniform allocation.')
+    ua_result = ua.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
     # Thompson sampling for faster convergence
     ts = das.ThompsonSampling(objective, candidates)
@@ -217,12 +215,12 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         jsons.dump([g.to_json(quality=q) for g, q in
                    zip(pr2_grasps, pr2_grasp_qualities)], f)
 
-    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)[:max_iter] # truncate to bandit duration
+    ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
-                                            ua_result, ts_result, ts_corr_result, obj_key=obj.key)
+                                            estimated_pfc, ua_result.iters, kernel.matrix(candidates), obj_key=obj.key)
 
 if __name__ == '__main__':
     import argparse

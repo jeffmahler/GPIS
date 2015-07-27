@@ -9,6 +9,10 @@ class MeshDatabase:
 		"""Get a dictionary of objects: keys: object ids, values: object category"""
 		return self.object_dict_.keys()
 
+	def object_dict(self):
+		"""Get a dictionary of objects: keys: object ids, values: object category"""
+		return self.object_dict_
+
 class Cat50ObjectDatabase(MeshDatabase):
 	def __init__(self, path_to_index):
 		self.create_categories(path_to_index)
@@ -29,6 +33,7 @@ class SHRECObjectDatabase(MeshDatabase):
 
 	def create_categories(self, path_to_index):
 		object_dict = {}
+		sorted_keys = []
 		with open(path_to_index) as file:
 			for skip in xrange(3):
 				next(file)
@@ -41,4 +46,9 @@ class SHRECObjectDatabase(MeshDatabase):
 				elif len(split) == 1:
 					object_key = 'M'+split[0]
 					object_dict[object_key] = current_cat
+					sorted_keys.append(object_key)
 		self.object_dict_ = object_dict
+		self.sorted_keys_ = sorted_keys
+
+	def sorted_keys(self):
+		return self.sorted_keys_

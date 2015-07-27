@@ -37,12 +37,9 @@ class AdaptiveSamplingResult:
         self.indices = indices
         self.vals = vals
         self.models = models
+        self.best_pred_ind = [m.best_pred_ind for m in models]
 
-    def only_keep_last(self):
-        self.checkpt_times = self.checkpt_times[-1:]
-        self.iters = self.iters[-1:]
-        self.indices = self.indices[-1:]
-        self.vals = self.vals[-1:]
+    def shrink(self):
         self.models = self.models[-1:]
 
 class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
@@ -263,7 +260,6 @@ class BernoulliRV(RandomVariable):
         return 'Bernoulli({})'.format(self.p_)
 
 # Tests
-
 NUM_CANDIDATES = 100
 MAX_ITERS = 3000
 SNAPSHOT_RATE = 100
@@ -549,6 +545,146 @@ def plot_gpucb_vs_thompson(num_candidates=100):
     plt.ylabel('Probability of Success')
     plt.legend(loc=4)
 
+def test_ua_vs_thompson(num_trials = 20, num_candidates=1000, brute_iters=50000, max_iters=5000, snapshot_rate=20):
+    # get candidates
+    np.random.seed(1000)
+    prior_dist = 'gaussian'
+
+    # iterate through trials
+    ua_results = []
+    ts_results = []
+    true_pfcs = []
+    est_pfcs = []
+    for i in range(num_trials):
+        logging.info('Trial %d' %(i))
+
+        # generate rangom candidates
+        if prior_dist == 'gaussian':
+            true_pfc = scipy.stats.norm.rvs(loc=0.5, scale=0.1, size=num_candidates) 
+            true_pfc[true_pfc < 0] = 0
+            true_pfc[true_pfc > 1] = 1
+        else:
+            true_pfc = np.random.rand(num_candidates)
+
+        candidates = []
+        for i in range(num_candidates):
+            candidates.append(BernoulliRV(true_pfc[i]))
+
+        # get true maximum
+        true_max = np.max(true_pfc)
+        true_max_indices = np.where(true_pfc == true_max)
+
+        # solve using uniform allocation
+        obj = objectives.RandomBinaryObjective()
+
+        ua = UniformAllocationMean(obj, candidates)
+        ua_result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(brute_iters), snapshot_rate = snapshot_rate)
+
+        ts = ThompsonSampling(obj, candidates)
+        ts_result = ts.solve(termination_condition = tc.MaxIterTerminationCondition(max_iters), snapshot_rate = snapshot_rate)
+
+        # check result (not guaranteed to work in finite iterations but whatever)
+        logging.info('UA took %f sec' %(ua_result.total_time))
+        logging.info('UA best index %d' %(true_max_indices[0][0]))
+        
+        logging.info('TS took %f sec' %(ts_result.total_time))
+        logging.info('TS best index %d' %(true_max_indices[0][0]))
+
+        brute_model = ua_result.models[-1]
+
+        true_pfcs.append(true_pfc)
+        est_pfcs.append(models.BetaBernoulliModel.beta_mean(brute_model.alphas, brute_model.betas))
+        ua_results.append(ua_result)
+        ts_results.append(ts_result)
+
+    # aggregate results wrt truth
+    all_ua_norm_rewards = np.zeros([len(ua_results), len(ua_results[0].iters)]) 
+    all_ts_norm_rewards = np.zeros([len(ts_results), len(ts_results[0].iters)])
+    j = 0
+    for true_pfc, result in zip(true_pfcs, ua_results):
+        best_pfc = np.max(true_pfc)
+        ua_pred_values = np.array([true_pfc[m.best_pred_ind] for m in result.models])
+        all_ua_norm_rewards[j,:] = ua_pred_values / best_pfc
+        j += 1
+
+    j = 0
+    for true_pfc, result in zip(true_pfcs, ts_results):
+        best_pfc = np.max(true_pfc)
+        ts_pred_values = np.array([true_pfc[m.best_pred_ind] for m in result.models])
+        all_ts_norm_rewards[j,:] = ts_pred_values / best_pfc
+        j += 1
+
+    # aggregate results wrt est
+    all_ua_norm_est_rewards = np.zeros([len(ua_results), len(ua_results[0].iters)]) 
+    all_ts_norm_est_rewards = np.zeros([len(ts_results), len(ts_results[0].iters)])
+    j = 0
+    for est_pfc, result in zip(est_pfcs, ua_results):
+        best_pfc = np.max(est_pfc)
+        ua_pred_values = np.array([est_pfc[m.best_pred_ind] for m in result.models])
+        all_ua_norm_est_rewards[j,:] = ua_pred_values / best_pfc
+        j += 1
+
+    j = 0
+    for est_pfc, result in zip(est_pfcs, ts_results):
+        best_pfc = np.max(est_pfc)
+        ts_pred_values = np.array([est_pfc[m.best_pred_ind] for m in result.models])
+        all_ts_norm_est_rewards[j,:] = ts_pred_values / best_pfc
+        j += 1
+
+    # params
+    line_width = 2.5
+    font_size = 15
+
+    # histogram of all arms
+    all_true_pfcs = np.zeros(0)
+    for true_pfc in true_pfcs:
+        all_true_pfcs = np.r_[all_true_pfcs, true_pfc]
+
+    num_bins = 100
+    bin_edges = np.linspace(0, 1, num_bins+1)
+    plt.figure()
+    n, bins, patches = plt.hist(all_true_pfcs, bin_edges)
+    plt.xlabel('Probability of Success', fontsize=font_size)
+    plt.ylabel('Num Grasps', fontsize=font_size)
+    plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
+
+    # visualize result
+    ua_avg_norm_reward = np.mean(all_ua_norm_rewards, axis=0)
+    ts_avg_norm_reward = np.mean(all_ts_norm_rewards, axis=0)
+
+    plt.figure()
+    plt.plot(ua_results[0].iters, ua_avg_norm_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
+    plt.plot(ts_results[0].iters, ts_avg_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling')
+
+    plt.xlim(0, np.max(ts_results[0].iters))
+    plt.ylim(0.5, 1)
+    plt.xlabel('Iteration', fontsize=font_size)
+    plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+    plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles, labels, loc='lower right')
+
+    # visualize est result
+    ua_avg_norm_est_reward = np.mean(all_ua_norm_est_rewards, axis=0)
+    ts_avg_norm_est_reward = np.mean(all_ts_norm_est_rewards, axis=0)
+
+    plt.figure()
+    plt.plot(ua_results[0].iters, ua_avg_norm_est_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
+    plt.plot(ts_results[0].iters, ts_avg_norm_est_reward, c=u'g', linewidth=line_width, label='Thompson Sampling')
+
+    plt.xlim(0, np.max(ts_results[0].iters))
+    plt.ylim(0.5, 1)
+    plt.xlabel('Iteration', fontsize=font_size)
+    plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+    plt.title('Avg Estimated Normalized PFC vs Iteration', fontsize=font_size)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles, labels, loc='lower right')
+
+    plt.show()
+
+    return result
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
@@ -565,5 +701,6 @@ if __name__ == '__main__':
     # test_correlated_thompson_sampling(eps=0.7)
     # test_correlated_thompson_sampling(eps=0.98)
 
-    plot_gpucb_vs_thompson()
-    plt.show()
+#    plot_gpucb_vs_thompson()
+#    plt.show()
+    test_ua_vs_thompson()

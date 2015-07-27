@@ -4,7 +4,6 @@ YAML Configuration Parser - basically reads everything into a dictionary
 Author : Jeff Mahler
 """
 import argparse
-import gc
 import logging
 import math
 import numpy as np
@@ -45,19 +44,6 @@ SAMPLE_KEY = 'sample'
 DECODER_DEPLOY_BATCH_SIZE_EXPR = '2*config[\'hidden_state_dim\']' # hanrcoded param
 OBSERVATION_DIM_EXPR = 'config[\'width\']*config[\'height\']' # hanrcoded param
 
-class IncludeLoader(yaml.Loader):
-    # http://stackoverflow.com/a/9577670
-    def __init__(self, stream):
-        self._root = os.path.split(stream.name)[0]
-        yaml.Loader.__init__(self, stream)
-
-    def include(self, node):
-        filename = os.path.join(self._root, self.construct_scalar(node))
-        print filename
-        with open(filename, 'r') as f:
-            return yaml.load(f, IncludeLoader)
-IncludeLoader.add_constructor('!include', IncludeLoader.include)
-
 class ExperimentConfig(object):
     """
     Class to load a configuration file, parse config, fill templates, and create necessary I/O dirs / databases
@@ -78,28 +64,27 @@ class ExperimentConfig(object):
         fh = open(filename, 'r')
         self.file_contents = fh.read()
 
+        # replace !include directives with content
+        config_dir = os.path.split(filename)[0]
+        include_re = re.compile('^!include\s+(.*)$', re.MULTILINE)
+        def include_repl(matchobj):
+            fname = os.path.join(config_dir, matchobj.group(1))
+            with open(fname) as f:
+                return f.read()
+        self.file_contents = re.sub(include_re, include_repl, self.file_contents)
+
         # read in dictionary
-        with open(filename) as fh:
-            self.config = self.__ordered_load(fh)
+        self.config = self.__ordered_load(self.file_contents)
 
-            # convert functions of other params to true expressions
-            for k in self.config.keys():
-                self.config[k] = ExperimentConfig.__convert_key(self.config[k])
+        # convert functions of other params to true expressions
+        for k in self.config.keys():
+            self.config[k] = ExperimentConfig.__convert_key(self.config[k])
 
-            # load core configuration
-            try:
-                self.root_dir = self.config['root_dir']
-            except KeyError:
-                self.root_dir = '' # relative paths
-
-            """ TODO: reinstate template filling if useful
-            try:
-                self.templates = self.config['templates']
-                if self.use_templates:
-                    self.fill_templates()
-            except KeyError:
-                self.templates = None
-            """
+        # load core configuration
+        try:
+            self.root_dir = self.config['root_dir']
+        except KeyError:
+            self.root_dir = '' # relative paths
         return self.config
 
     def __getitem__(self, key):
@@ -123,7 +108,7 @@ class ExperimentConfig(object):
             expression = eval(expression[2:-1])
         return expression
 
-    def __ordered_load(self, stream, Loader=IncludeLoader, object_pairs_hook=OrderedDict):
+    def __ordered_load(self, stream, Loader=yaml.Loader, object_pairs_hook=OrderedDict):
         """
         Load an ordered dictionary from a yaml file. Borrowed from John Schulman
 

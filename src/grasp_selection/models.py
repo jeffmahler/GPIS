@@ -83,11 +83,6 @@ class BetaBernoulliSnapshot(Snapshot):
         self.alphas = copy.copy(alphas)
         self.betas = copy.copy(betas)
 
-class CorrelatedBetaBernoulliSnapshot(BetaBernoulliSnapshot):
-    def __init__(self, best_pred_ind, alphas, betas, correlations, num_obs):
-        BetaBernoulliSnapshot.__init__(self, best_pred_ind, alphas, betas, num_obs)
-        self.correlations = copy.copy(correlations)
-
 class GaussianSnapshot(Snapshot):
     def __init__(self, best_pred_ind, means, variances, num_obs):
         Snapshot.__init__(self, best_pred_ind, num_obs)
@@ -373,19 +368,13 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         self.nn_ = nn
         self.nn_.train(candidates)
 
+    @property
     def kernel_matrix(self):
         """
         Create the full kernel matrix for debugging purposes
         """
         if self.kernel_matrix_ is None:
-            self.kernel_matrix_ = np.zeros([self.num_vars_, self.num_vars_])
-            i = 0
-            for candidate_i in candidates:
-                j = 0
-                for candidate_j in candidates:
-                    self.kernel_matrix_[i,j] = self.kernel_(candidate_i, candidate_j)
-                    j += 1
-                i += 1
+            self.kernel_matrix_ = self.kernel_.matrix(self.candidates_)
         return self.kernel_matrix_
 
     def update(self, index, value):
@@ -401,7 +390,6 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         candidate = self.candidates_[index]
         neighbor_indices, _ = self.nn_.within_distance(candidate, self.error_radius_,
                                                        return_indices=True)
-
         # create array of correlations
         correlations = np.zeros(self.num_vars_)
         for neighbor_index in neighbor_indices:
@@ -410,6 +398,7 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
 
         self.posterior_alphas_ = self.posterior_alphas_ + value * correlations
         self.posterior_betas_ = self.posterior_betas_ + (1.0 - value) * correlations
+
         # TODO: should num_observations_ be updated by correlations instead?
         self.num_observations_[index] += 1
 
@@ -418,4 +407,4 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         Return copys of the model params
         """
         ind, mn, var = self.max_prediction()
-        return CorrelatedBetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.kernel_matrix_, self.num_observations_)
+        return BetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.num_observations_)

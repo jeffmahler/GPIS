@@ -254,7 +254,7 @@ def space_partition_grasps(grasps, config):
 
 def plot_value_vs_time_beta_bernoulli(result, candidate_true_p, true_max=None, color='blue'):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
-    best_values = [candidate_true_p[m.best_pred_ind] for m in result.models]
+    best_values = [candidate_true_p[pred_ind] for pred_ind in result.best_pred_ind]
     plt.plot(result.iters, best_values, color=color, linewidth=2)
     if true_max is not None: # also plot best possible
         plt.plot(result.iters, true_max*np.ones(len(result.iters)), color='green', linewidth=2)

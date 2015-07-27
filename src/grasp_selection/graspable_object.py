@@ -122,7 +122,7 @@ class GraspableObject3D(GraspableObject):
         """ 2D objects are initialized with sdfs only"""
         if not isinstance(sdf, s.Sdf3D):
             raise ValueError('Must initialize graspable object 3D with 3D sdf')
-        if mesh is not None and not isinstance(mesh, m.Mesh3D):
+        if mesh is not None and not (isinstance(mesh, m.Mesh3D) or isinstance(mesh,mx.Mesh)):
             raise ValueError('Must initialize graspable object 3D with 3D sdf')
 
         self.center_of_mass_ = sdf.center_world() # use SDF bb center for now
@@ -181,11 +181,11 @@ class GraspableObject3D(GraspableObject):
             ax.set_xlim3d(0, self.sdf.dims_[0])
             ax.set_ylim3d(0, self.sdf.dims_[1])
             ax.set_zlim3d(0, self.sdf.dims_[2])
-            plt.show()
+            #plt.show()
 
         return found, projection_contact
 
-    def surface_information(self, grasp, width, num_steps, plot=False):
+    def surface_information(self, grasp, width, num_steps, plot=False, direction1=None, direction2=None):
         """
         Returns the local surface window, gradient, and curvature for the two
         point contacts of a grasp.
@@ -199,11 +199,15 @@ class GraspableObject3D(GraspableObject):
             plt.figure()
             contact1.plot_friction_cone()
             contact2.plot_friction_cone()
-            plt.show()
 
-        window1 = contact1.surface_information(width, num_steps, direction=None)#grasp.axis)
-        window2 = contact2.surface_information(width, num_steps, direction=None)#-grasp.axis)
-        return window1, window2
+            ax = plt.gca(projection = '3d')
+            ax.set_xlim3d(0, self.sdf.dims_[0])
+            ax.set_ylim3d(0, self.sdf.dims_[1])
+            ax.set_zlim3d(0, self.sdf.dims_[2])
+
+        window1 = contact1.surface_information(width, num_steps, direction=direction1)
+        window2 = contact2.surface_information(width, num_steps, direction=direction2)
+        return window1, window2, contact1, contact2
 
 def test_windows(width, num_steps, plot=None):
     import sdf_file, obj_file
