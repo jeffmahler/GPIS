@@ -34,7 +34,7 @@ def experiment_hash(N = 10):
 
 class BanditCorrelatedExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward,
-                 true_avg_reward, iters, kernel_matrix
+                 true_avg_reward, iters, kernel_matrix,
                  obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
