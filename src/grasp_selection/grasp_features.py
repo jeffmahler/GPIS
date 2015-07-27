@@ -45,8 +45,8 @@ def extract_features(obj, dest, feature_dest, config):
         if num_grasps < min_num_grasps:
             target_num_grasps = min_num_grasps - num_grasps
             gaussian_sampler = gs.GaussianGraspSampler(config)
-            gaussian_grasps = gaussian_sampler.generate_grasps(obj, target_num_grasps=target_num_grasps,
-                                                               check_collisions=config['check_collisions'], vis=plot)
+            gaussian_grasps = gaussian_sampler.generate_grasps(
+                obj, target_num_grasps=target_num_grasps, check_collisions=config['check_collisions'])
             grasps.extend(gaussian_grasps)
     else:
         logging.info('Using Gaussian grasp sampling')
