@@ -1,5 +1,6 @@
 """
 A basic struct-like Stable Pose class to make accessing pose probability and rotation matrix easier
+
 Author: Nikhil Sharma
 """
 

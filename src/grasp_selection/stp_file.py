@@ -3,7 +3,6 @@ Contains class that allows reading and writing stable pose data.
 Run this file with the following command: python stp_file.py MIN_PROB STP_PATH DIR_PATH
 
 MIN_PROB -- Minimum Probability of a given pose being realized.
-STP_PATH -- Path to .stp file being generated (e.g. ~/sample_directory/test.stp)
 DIR_PATH -- Path to directory containing .obj files to be converted to .stp files (e.g. ~/obj_folder/)
 
 Author: Nikhil Sharma
@@ -57,7 +56,9 @@ class StablePoseFile:
             R_list = []
             for face, p in prob_mapping.items():
                 if p >= min_prob:
-                    R_list.append([p, st.compute_basis([cv_hull.vertices()[i] for i in face])])
+                    vertices = [cv_hull.vertices()[i] for i in face]
+                    basis = st.compute_basis(vertices)
+                    R_list.append([p, basis])
 
             f = open(filename[:-4] + ".stp", "w")
             f.write("#############################################################\n")
