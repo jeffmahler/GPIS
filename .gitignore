@@ -20,6 +20,7 @@ results/*
 *.recv
 *.send
 .DS_Store
+*.stp
 
 # secret files
 client_secrets.json
