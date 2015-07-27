@@ -1,4 +1,4 @@
 bandit_max_iter: 750
 bandit_confidence: 0.00025
-bandit_snapshot_rate: 1
+bandit_snapshot_rate: 1000
 bandit_brute_force_iter: 1000000

@@ -7,7 +7,7 @@ vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
 
-grasp_sampler: gaussian
+grasp_sampler: antipodal
 min_num_grasps: 250
 max_num_grasps: 500 # per object
 min_num_collision_free_grasps: 200
