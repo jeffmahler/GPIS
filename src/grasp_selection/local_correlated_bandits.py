@@ -11,8 +11,10 @@ import string
 import time
 
 import IPython
+import json_serialization as jsons
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.spatial.distance as ssd
 import scipy.stats
 
 import antipodal_grasp_sampler as ags
@@ -20,6 +22,7 @@ import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
 import feature_functions as ff
+import grasp as g
 import grasp_sampler as gs
 import json_serialization as jsons
 import kernels
@@ -33,9 +36,7 @@ def experiment_hash(N = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 class BanditCorrelatedExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward,
-                 ua_result, ts_result, ts_corr_result,
-                 obj_key='', num_objects=1):
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ua_result, ts_result, ts_corr_result, obj_key = '', num_objects = 1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
@@ -93,7 +94,7 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
         best_values - list of floats, expected values over time
     """
     true_best_value = np.max(true_pfc)
-    best_pred_values = [true_pfc[pred_ind] for pred_ind in result.best_pred_ind]
+    best_pred_values = [true_pfc[m.best_pred_ind] for m in result.models]
     if normalize:
         best_pred_values = best_pred_values / true_best_value
 
@@ -105,33 +106,86 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
     return best_pred_values
 
-def label_correlated(obj, chunk, dest, config, plot=False):
+def save_grasps(grasps, pfcs, obj, dest):
+    i = 0
+    for grasp, pfc in zip(grasps, pfcs):
+        grasp_json = grasp.to_json(quality=pfc, method='PFC')
+        grasp_filename = os.path.join(dest, obj.key + '_' + str(i) + '.json')
+        with open(grasp_filename, 'w') as grasp_file:
+            jsons.dump(grasp_json, grasp_file)
+        i += 1
+
+def load_grasps(obj, source):
+    grasps = []
+    for root, dirs, files in os.walk(source):
+        for f in files:
+            if f.endswith('.json'):
+                filename = os.path.join(root, f)
+                with open(filename, 'r') as grasp_file:
+                    grasps.append(g.ParallelJawPtGrasp3D.from_json(jsons.load(grasp_file)))
+    return grasps
+
+def label_correlated(obj, chunk, dest, config, plot=False, load=True):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
     bandit_start = time.clock()
 
     np.random.seed(100)
 
-    # load grasps from database
-    sample_start = time.clock()
-    grasps = chunk.load_grasps(obj.key)
-    sample_end = time.clock()
-    sample_duration = sample_end - sample_start
-    logging.info('Loaded %d grasps' %(len(grasps)))
-    logging.info('Grasp candidate loading took %f sec' %(sample_duration))
+    if not load:
 
-    if not grasps:
-        logging.info('Skipping %s' %(obj.key))
-        return None
+        # load grasps from database
+        sample_start = time.clock()
+                              
+        if config['grasp_sampler'] == 'antipodal':
+            logging.info('Using antipodal grasp sampling')
+            sampler = ags.AntipodalGraspSampler(config)
+            grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=False)
+
+            # pad with gaussian grasps
+            num_grasps = len(grasps)
+            min_num_grasps = config['min_num_grasps']
+            if num_grasps < min_num_grasps:
+                target_num_grasps = min_num_grasps - num_grasps
+                gaussian_sampler = gs.GaussianGraspSampler(config)        
+                gaussian_grasps = gaussian_sampler.generate_grasps(obj, target_num_grasps=target_num_grasps,
+                                                                   check_collisions=config['check_collisions'], vis=plot)
+                grasps.extend(gaussian_grasps)
+        else:
+            logging.info('Using Gaussian grasp sampling')
+            sampler = gs.GaussianGraspSampler(config)        
+            grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot,
+                                             grasp_gen_mult = 6)
+        sample_end = time.clock()
+        sample_duration = sample_end - sample_start
+        logging.info('Loaded %d grasps' %(len(grasps)))
+        logging.info('Grasp candidate loading took %f sec' %(sample_duration))
+
+        if not grasps:
+            logging.info('Skipping %s' %(obj.key))
+            return None
+
+    else:
+        grasps = load_grasps(obj, dest)
+        grasps = grasps[:40]
 
     # load features for all grasps
     feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
-    all_features = feature_loader.load_all_features(grasps) # in same order as grasps
+    feature_extractor = ff.GraspableFeatureExtractor(obj, config)
+    all_features = feature_extractor.compute_all_features(grasps)
     feature_end = time.clock()
     feature_duration = feature_end - feature_start
     logging.info('Loaded %d features' %(len(all_features)))
     logging.info('Grasp feature loading took %f sec' %(feature_duration))
+
+    distances = np.zeros([len(grasps), len(grasps)])
+    i = 0
+    for feature_i in all_features:
+        j = 0
+        for feature_j in all_features:
+            distances[i,j] = np.linalg.norm(feature_i.phi - feature_j.phi)
+            j += 1
+        i += 1
 
     # bandit params
     brute_force_iter = config['bandit_brute_force_iter']
@@ -140,8 +194,7 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     snapshot_rate = config['bandit_snapshot_rate']
     tc_list = [
         tc.MaxIterTerminationCondition(max_iter),
-#        tc.ConfidenceTerminationCondition(confidence)
-    ]
+        ]
 
     # run bandits!
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
@@ -167,25 +220,116 @@ def label_correlated(obj, chunk, dest, config, plot=False):
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
     objective = objectives.RandomBinaryObjective()
 
-    # pre-computed pfc values
-    estimated_pfc = np.array([c.grasp.quality for c in candidates])
+    if not load:
+        # uniform allocation for true values
+        ua = das.UniformAllocationMean(objective, candidates)
+        logging.info('Running uniform allocation for true pfc.')
+        ua_result = ua.solve(termination_condition=tc.MaxIterTerminationCondition(brute_force_iter),
+                             snapshot_rate=snapshot_rate)
+        estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
 
-    # uniform allocation baseline
-    ua = das.UniformAllocationMean(objective, candidates)
-    logging.info('Running uniform allocation.')
-    ua_result = ua.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+        save_grasps(grasps, estimated_pfc, obj, dest)
+        exit(0)
+    else:
+        estimated_pfc = np.array([g.q for g in grasps])
 
-    # Thompson sampling for faster convergence
-    ts = das.ThompsonSampling(objective, candidates)
-    logging.info('Running Thompson sampling.')
-    ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+    # debugging for examining bad features
+    bad_i = 17#121
+    bad_j = 24#193
+    grasp_i = grasps[bad_i]
+    grasp_j = grasps[bad_j]
+    pfc_i = estimated_pfc[bad_i]
+    pfc_j = estimated_pfc[bad_j]
+    features_i = all_features[bad_i]
+    features_j = all_features[bad_j]
+    feature_sq_diff = (features_i.phi - features_j.phi)**2
+#    grasp_i.close_fingers(obj, vis=True)
+#    grasp_j.close_fingers(obj, vis=True)
+#    plt.show()
+#    IPython.embed()
 
-    # correlated Thompson sampling for even faster convergence
-    ts_corr = das.CorrelatedThompsonSampling(
-        objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
-    logging.info('Running correlated Thompson sampling.')
-    ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+    num_trials = config['num_trials']
+    ts_rewards = []
+    ts_corr_rewards = []
 
+    for t in range(num_trials):
+        logging.info('Trial %d' %(t))
+
+        # Thompson sampling
+        ts = das.ThompsonSampling(objective, candidates)
+        logging.info('Running Thompson sampling.')
+        ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+
+        # correlated Thompson sampling for even faster convergence
+        ts_corr = das.CorrelatedThompsonSampling(
+            objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
+        logging.info('Running correlated Thompson sampling.')
+        ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+
+        ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
+        ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
+        
+        ts_rewards.append(ts_normalized_reward)
+        ts_corr_rewards.append(ts_corr_normalized_reward)
+
+    # get the bandit rewards
+    all_ts_rewards = np.array(ts_rewards)
+    all_ts_corr_rewards = np.array(ts_corr_rewards)
+    avg_ts_rewards = np.mean(all_ts_rewards, axis=0)
+    avg_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
+
+    # get correlations and plot
+    final_model = ts_corr_result.models[-1]
+    k = final_model.correlations
+    k_vec = k.ravel()
+    pfc_arr = np.array([estimated_pfc]).T
+    pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+    pfc_vec = pfc_diff.ravel()
+
+    bad_ind = np.where(pfc_diff > 1.0 - k) 
+
+    plt.figure()
+    plt.scatter(k_vec, pfc_vec)
+    plt.xlabel('Kernel', fontsize=15)
+    plt.ylabel('PFC Diff', fontsize=15)
+    plt.title('Correlations', fontsize=15)
+#    plt.show()
+
+#    IPython.embed()
+
+    # plot params
+    line_width = config['line_width']
+    font_size = config['font_size']
+    dpi = config['dpi']
+
+    # plot histograms
+    num_bins = 100
+    bin_edges = np.linspace(0, 1, num_bins+1)
+    plt.figure()
+    n, bins, patches = plt.hist(estimated_pfc, bin_edges)
+    plt.xlabel('Probability of Success', fontsize=font_size)
+    plt.ylabel('Num Grasps', fontsize=font_size)
+    plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
+
+    # plot the results
+    plt.figure()
+    plt.plot(ts_result.iters, avg_ts_rewards, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+    plt.plot(ts_corr_result.iters, avg_ts_corr_rewards, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
+
+    plt.xlim(0, np.max(ts_result.iters))
+    plt.ylim(0.5, 1)
+    plt.xlabel('Iteration', fontsize=font_size)
+    plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+    plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles, labels, loc='lower right')
+    plt.show()
+
+    IPython.embed()
+        
+    """
+    # aggregate grasps
     object_grasps = [candidates[i].grasp for i in ts_result.best_candidates]
     grasp_qualities = list(ts_result.best_pred_means)
 
@@ -219,11 +363,10 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
-    ua_result.shrink()
-    ts_result.shrink()
-    ts_corr_result.shrink()
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
                                             ua_result, ts_result, ts_corr_result, obj_key=obj.key)
+                                            """
+    return None
 
 if __name__ == '__main__':
     import argparse
@@ -269,11 +412,11 @@ if __name__ == '__main__':
 
     if config['plot']:
         plt.figure()
-        ua_obj = plt.plot(all_results.ts_result[0].iters, ua_normalized_reward,
+        ua_obj = plt.plot(all_results.ua_result[0].iters, ua_normalized_reward,
                           c=u'b', linewidth=2.0, label='Uniform Allocation')
         ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward,
                           c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
-        ts_corr_obj = plt.plot(all_results.ts_result[0].iters, ts_corr_normalized_reward,
+        ts_corr_obj = plt.plot(all_results.ts_corr_result[0].iters, ts_corr_normalized_reward,
                           c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
         plt.xlim(0, np.max(all_results.ts_result[0].iters))
         plt.ylim(0.5, 1)

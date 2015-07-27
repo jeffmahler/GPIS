@@ -62,8 +62,6 @@ def test_feature_extraction():
 def extract_features_dataset(dataset, output_dir):
     feature_extractor = SHOTFeatureExtractor()
     for obj in dataset:
-#    if True:
-#        obj = dataset['5c74962846d6cd33920ed6df8d81211d']
         feature_filename = os.path.join(output_dir, '%s_features.txt' %(obj.key))
         feature_extractor.extract(obj, feature_filename)
 

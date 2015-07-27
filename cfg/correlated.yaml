@@ -14,8 +14,8 @@ max_chunk_size: 4
 
 # Will be overridden by startup script
 dataset:     test_data
-chunk_start: 1
-chunk_end:   2
+chunk_start: 0
+chunk_end:   1
 
 # Experiment parameters (metadata) ###################################
 grasp_width: 0.1
@@ -26,35 +26,39 @@ vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
 plot: True
-grasp_sampler: gaussian
+grasp_sampler: antipodal
 
 # Bandits
-bandit_max_iter: 100
+num_trials: 1
+bandit_max_iter: 1
 bandit_confidence: 0.0005
-bandit_snapshot_rate: 10
-bandit_brute_force_iter: 100
-
-# Correlations
-window_width: 0.03
-window_steps: 21
-window_sigma: 1.0
-kernel_sigma: 1.0
-kernel_l: 1.0
-kernel_tolerance: 0.05
+bandit_snapshot_rate: 1
+bandit_brute_force_iter: 100000
 
 # Weight
 inf:   &id_inf    100000000000000000000.0
 zero:  &id_zero   0.0
-weight_proj_win:  5.0
+weight_proj_win:  25.0
 weight_grad_x:    0.0
 weight_grad_y:    0.0
-weight_curvature: 0.0
-weight_gravity:   0.0
+weight_curvature: 1000.0
+weight_grasp_center: 0.5
+weight_grasp_axis:   3.0
+weight_grasp_angle:  0.0
+weight_gravity:   1.0
+
+# Correlations
+window_width: 0.05
+window_steps: 9
+window_sigma: 1.0
+kernel_sigma: 1.0
+kernel_l: 1.0
+kernel_tolerance: 0.1
 
 # Grasp sampling
-min_num_grasps: 10
-min_num_collision_free_grasps: 200
-max_num_grasps: 20
+min_num_grasps: 250
+min_num_collision_free_grasps: 250
+max_num_grasps: 1000
 grasp_samples_per_surface_point: 4
 
 dir_prior: 1.0
@@ -69,10 +73,10 @@ friction_inc: 0.1
 # Uncertainty
 sigma_mu: 0.1
 sigma_trans_grasp: 0.01
-sigma_rot_grasp: 0.1
+sigma_rot_grasp: 0.2
 sigma_trans_obj: 0.01
-sigma_rot_obj: 0.1
-sigma_scale_obj: 0.02
+sigma_rot_obj: 0.2
+sigma_scale_obj: 0.05
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
 num_prealloc_grasp_samples: 0
 

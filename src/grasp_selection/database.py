@@ -63,8 +63,7 @@ class Dataset(object):
         """Read in all the data keys from start to end in the index."""
         index_filename = os.path.join(self.dataset_root_dir_, INDEX_FILE)
         if not os.path.exists(index_filename):
-            raise IOError('Index file does not exist! Invalid dataset'
-                          + '\n  ' + self.dataset_root_dir_)
+            raise IOError('Index file does not exist! Invalid dataset: ' + self.dataset_root_dir_)
 
         self.data_keys_ = []
         self.data_categories_ = {}

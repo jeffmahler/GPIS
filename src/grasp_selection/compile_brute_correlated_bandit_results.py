@@ -9,8 +9,7 @@ import os
 import sys
 import scipy.spatial.distance as ssd
 
-import correlated_bandits as cb
-from correlated_bandits import BanditCorrelatedExperimentResult
+import brute_correlated_bandits as cb
 import experiment_config as ec
 
 if __name__ == '__main__':
@@ -19,10 +18,11 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
     config = ec.ExperimentConfig(config_file)
+    with open(os.path.join(result_dir, 'config.yaml'), 'w') as f:
+        f.write(config.file_contents)
 
     # read in all pickle files
     results = []
-    names = []
     for _, dirs, _ in os.walk(result_dir):
         # compile each subdirectory
         for d in dirs:
@@ -30,10 +30,9 @@ if __name__ == '__main__':
             for root, _, files in os.walk(os.path.join(result_dir, d)):
                 for f in files:
                     if f.endswith('.pkl'):
-                        names.append(f.split('.')[0])
                         result_pkl = os.path.join(root, f)
                         f = open(result_pkl, 'r')
-
+                        
                         logging.info('Reading %s' %(result_pkl))
                         try:
                             p = pkl.load(f)
@@ -47,51 +46,35 @@ if __name__ == '__main__':
     if len(results) == 0:
         exit(0)
 
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = cb.BanditCorrelatedExperimentResult.compile_results(results)
 
     # plot params
     line_width = config['line_width']
     font_size = config['font_size']
     dpi = config['dpi']
 
-    correlations_dir = os.path.join(result_dir, 'correlations')
-    if not os.path.exists(correlations_dir):
-        os.mkdir(correlations_dir)
-
     # plot the prior distribution of grasp quality
     grasp_qualities = np.zeros(0)
-    grasp_qualities_diff = np.zeros(0)
-    kernel_values = np.zeros(0)
-    for obj_name, result in zip(names, results):
-        ua_final_model = result.ua_result.models[-1]
-        pfc = models.BetaBernoulliModel.beta_mean(ua_final_model.alphas, ua_final_model.betas)
+    for result in results:
+        pfc = result.true_avg_reward
         grasp_qualities = np.r_[grasp_qualities, pfc]
 
-        ts_corr_final_model = result.ts_corr_result.models[-1]
-        pfc_diff_vec = ssd.squareform(ssd.pdist(np.array([pfc]).T)).ravel()
-        k_vec = ts_corr_final_model.correlations.ravel()
+    # plot correlation vs pfc diff
+    for i, result in enumerate(all_results):
+        estimated_pfc = result.true_avg_reward 
+        k_vec = result.kernel_matrix.ravel()
+        pfc_arr = np.array([estimated_pfc]).T
+        pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+        pfc_vec = pfc_diff.ravel()
+
         plt.figure()
-        plt.scatter(k_vec, pfc_diff_vec)
+        plt.scatter(k_vec, pfc_vec)
         plt.xlabel('Kernel', fontsize=font_size)
         plt.ylabel('PFC Diff', fontsize=font_size)
-        plt.title('%s Correlations' %(obj_name), fontsize=font_size)
-        figname = 'correlations_%s.png' %(obj_name)
-        plt.savefig(os.path.join(correlations_dir, figname), dpi=dpi)
-        logging.info('Finished plotting %s', figname)
+        plt.title('Correlations for object %d' %(i), fontsize=font_size)
 
-        grasp_qualities_diff = np.r_[grasp_qualities_diff, pfc_diff_vec]
-        kernel_values = np.r_[kernel_values, k_vec]
-
-    # plot pfc difference
-    # plt.figure()
-    # plt.scatter(kernel_values, grasp_qualities_diff)
-    # plt.xlabel('Kernel', fontsize=font_size)
-    # plt.ylabel('PFC Diff', fontsize=font_size)
-    # plt.title('Correlations', fontsize=font_size)
-
-    # figname = 'correlations.png'
-    # plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-    # logging.info('Finished plotting %s', figname)
+        figname = 'correlations_obj_%s.png' %(result.obj_key)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
 
     # plot histograms
     num_bins = 100
@@ -104,7 +87,6 @@ if __name__ == '__main__':
 
     figname = 'histogram_success.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-    logging.info('Finished plotting %s', figname)
 
     # plotting of final results
     ua_avg_norm_reward = np.mean(all_results.ua_reward, axis=0)
@@ -118,9 +100,9 @@ if __name__ == '__main__':
     # plot avg simple regret
     plt.figure()
 
-    plt.plot(all_results.ua_result[0].iters, ua_avg_norm_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
-    plt.plot(all_results.ts_result[0].iters, ts_avg_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
-    plt.plot(all_results.ts_corr_result[0].iters, ts_corr_avg_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
+    plt.plot(all_results.iters[0], ua_avg_norm_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
+    plt.plot(all_results.iters[0], ts_avg_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+    plt.plot(all_results.iters[0], ts_corr_avg_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
 
     plt.xlim(0, np.max(all_results.ts_result[0].iters))
     plt.ylim(0.5, 1)
@@ -133,7 +115,6 @@ if __name__ == '__main__':
 
     figname = 'avg_reward.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-    logging.info('Finished plotting %s', figname)
 
     # plot avg simple regret w error bars
     plt.figure()
@@ -153,7 +134,6 @@ if __name__ == '__main__':
 
     figname = 'avg_reward_with_error_bars.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-    logging.info('Finished plotting %s', figname)
 
     # finally, show
     if config['plot']:

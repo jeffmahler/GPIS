@@ -146,7 +146,7 @@ class GaussianGraspSampler(GraspSampler):
 
         # return the number requested
         if len(grasps) < target_num_grasps:
-            logging.info('Iteration %d of sampling only found %d/%d grasps, trying again.',
+            logging.info('Iteration %d of Gaussian sampling only found %d/%d grasps, trying again.',
                          attempt, len(grasps), target_num_grasps)
             additional_grasps = self.generate_grasps(
                 graspable, sigma_scale, target_num_grasps - len(grasps), grasp_gen_mult * 2,
@@ -155,11 +155,11 @@ class GaussianGraspSampler(GraspSampler):
 
         random.shuffle(grasps)
         if len(grasps) > target_num_grasps:
-            logging.info('Iteration %d of sampling found %d random grasps, truncating to %d.',
+            logging.info('Iteration %d of Gaussian sampling found %d random grasps, truncating to %d.',
                          attempt, len(grasps), target_num_grasps)
             grasps = grasps[:target_num_grasps]
         else:
-            logging.info('Iteration %d of sampling found %d random grasps.',
+            logging.info('Iteration %d of Gaussian sampling found %d random grasps.',
                          attempt, len(grasps))
         return grasps
 

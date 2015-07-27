@@ -27,7 +27,7 @@ class PointGraspMetrics3D:
             raise ValueError('Illegal point grasp metric specified')
 
         # get point grasp contacts
-        contacts_found, contacts = grasp.close_fingers(obj)
+        contacts_found, contacts = grasp.close_fingers(obj, vis=False)
         if not contacts_found:
             logging.debug('Contacts not found')
             return -np.inf
@@ -46,7 +46,7 @@ class PointGraspMetrics3D:
                 continue
 
             torque_success, contact_torques = contact.torques(contact_forces)
-            if not force_success:
+            if not torque_success:
                 logging.debug('Torque computation failed')
                 continue
 

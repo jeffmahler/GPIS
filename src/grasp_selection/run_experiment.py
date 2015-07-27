@@ -475,6 +475,9 @@ def launch_experiment(args, sleep_time):
     send_notification_email(message=message, config=config,
                             subject="Your experiment has completed.")
 
+    # Save config file
+    with open(os.path.join(store_dir, 'config.yaml'), 'w') as f:
+        f.write(config.file_contents)
 
     # Run the results script TODO: move above the email
     result_agg_start_time = time.time()
