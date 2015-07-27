@@ -6,6 +6,7 @@ DEST_DIR_KEY = 'dest_dir'
 MESH_DIR_KEY = 'mesh_dir'
 
 RENDER_TYPE_KEY = 'render_type'
+BACK_COLOR_KEY = 'back_color'
 NUM_RADIAL_KEY = 'num_radial'
 NUM_LAT_KEY = 'num_lat'
 NUM_LONG_KEY = 'num_long'
@@ -14,7 +15,7 @@ NUM_LONG_KEY = 'num_long'
 class MayaConfig(object):
 	def __init__(self, config=None):
 		if config == None:
-			config = yaml.load(open('cfg/maya_config.yaml', 'r'))
+			config = yaml.load(open('cfg/maya_renderer_config.yaml', 'r'))
 		self._parse_config(config)
 
 	def _parse_config(self, config):
@@ -25,6 +26,7 @@ class MayaConfig(object):
 		self.num_radial_ = config[NUM_RADIAL_KEY]
 		self.num_lat_ = config[NUM_LAT_KEY]
 		self.num_long_ = config[NUM_LONG_KEY]
+		self.back_color_ = config[BACK_COLOR_KEY]
 
 	def mayapy(self):
 		return self.mayapy_
@@ -37,6 +39,9 @@ class MayaConfig(object):
 
 	def render_type(self):
 		return self.render_type_
+
+	def back_color(self):
+		return self.back_color_
 
 	def num_radial(self):
 		return self.num_radial_

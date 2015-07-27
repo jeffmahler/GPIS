@@ -18,21 +18,35 @@ from feature_object import FeatureObject
 from feature_object import FeatureObjectDatabase
 from dataset_sorter import DatasetSorter
 
+import sys
+sys.path.append('src/grasp_selection/')
+import kernels
+
 UNKNOWN_TAG = 'No Results'
+
+class FeatureObject:
+	def __init__(self, key, feature_vector):
+		self.key = key
+		self.feature_vector = feature_vector
 
 class NearestFeatures:
 	def __init__(self, feature_db, pca_components=10):
-		train_feature_objects = feature_db.train_feature_objects()
+		train_feature_vectors = feature_db.train_feature_vectors()
+		self.feature_db = feature_db
 		self.pca_components = pca_components
-		self.svd = self._create_train_svd(train_feature_objects, pca_components)
-		self.neighbors = self._create_neighbors(self._project_feature_objects(train_feature_objects))
+		self.svd = self._create_train_svd(train_feature_vectors, pca_components)
+		self.neighbors = self._create_neighbors(self._project_feature_vectors(train_feature_vectors))
 
-	def within_distance(self, feature_object, dist=0.5):
-		feature_vector = self.svd.transform(feature_object.feature_vector)
-		return neighbors.within_distance(feature_vector, dist=dist)
+	def within_distance(self, key, dist=0.5):
+		feature_vector = self.svd.transform(feature_db.feature_vectors[key])
+		feature_object = FeatureObject(key, feature_vector)
+		neighbor_feature_objects = self.neighbors.within_distance(feature_object, dist=dist)
+		keys = map(lambda x: x.key, neighbor_feature_objects)
+		values = map(lambda x: x.feature_vector, neighbor_feature_objects)
+		return dict(zip(keys, values))
 
-	def _create_train_svd(self, train_feature_objects, pca_components):
-		X = map(lambda x: x.feature_vector, train_feature_objects)
+	def _create_train_svd(self, train_feature_vectors, pca_components):
+		X = map(sp_mat, train_feature_vectors.values())
 		print 'Creating SVD...'
 		start = time.time()
 		svd = TruncatedSVD(n_components=pca_components)
@@ -42,36 +56,74 @@ class NearestFeatures:
 		print end - start
 		return svd
 
-	def _project_feature_objects(self, feature_objects):
-		X = map(lambda x: x.feature_vector, feature_objects)
-		feature_vectors = self.svd.transform(vstack(X))
-		feature_objects = map(lambda obj, vect: FeatureObject(obj.name, vect), feature_objects, feature_vectors)
-		return feature_objects
+	def _project_feature_vectors(self, feature_vectors):
+		X = map(sp_mat, feature_vectors.values())
+		projected_feature_vectors = {}
+		for key, vector in zip(feature_vectors.keys(), self.svd.transform(vstack(X))):
+			projected_feature_vectors[key] = vector
+		return projected_feature_vectors
 
-	def _create_neighbors(self, pca_feature_objects):
+	def _create_neighbors(self, feature_vectors):
+		feature_objects = map(FeatureObject, feature_vectors.keys(), feature_vectors.values())
 		neighbors = kernels.KDTree(phi=lambda x: x.feature_vector)
 		neighbors.train(feature_objects)
 		return neighbors
 
-	def create_distance_matrix(self, feature_objects, object_database):
+	def create_distance_matrix(self, feature_vectors, sorted_keys, feature_db):
+		# sorted_keys = sorted_keys[:20]
 		distance_function = distance.euclidean
-		feature_objects = self._project_feature_objects(feature_objects)
+		feature_vectors = self._project_feature_vectors(feature_vectors)
 
-		distance_mat = []
-		for a in feature_objects:
+		length = len(sorted_keys)
+		distance_mat = np.zeros((length, length))
+		for r_index, r_key in enumerate(sorted_keys):
 			distance_vect = []
-			for b in feature_objects:
-				if a == b:
+			for c_index, c_key in enumerate(sorted_keys):
+				if r_index > c_index:
+					continue;
+				if r_index == c_index:
 					dist = 0
 				else:
-					dist = distance_function(a.feature_vector, b.feature_vector)
-				distance_vect.append(dist)
-			distance_mat.append(distance_vect)
+					if r_key in feature_vectors and c_key in feature_vectors:
+						dist = distance_function(feature_vectors[r_key], feature_vectors[c_key])
+					else:
+						dist = 100
+					distance_mat[r_index, c_index] = dist
+					distance_mat[c_index, r_index] = dist
+					# r_cat = feature_db.mesh_database().object_category_for_key(r_key)
+					# c_cat = feature_db.mesh_database().object_category_for_key(c_key)
+					# print r_key+'--'+r_cat+', '+c_key+'--'+c_cat+': '+str(dist)
+			print r_index
+			# print ''
 
-		matrix = np.asmatrix(distance_mat)
-		return matrix
+		num_correct = 0
+		rows, cols = distance_mat.shape
+		for r in range(0, rows):
+			min_dist = 100000
+			min_index = -1
+			for c in range(0, cols):
+				if r == c:
+					continue
+				dist = distance_mat[r, c]
+				if dist < min_dist:
+					min_dist = dist
+					min_index = c
+			r_cat = feature_db.mesh_database().object_category_for_key(sorted_keys[r])
+			c_cat = feature_db.mesh_database().object_category_for_key(sorted_keys[c])
+			if r_cat == c_cat:
+				num_correct += 1
 
-	def compute_accuracy(self, test_feature_objects, object_database, K=1):
+		print 'CORRECT: '+str(num_correct)
+		print 'TOTAL: '+str(len(sorted_keys))
+		print 'ACCURACY: '+str(num_correct/len(sorted_keys))
+
+		return distance_mat
+
+	def compute_accuracy(self, feature_db, K=1):
+		test_feature_vectors = self._project_feature_vectors(feature_db.feature_vectors())
+		mesh_db = feature_db.mesh_database()
+		categories = Set(mesh_db.object_dict().values())
+
 		confusion = {}
 		# setup confusion matrix
 		confusion[UNKNOWN_TAG] = {}
@@ -81,26 +133,28 @@ class NearestFeatures:
 			for pred_cat in confusion.keys():
 				confusion[query_cat][pred_cat] = 0
 
-		for index, feature_object in enumerate(self.feature_objects):
+		for index, key in enumerate(test_feature_vectors):
 			#NOTE: This is assuming the file structure is: data/<dataset_name>/<category>/... 
-			query_category = name_to_category[feature_object.name]
-			print "Querying: %s with category %s "%(feature_object.name, query_category)
-			neighbors, distances = neighbors.nearest_neighbors(feature_object, K)
+			query_category = mesh_db.object_category_for_key(key)
+			print "Querying: %s with category %s "%(key, query_category)
+			query_feature_object = FeatureObject(key, test_feature_vectors[key])
+			neighbors, distances = self.neighbors.nearest_neighbors(query_feature_object, K+1)
 			neighbors = neighbors.flatten()
 
 			# check if top K items contains the query category
+			# import IPython; IPython.embed()
 			pred_category = UNKNOWN_TAG
 			if len(neighbors) > 0:
-				pred_category = name_to_category[neighbors[0].name]
+				pred_category = mesh_db.object_category_for_key(neighbors[1].key)
 
-				for i in range(0, min(K, len(neighbors))):
-					potential_category = name_to_category[neighbors[i].name]
+				for i in range(1, min(K, len(neighbors))):
+					potential_category = mesh_db.object_category_for_key(neighbors[i].key)
 
 					if potential_category == query_category:
 						pred_category = potential_category
 						break
 
-			print "Result Category: %s, %d"%(pred_category, len(neighbors))
+			print "Result Category: %s, %s, %d"%(pred_category, neighbors[1].key, len(neighbors))
 
 			confusion[query_category][pred_category] += 1
 
@@ -116,7 +170,7 @@ class NearestFeatures:
 			i += 1
 
 		# get true positives, etc for each category
-		num_preds = len(self.feature_objects)
+		num_preds = len(test_feature_vectors)
 		tp = np.diag(confusion_mat)
 		fp = np.sum(confusion_mat, axis=0) - np.diag(confusion_mat)
 		fn = np.sum(confusion_mat, axis=1) - np.diag(confusion_mat)
@@ -142,9 +196,21 @@ class NearestFeatures:
 
 		return confusion, stats
 
+def test_nearest_features(nearest_features, feature_db):
+	print 'TESTING NF...'
+	distance_matrix = nearest_features.create_distance_matrix(feature_db.feature_vectors(), feature_db.mesh_database().sorted_keys(), feature_db)
+
+	distances_file = open('/home/jmahler/mel/GPIS_data/data/distances.txt', 'w')
+	rows, cols = distance_matrix.shape
+	for r in range(0, rows):
+		for c in range(0, cols):
+			distances_file.write(str(distance_matrix[r, c])+'\n')
+	distances_file.close()
+
 if __name__ == '__main__':
 	feature_db = FeatureDatabase()
-	nearest_features = NearestFeatures(feature_db)
-	feature_db.save_nearest_features(feature_object_db)
-
+	nearest_features = NearestFeatures(feature_db, pca_components=100)
+	# feature_db.save_nearest_features(nearest_features)
+	test_nearest_features(nearest_features, feature_db)
+	# nearest_features.compute_accuracy(feature_db)
 

@@ -1,8 +1,9 @@
 from glob import glob
-import os.path as path
+import os
 import yaml
 import pickle
 import mesh_database
+import h5py
 
 from rendered_object import RenderedObject
 
@@ -12,7 +13,7 @@ MESH_DATABASE_INDEX_KEY = 'mesh_database_index'
 PORTION_TRAINING_KEY = 'portion_training'
 
 RENDERED_IMAGES_KEY = 'rendered_images'
-FEATURE_OBJECT_DATABASE_KEY = 'feature_object_database'
+FEATURE_VECTORS_KEY = 'feature_vectors'
 NEAREST_FEATURES_KEY = 'nearest_features'
 DATASET_SORTER_KEY = 'dataset_sorter'
 
@@ -27,14 +28,14 @@ class FeatureDatabase:
 
 	def _parse_config(self, config):
 		self.database_root_dir_ = config[DATABASE_DIR_KEY]
-		self.path_to_image_dir_ = path.join(self.database_root_dir_, RENDERED_IMAGES_KEY)
+		self.path_to_image_dir_ = os.path.join(self.database_root_dir_, RENDERED_IMAGES_KEY)
 		self.portion_training_ = config[PORTION_TRAINING_KEY]
 		self.create_mesh_database(config)
 
 	def rendered_objects(self):
-		if path.exists(self.path_to_image_dir_):
-			rendered_object_from_dir = lambda dir: RenderedObject(str(path.relpath(dir, self.path_to_image_dir_)), glob(path.join(dir, "*.jpg")))
-			rendered_objects = map(rendered_object_from_dir, glob(path.join(self.path_to_image_dir_, '*/')))
+		if os.path.exists(self.path_to_image_dir_):
+			rendered_object_from_dir = lambda dir: RenderedObject(str(os.path.relpath(dir, self.path_to_image_dir_)), glob(os.path.join(dir, "*.jpg")))
+			rendered_objects = map(rendered_object_from_dir, glob(os.path.join(self.path_to_image_dir_, '*/')))
 			return rendered_objects
 		else:
 			print 'WARNING: Rendered images directory not found: '+self.path_to_image_dir_
@@ -55,19 +56,17 @@ class FeatureDatabase:
 		else:
 			print 'Warning: no mesh database matched id in config'
 
-	def feature_object_database(self):
-		return self.load_with_name(FEATURE_OBJECT_DATABASE_KEY)
+	def feature_vectors(self):
+		fv_db_path = os.path.join(self.database_root_dir_, FEATURE_VECTORS_KEY+'.hdf5')
+		return h5py.File(fv_db_path, 'r')
 
-	def train_feature_objects(self):
-		import IPython; IPython.embed()
-		feature_objects = self.feature_object_database().get_feature_object_list()
+	def train_feature_vectors(self):
 		train_object_ids = self.feature_dataset_sorter().train_object_keys()
-		return filter(lambda x: x.key in train_object_ids, feature_objects)
+		return dict((k, v) for k, v in self.feature_vectors().items() if k in train_object_ids)
 
-	def test_feature_objects(self):
-		feature_objects = self.feature_object_database().get_feature_object_list()
+	def test_feature_vectors(self):
 		test_object_keys = self.feature_dataset_sorter().test_object_keys()
-		return filter(lambda x: x.key in test_object_keys, feature_objects)
+		return dict((k, v) for k, v in self.feature_vectors().items() if k in train_object_ids)
 
 	def nearest_features(self):
 		return self.load_with_name(NEAREST_FEATURES_KEY)
@@ -75,8 +74,9 @@ class FeatureDatabase:
 	def feature_dataset_sorter(self):
 		return self.load_with_name(DATASET_SORTER_KEY)
 
-	def save_feature_object_database(self, x):
-		self.save_data(x, FEATURE_OBJECT_DATABASE_KEY)
+	def create_feature_vectors_file(self):
+		fv_db_path = os.path.join(self.database_root_dir_, FEATURE_VECTORS_KEY+'.hdf5')
+		h5py.File(fv_db_path, 'w')
 
 	def save_nearest_features(self, x):
 		self.save_data(x, NEAREST_FEATURES_KEY)
@@ -85,13 +85,13 @@ class FeatureDatabase:
 		self.save_data(x, DATASET_SORTER_KEY)
 
 	def load_with_name(self, name):
-		file_path = path.join(self.database_root_dir_, name+'.p')
-		if path.exists(file_path):
+		file_path = os.path.join(self.database_root_dir_, name+'.p')
+		if os.path.exists(file_path):
 			return pickle.load(open(file_path, 'rb'))
 		else:
 			print 'WARNING: file \''+name+'\' not found'
 			return None
 
 	def save_data(self, x, name):
-		pickle.dump(x, open(path.join(self.database_root_dir_, name+'.p'), 'wb'), protocol=2)
+		pickle.dump(x, open(os.path.join(self.database_root_dir_, name+'.p'), 'wb'), protocol=2)
 

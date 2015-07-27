@@ -22,8 +22,8 @@ class CaffeConfig(object):
 		self.caffe_tools_ = config[CAFFE_TOOLS_KEY]
 		self.caffe_data_dir_ = config[CAFFE_DATA_DIR_KEY]
 		self.portion_training_ = config[PORTION_TRAINING_KEY]
-		self.caffe_model_ = config[CAFFE_MODEL_KEY]
-		self.caffe_finetuning_model_ = config[CAFFE_FINETUNING_MODEL_KEY]
+		self.caffe_model_ = path.join(self.caffe_data_dir_, config[CAFFE_MODEL_KEY])
+		self.caffe_finetuning_model_ = path.join(self.caffe_data_dir_, config[CAFFE_FINETUNING_MODEL_KEY])
 		self.deploy_mode_ = config[DEPLOY_MODE_KEY]
 		self.deploy_batch_size_ = config[BATCH_SIZE_KEY]
 		self.vector_merging_method_ = config[VECTOR_MERGING_METHOD_KEY]
