@@ -1,7 +1,7 @@
-B"""
+"""
 Main file for correlated bandit experiments.
 
-A1;3201;0cuthor: Brian Hou
+Author: Brian Hou
 """
 import logging
 import pickle as pkl

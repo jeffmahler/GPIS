@@ -19,13 +19,16 @@ chunk_end:   28
 !include partials/window_params.yaml
 
 # Window weights #####################################################
-inf:   &id_inf    100000000000000000000.0
-zero:  &id_zero   0.0
-weight_proj_win:  1.0
-weight_grad_x:    1.0
-weight_grad_y:    1.0
-weight_curvature: 1.0
-weight_gravity:   1.0
+inf:   &id_inf       100000000000000000000.0
+zero:  &id_zero      0.0
+weight_proj_win:     1.0
+weight_grad_x:       1.0
+weight_grad_y:       1.0
+weight_curvature:    1.0
+weight_grasp_center: 1.0
+weight_grasp_axis:   1.0
+weight_grasp_angle:  1.0
+weight_gravity:      1.0
 
 # Post-experiment parameters #########################################
 !include partials/plot_params.yaml

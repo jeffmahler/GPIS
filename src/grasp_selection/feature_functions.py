@@ -241,7 +241,11 @@ class GraspableFeatureExtractor:
 
     def _compute_feature_rep(self, grasp, root_name=None):
         """Extracts features from a graspable object and a single grasp."""
-        # get grasp windows -- cached
+        # look in cache for features
+        if grasp in self.features_:
+            return self.features_[grasp]
+
+        # get grasp windows
         try:
             s1, s2, c1, c2 = grasp.surface_information(self.graspable_,
                                                        self.window_width_, self.window_steps_)
@@ -255,11 +259,7 @@ class GraspableFeatureExtractor:
             
         # if computing either surface fails, don't set surface_features
         if s1 is None or s2 is None or c1 is None or c2 is None:
-            return
-
-        # look in cache for features
-        if grasp in self.features_:
-            return self.features_[grasp]
+            return None
 
         # compute surface features
         surface_features = []
@@ -271,10 +271,12 @@ class GraspableFeatureExtractor:
             surface_features.append(feature)
 
         # compute grasp features
-        grasp_pose_features = [GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight),
-                               GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight),
-                               GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight),
-                               GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight)]
+        grasp_pose_features = [
+            GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight),
+            GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight),
+            # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight),
+            # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight)
+        ]
 
         # compute gravity features
         gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
@@ -350,18 +352,28 @@ class GraspableFeatureLoader:
             extractor = AggregatedFeatureExtractor(surface_extractors, window)
             surface_features.append(extractor)
 
-        gravity_args = (self.graspable_, grasp, GRAVITY_FORCE, self.gravity_weight_)
+        # grasp features
+        grasp_center = feature_data[GraspCenterFeatureExtractor.name]
+        grasp_axis = feature_data[GraspAxisFeatureExtractor.name]
+        grasp_pose_features = [
+            GraspCenterFeatureExtractor(grasp_center, self.grasp_center_weight),
+            GraspAxisFeatureExtractor(grasp_axis, self.grasp_axis_weight),
+            # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight),
+            # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight)
+        ]
+
+        gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
         gravity_features = [
-            MomentArmFeatureExtractor(*gravity_args),
-            GraspAxisGravityAngleFeatureExtractor(*gravity_args),
-            MomentArmGravityAngleFeatureExtractor(*gravity_args),
+            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
+            MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
         ]
 
         # compute additional features
         if root_name is None:
             root_name = self.graspable_.key
         features = AggregatedFeatureExtractor(
-            surface_features + gravity_features, root_name)
+            surface_features + grasp_pose_features + gravity_features, root_name)
         return features
 
     def load_all_features(self, grasps):
