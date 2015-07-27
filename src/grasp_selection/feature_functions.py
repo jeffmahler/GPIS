@@ -223,9 +223,9 @@ class GraspableFeatureExtractor:
         self.grad_y_weight_ = config['weight_grad_y']
         self.curvature_weight_ = config['weight_curvature']
 
-        self.grasp_center_weight = config['weight_grasp_center']
-        self.grasp_axis_weight = config['weight_grasp_axis']
-        self.grasp_angle_weight = config['weight_grasp_angle']
+        self.grasp_center_weight_ = config['weight_grasp_center']
+        self.grasp_axis_weight_ = config['weight_grasp_axis']
+        self.grasp_angle_weight_ = config['weight_grasp_angle']
 
         self.gravity_weight_ = config['weight_gravity']
 
@@ -272,10 +272,10 @@ class GraspableFeatureExtractor:
 
         # compute grasp features
         grasp_pose_features = [
-            GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight),
-            GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight),
-            # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight),
-            # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight)
+            GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight_),
+            GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
+            # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight_),
+            # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight_)
         ]
 
         # compute gravity features
@@ -323,6 +323,9 @@ class GraspableFeatureLoader:
         self.grad_x_weight_ = config['weight_grad_x']
         self.grad_y_weight_ = config['weight_grad_y']
         self.curvature_weight_ = config['weight_curvature']
+        self.grasp_center_weight_ = config['weight_grasp_center']
+        self.grasp_axis_weight_ = config['weight_grasp_axis']
+        self.grasp_angle_weight_ = config['weight_grasp_angle']
         self.gravity_weight_ = config['weight_gravity']
 
     def _load_csv_as_array(self, rel_path):
@@ -356,10 +359,10 @@ class GraspableFeatureLoader:
         grasp_center = feature_data[GraspCenterFeatureExtractor.name]
         grasp_axis = feature_data[GraspAxisFeatureExtractor.name]
         grasp_pose_features = [
-            GraspCenterFeatureExtractor(grasp_center, self.grasp_center_weight),
-            GraspAxisFeatureExtractor(grasp_axis, self.grasp_axis_weight),
-            # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight),
-            # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight)
+            GraspCenterFeatureExtractor(grasp_center, self.grasp_center_weight_),
+            GraspAxisFeatureExtractor(grasp_axis, self.grasp_axis_weight_),
+            # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight_),
+            # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight_)
         ]
 
         gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
