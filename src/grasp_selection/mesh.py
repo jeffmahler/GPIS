@@ -28,13 +28,14 @@ class Mesh3D:
        pose:      (tfx pose)
        scale:     (float)
     """
-    def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0):
+    def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0):
         self.vertices_ = vertices
         self.triangles_ = triangles
         self.normals_ = normals
         self.metadata_ = metadata
         self.pose_ = pose
         self.scale_ = scale
+        self.density_ = density
 
         # compute mesh properties
         self._compute_bb_center()
@@ -112,12 +113,10 @@ class Mesh3D:
         total_volume = 0
         weighted_point_sum = np.zeros([1, 3])
         vertex_array = np.array(self.vertices_)
-        i = 0
         for tri in self.triangles_:
             volume, center = self._signed_volume_of_tri(tri, vertex_array)
             weighted_point_sum = weighted_point_sum + volume * center
             total_volume = total_volume + volume
-            i = i+1
         self.center_of_mass_ = weighted_point_sum / total_volume
         self.center_of_mass_ = np.abs(self.center_of_mass_[0])
 
@@ -329,6 +328,19 @@ class Mesh3D:
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
         mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe')
+
+    def get_total_volume(self):
+        total_volume = 0
+        vertex_array = np.array(self.vertices_)
+        for tri in self.triangles_:
+            volume, center = self._signed_volume_of_tri(tri, vertex_array)
+            total_volume = total_volume + volume
+        return total_volume
+
+    def create_json_metadata(self):
+        return {
+            'mass': self.density_ * self.get_total_volume()
+        }
 
     """
     def num_connected_components(self):

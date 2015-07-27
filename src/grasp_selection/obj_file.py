@@ -88,9 +88,9 @@ class ObjFile:
         Does not support material files or texture coordinates
         '''
         f = open(self.filepath_, 'w')
-        vertices = mesh.get_vertices()
-        faces = mesh.get_triangles()
-        normals = mesh.get_normals()
+        vertices = mesh.vertices()
+        faces = mesh.triangles()
+        normals = mesh.normals()
 
         # write human-readable header
         f.write('###########################################################\n')
