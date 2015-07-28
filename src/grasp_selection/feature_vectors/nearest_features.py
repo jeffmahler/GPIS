@@ -30,15 +30,21 @@ class FeatureObject:
 		self.feature_vector = feature_vector
 
 class NearestFeatures:
-	def __init__(self, feature_db, pca_components=10):
-		train_feature_vectors = feature_db.train_feature_vectors()
-		self.feature_db = feature_db
+	def __init__(self, feature_db, pca_components=10, svd=None, neighbor_tree=None):
 		self.pca_components = pca_components
-		self.svd = self._create_train_svd(train_feature_vectors, pca_components)
-		self.neighbors = self._create_neighbors(self._project_feature_vectors(train_feature_vectors))
+		if svd == None:
+			train_feature_vectors = feature_db.feature_vectors() #feature_db.train_feature_vectors()
+			self.svd = self._create_train_svd(train_feature_vectors, pca_components)
+		else:
+			self.svd = svd
 
-	def within_distance(self, key, dist=0.5):
-		feature_vector = self.svd.transform(feature_db.feature_vectors[key])
+		if neighbor_tree == None:
+			self.neighbors = self._create_neighbors(self._project_feature_vectors(train_feature_vectors))
+		else:
+			self.neighbors = kernels.KDTree(phi=lambda x: x.feature_vector)
+			self.neighbors._tree = neighbor_tree
+
+	def within_distance(self, feature_vector, dist=0.5):
 		feature_object = FeatureObject(key, feature_vector)
 		neighbor_feature_objects = self.neighbors.within_distance(feature_object, dist=dist)
 		keys = map(lambda x: x.key, neighbor_feature_objects)
@@ -210,7 +216,8 @@ def test_nearest_features(nearest_features, feature_db):
 if __name__ == '__main__':
 	feature_db = FeatureDatabase()
 	nearest_features = NearestFeatures(feature_db, pca_components=100)
-	# feature_db.save_nearest_features(nearest_features)
-	test_nearest_features(nearest_features, feature_db)
+	feature_db.save_nearest_features(nearest_features)
+
+	# test_nearest_features(nearest_features, feature_db)
 	# nearest_features.compute_accuracy(feature_db)
 

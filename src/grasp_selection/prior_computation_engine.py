@@ -10,7 +10,7 @@ import database
 
 class PriorComputationEngine:
 	def __init__(db, grasp_kernel, config, feature_db=None):
-		if feature_db = None:
+		if feature_db == None:
 			self.feature_db = FeatureDatabase()
 		else:
 			self.feature_db = feature_db
@@ -42,12 +42,14 @@ class PriorComputationEngine:
 
 
 def test_prior_computation_engine():
-	pce = PriorComputationEngine(nearest_features_path, feature_object_db_path, db, config)
-	obj = ...
-	candidates = ...
-	alpha_priors, beta_priors = pce.compute_priors(obj, candidates)
-	assert alpha_priors[0] == ... && beta_priors[0] == ...
-	assert alpha_priors[1] == ... && beta_priors[1] == ...
+	# TODO: fill in test
+	# pce = PriorComputationEngine(nearest_features_path, feature_object_db_path, db, config)
+	# obj = ...
+	# candidates = ...
+	# alpha_priors, beta_priors = pce.compute_priors(obj, candidates)
+	# assert alpha_priors[0] == ... && beta_priors[0] == ...
+	# assert alpha_priors[1] == ... && beta_priors[1] == ...
+	pass
 
 if __name__ == '__main__':
 	test_prior_computation_engine()

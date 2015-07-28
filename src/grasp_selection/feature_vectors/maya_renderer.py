@@ -121,8 +121,8 @@ def create_scene_with_mesh(mesh_file):
 
 	if min_dist == 0:
 		major_dist = math.sqrt(math.pow(bounding_box[0][0]-bounding_box[0][1], 2) + math.pow(bounding_box[1][0]-bounding_box[1][1], 2) + math.pow(bounding_box[2][0]-bounding_box[2][1], 2))
-		working_min_dist = major_dist*1.5
-		working_max_dist = major_dist*3
+		working_min_dist = major_dist*2
+		working_max_dist = major_dist*4
 		print major_dist
 
 	cmd.setAttr("defaultRenderGlobals.imageFormat", 8) # 32)
