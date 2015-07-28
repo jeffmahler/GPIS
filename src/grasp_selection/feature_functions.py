@@ -105,6 +105,23 @@ class AggregatedFeatureExtractor(FeatureExtractor):
             subjson.update(e.to_json(subdest))
         return {self.name : subjson}
 
+    def swap_windows(self):
+        """Returns a copy of this extractor with surface information w1 and w2
+        swapped."""
+        w1 = w2 = None
+        others = []
+        for extractor in self.extractors_:
+            if extractor.name == 'w1':
+                w1 = extractor
+            elif extractor.name == 'w2':
+                w2 = extractor
+            else:
+                others.append(extractor)
+        new_w1 = AggregatedFeatureExtractor(w2.extractors, 'w1')
+        new_w2 = AggregatedFeatureExtractor(w1.extractors, 'w2')
+        extractors = [new_w1, new_w2] + others
+        return AggregatedFeatureExtractor(extractors, self.name)
+
     @property
     def phi(self):
         phis = [e.phi for e in self.extractors_]

@@ -95,6 +95,23 @@ class SquaredExponentialKernel(Kernel):
     def gradient(self, x):
         raise NotImplementedError
 
+class SymmetricSquaredExponentialKernel(Kernel):
+    def __init__(self, sigma=1.0, l=1.0, dist='euclidean',
+                 phi=None, alternate_phi=None):
+        assert phi is not None and alternate_phi is not None, 'Two phi needed'
+        self.k1_ = SquaredExponentialKernel(sigma, l, dist, phi)
+        self.k2_ = SquaredExponentialKernel(sigma, l, dist, alternate_phi)
+
+    def error_radius(self, tolerance):
+        return self.k1_.error_radius(tolerance) # should be same as k2
+
+    def evaluate(self, x, y):
+        k1, k2 = self.k1_.evaluate(x, y), self.k2_.evaluate(x, y)
+        return np.mean([k1, k2])
+
+    def gradient(self, x):
+        raise NotImplementedError
+
 class KernelProduct(Kernel):
     """ k(x, y) = k1(x, y) * k2(x, y) * ... """
     def __init__(self, kernels, phi=None):
@@ -205,6 +222,32 @@ class KDTree(BinaryTree):
 class BallTree(BinaryTree):
     def train(self, data):
         BinaryTree.train(self, data, tree_class=neighbors.BallTree)
+
+class SymmetricKDTree(KDTree):
+    def __init__(self, dist=neighbors.DistanceMetric.get_metric('euclidean'),
+                 phi=lambda x: x, alternate_phi=lambda x: x):
+        KDTree.__init__(self, dist, phi)
+        self.alternate_phi_ = alternate_phi
+
+    def within_distance(self, x, dist=0.2, return_indices=False):
+        indices, distances = self.tree_.query_radius(self.phi_(x), dist,
+                                                     return_distance=True)
+        indices = indices[0]
+        alt_indices_and_distances = self.tree_.query_radius(self.alternate_phi_(x), dist,
+                                                             return_distance=True)
+        alt_indices, alt_distances = [], []
+        for alt_index, alt_dist in alt_indices_and_distances:
+            if alt_index not in indices:
+                alt_indices.append(alt_index)
+                alt_distances.append(alt_dist)
+
+        indices = np.concatenate(indices, alt_indices)
+        distances = np.concatenate(distances, alt_distances)
+
+        if return_indices:
+            return indices, distances
+        else:
+            return self.data_[indices], distances
 
 class LSHForest(NearestNeighbor):
     # Warning: all distances returned by LSHF are cosine distances!
