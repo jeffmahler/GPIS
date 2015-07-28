@@ -42,11 +42,11 @@ class Weight:
             gaussian_1d = ss.gaussian(num_steps, sigma)
             gaussian_2d = max * np.outer(gaussian_1d, gaussian_1d)
             return gaussian_2d.reshape(other.shape)
-        elif key.startswith('crop'): # (e.g. crop_3)
-            _, width = key.split('_') # crop_WIDTH
-            width = int(width)
+        elif key.startswith('crop'): # (e.g. crop_60.0_3)
+            _, max, width = key.split('_') # crop_MAX_WIDTH
+            max, width = float(max), int(width)
 
-            center = np.ones((width, width))
+            center = max * np.ones((width, width))
             num_steps = self._window_width(other)
             offset = (num_steps - width) / 2
             crop_filter = np.pad(center, offset, 'constant', constant_values=0)
