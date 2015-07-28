@@ -26,7 +26,10 @@ def compute_basis(vertices):
     z_o = np.cross(np.subtract(centroid, vertices[0]), np.subtract(centroid, vertices[1]))
     z_o = z_o / np.linalg.norm(z_o)
     x_o = np.array([-z_o[1], z_o[0], 0])
-    x_o = x_o / np.linalg.norm(x_o)
+    if np.linalg.norm(x_o) == 0.0:
+        x_o = np.array([1, 0, 0])
+    else:
+        x_o = x_o / np.linalg.norm(x_o)
     y_o = np.cross(z_o, x_o)
     y_o = y_o / np.linalg.norm(y_o)
 
