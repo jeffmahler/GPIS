@@ -400,7 +400,7 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         self.posterior_betas_ = self.posterior_betas_ + (1.0 - value) * correlations
 
         # TODO: should num_observations_ be updated by correlations instead?
-        self.num_observations_[index] += 1
+        self.num_observations_ += correlations
 
     def snapshot(self):
         """
