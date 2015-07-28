@@ -117,8 +117,8 @@ class AggregatedFeatureExtractor(FeatureExtractor):
                 w2 = extractor
             else:
                 others.append(extractor)
-        new_w1 = AggregatedFeatureExtractor(w2.extractors, 'w1')
-        new_w2 = AggregatedFeatureExtractor(w1.extractors, 'w2')
+        new_w1 = AggregatedFeatureExtractor(w2.extractors_, 'w1')
+        new_w2 = AggregatedFeatureExtractor(w1.extractors_, 'w2')
         extractors = [new_w1, new_w2] + others
         return AggregatedFeatureExtractor(extractors, self.name)
 

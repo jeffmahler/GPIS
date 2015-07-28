@@ -233,16 +233,18 @@ class SymmetricKDTree(KDTree):
         indices, distances = self.tree_.query_radius(self.phi_(x), dist,
                                                      return_distance=True)
         indices = indices[0]
-        alt_indices_and_distances = self.tree_.query_radius(self.alternate_phi_(x), dist,
+        alt_indices, alt_distances = self.tree_.query_radius(self.alternate_phi_(x), dist,
                                                              return_distance=True)
-        alt_indices, alt_distances = [], []
-        for alt_index, alt_dist in alt_indices_and_distances:
+        alt_indices, alt_distances = alt_indices[0], alt_distances[0]
+        new_alt_indices = []
+        new_alt_distances = []
+        for alt_index, alt_dist in zip(alt_indices, alt_distances):
             if alt_index not in indices:
-                alt_indices.append(alt_index)
-                alt_distances.append(alt_dist)
+                new_alt_indices.append(alt_index)
+                new_alt_distances.append(alt_dist)
 
-        indices = np.concatenate(indices, alt_indices)
-        distances = np.concatenate(distances, alt_distances)
+        indices = np.concatenate([indices, alt_indices]).astype(int)
+        distances = np.concatenate([distances, alt_distances])
 
         if return_indices:
             return indices, distances
