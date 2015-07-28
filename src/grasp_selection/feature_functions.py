@@ -373,14 +373,14 @@ class GraspableFeatureLoader:
 
     def _parse_config(self, config):
         self.database_root_dir_ = config['database_dir']
-        self.proj_win_weight_ = config['weight_proj_win']
-        self.grad_x_weight_ = config['weight_grad_x']
-        self.grad_y_weight_ = config['weight_grad_y']
-        self.curvature_weight_ = config['weight_curvature']
-        self.grasp_center_weight_ = config['weight_grasp_center']
-        self.grasp_axis_weight_ = config['weight_grasp_axis']
-        self.grasp_angle_weight_ = config['weight_grasp_angle']
-        self.gravity_weight_ = config['weight_gravity']
+        self.proj_win_weight_ = Weight(config['weight_proj_win'])
+        self.grad_x_weight_ = Weight(config['weight_grad_x'])
+        self.grad_y_weight_ = Weight(config['weight_grad_y'])
+        self.curvature_weight_ = Weight(config['weight_curvature'])
+        self.grasp_center_weight_ = Weight(config['weight_grasp_center'])
+        self.grasp_axis_weight_ = Weight(config['weight_grasp_axis'])
+        self.grasp_angle_weight_ = Weight(config['weight_grasp_angle'])
+        self.gravity_weight_ = Weight(config['weight_gravity'])
 
     def _load_csv_as_array(self, rel_path):
         # rel_path is path to file relative to database root dir
