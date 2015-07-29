@@ -253,6 +253,13 @@ class MomentArmFeatureExtractor(GravityFeatureExtractor):
     def phi(self):
         return self.feature_weight * np.r_[self.moment1_, self.moment2_]
 
+class MomentArmMagnitudeFeatureExtractor(GravityFeatureExtractor):
+    name = 'moment_arm_mag'
+
+    @property
+    def phi(self):
+        return self.feature_weight * np.r_[np.linalg.norm(self.moment1_), np.linalg.norm(self.moment2_)]
+
 class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
     name = 'grasp_axis_gravity_angle'
 
@@ -352,7 +359,8 @@ class GraspableFeatureExtractor:
         # compute gravity features
         gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
         gravity_features = [
-            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+#            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            MomentArmMagnitudeFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
             GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
             MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
         ]

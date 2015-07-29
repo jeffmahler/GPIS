@@ -172,9 +172,9 @@ class GceInstance:
             )
         except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
             # Delete the disk in case the instance fails to start.
-            self.delete_disk()
             logging.error(INSERT_ERROR, {'name': self.instance_name})
             logging.error(e)
+            self.delete_disk()
             return False
         except gce.DiskDoesNotExistError as e:
             logging.error(INSERT_ERROR, {'name': self.instance_name})

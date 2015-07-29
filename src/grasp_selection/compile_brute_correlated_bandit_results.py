@@ -9,7 +9,7 @@ import os
 import sys
 import scipy.spatial.distance as ssd
 
-import brute_correlated_bandits as cb
+from brute_correlated_bandits import BanditCorrelatedExperimentResult
 import experiment_config as ec
 
 if __name__ == '__main__':
@@ -36,7 +36,8 @@ if __name__ == '__main__':
                         logging.info('Reading %s' %(result_pkl))
                         try:
                             p = pkl.load(f)
-                        except:
+                        except Exception as e:
+                            logging.error(e)
                             continue
 
                         if p is not None:
@@ -46,7 +47,7 @@ if __name__ == '__main__':
     if len(results) == 0:
         exit(0)
 
-    all_results = cb.BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
     # plot params
     line_width = config['line_width']
@@ -60,7 +61,9 @@ if __name__ == '__main__':
         grasp_qualities = np.r_[grasp_qualities, pfc]
 
     # plot correlation vs pfc diff
-    for i, result in enumerate(all_results):
+    for i, result in enumerate(results):
+        logging.info('Result %d' %(i))
+
         estimated_pfc = result.true_avg_reward 
         k_vec = result.kernel_matrix.ravel()
         pfc_arr = np.array([estimated_pfc]).T
@@ -75,6 +78,43 @@ if __name__ == '__main__':
 
         figname = 'correlations_obj_%s.png' %(result.obj_key)
         plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+
+        
+        plt.figure()
+        plt.plot(result.iters, result.ua_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
+        plt.plot(result.iters, result.ts_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+        plt.plot(result.iters, result.ts_corr_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
+
+        plt.xlim(0, np.max(all_results.iters[0]))
+        plt.ylim(0.5, 1)
+        plt.xlabel('Iteration', fontsize=font_size)
+        plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+        plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
+
+        handles, labels = plt.gca().get_legend_handles_labels()
+        plt.legend(handles, labels, loc='lower right')
+
+        figname = 'avg_reward_obj_%s.png' %(result.obj_key)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+
+    # plot all correlations on one plot
+    plt.figure()
+    for i, result in enumerate(results):
+        estimated_pfc = result.true_avg_reward 
+        k_vec = result.kernel_matrix.ravel()
+        pfc_arr = np.array([estimated_pfc]).T
+        pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+        pfc_vec = pfc_diff.ravel()
+
+        plt.scatter(k_vec, pfc_vec)
+
+    plt.xlabel('Kernel', fontsize=font_size)
+    plt.ylabel('PFC Diff', fontsize=font_size)
+    plt.title('Correlations for object %d' %(i), fontsize=font_size)
+
+    figname = 'all_correlations.png'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+        
 
     # plot histograms
     num_bins = 100
@@ -104,7 +144,7 @@ if __name__ == '__main__':
     plt.plot(all_results.iters[0], ts_avg_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
     plt.plot(all_results.iters[0], ts_corr_avg_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
 
-    plt.xlim(0, np.max(all_results.ts_result[0].iters))
+    plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)
     plt.xlabel('Iteration', fontsize=font_size)
     plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
@@ -119,11 +159,11 @@ if __name__ == '__main__':
     # plot avg simple regret w error bars
     plt.figure()
 
-    plt.errorbar(all_results.ua_result[0].iters, ua_avg_norm_reward, yerr=ua_std_norm_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
-    plt.errorbar(all_results.ts_result[0].iters, ts_avg_norm_reward, yerr=ts_std_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
-    plt.errorbar(all_results.ts_corr_result[0].iters, ts_corr_avg_norm_reward, yerr=ts_corr_std_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
+    plt.errorbar(all_results.iters[0], ua_avg_norm_reward, yerr=ua_std_norm_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
+    plt.errorbar(all_results.iters[0], ts_avg_norm_reward, yerr=ts_std_norm_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+    plt.errorbar(all_results.iters[0], ts_corr_avg_norm_reward, yerr=ts_corr_std_norm_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
 
-    plt.xlim(0, np.max(all_results.ts_result[0].iters))
+    plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)
     plt.xlabel('Iteration', fontsize=font_size)
     plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
