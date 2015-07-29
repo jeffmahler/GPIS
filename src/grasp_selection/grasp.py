@@ -437,6 +437,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         # load other attributes
         grasp.quality = data['quality']
+        grasp.successes = data['successes']
+        grasp.failures = data['failures']
         return grasp
 
 def test_find_contacts():

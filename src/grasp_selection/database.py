@@ -167,7 +167,7 @@ class Dataset(object):
                 raise ValueError('Index out of bounds. Dataset contains %d objects' %(len(self.data_keys_)))
             obj = self.read_datum(self.data_keys_[index])
             return obj
-        elif isinstance(index, str):
+        elif isinstance(index, (str, unicode)):
             obj = self.read_datum(index)
             return obj
 

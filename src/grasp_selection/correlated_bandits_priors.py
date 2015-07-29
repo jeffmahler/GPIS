@@ -30,20 +30,22 @@ import pr2_grasp_checker as pgc
 import termination_conditions as tc
 import prior_computation_engine as pce
 
+import scipy.spatial.distance as ssd
+
 def experiment_hash(N = 10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 class BanditCorrelatedExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward,
-                 ua_result, ts_result, ts_corr_result,
+                 true_avg_reward, iters, kernel_matrix,
                  obj_key='', num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
+        self.true_avg_reward = true_avg_reward
 
-        self.ua_result = ua_result
-        self.ts_result = ts_result
-        self.ts_corr_result = ts_corr_result
+        self.iters = iters
+        self.kernel_matrix = kernel_matrix
 
         self.obj_key = obj_key
         self.num_objects = num_objects
@@ -73,14 +75,14 @@ class BanditCorrelatedExperimentResult:
             obj_keys.append(r.obj_key)
             i = i + 1
 
-        ua_results = [r.ua_result for r in result_list]
-        ts_results = [r.ts_result for r in result_list]
-        ts_corr_results = [r.ts_corr_result for r in result_list]
+        true_avg_rewards = [r.true_avg_reward for r in result_list]
+        iters = [r.iters for r in result_list]
+        kernel_matrices = [r.kernel_matrix for r in result_list]
 
         return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward,
-                                                ua_results,
-                                                ts_results,
-                                                ts_corr_results,
+                                                true_avg_rewards,
+                                                iters,
+                                                kernel_matrices,
                                                 obj_keys,
                                                 len(result_list))
 
@@ -170,7 +172,9 @@ def label_correlated(obj, chunk, dest, config, plot=False):
 
     # compute priors
     prior_engine = pce.PriorComputationEngine(chunk, kernel, config)
-    alpha_priors, beta_priors = prior_engine.compute_priors(key, candidates)
+    # alpha_priors, beta_priors = prior_engine.compute_priors(obj.key, candidates)
+    alpha_priors, beta_priors, neighbor_pfc_diffs, neighbor_kernels = prior_engine.compute_priors_with_neighbor(obj.key, candidates, neighbor_key)
+    alpha_priors, beta_priors = 1.0, 1.0
 
     # pre-computed pfc values
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
@@ -224,8 +228,31 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
     ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
 
+
+
+
+
+    k = kernel.matrix(candidates)
+    k_vec = k.ravel()
+    pfc_arr = np.array([estimated_pfc]).T
+    pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+    pfc_vec = pfc_diff.ravel()
+
+    bad_ind = np.where(pfc_diff > 1.0 - k) 
+
+    plt.figure()
+    plt.scatter(k_vec, pfc_vec)
+    plt.scatter(neighbor_kernels, neighbor_pfc_diffs, c='#00ff00')
+    plt.xlabel('Kernel', fontsize=15)
+    plt.ylabel('PFC Diff', fontsize=15)
+    plt.title('Correlations', fontsize=15)
+    plt.show()
+
     return BanditCorrelatedExperimentResult(ua_normalized_reward, ts_normalized_reward, ts_corr_normalized_reward,
-                                            ua_result, ts_result, ts_corr_result, obj_key=obj.key)
+                                            estimated_pfc, ua_result.iters, kernel.matrix(candidates), obj_key=obj.key)
+
+obj_key = 'bottle_0034'
+neighbor_key = 'bottle_0127'
 
 if __name__ == '__main__':
     import argparse
@@ -250,12 +277,15 @@ if __name__ == '__main__':
     # loop through objects, labelling each
     results = []
     avg_experiment_result = None
-    for obj in chunk:
-        logging.info('Labelling object {}'.format(obj.key))
-        experiment_result = label_correlated(obj, chunk, dest, config)
-        if experiment_result is None:
-            continue # no grasps to run bandits on for this object
-        results.append(experiment_result)
+    # for obj in chunk:
+    #     logging.info('Labelling object {}'.format(obj.key))
+    #     experiment_result = label_correlated(obj, chunk, dest, config)
+    #     if experiment_result is None:
+    #         continue # no grasps to run bandits on for this object
+    #     results.append(experiment_result)
+    obj = chunk[obj_key]
+    experiment_result = label_correlated(obj, chunk, dest, config, neighbor_key)
+    results.append(experiment_result)
 
     if len(results) == 0:
         logging.info('Exiting. No grasps found')
@@ -271,18 +301,18 @@ if __name__ == '__main__':
 
     if config['plot']:
         plt.figure()
-        ua_obj = plt.plot(all_results.ts_result[0].iters, ua_normalized_reward,
+        ua_obj = plt.plot(all_results.iters[0], ua_normalized_reward,
                           c=u'b', linewidth=2.0, label='Uniform Allocation')
-        ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward,
+        ts_obj = plt.plot(all_results.iters[0], ts_normalized_reward,
                           c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
-        ts_corr_obj = plt.plot(all_results.ts_result[0].iters, ts_corr_normalized_reward,
+        ts_corr_obj = plt.plot(all_results.iters[0], ts_corr_normalized_reward,
                           c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
-        plt.xlim(0, np.max(all_results.ts_result[0].iters))
+        plt.xlim(0, np.max(all_results.iters[0]))
         plt.ylim(0.5, 1)
         plt.legend(loc='lower right')
         plt.show()
 
-    # save to file
-    logging.info('Saving results to %s' %(dest))
-    for r in results:
-        r.save(dest)
+    # # save to file
+    # logging.info('Saving results to %s' %(dest))
+    # for r in results:
+    #     r.save(dest)
