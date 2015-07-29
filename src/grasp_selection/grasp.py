@@ -23,6 +23,8 @@ PR2_GRASP_OFFSET = np.array([-0.0375, 0, 0])
 class Grasp:
     __metaclass__ = ABCMeta
 
+    samples_per_grid = 2 # global resolution for line of action
+
     @abstractmethod
     def close_fingers(self, obj):
         """ Finds the contact points by closing on the given object """
@@ -119,7 +121,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         # compute num samples to use based on sdf resolution
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(self.grasp_width_)
-        num_samples = int(2 * grasp_width_grid) # at least 1 sample per grid
+        num_samples = int(Grasp.samples_per_grid * grasp_width_grid) # at least 1 sample per grid
 
         # get grasp endpoints in sdf frame
         g1_world, g2_world = self.endpoints()

@@ -13,6 +13,9 @@ import IPython
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
+NO_CONTACT_DIST = 0.2 # distance to points that are not in contact for window extraction
+WIN_DIST_LIM = 0.02 # limits for window plotting
+
 class Contact:
     __metaclass__ = ABCMeta
 
@@ -56,8 +59,6 @@ class Contact3D(Contact):
         normal = U[:, 0]
 
         # flip normal to point outward if in_direction is defined
-#        print "In dir", self.in_direction_
-#        print "Normal", normal
         if self.in_direction_ is not None and np.dot(self.in_direction_, normal) > 0:
             normal = -normal
 
@@ -97,6 +98,15 @@ class Contact3D(Contact):
         t1, t2 = U[:, 1], U[:, 2]
         return np.squeeze(direction), t1, t2
 
+    def normal_force_magnitude(self):
+        """ Returns the magnitude of the force that the contact would apply along the normal direction"""
+        normal_force_mag = 1.0
+        if self.in_direction_ is not None and self.normal_ is not None:
+            in_normal = -self.normal_
+            in_direction_norm = self.in_direction_ / np.linalg.norm(self.in_direction_)
+            normal_force_mag = np.dot(in_direction_norm, in_normal)
+        return max(normal_force_mag, 0.0)
+
     def friction_cone(self, num_cone_faces=8, friction_coef=0.5):
         """
         Computes the friction cone and normal for a contact point.
@@ -111,11 +121,27 @@ class Contact3D(Contact):
         if self.friction_cone_ is not None and self.normal_ is not None:
             return True, self.friction_cone_, self.normal_
 
+        # get normal and tangents
         in_normal, t1, t2 = self.tangents()
         if in_normal is None:
             return False, self.friction_cone_, self.normal_
 
-#        print 'In normal friction', in_normal
+        friction_cone_valid = True
+
+        # check whether contact would slip, which is whether or not the tangent force is always greater than the frictional force
+        if self.in_direction_ is not None:
+            in_direction_norm = self.in_direction_ / np.linalg.norm(self.in_direction_)
+            normal_force_mag = self.normal_force_magnitude()
+            tan_force_x = np.dot(in_direction_norm, t1)
+            tan_force_y = np.dot(in_direction_norm, t2)
+            tan_force_mag = np.sqrt(tan_force_x**2 + tan_force_y**2)
+            friction_force_mag = friction_coef * normal_force_mag
+
+            if friction_force_mag < tan_force_mag:
+                logging.debug('Contact would slip')
+                return False, self.friction_cone_, self.normal_
+
+        # set up friction cone
         tan_len = friction_coef
         force = in_normal
         cone_support = np.zeros((3, num_cone_faces))
@@ -126,7 +152,6 @@ class Contact3D(Contact):
             cone_support[:, j] = force + friction_coef * tan_vec
 
         self.friction_cone_ = cone_support
-        self.normal_ = -in_normal
         return True, self.friction_cone_, self.normal_
 
     def torques(self, forces):
@@ -212,7 +237,7 @@ class Contact3D(Contact):
 #            self.graspable.sdf.scatter()
 
         # number of samples used when looking for contacts
-        no_contact = 0.2
+        no_contact = NO_CONTACT_DIST
         back_up = back_up_units * self.graspable.sdf.resolution
         num_samples = int(samples_per_grid * (max_projection + back_up) / self.graspable.sdf.resolution)
         scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
@@ -244,7 +269,7 @@ class Contact3D(Contact):
                 # logging.debug('%d found.' %(i))
                 sign = direction.dot(projection_contact.point - curr_loc)
                 projection = (sign / abs(sign)) * np.linalg.norm(projection_contact.point - curr_loc)
-                projection = min(projection, 0.1)
+                projection = min(projection, max_projection)
                 if compute_weighted_covariance:
                     # weight according to SHOT: R - d_i
                     weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
@@ -340,7 +365,7 @@ class Contact3D(Contact):
             plt.imshow(window, extent=[0, num_steps-1, num_steps-1, 0],
                     interpolation='none', cmap=plt.cm.binary)
             plt.colorbar()
-            plt.clim(-0.01, 0.01) # fixing color range for visual comparisons
+            plt.clim(-WIN_DIST_LIM, WIN_DIST_LIM) # fixing color range for visual comparisons
             center = num_steps // 2
             plt.scatter([center, center*u1t[0] + center], [center, -center*u1t[1] + center], color='blue')
             plt.scatter([center, center*u2t[0] + center], [center, -center*u2t[1] + center], color='green')
@@ -358,7 +383,7 @@ class Contact3D(Contact):
             ax.set_ylim3d(0, self.graspable_.sdf.dims_[1])
             ax.set_zlim3d(0, self.graspable_.sdf.dims_[2])
             """
-            plt.show()
+#            plt.show()
 
         u1 = np.dot(principal_axis, t1) * t1 + np.dot(principal_axis, t2) * t2
         u2 = np.cross(direction, u1) # u2 must be orthogonal to u1 on plane
@@ -385,7 +410,7 @@ class Contact3D(Contact):
             plt.imshow(window, extent=[0, num_steps-1, num_steps-1, 0],
                     interpolation='none', cmap=plt.cm.binary)
             plt.colorbar()
-            plt.clim(-0.01, 0.01) # fixing color range for visual comparisons            
+            plt.clim(-WIN_DIST_LIM, WIN_DIST_LIM) # fixing color range for visual comparisons            
             plt.show()
 
         return window
@@ -399,6 +424,7 @@ class Contact3D(Contact):
 
         proj_window = self.surface_window_projection(width, num_steps,
             back_up_units=back_up_units, direction=direction, vis=False)
+#        IPython.embed()
 
         if proj_window is None:
             raise ValueError('Surface window could not be computed')
@@ -420,7 +446,11 @@ class Contact3D(Contact):
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
     def plot_friction_cone(self, color='r'):
-        _, cone, in_normal = self.friction_cone()
+        success, cone, in_normal = self.friction_cone()
+
+        if not success:
+            logging.warning('Friction cone does not exist')
+            return
 
         ax = plt.gca(projection='3d')
         self.graspable.sdf.scatter() # object
