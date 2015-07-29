@@ -182,6 +182,14 @@ class ForceClosureRV:
         else:
             return self.features_.phi
 
+    @property
+    def swapped_features(self):
+        if self.features_ is None:
+            logging.warning('Features are uninitialized.')
+        else:
+            swapped = self.features_.swap_windows()
+            return swapped.phi
+
     def sample_success(self):
         # sample grasp
         cur_time = time.clock()
