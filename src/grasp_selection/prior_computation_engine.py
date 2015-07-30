@@ -67,18 +67,19 @@ class PriorComputationEngine:
 		nf = self.feature_db.nearest_features()
 		feature_vector = nf.project_feature_vector(self.feature_db.feature_vectors()[key])
 		neighbor_vector_dict = nf.k_nearest(feature_vector, k=self.num_neighbors+1)
-		neighbor_keys = neighbor_vector_dict.keys()
+		neighbor_keys = []
 		all_neighbor_pfc_diffs = []
 		all_neighbor_kernels = []
 		all_distances = []
 		object_indices = range(0, 28)
-		for neighbor_key in neighbor_keys:
+		for neighbor_key in neighbor_vector_dict.keys():
 			if neighbor_key == key:
 				continue
 			neighbor_pfc_diffs, neighbor_kernels, object_distance = self.kernel_info_from_neighbor(key, candidates, neighbor_key)
 			all_neighbor_pfc_diffs.append(neighbor_pfc_diffs)
 			all_neighbor_kernels.append(neighbor_kernels)
 			all_distances.append(object_distance)
+			neighbor_keys.append(neighbor_key)
 		return neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances
 
 	def kernel_info_from_neighbor(self, key, candidates, neighbor_key):

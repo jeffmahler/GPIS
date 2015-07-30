@@ -111,7 +111,7 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
     return best_pred_values
 
-def label_correlated(obj, chunk, dest, config, plot=False):
+def label_correlated(obj, chunk, config, plot=False):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
     bandit_start = time.clock()
@@ -275,7 +275,7 @@ def plot_kernels_for_key(obj, chunk, config):
             candidates.append(pfc_rv)
 
     prior_engine = pce.PriorComputationEngine(chunk, config)
-    neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj_key, candidates)
+    neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj.key, candidates)
 
     for neighbor_key, object_distance in zip(neighbor_keys, all_distances):
         print '%s and %s: %.5f' % (obj.key, neighbor_key, object_distance)
@@ -295,7 +295,7 @@ def plot_kernels_for_key(obj, chunk, config):
 
     bad_ind = np.where(pfc_diff > 1.0 - k) 
 
-    labels = [obj_key] + neighbor_keys
+    labels = [obj.key] + neighbor_keys
     scatter_objs =[]
     plt.figure()
     colors = plt.get_cmap('hsv')(np.linspace(0.5, 1.0, len(all_neighbor_pfc_diffs)))
@@ -306,7 +306,65 @@ def plot_kernels_for_key(obj, chunk, config):
     plt.ylabel('PFC Diff', fontsize=15)
     plt.title('Correlations', fontsize=15)
     plt.legend(scatter_objs, labels)
-    plt.show()
+
+def run_and_save_experiment(obj, chunk, config, result_dir):
+    results = []
+    avg_experiment_result = None
+    experiment_result = label_correlated(obj, chunk, config)
+    results.append(experiment_result)
+
+    if len(results) == 0:
+        logging.info('Exiting. No grasps found')
+        exit(0)
+
+    # combine results
+    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+
+    # plot params
+    line_width = config['line_width']
+    font_size = config['font_size']
+    dpi = config['dpi']
+
+    print 'Creating and saving plots...'
+
+    # plotting of final results
+    ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
+    ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
+    ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
+    ts_corr_prior_normalized_reward = np.mean(all_results.ts_corr_prior_reward, axis=0)
+
+    plot_kernels_for_key(obj, chunk, config)
+    plt.savefig(os.path.join(result_dir,  obj.key+'_kernels.png'), dpi=dpi)
+
+    plt.figure()
+    ua_obj = plt.plot(all_results.iters[0], ua_normalized_reward,
+                      c=u'b', linewidth=2.0, label='Uniform Allocation')
+    ts_obj = plt.plot(all_results.iters[0], ts_normalized_reward,
+                      c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
+    ts_corr_obj = plt.plot(all_results.iters[0], ts_corr_normalized_reward,
+                      c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
+    ts_corr_prior_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward,
+                      c=u'c', linewidth=2.0, label='Thompson Sampling (Priors)')
+    plt.xlim(0, np.max(all_results.iters[0]))
+    plt.ylim(0.5, 1)
+    plt.legend(loc='lower right')
+    plt.savefig(os.path.join(result_dir,  obj.key+'_results.png'), dpi=dpi)
+
+    # plot histograms
+    num_bins = 100
+    bin_edges = np.linspace(0, 1, num_bins+1)
+    plt.figure()
+    n, bins, patches = plt.hist(all_results.true_avg_reward, bin_edges)
+    plt.xlabel('Probability of Success', fontsize=font_size)
+    plt.ylabel('Num Grasps', fontsize=font_size)
+    plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
+    plt.savefig(os.path.join(result_dir,  obj.key+'_histogram.png'), dpi=dpi)
+
+    # # save to file
+    # logging.info('Saving results to %s' %(dest))
+    # for r in results:
+    #     r.save(dest)
+
 
 if __name__ == '__main__':
     import argparse
@@ -321,10 +379,6 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     chunk = db.Chunk(config)
 
-    # obj_key = 'bottle_0034'
-    # obj = chunk[obj_key]
-    # plot_kernels_for_key(obj, chunk, config)
-
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
     try:
@@ -333,61 +387,6 @@ if __name__ == '__main__':
         pass
 
 
-    obj_key = 'bottle_0034'
-    results = []
-    avg_experiment_result = None
-    obj = chunk[obj_key]
-    experiment_result = label_correlated(obj, chunk, dest, config)
-    results.append(experiment_result)
-
-    if len(results) == 0:
-        logging.info('Exiting. No grasps found')
-        exit(0)
-
-    # combine results
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
-
-    # plotting of final results
-    ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
-    ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
-    ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
-    ts_corr_prior_normalized_reward = np.mean(all_results.ts_corr_prior_reward, axis=0)
-
-    if config['plot']:
-        # plot params
-        line_width = config['line_width']
-        font_size = config['font_size']
-        dpi = config['dpi']
-
-        plt.figure()
-        ua_obj = plt.plot(all_results.iters[0], ua_normalized_reward,
-                          c=u'b', linewidth=2.0, label='Uniform Allocation')
-        ts_obj = plt.plot(all_results.iters[0], ts_normalized_reward,
-                          c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
-        ts_corr_obj = plt.plot(all_results.iters[0], ts_corr_normalized_reward,
-                          c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
-        ts_corr_prior_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward,
-                          c=u'c', linewidth=2.0, label='Thompson Sampling (Priors)')
-        plt.xlim(0, np.max(all_results.iters[0]))
-        plt.ylim(0.5, 1)
-        plt.legend(loc='lower right')
-        plt.show()
-
-        # plot histograms
-        num_bins = 100
-        bin_edges = np.linspace(0, 1, num_bins+1)
-        plt.figure()
-        n, bins, patches = plt.hist(all_results.true_avg_reward, bin_edges)
-        plt.xlabel('Probability of Success', fontsize=font_size)
-        plt.ylabel('Num Grasps', fontsize=font_size)
-        plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
-        plt.show()
-        
-        # figname = 'histogram_success.png'
-        # plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
-        # logging.info('Finished plotting %s', figname)
-
-    # # save to file
-    # logging.info('Saving results to %s' %(dest))
-    # for r in results:
-    #     r.save(dest)
+    for obj in chunk:
+        print 'Running experiment on '+obj.key
+        run_and_save_experiment(obj, chunk, config, dest)
