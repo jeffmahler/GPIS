@@ -30,20 +30,49 @@ class FeatureObject:
 		self.feature_vector = feature_vector
 
 class NearestFeatures:
-	def __init__(self, feature_db, pca_components=10):
-		train_feature_vectors = feature_db.train_feature_vectors()
-		self.feature_db = feature_db
+	def __init__(self, feature_db, pca_components=10, svd=None, neighbor_tree=None):
+		train_feature_vectors = feature_db.feature_vectors() #feature_db.train_feature_vectors()
 		self.pca_components = pca_components
-		self.svd = self._create_train_svd(train_feature_vectors, pca_components)
-		self.neighbors = self._create_neighbors(self._project_feature_vectors(train_feature_vectors))
+		if svd == None:
+			self.svd = self._create_train_svd(train_feature_vectors, pca_components)
+		else:
+			self.svd = svd
 
-	def within_distance(self, key, dist=0.5):
-		feature_vector = self.svd.transform(feature_db.feature_vectors[key])
-		feature_object = FeatureObject(key, feature_vector)
-		neighbor_feature_objects = self.neighbors.within_distance(feature_object, dist=dist)
-		keys = map(lambda x: x.key, neighbor_feature_objects)
-		values = map(lambda x: x.feature_vector, neighbor_feature_objects)
+		data = self._project_feature_vectors(train_feature_vectors)
+		if neighbor_tree == None:
+			start = time.time()
+			self.neighbors = self._create_neighbors(data)
+			end = time.time()
+			print 'TIME: %0.4f' % (end - start)
+		else:
+			self.neighbors = kernels.KDTree(phi=lambda x: x.feature_vector)
+			self.neighbors.tree_ = neighbor_tree
+			self.neighbors.data_ = np.array(data)
+
+	def within_distance(self, feature_vector, dist=0.5):
+		feature_object = self._create_query_object(feature_vector)
+		neighbor_feature_objects, distances = self.neighbors.within_distance(feature_object, dist=dist)
+		return self._create_feature_vector_dict(neighbor_feature_objects)
+
+	def k_nearest(self, feature_vector, k=1):
+		feature_object = self._create_query_object(feature_vector)
+		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, k)
+		return self._create_feature_vector_dict(neighbor_feature_objects)
+
+	def _create_query_object(self, feature_vector):
+		if feature_vector.shape[0] != self.pca_components:
+			feature_vector = self.project_feature_vector(feature_vector)
+		feature_object = FeatureObject('query_object', feature_vector)
+		return feature_object
+
+	def _create_feature_vector_dict(self, feature_objects):
+		keys = map(lambda x: x.key, feature_objects)
+		values = map(lambda x: x.feature_vector, feature_objects)
 		return dict(zip(keys, values))
+
+	def project_feature_vector(self, feature_vector):
+		X = sp_mat(feature_vector)
+		return self.svd.transform(X)[0]
 
 	def _create_train_svd(self, train_feature_vectors, pca_components):
 		X = map(sp_mat, train_feature_vectors.values())
@@ -209,8 +238,9 @@ def test_nearest_features(nearest_features, feature_db):
 
 if __name__ == '__main__':
 	feature_db = FeatureDatabase()
-	nearest_features = NearestFeatures(feature_db, pca_components=100)
-	# feature_db.save_nearest_features(nearest_features)
-	test_nearest_features(nearest_features, feature_db)
+	nearest_features = NearestFeatures(feature_db, pca_components=10)
+	feature_db.save_nearest_features(nearest_features)
+
+	# test_nearest_features(nearest_features, feature_db)
 	# nearest_features.compute_accuracy(feature_db)
 

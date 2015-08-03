@@ -6,9 +6,63 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import scipy.signal as ss
 
 from contacts import SurfaceWindow
 import graspable_object as go
+
+class Weight:
+    def __init__(self, value):
+        self.value = value
+        if isinstance(value, (float, int)):
+            self.is_value = True
+        elif isinstance(value, np.ndarray) and len(value.shape) == 1:
+            self.is_value = True
+        elif isinstance(value, str):
+            self.is_value = False
+        else:
+            raise ValueError('Invalid weight: %s' %(value))
+
+    def _window_width(self, feature):
+        if len(feature.shape) == 1:
+            num_elements = feature.shape[0]
+            num_steps = int(np.sqrt(num_elements))
+            if num_steps**2 == num_elements:
+                return num_steps
+        elif len(feature.shape) == 2 and feature.shape[0] == feature.shape[1]:
+            return feature.shape[0]
+        raise ValueError('Non-square feature vector')
+
+    def extract_weight(self, key, other):
+        if key.startswith('gaussian'): # (e.g. gaussian_3.0_0.1)
+            _, max, sigma = key.split('_') # gaussian_MAX_SIGMA
+            max, sigma = float(max), float(sigma)
+
+            num_steps = self._window_width(other)
+            gaussian_1d = ss.gaussian(num_steps, sigma)
+            gaussian_2d = max * np.outer(gaussian_1d, gaussian_1d)
+            return gaussian_2d.reshape(other.shape)
+        elif key.startswith('crop'): # (e.g. crop_60.0_3)
+            _, max, width = key.split('_') # crop_MAX_WIDTH
+            max, width = float(max), int(width)
+
+            center = max * np.ones((width, width))
+            num_steps = self._window_width(other)
+            offset = (num_steps - width) / 2
+            crop_filter = np.pad(center, offset, 'constant', constant_values=0)
+            return crop_filter.reshape(other.shape)
+        else:
+            raise ValueError('Invalid weight identifier: %s' %(key))
+
+    def __mul__(self, other):
+        if self.is_value:
+            return self.value * other
+        else:
+            weight = self.extract_weight(self.value, other)
+            return weight * other
+
+    def __repr__(self):
+        return repr(self.value)
 
 # Grasp-specific feature functions
 
@@ -24,7 +78,7 @@ class FeatureExtractor:
 
     @property
     def feature_weight(self):
-        return 1.0 if self.use_unity_weights else self.feature_weight_
+        return Weight(1.0) if self.use_unity_weights else self.feature_weight_
 
     def to_json(self, dest):
         return {}
@@ -50,6 +104,23 @@ class AggregatedFeatureExtractor(FeatureExtractor):
         for e in self.extractors_:
             subjson.update(e.to_json(subdest))
         return {self.name : subjson}
+
+    def swap_windows(self):
+        """Returns a copy of this extractor with surface information w1 and w2
+        swapped."""
+        w1 = w2 = None
+        others = []
+        for extractor in self.extractors_:
+            if extractor.name == 'w1':
+                w1 = extractor
+            elif extractor.name == 'w2':
+                w2 = extractor
+            else:
+                others.append(extractor)
+        new_w1 = AggregatedFeatureExtractor(w2.extractors_, 'w1')
+        new_w2 = AggregatedFeatureExtractor(w1.extractors_, 'w2')
+        extractors = [new_w1, new_w2] + others
+        return AggregatedFeatureExtractor(extractors, self.name)
 
     @property
     def phi(self):
@@ -182,6 +253,13 @@ class MomentArmFeatureExtractor(GravityFeatureExtractor):
     def phi(self):
         return self.feature_weight * np.r_[self.moment1_, self.moment2_]
 
+class MomentArmMagnitudeFeatureExtractor(GravityFeatureExtractor):
+    name = 'moment_arm_mag'
+
+    @property
+    def phi(self):
+        return self.feature_weight * np.r_[np.linalg.norm(self.moment1_), np.linalg.norm(self.moment2_)]
+
 class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
     name = 'grasp_axis_gravity_angle'
 
@@ -218,16 +296,16 @@ class GraspableFeatureExtractor:
         self.window_sigma_ = config['window_sigma']
 
         # feature weights
-        self.proj_win_weight_ = config['weight_proj_win']
-        self.grad_x_weight_ = config['weight_grad_x']
-        self.grad_y_weight_ = config['weight_grad_y']
-        self.curvature_weight_ = config['weight_curvature']
+        self.proj_win_weight_ = Weight(config['weight_proj_win'])
+        self.grad_x_weight_ = Weight(config['weight_grad_x'])
+        self.grad_y_weight_ = Weight(config['weight_grad_y'])
+        self.curvature_weight_ = Weight(config['weight_curvature'])
 
-        self.grasp_center_weight_ = config['weight_grasp_center']
-        self.grasp_axis_weight_ = config['weight_grasp_axis']
-        self.grasp_angle_weight_ = config['weight_grasp_angle']
+        self.grasp_center_weight_ = Weight(config['weight_grasp_center'])
+        self.grasp_axis_weight_ = Weight(config['weight_grasp_axis'])
+        self.grasp_angle_weight_ = Weight(config['weight_grasp_angle'])
 
-        self.gravity_weight_ = config['weight_gravity']
+        self.gravity_weight_ = Weight(config['weight_gravity'])
 
         # for convenience
         self.weights_ = [
@@ -281,7 +359,8 @@ class GraspableFeatureExtractor:
         # compute gravity features
         gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
         gravity_features = [
-            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+#            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            MomentArmMagnitudeFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
             GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
             MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
         ]
@@ -319,14 +398,14 @@ class GraspableFeatureLoader:
 
     def _parse_config(self, config):
         self.database_root_dir_ = config['database_dir']
-        self.proj_win_weight_ = config['weight_proj_win']
-        self.grad_x_weight_ = config['weight_grad_x']
-        self.grad_y_weight_ = config['weight_grad_y']
-        self.curvature_weight_ = config['weight_curvature']
-        self.grasp_center_weight_ = config['weight_grasp_center']
-        self.grasp_axis_weight_ = config['weight_grasp_axis']
-        self.grasp_angle_weight_ = config['weight_grasp_angle']
-        self.gravity_weight_ = config['weight_gravity']
+        self.proj_win_weight_ = Weight(config['weight_proj_win'])
+        self.grad_x_weight_ = Weight(config['weight_grad_x'])
+        self.grad_y_weight_ = Weight(config['weight_grad_y'])
+        self.curvature_weight_ = Weight(config['weight_curvature'])
+        self.grasp_center_weight_ = Weight(config['weight_grasp_center'])
+        self.grasp_axis_weight_ = Weight(config['weight_grasp_axis'])
+        self.grasp_angle_weight_ = Weight(config['weight_grasp_angle'])
+        self.gravity_weight_ = Weight(config['weight_gravity'])
 
     def _load_csv_as_array(self, rel_path):
         # rel_path is path to file relative to database root dir

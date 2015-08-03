@@ -161,10 +161,17 @@ def label_correlated(obj, chunk, dest, config, plot=False):
     # feature transform
     def phi(rv):
         return rv.features
-
     nn = kernels.KDTree(phi=phi)
     kernel = kernels.SquaredExponentialKernel(
         sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+
+    if config['grasp_symmetry']:
+        def swapped_phi(rv):
+            return rv.swapped_features
+        nn = kernels.SymmetricKDTree(phi=phi, alternate_phi=swapped_phi)
+        kernel = kernels.SymmetricSquaredExponentialKernel(
+            sigma=config['kernel_sigma'], l=config['kernel_l'],
+            phi=phi, alternate_phi=swapped_phi)
     objective = objectives.RandomBinaryObjective()
 
     # pre-computed pfc values

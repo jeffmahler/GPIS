@@ -87,7 +87,6 @@ class FeatureObjectDatabase:
 		start_time = time.time()
 		print 'Creating and saving feature objects...'
 		fv_dict = feature_database.create_feature_vectors_file()
-		import IPython; IPython.embed()
 		self._create_feature_vectors(fv_dict, final_blobs, rendered_objects, caffe_config.vector_merging_method())
 		print 'Finished creating feature objects: '+str(time.time()-start_time)+'s'
 
