@@ -1,4 +1,4 @@
-"""
+B"""
 Main file for correlated bandit experiments.
 
 Author: Brian Hou
@@ -28,6 +28,7 @@ import json_serialization as jsons
 import kernels
 import models
 import objectives
+import quality as q
 import pfc
 import pr2_grasp_checker as pgc
 import termination_conditions as tc
@@ -119,7 +120,7 @@ def load_grasps(obj, source):
     grasps = []
     for root, dirs, files in os.walk(source):
         for f in files:
-            if f.endswith('.json'):
+            if f.find(obj.key) != -1 and f.endswith('.json'):
                 filename = os.path.join(root, f)
                 with open(filename, 'r') as grasp_file:
                     grasps.append(g.ParallelJawPtGrasp3D.from_json(jsons.load(grasp_file)))
@@ -131,16 +132,16 @@ def label_correlated(obj, chunk, dest, config, plot=False, load=True):
     bandit_start = time.clock()
 
     np.random.seed(100)
+    chunk = db.Chunk(config)
 
     if not load:
-
         # load grasps from database
         sample_start = time.clock()
                               
         if config['grasp_sampler'] == 'antipodal':
             logging.info('Using antipodal grasp sampling')
             sampler = ags.AntipodalGraspSampler(config)
-            grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=False)
+            grasps = sampler.generate_grasps(obj, check_collisions=config['check_collisions'], vis=plot)
 
             # pad with gaussian grasps
             num_grasps = len(grasps)
@@ -167,17 +168,36 @@ def label_correlated(obj, chunk, dest, config, plot=False, load=True):
 
     else:
         grasps = load_grasps(obj, dest)
-        grasps = grasps[:40]
+        grasps = grasps[:20]
+#        grasps = chunk.load_grasps(obj.key)
 
     # load features for all grasps
     feature_start = time.clock()
     feature_extractor = ff.GraspableFeatureExtractor(obj, config)
-    all_features = feature_extractor.compute_all_features(grasps)
+
+    features = feature_extractor.compute_all_features(grasps)
+    """
+    if not load:
+        features = feature_extractor.compute_all_features(grasps)
+    else:
+        feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
+        features = feature_loader.load_all_features(grasps) # in same order as grasps
+    """
     feature_end = time.clock()
     feature_duration = feature_end - feature_start
-    logging.info('Loaded %d features' %(len(all_features)))
+    logging.info('Loaded %d features' %(len(features)))
     logging.info('Grasp feature loading took %f sec' %(feature_duration))
 
+    # prune crappy grasps
+    all_features = []
+    all_grasps = []
+    for grasp, feature in zip(grasps, features):
+        if feature is not None:
+            all_grasps.append(grasp)
+            all_features.append(feature)
+    grasps = all_grasps
+
+    # compute distances for debugging
     distances = np.zeros([len(grasps), len(grasps)])
     i = 0
     for feature_i in all_features:
@@ -229,13 +249,29 @@ def label_correlated(obj, chunk, dest, config, plot=False, load=True):
         estimated_pfc = models.BetaBernoulliModel.beta_mean(ua_result.models[-1].alphas, ua_result.models[-1].betas)
 
         save_grasps(grasps, estimated_pfc, obj, dest)
+
+        # plot params
+        line_width = config['line_width']
+        font_size = config['font_size']
+        dpi = config['dpi']
+
+        # plot histograms
+        num_bins = 100
+        bin_edges = np.linspace(0, 1, num_bins+1)
+        plt.figure()
+        n, bins, patches = plt.hist(estimated_pfc, bin_edges)
+        plt.xlabel('Probability of Success', fontsize=font_size)
+        plt.ylabel('Num Grasps', fontsize=font_size)
+        plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
+        plt.show()
+
         exit(0)
     else:
-        estimated_pfc = np.array([g.q for g in grasps])
-
+        estimated_pfc = np.array([g.quality for g in grasps])
+        
     # debugging for examining bad features
-    bad_i = 17#121
-    bad_j = 24#193
+    bad_i = 0
+    bad_j = 1
     grasp_i = grasps[bad_i]
     grasp_j = grasps[bad_j]
     pfc_i = estimated_pfc[bad_i]
@@ -245,6 +281,42 @@ def label_correlated(obj, chunk, dest, config, plot=False, load=True):
     feature_sq_diff = (features_i.phi - features_j.phi)**2
 #    grasp_i.close_fingers(obj, vis=True)
 #    grasp_j.close_fingers(obj, vis=True)
+
+    grasp_i.surface_information(obj, config['window_width'], config['window_steps'])
+    grasp_j.surface_information(obj, config['window_width'], config['window_steps'])
+
+    w = config['window_steps']
+    wi1 = np.reshape(features_i.extractors_[0].extractors_[1].phi, [w, w]) 
+    wi2 = np.reshape(features_i.extractors_[1].extractors_[1].phi, [w, w]) 
+    wj1 = np.reshape(features_j.extractors_[0].extractors_[1].phi, [w, w]) 
+    wj2 = np.reshape(features_j.extractors_[1].extractors_[1].phi, [w, w]) 
+
+    a = 0.1
+    plt.figure()
+    plt.subplot(2,2,1)
+    plt.imshow(wi1, cmap=plt.cm.Greys, interpolation='none')
+    plt.colorbar()
+    plt.clim(-a, a) # fixing color range for visual comparisons            
+    plt.title('wi1')
+
+    plt.subplot(2,2,2)
+    plt.imshow(wi2, cmap=plt.cm.Greys, interpolation='none')
+    plt.colorbar()
+    plt.clim(-a, a) # fixing color range for visual comparisons            
+    plt.title('wi2')
+
+    plt.subplot(2,2,3)
+    plt.imshow(wj1, cmap=plt.cm.Greys, interpolation='none')
+    plt.colorbar()
+    plt.clim(-a, a) # fixing color range for visual comparisons            
+    plt.title('wj1')
+
+    plt.subplot(2,2,4)
+    plt.imshow(wj2, cmap=plt.cm.Greys, interpolation='none')
+    plt.colorbar()
+    plt.clim(-a, a) # fixing color range for visual comparisons            
+    plt.title('wj2')
+
 #    plt.show()
 #    IPython.embed()
 
@@ -279,8 +351,7 @@ def label_correlated(obj, chunk, dest, config, plot=False, load=True):
     avg_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
 
     # get correlations and plot
-    final_model = ts_corr_result.models[-1]
-    k = final_model.correlations
+    k = kernel.matrix(candidates)
     k_vec = k.ravel()
     pfc_arr = np.array([estimated_pfc]).T
     pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
