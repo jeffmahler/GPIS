@@ -58,7 +58,7 @@ class GaussianGraspSampler(GraspSampler):
         self.friction_inc = config['friction_inc']
 
     def generate_grasps(self, graspable, sigma_scale = 2.5, target_num_grasps = None,
-                        grasp_gen_mult = 3, check_collisions = False, vis = False, attempt = 0):
+                        grasp_gen_mult = 3, check_collisions = False, vis = False, max_iter = 3):
         """
         Returns a list of candidate grasps for graspable object by Gaussian with
         variance specified by principal dimensions
@@ -69,7 +69,7 @@ class GaussianGraspSampler(GraspSampler):
             target_num_grasps - (int) the number of grasps to generate
             grasp_gen_mult - (float) how many times the number of target grasps
                 to generate (since some will be pruned)
-            attempt - (int) number of times generate_grasps has been called
+            max_iter - (int) max number of times generate_grasps can be called
         Returns:
             list of ParallelJawPtGrasp3D objects
         """
@@ -104,6 +104,7 @@ class GaussianGraspSampler(GraspSampler):
             # add grasp if it has valid contacts
             if contacts_found and np.linalg.norm(contacts[0].point - contacts[1].point) > self.min_contact_dist:
                 grasps.append(grasp)
+
 
         # visualize
         if vis:
@@ -145,22 +146,24 @@ class GaussianGraspSampler(GraspSampler):
             grasps = collision_free_grasps
 
         # return the number requested
-        if len(grasps) < target_num_grasps:
+        k = 1
+        while len(grasps) < target_num_grasps and k < max_iter:
             logging.info('Iteration %d of Gaussian sampling only found %d/%d grasps, trying again.',
-                         attempt, len(grasps), target_num_grasps)
+                         k-1, len(grasps), target_num_grasps)
             additional_grasps = self.generate_grasps(
                 graspable, sigma_scale, target_num_grasps - len(grasps), grasp_gen_mult * 2,
-                check_collisions, vis, attempt+1)
+                check_collisions, vis, max_iter=1)
             grasps = grasps + additional_grasps
+            k = k+1
 
         random.shuffle(grasps)
         if len(grasps) > target_num_grasps:
             logging.info('Iteration %d of Gaussian sampling found %d random grasps, truncating to %d.',
-                         attempt, len(grasps), target_num_grasps)
+                         k, len(grasps), target_num_grasps)
             grasps = grasps[:target_num_grasps]
         else:
             logging.info('Iteration %d of Gaussian sampling found %d random grasps.',
-                         attempt, len(grasps))
+                         k, len(grasps))
         return grasps
 
 def test_gaussian_grasp_sampling(vis=False):
