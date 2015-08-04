@@ -50,12 +50,24 @@ class NearestFeatures:
 			self.neighbors.data_ = np.array(data)
 
 	def within_distance(self, feature_vector, dist=0.5):
+		feature_object = self._create_query_object(feature_vector)
+		neighbor_feature_objects, distances = self.neighbors.within_distance(feature_object, dist=dist)
+		return self._create_feature_vector_dict(neighbor_feature_objects)
+
+	def k_nearest(self, feature_vector, k=1):
+		feature_object = self._create_query_object(feature_vector)
+		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, k)
+		return self._create_feature_vector_dict(neighbor_feature_objects)
+
+	def _create_query_object(self, feature_vector):
 		if feature_vector.shape[0] != self.pca_components:
 			feature_vector = self.project_feature_vector(feature_vector)
 		feature_object = FeatureObject('query_object', feature_vector)
-		neighbor_feature_objects, distances = self.neighbors.within_distance(feature_object, dist=dist)
-		keys = map(lambda x: x.key, neighbor_feature_objects)
-		values = map(lambda x: x.feature_vector, neighbor_feature_objects)
+		return feature_object
+
+	def _create_feature_vector_dict(self, feature_objects):
+		keys = map(lambda x: x.key, feature_objects)
+		values = map(lambda x: x.feature_vector, feature_objects)
 		return dict(zip(keys, values))
 
 	def project_feature_vector(self, feature_vector):
