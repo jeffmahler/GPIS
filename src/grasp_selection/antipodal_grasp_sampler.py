@@ -65,6 +65,7 @@ class AntipodalGraspSampler(gs.GraspSampler):
         self.rho_thresh = config['rho_thresh']
         self.min_num_grasps = config['min_num_grasps']
         self.max_num_grasps = config['max_num_grasps']
+        self.min_contact_dist = config['min_contact_dist']
         self.min_num_collision_free = config['min_num_collision_free_grasps']
         self.theta_res = 2 * np.pi * config['grasp_theta_res']
         self.alpha_inc = config['alpha_inc']
@@ -157,7 +158,7 @@ class AntipodalGraspSampler(gs.GraspSampler):
 
                     # make sure grasp is wide enough
                     x2 = c2.point
-                    if np.linalg.norm(x1 - x2) < graspable.sdf.resolution:
+                    if np.linalg.norm(x1 - x2) < self.min_contact_dist:
                         continue
 
                     v_true = grasp.axis

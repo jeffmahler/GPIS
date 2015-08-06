@@ -165,6 +165,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         Returns:
             line_of_action - list of numpy 3-arrays in grid coords to check surface contacts
         """
+        num_samples = max(num_samples, 3) # always at least 3 samples
         line_of_action = [g + t * axis for t in np.linspace(0, width, num = num_samples)]
         if convert_grid:
             as_array = np.array(line_of_action).T
@@ -220,6 +221,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     sdf_after = obj.sdf[pt_after]
                     pt_after_after = line_of_action[i+2]
                     sdf_after_after = obj.sdf[pt_after_after]
+
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_grid, sdf_here, pt_after, sdf_after, pt_after_after, sdf_after_after)
 
                     # contact not yet found if next sdf value is smaller

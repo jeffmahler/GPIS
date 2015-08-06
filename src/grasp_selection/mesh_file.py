@@ -50,14 +50,14 @@ class MeshFile:
 
 	@staticmethod
 	def write_json(mesh, target_filename):
-		target_json_filename = target_filename + '.json'
+		target_json_filename = target_filename + '.meta'
 
 		json.dump(mesh.create_json_metadata(), open(target_json_filename, 'w'))
 
 	@staticmethod
 	def write_shot(mesh, target_filename):
 		target_obj_filename = target_filename + '.obj'
-		target_shot_filename = target_filename + '.shot'
+		target_shot_filename = target_filename + '.ftr'
 
 		shot_os_call = 'bin/shot_extractor %s %s' %(target_obj_filename, target_shot_filename)
 		os.system(shot_os_call)
