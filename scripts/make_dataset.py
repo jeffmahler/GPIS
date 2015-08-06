@@ -32,9 +32,9 @@ with open(args.dataset) as f:
         os.symlink(src, dst)
 
         # add "origdataset_key category" to index_db_lines
-        index_db_line = '%s %s' %(link_name, category) if category else link_name
+        index_db_line = '%s %s\n' %(link_name, category) if category else link_name
         index_db_lines.append(index_db_line)
 
 new_index = os.path.join(DATABASE_PATH, args.dataset, 'index.db')
 with open(new_index, 'w') as f:
-    f.write('\n'.join(index_db_lines))
+    f.writelines(index_db_lines)
