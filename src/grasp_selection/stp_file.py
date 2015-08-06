@@ -62,7 +62,7 @@ class StablePoseFile:
                     vertices = [cv_hull.vertices()[i] for i in face]
                     basis = st.compute_basis(vertices)
                     R_list.append([p, basis])
-            self.write_mesh_stable_poses(mesh, filename)
+            self.write_mesh_stable_poses(mesh, filename, min_prob)
     
     def write_mesh_stable_poses(self, mesh, filename, min_prob=0):
         prob_mapping, cv_hull = st.compute_stable_poses(mesh), mesh.convex_hull()

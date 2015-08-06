@@ -171,7 +171,12 @@ def compute_projected_area(vertices, cm):
     c = math.acos(np.dot(projected_vertices[1], projected_vertices[2]) / (np.linalg.norm(projected_vertices[1]) * np.linalg.norm(projected_vertices[2])))
     s = (a + b + c) / 2
 
-    return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
+    try:
+        return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
+    except:
+        s = s + 0.001
+        return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
+    
     
 
 def propagate_probabilities(vertices):
@@ -184,14 +189,12 @@ def propagate_probabilities(vertices):
     prob_mapping = {}
     for vertex in vertices:
         c = vertex
-        counter = 0
-        start_vertex = Vertex(c.probability, c.face, c.children)
+        visited = []
         while not c.is_sink:
-            if counter != 0:
-                if start_vertex.face == c.face:
-                    break
+            if c in visited:
+                break
+            visited.append(c)
             c = c.children[0]
-            counter += 1
 
         if not vertex.is_sink:
             c.probability += vertex.probability
