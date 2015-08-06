@@ -162,5 +162,4 @@ if __name__ == '__main__':
     for obj in chunk:
         logging.info('Extracting features for object {}'.format(obj.key))
         extract_features(obj, dest, feature_dest, config)
-        break
     logging.info('Features extracted.')

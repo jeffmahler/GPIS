@@ -4,16 +4,18 @@ from scipy.sparse import hstack
 from time import time
 from nearpy.hashes import RandomBinaryProjections
 import time
-import rendered_object
 import feature_database
 import caffe_config
 import numpy as np
 import h5py
 
-class FeatureObjectDatabase:
+class FeatureVectorDatabase:
 	def __init__(self, feature_db, caffe_config):
 		net = self._init_cnn(caffe_config)
-		self.feature_objects_ = self._create_feature_objects_with_database(feature_db, net, caffe_config.deploy_batch_size())
+		self.batch_size = caffe_config.deploy_batch_size()
+		self.vector_merging_method = caffe_config.vector_merging_method()
+		self.feature_db = feature_db
+		self.feature_objects_ = self._create_feature_vectors(net)
 
 	def _init_cnn(self, caffe_config):
 		caffe.set_mode_gpu() if caffe_config.deploy_mode() == 'gpu' else caffe.set_mode_cpu()
@@ -27,20 +29,6 @@ class FeatureObjectDatabase:
 	def _forward_pass(self, images, net):
 		loaded_images = map(caffe.io.load_image, images)
 		final_blobs = map(sp_mat, net.predict(loaded_images, oversample=False))
-		return final_blobs
-
-	def _batch_forward_passes(self, rendered_objects, net, batch_size):
-		image_batch = []
-		final_blobs = []
-		for i, rendered_object in enumerate(rendered_objects):
-			if i%int(len(rendered_objects)/100+1) is 0:
-				print str(int((i+1)*100.0/len(rendered_objects)))+'% done'
-			image_batch.extend(rendered_object.images)
-			while len(image_batch) >= batch_size:
-				final_blobs.extend(self._forward_pass(image_batch[:batch_size], net))
-				image_batch = image_batch[batch_size:]
-		if len(image_batch) > 0:
-			final_blobs.extend(self._forward_pass(image_batch, net))
 		return final_blobs
 
 	def _filter_object_mismatch(self, rendered_object, images_per_object):
@@ -57,41 +45,67 @@ class FeatureObjectDatabase:
 		num = len(vector_list_sparse)
 		return np.multiply(1.0/num, reduce(np.add, vector_list_sparse))
 
-	def _create_feature_vectors(self, fv_dict, final_blobs, rendered_objects, vector_merging_method):
-		index = 0
+	def _feature_vector_for_blobs(self, final_blobs):
+		if self.vector_merging_method == 'mean':
+			feature_vector = self._mean_pool(final_blobs)
+		elif self.vector_merging_method == 'max':
+			feature_vector = self._max_pool(final_blobs)
+		else:
+			feature_vector = hstack(final_blobs)
+		return feature_vector.toarray().flatten()
+
+	def _flush_batch(self, image_batch, rendered_objects, net, fv_dict):
+		final_blobs = []
+		while len(image_batch) > 0:
+			final_blobs.extend(self._forward_pass(image_batch[:self.batch_size], net))
+			image_batch = image_batch[self.batch_size:]
+
+		for rendered_object in rendered_objects:
+			feature_vector = self._feature_vector_for_blobs(final_blobs[:len(rendered_object.images)])
+			final_blobs = final_blobs[len(rendered_object.images):]
+			fv_dict[rendered_object.key] = feature_vector
+
+	def _batch_create_feature_vectors(self, rendered_objects, net, fv_dict):
+		image_batch = []
+		final_blobs = []
+		rendered_object_batch = []
 		for i, rendered_object in enumerate(rendered_objects):
-			if i%int(len(rendered_objects)/20+1) is 0:
-				print str(int((i+1)*100.0/len(rendered_objects)))+'% done'
-			num_images = len(rendered_object.images)
-			blobs_in_range = final_blobs[index:index+num_images]
-			if vector_merging_method == 'mean':
-				feature_vector = self._mean_pool(blobs_in_range)
-			elif vector_merging_method == 'max':
-				feature_vector = self._max_pool(blobs_in_range)
-			else:
-				feature_vector = hstack(blobs_in_range)
-			fv_dict[rendered_object.key] = feature_vector.toarray().flatten()
-			index += num_images
+			image_batch.extend(rendered_object.images)
+			rendered_object_batch.append(rendered_object)
+			if len(image_batch) >= self.batch_size:
+				self._flush_batch(image_batch, rendered_object_batch, net, fv_dict)
+				image_batch = []
+				rendered_object_batch = []
+				print str(int((i+1)*100.0/len(rendered_objects)))+'%'
+		if len(image_batch) > 0:
+			self._flush_batch(image_batch, rendered_object_batch, net, fv_dict)
+		return final_blobs
 
-	def _create_feature_objects_with_database(self, feature_database, net, batch_size):
-		rendered_objects = feature_database.rendered_objects()
-		images_per_object = len(rendered_objects[0].images)
-		print 'images per object: '+str(images_per_object)
-		rendered_objects = filter(lambda x: self._filter_object_mismatch(x, images_per_object), rendered_objects)
+	def _create_feature_vectors(self, net):
+		# rendered_objects = self.feature_db.rendered_objects()
+		# images_per_object = len(rendered_objects[0].images)
+		# print 'images per object: '+str(images_per_object)
+		# rendered_objects = filter(lambda x: self._filter_object_mismatch(x, images_per_object), rendered_objects)
 
-		start_time = time.time()
-		print 'Batching forward passes...'
-		final_blobs = self._batch_forward_passes(rendered_objects, net, batch_size)
-		print 'Finished forward passes: '+str(time.time()-start_time)+'s'
+		# start_time = time.time()
+		# print 'Creating feature vectors...'
+		# fv_dict = self.feature_db.create_feature_vectors_file(overwrite=True)
+		# final_blobs = self._batch_create_feature_vectors(rendered_objects, net, fv_dict)
+		# print 'Finished creating feature vectors: '+str(time.time()-start_time)+'s'
+		import os
+		fv_db_path = os.path.join(feature_db.database_root_dir_, 'feature_vectors.hdf5')
+		fv_dict = h5py.File(fv_db_path, 'r+')
 
-		start_time = time.time()
-		print 'Creating and saving feature objects...'
-		fv_dict = feature_database.create_feature_vectors_file()
-		self._create_feature_vectors(fv_dict, final_blobs, rendered_objects, caffe_config.vector_merging_method())
-		print 'Finished creating feature objects: '+str(time.time()-start_time)+'s'
+		for key in fv_dict.keys():
+			if 'Orig_tex' in key:
+				fv_dict[key.replace('Orig', '800')] = fv_dict[key]
+				fv_dict.__delitem__(key)
+
+		import IPython; IPython.embed()
 
 if __name__ == '__main__':
 	feature_db = feature_database.FeatureDatabase()
 	caffe_config = caffe_config.CaffeConfig()
-	feature_object_db = FeatureObjectDatabase(feature_db, caffe_config)
+	feature_object_db = FeatureVectorDatabase(feature_db, caffe_config)
+
 
