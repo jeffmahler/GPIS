@@ -2,6 +2,7 @@
 Encapsulates mesh for grasping operations
 Author: Jeff Mahler
 '''
+import logging
 import IPython
 import numpy as np
 import os
@@ -16,7 +17,7 @@ import obj_file
 # import mayavi.mlab as mv
 import pyhull.convex_hull as cvh
 
-class Mesh3D:
+class Mesh3D(object):
     """
     A Mesh is a three-dimensional shape representation
     
@@ -28,7 +29,7 @@ class Mesh3D:
        pose:      (tfx pose)
        scale:     (float)
     """
-    def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0):
+    def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0, category=''):
         self.vertices_ = vertices
         self.triangles_ = triangles
         self.normals_ = normals
@@ -36,11 +37,13 @@ class Mesh3D:
         self.pose_ = pose
         self.scale_ = scale
         self.density_ = density
+        self.category_ = category
 
         # compute mesh properties
         self._compute_bb_center()
         self._compute_centroid()
         self._compute_com_uniform()
+        self._compute_mass()
 
     def vertices(self):
         return self.vertices_
@@ -65,15 +68,36 @@ class Mesh3D:
 
     @property
     def pose(self):
-            return self.pose_
+        return self.pose_
 
     @pose.setter
     def pose(self, pose):
-            self.pose_ = pose
+        self.pose_ = pose
 
     @property
     def scale(self):
-            return self.scale_
+        return self.scale_
+
+    @property
+    def mass(self):
+        return self.mass_
+
+    @property
+    def density(self):
+        return self.density_
+
+    @density.setter
+    def density(self, d):
+        self.density_ = d
+        self._compute_mass()
+
+    @property
+    def category(self):
+        return self.cateogry_
+
+    @density.setter
+    def category(self, c):
+        self.cateogry_ = c
 
     @scale.setter
     def scale(self, scale):
@@ -104,7 +128,7 @@ class Mesh3D:
         v2 = vertex_array[tri[1], :]
         v3 = vertex_array[tri[2], :]
 
-        volume = (1.0 / 6.0) * (v1.dot(np.cross(v3, v2)))
+        volume = (1.0 / 6.0) * (v1.dot(np.cross(v2, v3)))
         center = (1.0 / 3.0) * (v1 + v2 + v3)
         return volume, center
 
@@ -121,8 +145,13 @@ class Mesh3D:
         self.center_of_mass_ = np.abs(self.center_of_mass_[0])
 
     def _compute_centroid(self):
+        """ Compute the average of the vertices """
         vertex_array = np.array(self.vertices_)
         self.vertex_mean_ = np.mean(vertex_array, axis=0)
+
+    def _compute_mass(self):
+        """ Computes the mesh mass """
+        self.mass_ = self.density_ * self.get_total_volume()
     
     def principal_dims(self):
         """ Return the mesh principal dimensions """
@@ -335,11 +364,17 @@ class Mesh3D:
         for tri in self.triangles_:
             volume, center = self._signed_volume_of_tri(tri, vertex_array)
             total_volume = total_volume + volume
+
+        # can get negative volume when tris are flipped, so auto correct assuming that mass should have been postive
+        if total_volume < 0:
+            logging.warning('Volume was negative. Flipping sign, but mesh may be degenerate')
+            total_volume = -total_volume
         return total_volume
 
     def create_json_metadata(self):
         return {
-            'mass': self.density_ * self.get_total_volume()
+            'mass': self.mass,
+            'category': self.category
         }
 
     """

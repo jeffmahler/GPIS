@@ -18,7 +18,7 @@ import IPython
 class PointGraspMetrics3D:
 
     @staticmethod
-    def grasp_quality(grasp, obj, method = 'force_closure', soft_fingers = False, friction_coef = 0.5, num_cone_faces = 8, params = None):
+    def grasp_quality(grasp, obj, method = 'force_closure', soft_fingers = False, friction_coef = 0.5, num_cone_faces = 8, params = None, vis=False):
         if not isinstance(grasp, g.PointGrasp):
             raise ValueError('Must provide a point grasp object')
         if not isinstance(obj, go.GraspableObject3D):
@@ -30,7 +30,7 @@ class PointGraspMetrics3D:
         contacts_found, contacts = grasp.close_fingers(obj, vis=False)
         if not contacts_found:
             logging.debug('Contacts not found')
-            return -np.inf
+            return 0#-np.inf
 
         # add the forces, torques, etc at each contact point
         num_contacts = len(contacts)
@@ -39,24 +39,39 @@ class PointGraspMetrics3D:
         normals = np.zeros([3,0])
         for i in range(num_contacts):
             contact = contacts[i]
+            if vis:
+                contact.plot_friction_cone()
+
+            # get contact forces
             force_success, contact_forces, contact_outward_normal = contact.friction_cone(num_cone_faces, friction_coef)
 
             if not force_success:
                 logging.debug('Force computation failed')
                 continue
 
+            # get contact torques
             torque_success, contact_torques = contact.torques(contact_forces)
             if not torque_success:
                 logging.debug('Torque computation failed')
                 continue
 
-            forces = np.c_[forces, contact_forces]
-            torques = np.c_[torques, contact_torques]
-            normals = np.c_[normals, -contact_outward_normal] # store inward pointing normals
+            # get the magnitude of the normal force that the contacts could apply
+            n = contact.normal_force_magnitude()
+
+            forces = np.c_[forces, n * contact_forces]
+            torques = np.c_[torques, n * contact_torques]
+            normals = np.c_[normals, n * -contact_outward_normal] # store inward pointing normals
 
         if normals.shape[1] == 0:
             logging.debug('No normals')
-            return -np.inf
+            return 0#-np.inf
+
+        if vis:
+            ax = plt.gca()
+            ax.set_xlim3d(0, obj.sdf.dims_[0])
+            ax.set_ylim3d(0, obj.sdf.dims_[1])
+            ax.set_zlim3d(0, obj.sdf.dims_[2])
+            plt.show()
 
         # evaluate the desired quality metric
         Q_func = getattr(PointGraspMetrics3D, method)

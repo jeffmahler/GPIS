@@ -6,6 +6,7 @@ class MeshCleaner:
 	RescalingTypeMin = 0
 	RescalingTypeMed = 1
 	RescalingTypeMax = 2
+	RescalingTypeAbsolute = 2
 
 	def __init__(self, mesh):
 		self.mesh_ = mesh
@@ -60,7 +61,7 @@ class MeshCleaner:
 		self.mesh_.set_triangles(new_triangles)
 		return True
 
-	def normalize_vertices(self):
+	def standardize_pose(self):
 		'''
 		Transforms the vertices and normals of the mesh such that the origin of the resulting mesh's coordinate frame is at the
 		centroid and the principal axes are aligned with the vertical Z, Y, and X axes.
@@ -100,12 +101,13 @@ class MeshCleaner:
 			normals_array_rot = R.dot(normals_array.T)
 			self.mesh_.set_normals(normals_array_rot.tolist())
 
-	def rescale_vertices(self, min_scale, rescaling_type=RescalingTypeMin):
+	def rescale_vertices(self, scale, rescaling_type=RescalingTypeMin):
 		'''
 		Rescales the vertex coordinates so that the minimum dimension (X, Y, Z) is exactly min_scale
 
 		Params:
-		min_scale: (float) the scale of the min dimension
+		scale: (float) scale of the ,esj
+                rescaling_type: (int) which dimension to scale along; if not absolute then the min,med,max dim is scaled to be exactly scale
 		Returns:
 		Nothing. Modified the mesh in place (for now)
 		'''
@@ -117,13 +119,18 @@ class MeshCleaner:
 		# find minimal dimension
 		if rescaling_type == MeshCleaner.RescalingTypeMin:
 			dim = np.where(vertex_extent == np.min(vertex_extent))[0][0]
+                        relative_scale = vertex_extent[dim]
 		elif rescaling_type == MeshCleaner.RescalingTypeMed:
 			dim = np.where(vertex_extent == np.med(vertex_extent))[0][0]
+                        relative_scale = vertex_extent[dim]
 		elif rescaling_type == MeshCleaner.RescalingTypeMax:
 			dim = np.where(vertex_extent == np.max(vertex_extent))[0][0]
+                        relative_scale = vertex_extent[dim]
+		elif rescaling_type == MeshCleaner.RescalingTypeAbsolute:
+                        relative_scale = 1.0
 
 		# compute scale factor and rescale vertices
-		scale_factor = min_scale / vertex_extent[dim] 
+		scale_factor = scale / relative_scale 
 		vertex_array = scale_factor * vertex_array
 		self.vertices_ = vertex_array.tolist()
 

@@ -23,6 +23,8 @@ PR2_GRASP_OFFSET = np.array([-0.0375, 0, 0])
 class Grasp:
     __metaclass__ = ABCMeta
 
+    samples_per_grid = 2 # global resolution for line of action
+
     @abstractmethod
     def close_fingers(self, obj):
         """ Finds the contact points by closing on the given object """
@@ -119,7 +121,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         # compute num samples to use based on sdf resolution
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(self.grasp_width_)
-        num_samples = int(2 * grasp_width_grid) # at least 1 sample per grid
+        num_samples = int(Grasp.samples_per_grid * grasp_width_grid) # at least 1 sample per grid
 
         # get grasp endpoints in sdf frame
         g1_world, g2_world = self.endpoints()
@@ -163,6 +165,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         Returns:
             line_of_action - list of numpy 3-arrays in grid coords to check surface contacts
         """
+        num_samples = max(num_samples, 3) # always at least 3 samples
         line_of_action = [g + t * axis for t in np.linspace(0, width, num = num_samples)]
         if convert_grid:
             as_array = np.array(line_of_action).T
@@ -218,6 +221,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     sdf_after = obj.sdf[pt_after]
                     pt_after_after = line_of_action[i+2]
                     sdf_after_after = obj.sdf[pt_after_after]
+
                     pt_zc = sdf.find_zero_crossing_quadratic(pt_grid, sdf_here, pt_after, sdf_after, pt_after_after, sdf_after_after)
 
                     # contact not yet found if next sdf value is smaller
@@ -437,6 +441,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
 
         # load other attributes
         grasp.quality = data['quality']
+        grasp.successes = data['successes']
+        grasp.failures = data['failures']
         return grasp
 
 def test_find_contacts():

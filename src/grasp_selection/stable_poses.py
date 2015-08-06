@@ -4,17 +4,17 @@ Author: Nikhil Sharma
 """
 import math
 import sys
-import IPython
+# import IPython
 import numpy as np
-import similarity_tf as stf
-import tfx
+# import similarity_tf as stf
+# import tfx
 
 # import mayavi.mlab as mv
 
 import mesh
 import obj_file
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+# import matplotlib.pyplot as plt
+# from mpl_toolkits.mplot3d import Axes3D
 
 def compute_basis(vertices):
     """
@@ -171,7 +171,12 @@ def compute_projected_area(vertices, cm):
     c = math.acos(np.dot(projected_vertices[1], projected_vertices[2]) / (np.linalg.norm(projected_vertices[1]) * np.linalg.norm(projected_vertices[2])))
     s = (a + b + c) / 2
 
-    return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
+    try:
+        return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
+    except:
+        s = s + 0.001
+        return 4 * math.atan(math.sqrt(math.tan(s/2)*math.tan((s-a)/2)*math.tan((s-b)/2)*math.tan((s-c)/2)))
+    
     
 
 def propagate_probabilities(vertices):
@@ -184,7 +189,11 @@ def propagate_probabilities(vertices):
     prob_mapping = {}
     for vertex in vertices:
         c = vertex
+        visited = []
         while not c.is_sink:
+            if c in visited:
+                break
+            visited.append(c)
             c = c.children[0]
 
         if not vertex.is_sink:
@@ -293,7 +302,7 @@ class Vertex:
     """
     marked = False
 
-    def __init__(self, probability, face, chilren=[]):
+    def __init__(self, probability, face, children=[]):
         """
         Create a Vertex with given probability and children
         

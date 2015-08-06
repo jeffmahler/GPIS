@@ -9,6 +9,7 @@ from abc import ABCMeta, abstractmethod
 import copy
 import numpy as np
 import scipy.stats
+import numbers
 
 import IPython
 
@@ -190,8 +191,16 @@ class BetaBernoulliModel(DiscreteModel):
         Allocates numpy arrays for the estimated alpha and beta values for each variable,
         and the number of observations for each
         """
-        self.posterior_alphas_ = self.alpha_prior_ * np.ones(self.num_vars_)
-        self.posterior_betas_ = self.beta_prior_ * np.ones(self.num_vars_)
+        if isinstance(self.alpha_prior_, numbers.Number):
+            self.posterior_alphas_ = self.alpha_prior_ * np.ones(self.num_vars_)
+        else:
+            self.posterior_alphas_ = np.array(self.alpha_prior_)
+
+        if isinstance(self.alpha_prior_, numbers.Number):
+            self.posterior_betas_ = self.beta_prior_ * np.ones(self.num_vars_)
+        else:
+            self.posterior_betas_ = np.array(self.beta_prior_)
+        
         self.num_observations_ = np.zeros(self.num_vars_)
 
     @staticmethod

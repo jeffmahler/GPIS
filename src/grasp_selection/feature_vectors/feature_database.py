@@ -71,9 +71,14 @@ class FeatureDatabase:
 	def nearest_features(self):
 		pca_components = self.load_with_name(NEAREST_FEATURES_KEY+'_pca_components')
 		svd = self.load_with_name(NEAREST_FEATURES_KEY+'_svd')
-		neighbor_tree = self.load_with_name(NEAREST_FEATURES_KEY+'_tree')
+		neighbor_tree = None # self.load_with_name(NEAREST_FEATURES_KEY+'_neighbors_tree')
 		import nearest_features as nf
 		return nf.NearestFeatures(self, pca_components=pca_components, svd=svd, neighbor_tree=neighbor_tree)
+
+	def save_nearest_features(self, x):
+		self.save_data(x.pca_components, NEAREST_FEATURES_KEY+'_pca_components')
+		self.save_data(x.svd, NEAREST_FEATURES_KEY+'_svd')
+		self.save_data(x.neighbors.tree_, NEAREST_FEATURES_KEY+'_neighbors_tree')
 
 	def feature_dataset_sorter(self):
 		return self.load_with_name(DATASET_SORTER_KEY)
@@ -81,11 +86,6 @@ class FeatureDatabase:
 	def create_feature_vectors_file(self):
 		fv_db_path = os.path.join(self.database_root_dir_, FEATURE_VECTORS_KEY+'.hdf5')
 		return h5py.File(fv_db_path, 'w')
-
-	def save_nearest_features(self, x):
-		self.save_data(x.pca_components, NEAREST_FEATURES_KEY+'_pca_components')
-		self.save_data(x.svd, NEAREST_FEATURES_KEY+'_svd')
-		self.save_data(x.neighbors.tree_, NEAREST_FEATURES_KEY+'_tree')
 
 	def save_dataset_sorter(self, x):
 		self.save_data(x, DATASET_SORTER_KEY)
