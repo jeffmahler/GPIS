@@ -1,5 +1,7 @@
 """
 This file contains functions that count the connected components in an input mesh.
+To run file, enter python connected_components.py DIR_PATH
+
 Author: Nikhil Sharma
 """
 
@@ -7,6 +9,7 @@ import mesh
 import sys
 import obj_file
 import Queue
+import os
 
 def assign_components(path):
 	"""
@@ -16,7 +19,8 @@ def assign_components(path):
 
 	path -- path to directory containing mesh objects as .obj
 	"""
-	mesh_files = [filename for filename in os.listdir(sys.argv[2]) if filename[-4:] == ".obj"]
+	mesh_files = [filename for filename in os.listdir(path) if filename[-4:] == ".obj"]
+	mesh_components_list = []
 	for filename in mesh_files:
 		print "Assigning components: " + path + "/" + filename
 		ob = obj_file.ObjFile(path + "/" + filename)
@@ -32,26 +36,36 @@ def assign_components(path):
 			node_0.connect_nodes(node_1)
 			node_1.connect_nodes(node_2)
 			node_2.connect_nodes(node_0)
+			nodes.append(node_0)
+			nodes.append(node_1)
+			nodes.append(node_2)
 
 		# breadth-first-search to mark elements of each component
 		component_counter = 0
 		component_to_index = {}
 		while nodes != []:
 			q = Queue.Queue()
-			q.put(node[0])
-			while (q != empty):
+			q.put(nodes[0])
+			while (q.qsize() != 0):
 				curr = q.get()
 				curr.visited = True;
-				nodes.remove(curr)
+				if curr in nodes:
+					nodes.remove(curr)
+				else:
+					continue
+
 				for child in curr.children:
 					if not child.visited:
 						q.put(child)
+
 				if component_counter in component_to_index:
-					component_to_index[component_counter].append(curr.index)
+					if curr.index not in component_to_index[component_counter]:
+						component_to_index[component_counter].append(curr.index)
 				else:
 					component_to_index[component_counter] = [curr.index]
 			component_counter += 1
-		return component_to_index
+		mesh_components_list.append(component_to_index)
+	return mesh_components_list
 
 class Node:
 	"""
@@ -76,10 +90,10 @@ class Node:
 		"""
 		if other not in self.children:
 			self.children.append(other)
-		if self not in other.children:
-			other.children.append(self)
+		# if self not in other.children:
+		# 	other.children.append(self)
 
 
 
 if __name__ == '__main__':
-	assign_components(sys.argv[1])
+	print(assign_components(sys.argv[1]))
