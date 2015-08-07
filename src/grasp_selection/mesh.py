@@ -28,8 +28,9 @@ class Mesh3D(object):
        metadata:  (dictionary) data like category, etc
        pose:      (tfx pose)
        scale:     (float)
+       component: (int)
     """
-    def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0, category=''):
+    def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0, category='', component=0):
         self.vertices_ = vertices
         self.triangles_ = triangles
         self.normals_ = normals
@@ -38,6 +39,7 @@ class Mesh3D(object):
         self.scale_ = scale
         self.density_ = density
         self.category_ = category
+        self.component_ = component
 
         # compute mesh properties
         self._compute_bb_center()
