@@ -11,6 +11,7 @@ import grasp
 import graspable_object as go
 import obj_file
 import sdf_file
+import feature_file
 
 import IPython
 
@@ -108,6 +109,10 @@ class Dataset(object):
     def json_filename(file_root):
         return file_root + '.json'
 
+    @staticmethod
+    def features_filename(file_root):
+        return file_root + '.ftr'
+
     def read_datum(self, key):
         """Read in the GraspableObject3D corresponding to given key."""
         if key not in self.data_keys_:
@@ -116,6 +121,7 @@ class Dataset(object):
         file_root = os.path.join(self.dataset_root_dir_, key)
         sdf_filename = Dataset.sdf_filename(file_root)
         obj_filename = Dataset.obj_filename(file_root)
+        features_filename = Dataset.features_filename(file_root)
 
         # read in data
         sf = sdf_file.SdfFile(sdf_filename)
@@ -124,7 +130,13 @@ class Dataset(object):
         of = obj_file.ObjFile(obj_filename)
         mesh = of.read()
 
-        return go.GraspableObject3D(sdf, mesh=mesh, key=key, model_name=obj_filename, category=self.data_categories_[key])
+        if os.path.exists(features_filename):
+            ff = feature_file.LocalFeatureFile(features_filename)
+            features = ff.read()
+        else:
+            features = None
+
+        return go.GraspableObject3D(sdf, mesh=mesh, features=features, key=key, model_name=obj_filename, category=self.data_categories_[key])
 
     def load_grasps(self, key, grasp_dir=None):
         """Loads a list of grasps from a file (grasp_dir/key.json).

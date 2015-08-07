@@ -15,7 +15,7 @@ from scipy.spatial import distance
 
 from feature_database import FeatureDatabase
 from feature_object import FeatureObject
-from feature_object import FeatureObjectDatabase
+from feature_object import FeatureVectorDatabase
 from dataset_sorter import DatasetSorter
 
 

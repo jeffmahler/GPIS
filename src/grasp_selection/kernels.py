@@ -202,6 +202,7 @@ class BinaryTree(NearestNeighbor):
         indices, distances = self.tree_.query_radius(self.phi_(x), dist,
                                                      return_distance=True)
         indices = indices[0]
+        distances = distances[0]
         if return_indices:
             return indices, distances
         else:
@@ -212,6 +213,7 @@ class BinaryTree(NearestNeighbor):
                                               return_distance=True)
 
         indices = indices[0]
+        distances = distances[0]
         if return_indices:
             return indices, distances
         else:

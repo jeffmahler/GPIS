@@ -3,6 +3,10 @@ Main file for correlated bandit experiments.
 
 Author: Brian Hou
 """
+import sys
+sys.path.insert(0, 'src/grasp_selection/feature_vectors/')
+import feature_database
+
 import logging
 import pickle as pkl
 import os
@@ -66,7 +70,9 @@ class BanditCorrelatedExperimentResult:
         ua_reward = np.zeros([len(result_list), result_list[0].ua_reward.shape[0]])
         ts_reward = np.zeros([len(result_list), result_list[0].ts_reward.shape[0]])
         ts_corr_reward = np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]])
-        ts_corr_prior_reward = np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]])
+        ts_corr_prior_rewards = []
+        for x in range(0, len(result_list[0].ts_corr_prior_reward)):
+            ts_corr_prior_rewards.append(np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]]))
 
         i = 0
         obj_keys = []
@@ -74,7 +80,8 @@ class BanditCorrelatedExperimentResult:
             ua_reward[i,:] = r.ua_reward
             ts_reward[i,:] = r.ts_reward
             ts_corr_reward[i,:] = r.ts_corr_reward
-            ts_corr_prior_reward[i,:] = r.ts_corr_prior_reward
+            for n, ts_corr_prior_reward in enumerate(ts_corr_prior_rewards):
+                ts_corr_prior_reward[i,:] = r.ts_corr_prior_reward[n]
             obj_keys.append(r.obj_key)
             i = i + 1
 
@@ -82,7 +89,7 @@ class BanditCorrelatedExperimentResult:
         iters = [r.iters for r in result_list]
         kernel_matrices = [r.kernel_matrix for r in result_list]
 
-        return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_reward,
+        return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
                                                 true_avg_rewards,
                                                 iters,
                                                 kernel_matrices,
@@ -111,7 +118,7 @@ def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
 
     return best_pred_values
 
-def label_correlated(obj, chunk, config, plot=False):
+def label_correlated(obj, chunk, config, plot=False, nearest_features_names=None):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
     bandit_start = time.clock()
@@ -176,7 +183,18 @@ def label_correlated(obj, chunk, config, plot=False):
 
     # compute priors
     prior_engine = pce.PriorComputationEngine(chunk, config)
-    alpha_priors, beta_priors = prior_engine.compute_priors(obj.key, candidates)
+
+    all_alpha_priors = []
+    all_beta_priors = []
+    if nearest_features_names == None:
+        alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates)
+        all_alpha_priors.append(alpha_priors)
+        all_beta_priors.append(alpha_priors)
+    else:
+        for nearest_features_name in nearest_features_names:
+            alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
+            all_alpha_priors.append(alpha_priors)
+            all_beta_priors.append(alpha_priors)
 
     # pre-computed pfc values
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
@@ -186,7 +204,9 @@ def label_correlated(obj, chunk, config, plot=False):
     ua_rewards = []
     ts_rewards = []
     ts_corr_rewards = []
-    ts_corr_prior_rewards = []
+    all_ts_corr_prior_rewards = []
+    for x in range(0, len(all_alpha_priors)):
+        all_ts_corr_prior_rewards.append([])
 
     for t in range(num_trials):
         logging.info('Trial %d' %(t))
@@ -208,41 +228,45 @@ def label_correlated(obj, chunk, config, plot=False):
         ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
         # correlated Thompson sampling with priors for even faster than that convergence
-        ts_corr_prior = das.CorrelatedThompsonSampling(
-            objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
-        logging.info('Running correlated Thompson sampling with priors.')
-        ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+        for alpha_priors, beta_priors, ts_corr_prior_rewards in zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards):
+            ts_corr_prior = das.CorrelatedThompsonSampling(
+                objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
+            logging.info('Running correlated Thompson sampling with priors.')
+            ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+            ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, estimated_pfc)
+            ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
 
         # compile results
         ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
         ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
         ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
-        ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, estimated_pfc)
 
         ua_rewards.append(ua_normalized_reward)
         ts_rewards.append(ts_normalized_reward)
         ts_corr_rewards.append(ts_corr_normalized_reward)
-        ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
 
     # get the bandit rewards
     all_ua_rewards = np.array(ua_rewards)
     all_ts_rewards = np.array(ts_rewards)
     all_ts_corr_rewards = np.array(ts_corr_rewards)
-    all_ts_corr_prior_rewards  = np.array(ts_corr_prior_rewards)
+
+    all_avg_ts_corr_prior_rewards = []
+    for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
+        all_avg_ts_corr_prior_rewards.append(np.mean(np.array(ts_corr_prior_rewards), axis=0))
 
     # compute avg normalized rewards
     avg_ua_rewards = np.mean(all_ua_rewards, axis=0)
     avg_ts_rewards = np.mean(all_ts_rewards, axis=0)
     avg_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
-    avg_ts_corr_prior_rewards = np.mean(all_ts_corr_prior_rewards, axis=0)
 
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
-    return BanditCorrelatedExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards, avg_ts_corr_prior_rewards,
+    return BanditCorrelatedExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
+                                            all_avg_ts_corr_prior_rewards,
                                             estimated_pfc, ua_result.iters, kernel_matrix, obj_key=obj.key)
 
-def plot_kernels_for_key(obj, chunk, config):
+def plot_kernels_for_key(obj, chunk, config, nearest_features_name=None):
     # load grasps from database
     grasps = chunk.load_grasps(obj.key)
     logging.info('Loaded %d grasps' %(len(grasps)))
@@ -275,7 +299,11 @@ def plot_kernels_for_key(obj, chunk, config):
             candidates.append(pfc_rv)
 
     prior_engine = pce.PriorComputationEngine(chunk, config)
-    neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj.key, candidates)
+    if nearest_features_name == None:
+        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
+    else:
+        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates, nearest_features_name=nearest_features_name)
+
 
     for neighbor_key, object_distance in zip(neighbor_keys, all_distances):
         print '%s and %s: %.5f' % (obj.key, neighbor_key, object_distance)
@@ -295,7 +323,7 @@ def plot_kernels_for_key(obj, chunk, config):
 
     bad_ind = np.where(pfc_diff > 1.0 - k) 
 
-    labels = [obj.key] + neighbor_keys
+    labels = [obj.key[:15]] + map(lambda x: x[:15], neighbor_keys)
     scatter_objs =[]
     plt.figure()
     colors = plt.get_cmap('hsv')(np.linspace(0.5, 1.0, len(all_neighbor_pfc_diffs)))
@@ -308,9 +336,15 @@ def plot_kernels_for_key(obj, chunk, config):
     plt.legend(scatter_objs, labels)
 
 def run_and_save_experiment(obj, chunk, config, result_dir):
+    nearest_features_names = ['nearest_features_10', 'nearest_features_100', 'nearest_features_1000', 'nearest_features_all'] 
+    # plot params
+    line_width = config['line_width']
+    font_size = config['font_size']
+    dpi = config['dpi']
+
     results = []
     avg_experiment_result = None
-    experiment_result = label_correlated(obj, chunk, config)
+    experiment_result = label_correlated(obj, chunk, config, nearest_features_names=nearest_features_names)
     results.append(experiment_result)
 
     if len(results) == 0:
@@ -320,45 +354,60 @@ def run_and_save_experiment(obj, chunk, config, result_dir):
     # combine results
     all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
-    # plot params
-    line_width = config['line_width']
-    font_size = config['font_size']
-    dpi = config['dpi']
-
     print 'Creating and saving plots...'
 
     # plotting of final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
     ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
     ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
-    ts_corr_prior_normalized_reward = np.mean(all_results.ts_corr_prior_reward, axis=0)
 
-    plot_kernels_for_key(obj, chunk, config)
-    plt.savefig(os.path.join(result_dir,  obj.key+'_kernels.png'), dpi=dpi)
+    all_ts_corr_prior_rewards = all_results.ts_corr_prior_reward
+    ts_corr_prior_normalized_reward = []
+    for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
+        ts_corr_prior_normalized_reward.append(np.mean(ts_corr_prior_rewards, axis=0))
 
     plt.figure()
     ua_obj = plt.plot(all_results.iters[0], ua_normalized_reward,
-                      c=u'b', linewidth=2.0, label='Uniform Allocation')
+                      c=u'k', linewidth=2.0, label='Uniform')
     ts_obj = plt.plot(all_results.iters[0], ts_normalized_reward,
-                      c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
+                      c=u'g', linewidth=2.0, label='TS (Uncorrelated)')
     ts_corr_obj = plt.plot(all_results.iters[0], ts_corr_normalized_reward,
-                      c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
-    ts_corr_prior_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward,
-                      c=u'c', linewidth=2.0, label='Thompson Sampling (Priors)')
+                      c=u'r', linewidth=2.0, label='TS (Correlated)')
+    ts_corr_prior_0_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[0],
+                      c=u'c', linewidth=2.0, label='TS (Priors_10)')
+    ts_corr_prior_1_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[1],
+                      c=u'm', linewidth=2.0, label='TS (Priors_100)')
+    ts_corr_prior_2_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[2],
+                      c=u'b', linewidth=2.0, label='TS (Priors_1000)')
+    ts_corr_prior_3_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[3],
+                      c=u'orange', linewidth=2.0, label='TS (Priors_all)')
     plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)
-    plt.legend(loc='lower right')
-    plt.savefig(os.path.join(result_dir,  obj.key+'_results.png'), dpi=dpi)
+    legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(os.path.join(result_dir, obj.key+'_results.png'), dpi=dpi, bbox_extra_artists=(legend,), bbox_inches='tight')
 
-    # plot histograms
-    num_bins = 100
-    bin_edges = np.linspace(0, 1, num_bins+1)
-    plt.figure()
-    n, bins, patches = plt.hist(all_results.true_avg_reward, bin_edges)
-    plt.xlabel('Probability of Success', fontsize=font_size)
-    plt.ylabel('Num Grasps', fontsize=font_size)
-    plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
-    plt.savefig(os.path.join(result_dir,  obj.key+'_histogram.png'), dpi=dpi)
+    # plot kernels
+    plot_kernels_for_key(obj, chunk, config, nearest_features_name=nearest_features_names[0])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_10.png'), dpi=dpi)
+
+    plot_kernels_for_key(obj, chunk, config, nearest_features_name=nearest_features_names[1])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_100.png'), dpi=dpi)
+
+    plot_kernels_for_key(obj, chunk, config, nearest_features_name=nearest_features_names[2])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_1000.png'), dpi=dpi)
+
+    plot_kernels_for_key(obj, chunk, config, nearest_features_name=nearest_features_names[3])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_all.png'), dpi=dpi)
+
+    # # plot histograms
+    # num_bins = 100
+    # bin_edges = np.linspace(0, 1, num_bins+1)
+    # plt.figure()
+    # n, bins, patches = plt.hist(all_results.true_avg_reward, bin_edges)
+    # plt.xlabel('Probability of Success', fontsize=font_size)
+    # plt.ylabel('Num Grasps', fontsize=font_size)
+    # plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
+    # plt.savefig(os.path.join(result_dir,  obj.key+'_histogram.png'), dpi=dpi)
 
     # # save to file
     # logging.info('Saving results to %s' %(dest))
@@ -386,7 +435,11 @@ if __name__ == '__main__':
     except os.error:
         pass
 
-
-    for obj in chunk:
-        print 'Running experiment on '+obj.key
-        run_and_save_experiment(obj, chunk, config, dest)
+    obj_key = 'boot'
+    obj = chunk[obj_key]
+    run_and_save_experiment(obj, chunk, config, dest)
+    # for obj in chunk:
+    #     if obj.key not in ['bottle_0127', 'boot', '48227c3ae4157679b12c0d94fb6725e5', 'flower_pot_0012']:
+    #         continue
+    #     print 'Running experiment on '+obj.key
+    #     run_and_save_experiment(obj, chunk, config, dest)

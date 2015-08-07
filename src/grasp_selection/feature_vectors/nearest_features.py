@@ -14,8 +14,6 @@ from sklearn.decomposition import TruncatedSVD
 from scipy.spatial import distance
 
 from feature_database import FeatureDatabase
-from feature_object import FeatureObject
-from feature_object import FeatureObjectDatabase
 from dataset_sorter import DatasetSorter
 
 import sys
@@ -30,24 +28,29 @@ class FeatureObject:
 		self.feature_vector = feature_vector
 
 class NearestFeatures:
-	def __init__(self, feature_db, pca_components=10, svd=None, neighbor_tree=None):
-		train_feature_vectors = feature_db.feature_vectors() #feature_db.train_feature_vectors()
+	def __init__(self, feature_db, pca_components=10, feature_vectors=None, svd=None, neighbor_tree=None, neighbor_data=None):
+		if feature_vectors == None:
+			feature_vectors = feature_db.feature_vectors() #feature_db.train_feature_vectors()
+
 		self.pca_components = pca_components
 		if svd == None:
-			self.svd = self._create_train_svd(train_feature_vectors, pca_components)
+			self.svd = self._create_train_svd(feature_vectors, pca_components)
+			data_size = len(feature_vectors.keys())
+			if self.pca_components > data_size:
+				self.pca_components = data_size
 		else:
 			self.svd = svd
 
-		data = self._project_feature_vectors(train_feature_vectors)
 		if neighbor_tree == None:
 			start = time.time()
+			data = self._project_feature_vectors(feature_vectors)
 			self.neighbors = self._create_neighbors(data)
 			end = time.time()
 			print 'TIME: %0.4f' % (end - start)
 		else:
 			self.neighbors = kernels.KDTree(phi=lambda x: x.feature_vector)
 			self.neighbors.tree_ = neighbor_tree
-			self.neighbors.data_ = np.array(data)
+			self.neighbors.data_ = neighbor_data
 
 	def within_distance(self, feature_vector, dist=0.5):
 		feature_object = self._create_query_object(feature_vector)
@@ -58,6 +61,11 @@ class NearestFeatures:
 		feature_object = self._create_query_object(feature_vector)
 		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, k)
 		return self._create_feature_vector_dict(neighbor_feature_objects)
+
+	def k_nearest_keys(self, feature_vector, k=1):
+		feature_object = self._create_query_object(feature_vector)
+		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, k)
+		return map(lambda x: x.key, neighbor_feature_objects), distances
 
 	def _create_query_object(self, feature_vector):
 		if feature_vector.shape[0] != self.pca_components:
@@ -238,8 +246,10 @@ def test_nearest_features(nearest_features, feature_db):
 
 if __name__ == '__main__':
 	feature_db = FeatureDatabase()
-	nearest_features = NearestFeatures(feature_db, pca_components=10)
-	feature_db.save_nearest_features(nearest_features)
+
+	import IPython; IPython.embed()
+	# nearest_features = NearestFeatures(feature_db, pca_components=10)
+	# feature_db.save_nearest_features(nearest_features)
 
 	# test_nearest_features(nearest_features, feature_db)
 	# nearest_features.compute_accuracy(feature_db)

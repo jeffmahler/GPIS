@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 class GraspableObject:
     __metaclass__ = ABCMeta
 
-    def __init__(self, sdf, mesh = None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0), key='', model_name='', category=''):
+    def __init__(self, sdf, mesh=None, features=None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0), key='', model_name='', category=''):
         if not isinstance(tf, stf.SimilarityTransform3D):
             raise ValueError('Must initialize graspable objects with 3D similarity transform')
         self.sdf_ = sdf
@@ -32,7 +32,7 @@ class GraspableObject:
         self.model_name_ = model_name # for OpenRave usage, gross!
         self.category_ = category
 
-        self.features_ = {} # dictionary mapping feature type to "bag of features"
+        self.features_ = features # shot features
 
         # make consistent poses, scales
         self.sdf_.tf = self.tf_
@@ -117,7 +117,7 @@ class GraspableObject2D(GraspableObject):
         GraspableObject.__init__(self, sdf, tf=tf)
 
 class GraspableObject3D(GraspableObject):
-    def __init__(self, sdf, mesh = None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0), key='', category='',
+    def __init__(self, sdf, mesh = None, features=None, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0), key='', category='',
                  model_name=''):
         """ 2D objects are initialized with sdfs only"""
         if not isinstance(sdf, s.Sdf3D):
@@ -126,7 +126,7 @@ class GraspableObject3D(GraspableObject):
             raise ValueError('Must initialize graspable object 3D with 3D sdf')
 
         self.center_of_mass_ = sdf.center_world() # use SDF bb center for now
-        GraspableObject.__init__(self, sdf, mesh=mesh, tf=tf, key=key, category=category, model_name=model_name)
+        GraspableObject.__init__(self, sdf, mesh=mesh, features=features, tf=tf, key=key, category=category, model_name=model_name)
 
     def visualize(self, com_scale = 0.01):
         """

@@ -56,8 +56,8 @@ class FeatureDatabase:
 		else:
 			print 'Warning: no mesh database matched id in config'
 
-	def feature_vectors(self):
-		fv_db_path = os.path.join(self.database_root_dir_, FEATURE_VECTORS_KEY+'.hdf5')
+	def feature_vectors(self, name=FEATURE_VECTORS_KEY):
+		fv_db_path = os.path.join(self.database_root_dir_, name+'.hdf5')
 		return h5py.File(fv_db_path, 'r')
 
 	def train_feature_vectors(self):
@@ -68,24 +68,29 @@ class FeatureDatabase:
 		test_object_keys = self.feature_dataset_sorter().test_object_keys()
 		return dict((k, v) for k, v in self.feature_vectors().items() if k in train_object_ids)
 
-	def nearest_features(self):
-		pca_components = self.load_with_name(NEAREST_FEATURES_KEY+'_pca_components')
-		svd = self.load_with_name(NEAREST_FEATURES_KEY+'_svd')
-		neighbor_tree = None # self.load_with_name(NEAREST_FEATURES_KEY+'_neighbors_tree')
+	def nearest_features(self, name=NEAREST_FEATURES_KEY):
+		pca_components = self.load_with_name(name+'_pca_components')
+		svd = self.load_with_name(name+'_svd')
+		tree = self.load_with_name(name+'_tree')
+		data = self.load_with_name(name+'_data')
 		import nearest_features as nf
-		return nf.NearestFeatures(self, pca_components=pca_components, svd=svd, neighbor_tree=neighbor_tree)
+		return nf.NearestFeatures(self, pca_components=pca_components, svd=svd, neighbor_tree=tree, neighbor_data=data)
 
-	def save_nearest_features(self, x):
-		self.save_data(x.pca_components, NEAREST_FEATURES_KEY+'_pca_components')
-		self.save_data(x.svd, NEAREST_FEATURES_KEY+'_svd')
-		self.save_data(x.neighbors.tree_, NEAREST_FEATURES_KEY+'_neighbors_tree')
+	def save_nearest_features(self, x, name=NEAREST_FEATURES_KEY):
+		self.save_data(x.pca_components, name+'_pca_components')
+		self.save_data(x.svd, name+'_svd')
+		self.save_data(x.neighbors.tree_, name+'_tree')
+		self.save_data(x.neighbors.data_, name+'_data')
 
 	def feature_dataset_sorter(self):
 		return self.load_with_name(DATASET_SORTER_KEY)
 
-	def create_feature_vectors_file(self):
-		fv_db_path = os.path.join(self.database_root_dir_, FEATURE_VECTORS_KEY+'.hdf5')
-		return h5py.File(fv_db_path, 'w')
+	def create_feature_vectors_file(self, name=FEATURE_VECTORS_KEY, overwrite=False):
+		fv_db_path = os.path.join(self.database_root_dir_, name+'.hdf5')
+		if not overwrite and os.path.exists(fv_db_path):
+			raise OSError('file %s already exists' % (fv_db_path))
+		else:
+			return h5py.File(fv_db_path, 'w')
 
 	def save_dataset_sorter(self, x):
 		self.save_data(x, DATASET_SORTER_KEY)

@@ -6,4 +6,4 @@ caffe_finetuning_model: 'alexnet.caffemodel'
 portion_training: 0.75
 deploy_mode: 'cpu'
 batch_size: 1000
-vector_merging_method: 'mean'
+vector_merging_method: 'max'
