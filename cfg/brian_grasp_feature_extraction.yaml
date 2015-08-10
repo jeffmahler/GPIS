@@ -3,13 +3,14 @@
 !include partials/paths_rll4_brian.yaml
 !include partials/paths_gce.yaml
 
+local_database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
 dataset_counts: data/counts.txt
 datasets:
-  - test_data
+  - PriorsTest
 max_chunk_size: 1
 
 # Will be overridden by startup script
-dataset:     test_data
+dataset:     PriorsTest
 chunk_start: 27
 chunk_end:   28
 

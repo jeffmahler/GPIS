@@ -14,7 +14,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     config = ec.ExperimentConfig(args.config)
-    target_dir = os.path.join(config['database_dir'], config['dataset'])
+    target_dir = os.path.join(config['local_database_dir'], config['dataset'])
     json = os.path.join(args.result_dir, '*/cm_out/test_data/*.json')
     features = os.path.join(args.result_dir, '*/cm_out/test_data/features')
     logging.info('Run this command yourself:')
