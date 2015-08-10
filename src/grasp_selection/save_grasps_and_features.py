@@ -14,8 +14,9 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     config = ec.ExperimentConfig(args.config)
+    result_dir = os.path.join(args.result_dir, '*/cm_out/%s' %(config['dataset']))
+    json = os.path.join(result_dir, '*.json')
+    features = os.path.join(result_dir, 'features')
     target_dir = os.path.join(config['local_database_dir'], config['dataset'])
-    json = os.path.join(args.result_dir, '*/cm_out/test_data/*.json')
-    features = os.path.join(args.result_dir, '*/cm_out/test_data/features')
     logging.info('Run this command yourself:')
     print 'sudo cp -r %s %s %s' %(json, features, target_dir)
