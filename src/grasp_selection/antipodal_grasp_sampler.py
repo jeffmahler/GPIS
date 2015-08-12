@@ -14,6 +14,7 @@ import time
 import openravepy as rave
 
 import contacts
+import experiment_config as ec
 import grasp
 import graspable_object
 from grasp import ParallelJawPtGrasp3D
@@ -50,28 +51,7 @@ class AntipodalGraspParams:
         self.rho1 = rho1
         self.rho2 = rho2
 
-class AntipodalGraspSampler(gs.GraspSampler):
-    def __init__(self, config):
-        self._configure(config)
-
-    def _configure(self, config):
-        """Configures the grasp generator."""
-        self.grasp_width = config['grasp_width']
-        self.friction_coef = config['friction_coef']
-        self.num_cone_faces = config['num_cone_faces']
-        self.num_samples = config['grasp_samples_per_surface_point']
-        self.dir_prior = config['dir_prior']
-        self.alpha_thresh = 2 * np.pi / config['alpha_thresh_div']
-        self.rho_thresh = config['rho_thresh']
-        self.min_num_grasps = config['min_num_grasps']
-        self.max_num_grasps = config['max_num_grasps']
-        self.min_contact_dist = config['min_contact_dist']
-        self.min_num_collision_free = config['min_num_collision_free_grasps']
-        self.theta_res = 2 * np.pi * config['grasp_theta_res']
-        self.alpha_inc = config['alpha_inc']
-        self.rho_inc = config['rho_inc']
-        self.friction_inc = config['friction_inc']
-
+class AntipodalGraspSampler(gs.ExactGraspSampler):
     def sample_from_cone(self, cone, num_samples=1):
         """
         Samples points from within the cone.
@@ -111,9 +91,12 @@ class AntipodalGraspSampler(gs.GraspSampler):
         x_samp = x + (scale / 2.0) * (np.random.rand(3) - 0.5)
         return x_samp
 
-    def generate_grasps(self, graspable, check_collisions = False, vis = False):
+    def _generate_grasps(self, graspable, num_grasps,
+                         check_collisions=False, vis=False):
         """Returns a list of candidate grasps for graspable object.
-        Params: GraspableObject3D
+        Params:
+            graspable - (GraspableObject3D) the object to grasp
+            num_grasps - currently unused TODO
         Returns:
             list of ParallelJawPtGrasp3D objects
         """
@@ -233,8 +216,6 @@ class AntipodalGraspSampler(gs.GraspSampler):
             rho_thresh = rho_thresh + self.rho_inc
             ap_grasps = list(next_ap_grasps)
 
-        logging.info('Found %d antipodal grasps' %(len(grasps)))
-
         return grasps
 
 def test_antipodal_grasp_sampling(vis=False):
@@ -253,25 +234,12 @@ def test_antipodal_grasp_sampling(vis=False):
 
     graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m, model_name=mesh_name)
 
-    config = {
-        'grasp_width': 0.1,
-        'friction_coef': 0.5,
-        'num_cone_faces': 8,
-        'grasp_samples_per_surface_point': 4,
-        'dir_prior': 1.0,
-        'alpha_thresh_div': 16.0,
-        'rho_thresh': 0.75, # as pct of object max moment
-        'grasp_theta_res': 2.0 / 10,
-        'min_num_grasps': 100,
-        'min_num_collision_free_grasps': 1,
-        'alpha_inc': 1.1,
-        'friction_inc': 0.1,
-        'rho_inc': 0.1
-    }
+    config_file = 'cfg/correlated.yaml'
+    config = ec.ExperimentConfig(config_file)
     sampler = AntipodalGraspSampler(config)
 
     start_time = time.clock()
-    grasps, alpha_thresh, rho_thresh = sampler.generate_grasps(graspable, vis=False)
+    grasps = sampler.generate_grasps(graspable, vis=False)
     end_time = time.clock()
     duration = end_time - start_time
     logging.info('Antipodal grasp candidate generation took %f sec' %(duration))

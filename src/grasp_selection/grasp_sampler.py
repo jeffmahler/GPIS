@@ -34,8 +34,7 @@ class GraspSampler:
         """
         pass
 
-
-class GaussianGraspSampler(GraspSampler):
+class ExactGraspSampler(GraspSampler):
     def __init__(self, config):
         self._configure(config)
 
@@ -57,27 +56,60 @@ class GaussianGraspSampler(GraspSampler):
         self.rho_inc = config['rho_inc']
         self.friction_inc = config['friction_inc']
 
-    def generate_grasps(self, graspable, sigma_scale = 2.5, target_num_grasps = None,
-                        grasp_gen_mult = 3, check_collisions = False, vis = False, max_iter = 3):
+    def generate_grasps(self, graspable,
+                        target_num_grasps=None, grasp_gen_mult=3, max_iter=3,
+                        check_collisions=False, vis=False, **kwargs):
+        """Generates an exact number of grasps.
+        Params:
+            graspable - (GraspableObject3D) the object to grasp
+            target_num_grasps - (int) number of grasps to return, defualts to
+                self.min_num_grasps
+            grasp_gen_mult - (int) number of additional grasps to generate
+            max_iter - (int) number of attempts to return an exact number of
+                grasps before giving up
+        """
+        if target_num_grasps is None:
+            target_num_grasps = self.min_num_grasps
+        num_grasps_remaining = target_num_grasps
+
+        grasps = []
+        k = 1
+        while num_grasps_remaining > 0 and k <= max_iter:
+            # generate more than we need
+            num_grasps_generate = grasp_gen_mult * num_grasps_remaining
+            new_grasps = self._generate_grasps(graspable, num_grasps_generate,
+                                               check_collisions, vis, **kwargs)
+            grasps += new_grasps
+            logging.info('%d/%d grasps found after iteration %d.',
+                         len(grasps), target_num_grasps, k)
+
+            grasp_gen_mult *= 2
+            num_grasps_remaining = target_num_grasps - len(grasps)
+            k += 1
+
+        random.shuffle(grasps)
+        if len(grasps) > target_num_grasps:
+            logging.info('Truncating %d grasps to %d.',
+                         len(grasps), target_num_grasps)
+            grasps = grasps[:target_num_grasps]
+        logging.info('Found %d grasps.', len(grasps))
+        return grasps
+
+class GaussianGraspSampler(ExactGraspSampler):
+    def _generate_grasps(self, graspable, num_grasps,
+                         check_collisions=False, vis=False,
+                         sigma_scale=2.5):
         """
         Returns a list of candidate grasps for graspable object by Gaussian with
         variance specified by principal dimensions
         Params:
             graspable - (GraspableObject3D) the object to grasp
+            num_grasps - (int) the number of grasps to generate
             sigma_scale - (float) the number of sigmas on the tails of the
                 Gaussian for each dimension
-            target_num_grasps - (int) the number of grasps to generate
-            grasp_gen_mult - (float) how many times the number of target grasps
-                to generate (since some will be pruned)
-            max_iter - (int) max number of times generate_grasps can be called
         Returns:
             list of ParallelJawPtGrasp3D objects
         """
-        # set target nums
-        if target_num_grasps is None:
-            target_num_grasps = self.min_num_grasps
-        num_grasps_generate = grasp_gen_mult * target_num_grasps # generate 10 times too many to attempt to get enough
-
         # get object principal axes
         center_of_mass = graspable.mesh.center_of_mass
         principal_dims = graspable.mesh.principal_dims()
@@ -85,11 +117,11 @@ class GaussianGraspSampler(GraspSampler):
 
         # sample centers
         grasp_centers = stats.multivariate_normal.rvs(
-            mean=center_of_mass, cov=sigma_dims**2, size=num_grasps_generate)
+            mean=center_of_mass, cov=sigma_dims**2, size=num_grasps)
 
         # samples angles uniformly from sphere
-        u = stats.uniform.rvs(size=num_grasps_generate)
-        v = stats.uniform.rvs(size=num_grasps_generate)
+        u = stats.uniform.rvs(size=num_grasps)
+        v = stats.uniform.rvs(size=num_grasps)
         thetas = 2 * np.pi * u
         phis = np.arccos(2 * v - 1.0)
         grasp_dirs = np.array([np.sin(phis) * np.cos(thetas), np.sin(phis) * np.sin(thetas), np.cos(phis)])
@@ -97,7 +129,7 @@ class GaussianGraspSampler(GraspSampler):
 
         # convert to grasp objects
         grasps = []
-        for i in range(num_grasps_generate):
+        for i in range(num_grasps):
             grasp = ParallelJawPtGrasp3D(grasp_centers[i,:], grasp_dirs[i,:], self.grasp_width)
             contacts_found, contacts = grasp.close_fingers(graspable)
 
@@ -145,25 +177,6 @@ class GaussianGraspSampler(GraspSampler):
 
             grasps = collision_free_grasps
 
-        # return the number requested
-        k = 1
-        while len(grasps) < target_num_grasps and k < max_iter:
-            logging.info('Iteration %d of Gaussian sampling only found %d/%d grasps, trying again.',
-                         k-1, len(grasps), target_num_grasps)
-            additional_grasps = self.generate_grasps(
-                graspable, sigma_scale, target_num_grasps - len(grasps), grasp_gen_mult * 2,
-                check_collisions, vis, max_iter=1)
-            grasps = grasps + additional_grasps
-            k = k+1
-
-        random.shuffle(grasps)
-        if len(grasps) > target_num_grasps:
-            logging.info('Iteration %d of Gaussian sampling found %d random grasps, truncating to %d.',
-                         k, len(grasps), target_num_grasps)
-            grasps = grasps[:target_num_grasps]
-        else:
-            logging.info('Iteration %d of Gaussian sampling found %d random grasps.',
-                         k, len(grasps))
         return grasps
 
 def test_gaussian_grasp_sampling(vis=False):
@@ -172,11 +185,11 @@ def test_gaussian_grasp_sampling(vis=False):
     h = plt.figure()
     ax = h.add_subplot(111, projection = '3d')
 
-    sdf_3d_file_name = 'data/test/sdf/Co.sdf'
+    sdf_3d_file_name = 'data/test/sdf/Co_clean.sdf'
     sf = sdf_file.SdfFile(sdf_3d_file_name)
     sdf_3d = sf.read()
 
-    mesh_name = 'data/test/meshes/Co.obj'
+    mesh_name = 'data/test/meshes/Co_clean.obj'
     of = obj_file.ObjFile(mesh_name)
     m = of.read()
 
@@ -190,7 +203,6 @@ def test_gaussian_grasp_sampling(vis=False):
     grasps = sampler.generate_grasps(graspable, target_num_grasps=200, vis=False)
     end_time = time.clock()
     duration = end_time - start_time
-    logging.info('Found %d random grasps' %(len(grasps)))
     logging.info('Gaussian grasp candidate generation took %f sec' %(duration))
 
 if __name__ == '__main__':
