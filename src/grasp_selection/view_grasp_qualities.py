@@ -6,7 +6,7 @@ $ python view_grasp_qualities.py dataset graspable [grasp_dir]
 
 import argparse
 import numpy as np
-import matplotlib as plt
+import matplotlib.pyplot as plt
 
 import database
 
@@ -19,9 +19,10 @@ def visualize(grasps):
 
     grasps - list of ParallelJawPtGrasp3D or ParallelJawPtPose3D instances
     """
-    grasp_qualties = [g.quality for g in grasps]
+    grasp_qualities = [g.quality for g in grasps]
     num_bins = 100
     bin_edges = np.linspace(0, 1, num_bins+1)
+    font_size = 15
     plt.figure()
     n, bins, patches = plt.hist(grasp_qualities, bin_edges)
     plt.xlabel('Probability of Success', fontsize=font_size)
