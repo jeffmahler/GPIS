@@ -14,13 +14,19 @@ def save_query_nf(query_vector, nearest_features, filename):
 		f.write('%s %s\n' % (key, distance))
 	f.close()
 
-query_keys = ['boot', 'detergent', 'bottle_0034']
-feature_db = FeatureDatabase()
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('config')
+args = parser.parse_args()
+config = ec.ExperimentConfig(args.config)
+
+feature_db = feature_database.FeatureDatabase(config)
+
+query_keys = ['Cat50_ModelDatabase_bunker_boots', 'BigBIRD_detergent', 'KIT_MelforBottle_800_tex']
 feature_vectors = feature_db.feature_vectors()
 
 query_vectors = map(lambda x: feature_vectors[x], query_keys)
 
-create_nf(feature_db, query_keys, query_vectors, '10')
-create_nf(feature_db, query_keys, query_vectors, '100')
-create_nf(feature_db, query_keys, query_vectors, '1000')
+create_nf(feature_db, query_keys, query_vectors, '15')
+create_nf(feature_db, query_keys, query_vectors, '150')
 create_nf(feature_db, query_keys, query_vectors, 'all')

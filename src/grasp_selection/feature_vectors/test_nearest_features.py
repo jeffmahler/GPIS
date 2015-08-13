@@ -20,7 +20,13 @@ from dataset_sorter import DatasetSorter
 
 
 if __name__ == '__main__':
-	feature_db = FeatureDatabase()
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('config')
+	args = parser.parse_args()
+	config = ec.ExperimentConfig(args.config)
+
+	feature_db = feature_database.FeatureDatabase(config)
 
 	distances_file = open('/Users/MelRod/Desktop/distances.txt', 'r')
 

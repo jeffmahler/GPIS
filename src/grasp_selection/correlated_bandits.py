@@ -273,13 +273,13 @@ if __name__ == '__main__':
 
     if config['plot']:
         plt.figure()
-        ua_obj = plt.plot(all_results.ts_result[0].iters, ua_normalized_reward,
+        ua_obj = plt.plot(all_results.iters[0], ua_normalized_reward,
                           c=u'b', linewidth=2.0, label='Uniform Allocation')
-        ts_obj = plt.plot(all_results.ts_result[0].iters, ts_normalized_reward,
+        ts_obj = plt.plot(all_results.iters[0], ts_normalized_reward,
                           c=u'g', linewidth=2.0, label='Thompson Sampling (Uncorrelated)')
-        ts_corr_obj = plt.plot(all_results.ts_result[0].iters, ts_corr_normalized_reward,
+        ts_corr_obj = plt.plot(all_results.iters[0], ts_corr_normalized_reward,
                           c=u'r', linewidth=2.0, label='Thompson Sampling (Correlated)')
-        plt.xlim(0, np.max(all_results.ts_result[0].iters))
+        plt.xlim(0, np.max(all_results.iters[0]))
         plt.ylim(0.5, 1)
         plt.legend(loc='lower right')
         plt.show()
