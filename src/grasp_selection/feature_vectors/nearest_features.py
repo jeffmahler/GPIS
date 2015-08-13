@@ -245,7 +245,13 @@ def test_nearest_features(nearest_features, feature_db):
 	distances_file.close()
 
 if __name__ == '__main__':
-	feature_db = FeatureDatabase()
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('config')
+	args = parser.parse_args()
+	config = ec.ExperimentConfig(args.config)
+
+	feature_db = feature_database.FeatureDatabase(config)
 
 	import IPython; IPython.embed()
 	# nearest_features = NearestFeatures(feature_db, pca_components=10)

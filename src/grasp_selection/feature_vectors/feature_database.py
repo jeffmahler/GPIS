@@ -8,6 +8,7 @@ import h5py
 from rendered_object import RenderedObject
 
 DATABASE_DIR_KEY = 'database_dir'
+DATASET_NAME_KEY = 'dataset'
 MESH_DATABASE_ID_KEY = 'mesh_database_id'
 MESH_DATABASE_INDEX_KEY = 'mesh_database_index'
 PORTION_TRAINING_KEY = 'portion_training'
@@ -21,13 +22,11 @@ CAT50_DATASET_KEY = 'CAT50'
 SHREC_DATASET_KEY = 'SHREC'
 
 class FeatureDatabase:
-	def __init__(self, config=None):
-		if config == None:
-			config = yaml.load(open('cfg/feature_vectors_config.yaml', 'r'))
+	def __init__(self, config):
 		self._parse_config(config)
 
 	def _parse_config(self, config):
-		self.database_root_dir_ = config[DATABASE_DIR_KEY]
+		self.database_root_dir_ = os.path.join(config[DATABASE_DIR_KEY], config[DATASET_NAME_KEY])
 		self.path_to_image_dir_ = os.path.join(self.database_root_dir_, RENDERED_IMAGES_KEY)
 		self.portion_training_ = config[PORTION_TRAINING_KEY]
 		self.create_mesh_database(config)

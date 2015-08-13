@@ -82,29 +82,25 @@ class FeatureVectorDatabase:
 		return final_blobs
 
 	def _create_feature_vectors(self, net):
-		# rendered_objects = self.feature_db.rendered_objects()
-		# images_per_object = len(rendered_objects[0].images)
-		# print 'images per object: '+str(images_per_object)
-		# rendered_objects = filter(lambda x: self._filter_object_mismatch(x, images_per_object), rendered_objects)
+		rendered_objects = self.feature_db.rendered_objects()
+		images_per_object = len(rendered_objects[0].images)
+		print 'images per object: '+str(images_per_object)
+		rendered_objects = filter(lambda x: self._filter_object_mismatch(x, images_per_object), rendered_objects)
 
-		# start_time = time.time()
-		# print 'Creating feature vectors...'
-		# fv_dict = self.feature_db.create_feature_vectors_file(overwrite=True)
-		# final_blobs = self._batch_create_feature_vectors(rendered_objects, net, fv_dict)
-		# print 'Finished creating feature vectors: '+str(time.time()-start_time)+'s'
-		import os
-		fv_db_path = os.path.join(feature_db.database_root_dir_, 'feature_vectors.hdf5')
-		fv_dict = h5py.File(fv_db_path, 'r+')
-
-		for key in fv_dict.keys():
-			if 'Orig_tex' in key:
-				fv_dict[key.replace('Orig', '800')] = fv_dict[key]
-				fv_dict.__delitem__(key)
-
-		import IPython; IPython.embed()
+		start_time = time.time()
+		print 'Creating feature vectors...'
+		fv_dict = self.feature_db.create_feature_vectors_file(overwrite=True)
+		final_blobs = self._batch_create_feature_vectors(rendered_objects, net, fv_dict)
+		print 'Finished creating feature vectors: '+str(time.time()-start_time)+'s'
 
 if __name__ == '__main__':
-	feature_db = feature_database.FeatureDatabase()
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('config')
+	args = parser.parse_args()
+	config = ec.ExperimentConfig(args.config)
+
+	feature_db = feature_database.FeatureDatabase(config)
 	caffe_config = caffe_config.CaffeConfig()
 	feature_object_db = FeatureVectorDatabase(feature_db, caffe_config)
 

@@ -13,11 +13,8 @@ import numpy as np
 import time
 
 class PriorComputationEngine:
-	def __init__(self, db, config, feature_db=None):
-		if feature_db == None:
-			self.feature_db = FeatureDatabase()
-		else:
-			self.feature_db = feature_db
+	def __init__(self, db, config):
+		self.feature_db = FeatureDatabase(config)
 		self.db = db
 		self.grasp_kernel = kernels.SquaredExponentialKernel(
 			sigma=config['kernel_sigma'], l=config['kernel_l'])
@@ -26,7 +23,7 @@ class PriorComputationEngine:
 		self.neighbor_distance = config['prior_neighbor_distance']
 		self.num_neighbors = config['prior_num_neighbors']
 		self.config = config
-		self.kernel_tolerance = config['kernel_tolerance']
+		self.kernel_tolerance = config['prior_kernel_tolerance']
 
 	def compute_priors(self, obj, candidates, nearest_features_name=None):
 		if nearest_features_name == None:
@@ -96,7 +93,8 @@ class PriorComputationEngine:
 		for neighbor_key in neighbor_vector_dict.keys():
 			if neighbor_key == obj.key:
 				continue
-			neighbor_pfc_diffs, neighbor_kernels, object_distance = self.kernel_info_from_neighbor(obj, candidates, self.db[neighbor_key])
+			neighbor_obj = self.db[neighbor_key]
+			neighbor_pfc_diffs, neighbor_kernels, object_distance = self.kernel_info_from_neighbor(obj, candidates, neighbor_obj)
 			all_neighbor_pfc_diffs.append(neighbor_pfc_diffs)
 			all_neighbor_kernels.append(neighbor_kernels)
 			all_distances.append(object_distance)

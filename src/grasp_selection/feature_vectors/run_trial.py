@@ -4,7 +4,14 @@ from feature_database import FeatureDatabase
 from caffe_config import CaffeConfig
 
 if __name__ == '__main__':
-	feature_db = FeatureDatabase()
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('config')
+	args = parser.parse_args()
+	config = ec.ExperimentConfig(args.config)
+
+	feature_db = feature_database.FeatureDatabase(config)
+
 	caffe_config = CaffeConfig()
 
 	dataset_sorter = feature_db.feature_dataset_sorter()
