@@ -26,7 +26,7 @@ class Objective:
         pass
 
 class DifferentiableObjective(Objective):
-    __metaclass__ = ABCMeta    
+    __metaclass__ = ABCMeta
 
     @abstractmethod
     def gradient(self, x):
@@ -40,7 +40,7 @@ class DifferentiableObjective(Objective):
 
 class MaximizationObjective(DifferentiableObjective):
     """
-    Maximization on some supplied objective function. Actually not super important, here for symmetry 
+    Maximization on some supplied objective function. Actually not super important, here for symmetry
     """
     def __init__(self, obj):
         """ obj is the objective to call """
@@ -66,7 +66,7 @@ class MaximizationObjective(DifferentiableObjective):
 
 class MinimizationObjective(DifferentiableObjective):
     """
-    Maximization on some supplied objective function. Actually not super important, here for symmetry 
+    Maximization on some supplied objective function. Actually not super important, here for symmetry
     """
     def __init__(self, obj):
         """ obj is the objective to call """
@@ -92,7 +92,7 @@ class MinimizationObjective(DifferentiableObjective):
         return -self.obj_.hessian(x)
 
 class NonDeterministicObjective(Objective):
-    
+
     def __init__(self, det_objective):
         """ Wraps around a deterministic objective """
         self.det_objective_ = det_objective
@@ -113,7 +113,7 @@ class ZeroOneObjective(Objective):
     def check_valid_input(self, x):
         """ Check whether or not input is valid for the objective """
         if not isinstance(x, numbers.Number):
-            raise ValueError("Zero-One objective can only be evaluated on numbers") 
+            raise ValueError("Zero-One objective can only be evaluated on numbers")
 
     def evaluate(self, x):
         self.check_valid_input(x)
@@ -130,7 +130,7 @@ class RandomBinaryObjective(NonDeterministicObjective):
     def check_valid_input(self, x):
         """ Check whether or not input is valid for the objective """
         if not isinstance(x, numbers.Number):
-            raise ValueError("Random binary objective can only be evaluated on numbers") 
+            raise ValueError("Random binary objective can only be evaluated on numbers")
 
 class LeastSquaresObjective(DifferentiableObjective):
     """ Classic least-squares loss 0.5 * |Ax - b|**2 """
@@ -160,3 +160,58 @@ class LeastSquaresObjective(DifferentiableObjective):
     def hessian(self, x):
         self.check_valid_input(x)
         return self.A_.T.dot(self.A_)
+
+class LogisticCrossEntropyObjective(DifferentiableObjective):
+    def __init__(self, X, y):
+        self.X_ = X
+        self.y_ = y
+
+    def check_valid_input(self, beta):
+        if not isinstance(beta, np.ndarray):
+            raise ValueError('Logistic cross-entropy objective only works with np.ndarrays!')
+        if self.X_.shape[1] != beta.shape[0]:
+            raise ValueError('beta dimension mismatch')
+
+    def _mu(self, X, beta):
+        return 1.0 / (1.0 + np.exp(-np.dot(X, beta)))
+
+    def evaluate(self, beta):
+        self.check_valid_input(beta)
+        mu = self._mu(self.X_, beta)
+        return -np.sum(self.y_ * np.log(mu) + (1 - self.y_) * np.log(1 - mu))
+
+    def gradient(self, beta):
+        self.check_valid_input(beta)
+        mu = self._mu(self.X_, beta)
+        return 2 * beta - np.dot(self.X_.T, self.y_ - mu)
+
+    def hessian(self, beta):
+        self.check_valid_input(beta)
+        mu = self._mu(self.X_, beta)
+        return 2 - np.dot(np.dot(self.X_.T, np.diag(mu * (1 - mu))), self.X_)
+
+class StochasticLogisticCrossEntropyObjective(LogisticCrossEntropyObjective):
+    def __init__(self, X, y, batch_size=1):
+        LogisticCrossEntropyObjective.__init__(self, X, y)
+        self.batch_size = batch_size
+
+    def get_random_datum(self):
+        num_data = self.y_.shape[0]
+        indices = range(num_data) * (self.batch_size // num_data)
+        if self.batch_size % num_data != 0:
+            indices += list(np.random.randint(num_data, size=self.batch_size % num_data))
+        x = self.X_[indices, :]
+        y = self.y_[indices]
+        return x, y
+
+    def gradient(self, beta):
+        self.check_valid_input(beta)
+        x, y = self.get_random_datum()
+        mu = self._mu(x, beta)
+        return (2 * beta - np.dot(x.T, y - mu)).squeeze()
+
+    def hessian(self, beta):
+        self.check_valid_input(beta)
+        x, y = self.get_random_datum()
+        mu = self._mu(x, beta)
+        return 2 - np.dot(np.dot(x.T, np.diag(mu * (1 - mu))), x)
