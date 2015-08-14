@@ -87,6 +87,9 @@ class ExperimentConfig(object):
             self.root_dir = '' # relative paths
         return self.config
 
+    def __contains__(self, key):
+        return key in self.config
+
     def __getitem__(self, key):
         """
         Overrides the key access operator []

@@ -12,6 +12,7 @@ from contacts import SurfaceWindow
 import graspable_object as go
 
 class Weight:
+    # valid weights: numbers, gaussian_number_number, crop_number_number
     def __init__(self, value):
         self.value = value
         if isinstance(value, (float, int)):

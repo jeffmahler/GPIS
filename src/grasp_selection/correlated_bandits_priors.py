@@ -36,8 +36,7 @@ import prior_computation_engine as pce
 
 import scipy.spatial.distance as ssd
 
-def experiment_hash(N = 10):
-    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
+from correlated_bandits import experiment_hash, reward_vs_iters
 
 class BanditCorrelatedExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_reward,
@@ -96,29 +95,8 @@ class BanditCorrelatedExperimentResult:
                                                 obj_keys,
                                                 len(result_list))
 
-def reward_vs_iters(result, true_pfc, plot=False, normalize=True):
-    """Computes the expected values for the best arms of a BetaBernoulliModel at
-    each time step.
-    Params:
-        result - AdaptiveSamplingResult instance, from a BetaBernoulliModel
-        normalize - Divide by true best value
-    Returns:
-        best_values - list of floats, expected values over time
-    """
-    true_best_value = np.max(true_pfc)
-    best_pred_values = [true_pfc[pred_ind] for pred_ind in result.best_pred_ind]
-    if normalize:
-        best_pred_values = best_pred_values / true_best_value
-
-    if plot:
-        plt.figure()
-        plt.plot(result.iters, best_pred_values, color='blue', linewidth=2)
-        plt.xlabel('Iteration')
-        plt.ylabel('P(Success)')
-
-    return best_pred_values
-
-def label_correlated(obj, dataset, config, plot=False, nearest_features_names=None):
+def label_correlated(obj, chunk, config, plot=False,
+                     priors_dataset=None, nearest_features_names=None):
     """Label an object with grasps according to probability of force closure,
     using correlated bandits."""
     bandit_start = time.clock()
@@ -127,7 +105,7 @@ def label_correlated(obj, dataset, config, plot=False, nearest_features_names=No
 
     # load grasps from database
     sample_start = time.clock()
-    grasps = dataset.load_grasps(obj.key)
+    grasps = chunk.load_grasps(obj.key)
     sample_end = time.clock()
     sample_duration = sample_end - sample_start
     logging.info('Loaded %d grasps' %(len(grasps)))
@@ -139,7 +117,7 @@ def label_correlated(obj, dataset, config, plot=False, nearest_features_names=No
 
     # load features for all grasps
     feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, dataset.name, config)
+    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
     all_features = feature_loader.load_all_features(grasps) # in same order as grasps
     feature_end = time.clock()
     feature_duration = feature_end - feature_start
@@ -182,7 +160,9 @@ def label_correlated(obj, dataset, config, plot=False, nearest_features_names=No
     objective = objectives.RandomBinaryObjective()
 
     # compute priors
-    prior_engine = pce.PriorComputationEngine(dataset, config)
+    if priors_datset is None:
+        priors_dataset = chunk
+    prior_engine = pce.PriorComputationEngine(priors_dataset, config)
 
     all_alpha_priors = []
     all_beta_priors = []
@@ -198,8 +178,6 @@ def label_correlated(obj, dataset, config, plot=False, nearest_features_names=No
 
     # pre-computed pfc values
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
-
-    import IPython; IPython.embed()
 
     # run bandits for several trials
     ua_rewards = []
@@ -267,9 +245,9 @@ def label_correlated(obj, dataset, config, plot=False, nearest_features_names=No
                                             all_avg_ts_corr_prior_rewards,
                                             estimated_pfc, ua_result.iters, kernel_matrix, obj_key=obj.key)
 
-def plot_kernels_for_key(obj, dataset, config, nearest_features_name=None):
+def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):
     # load grasps from database
-    grasps = dataset.load_grasps(obj.key)
+    grasps = chunk.load_grasps(obj.key)
     logging.info('Loaded %d grasps' %(len(grasps)))
 
     if not grasps:
@@ -278,7 +256,7 @@ def plot_kernels_for_key(obj, dataset, config, nearest_features_name=None):
 
     # load features for all grasps
     feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, dataset.name, config)
+    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
     all_features = feature_loader.load_all_features(grasps) # in same order as grasps
     feature_end = time.clock()
     feature_duration = feature_end - feature_start
@@ -299,7 +277,9 @@ def plot_kernels_for_key(obj, dataset, config, nearest_features_name=None):
             pfc_rv.set_features(features)
             candidates.append(pfc_rv)
 
-    prior_engine = pce.PriorComputationEngine(dataset, config)
+    if priors_dataset is None:
+        priors_dataset = chunk
+    prior_engine = pce.PriorComputationEngine(priors_dataset, config)
     if nearest_features_name == None:
         neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
     else:
@@ -336,10 +316,10 @@ def plot_kernels_for_key(obj, dataset, config, nearest_features_name=None):
     plt.title('Correlations', fontsize=15)
     plt.legend(scatter_objs, labels)
 
-def plot_prior_diffs(obj, dataset, config, nearest_features_name=None):
+def plot_prior_diffs(obj, chunk, config, nearest_features_name=None):
     # load grasps from database
     sample_start = time.clock()
-    grasps = dataset.load_grasps(obj.key)
+    grasps = chunk.load_grasps(obj.key)
     sample_end = time.clock()
     sample_duration = sample_end - sample_start
     logging.info('Loaded %d grasps' %(len(grasps)))
@@ -355,7 +335,7 @@ def plot_prior_diffs(obj, dataset, config, nearest_features_name=None):
 
     # load features for all grasps
     feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, dataset.name, config)
+    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
     all_features = feature_loader.load_all_features(grasps) # in same order as grasps
     feature_end = time.clock()
     feature_duration = feature_end - feature_start
@@ -373,7 +353,7 @@ def plot_prior_diffs(obj, dataset, config, nearest_features_name=None):
             pfc_rv.set_features(features)
             candidates.append(pfc_rv)
 
-    prior_engine = pce.PriorComputationEngine(dataset, config)
+    prior_engine = pce.PriorComputationEngine(chunk, config)
     alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
 
     prior_means = models.BetaBernoulliModel.beta_mean(np.array(alpha_priors), np.array(beta_priors))
@@ -392,9 +372,8 @@ def plot_prior_diffs(obj, dataset, config, nearest_features_name=None):
     plt.xlabel('Variance', fontsize=15)
     plt.ylabel('Error', fontsize=15)
 
-def run_and_save_experiment(obj, dataset, config, result_dir):
-    nearest_features_names = ['nearest_features_all']#['nearest_features_15', 'nearest_features_150', 'nearest_features_all']
-
+def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
+    nearest_features_names = ['nearest_features_10', 'nearest_features_100', 'nearest_features_1000', 'nearest_features_all']
     # plot params
     line_width = config['line_width']
     font_size = config['font_size']
@@ -402,7 +381,9 @@ def run_and_save_experiment(obj, dataset, config, result_dir):
 
     results = []
     avg_experiment_result = None
-    experiment_result = label_correlated(obj, dataset, config, nearest_features_names=nearest_features_names)
+    experiment_result = label_correlated(obj, chunk, config,
+                                         priors_dataset,
+                                         nearest_features_names=nearest_features_names)
     results.append(experiment_result)
 
     if len(results) == 0:
@@ -443,13 +424,16 @@ def run_and_save_experiment(obj, dataset, config, result_dir):
     plt.savefig(os.path.join(result_dir, obj.key+'_results.png'), dpi=dpi, bbox_extra_artists=(legend,), bbox_inches='tight')
 
     # plot kernels
-    plot_kernels_for_key(obj, dataset, config, nearest_features_name=nearest_features_names[0])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_15.png'), dpi=dpi)
+    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[0])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_10.png'), dpi=dpi)
 
-    plot_kernels_for_key(obj, dataset, config, nearest_features_name=nearest_features_names[1])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_150.png'), dpi=dpi)
+    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[1])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_100.png'), dpi=dpi)
 
-    plot_kernels_for_key(obj, dataset, config, nearest_features_name=nearest_features_names[2])
+    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[2])
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_1000.png'), dpi=dpi)
+
+    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[3])
     plt.savefig(os.path.join(result_dir, obj.key+'_kernels_all.png'), dpi=dpi)
 
     # plot histograms
@@ -462,14 +446,13 @@ def run_and_save_experiment(obj, dataset, config, result_dir):
     plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
     plt.savefig(os.path.join(result_dir,  obj.key+'_histogram.png'), dpi=dpi)
 
-    # plot_prior_diffs(obj, dataset, config, nearest_features_name=nearest_features_names[2])
+    # plot_prior_diffs(obj, chunk, config, nearest_features_name=nearest_features_names[2])
     # plt.savefig(os.path.join(result_dir, obj.key+'_errors_all.png'), dpi=dpi)
 
     # # save to file
     # logging.info('Saving results to %s' %(dest))
     # for r in results:
     #     r.save(dest)
-
 
 if __name__ == '__main__':
     import argparse
@@ -482,8 +465,12 @@ if __name__ == '__main__':
 
     # read config file
     config = ec.ExperimentConfig(args.config)
-    full_dataset = db.Dataset(config['dataset'], config)
     chunk = db.Chunk(config)
+
+    if 'priors_dataset' in config:
+        priors_dataset = db.Dataset(config['priors_dataset'], config)
+    else:
+        priors_dataset = None
 
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
@@ -492,9 +479,5 @@ if __name__ == '__main__':
     except os.error:
         pass
 
-    obj_key = 'KIT_MelforBottle_800_tex' # 'Cat50_ModelDatabase_bunker_boots' 'BigBIRD_detergent' 'KIT_MelforBottle_800_tex'
-    obj = chunk[obj_key]
-    run_and_save_experiment(obj, full_dataset, config, dest)
-
-    # for obj in chunk:
-    #     run_and_save_experiment(obj, full_dataset, config, dest)
+    for obj in chunk:
+        run_and_save_experiment(obj, chunk, priors_dataset, config, dest)

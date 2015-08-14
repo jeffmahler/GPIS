@@ -6,7 +6,9 @@
 9449 ModelNet40
 10904 NTU3D
 1814 PrincetonShapeBenchmark
-36 PriorsTest
+36 PriorsAll
+3 PriorsQuery
+33 PriorsTrain
 8987 SHREC14LSGTB
 28 test_data
 160 YCB
