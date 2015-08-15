@@ -7,7 +7,7 @@ datasets:
   - PriorsQuery
 priors_dataset: PriorsTrain
 max_chunk_size: 1
-num_trials: 50
+num_trials: 5
 
 # Will be overridden by startup script
 dataset:     PriorsQuery
@@ -57,7 +57,7 @@ compute:
     - dex-net-data
   service_email:  default
   network:        default
-  run_script:     src/grasp_selection/correlated_bandits.py
+  run_script:     src/grasp_selection/correlated_bandits_priors.py
   scopes:
     - https://www.googleapis.com/auth/compute
     - https://www.googleapis.com/auth/devstorage.full_control

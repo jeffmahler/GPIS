@@ -126,11 +126,9 @@ def label_correlated(obj, chunk, config, plot=False,
 
     # bandit params
     num_trials = config['num_trials']
-    brute_force_iter = config['bandit_brute_force_iter']
     max_iter = config['bandit_max_iter']
     confidence = config['bandit_confidence']
     snapshot_rate = config['bandit_snapshot_rate']
-    brute_snapshot_rate = config['bandit_brute_force_snapshot_rate']
     tc_list = [
         tc.MaxIterTerminationCondition(max_iter),
         ]
@@ -160,7 +158,7 @@ def label_correlated(obj, chunk, config, plot=False,
     objective = objectives.RandomBinaryObjective()
 
     # compute priors
-    if priors_datset is None:
+    if priors_dataset is None:
         priors_dataset = chunk
     prior_engine = pce.PriorComputationEngine(priors_dataset, config)
 
@@ -373,7 +371,7 @@ def plot_prior_diffs(obj, chunk, config, nearest_features_name=None):
     plt.ylabel('Error', fontsize=15)
 
 def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
-    nearest_features_names = ['nearest_features_10', 'nearest_features_100', 'nearest_features_1000', 'nearest_features_all']
+    nearest_features_names = ['nearest_features_15', 'nearest_features_150', 'nearest_features_all']
     # plot params
     line_width = config['line_width']
     font_size = config['font_size']
@@ -382,7 +380,7 @@ def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
     results = []
     avg_experiment_result = None
     experiment_result = label_correlated(obj, chunk, config,
-                                         priors_dataset,
+                                         priors_dataset=priors_dataset,
                                          nearest_features_names=nearest_features_names)
     results.append(experiment_result)
 
@@ -393,7 +391,7 @@ def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
     # combine results
     all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
-    # print 'Creating and saving plots...'
+    logging.info('Creating and saving plots...')
 
     # plotting of final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
@@ -425,13 +423,10 @@ def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
 
     # plot kernels
     plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[0])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_10.png'), dpi=dpi)
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_15.png'), dpi=dpi)
 
     plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[1])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_100.png'), dpi=dpi)
-
-    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[2])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_1000.png'), dpi=dpi)
+    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_150.png'), dpi=dpi)
 
     plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[3])
     plt.savefig(os.path.join(result_dir, obj.key+'_kernels_all.png'), dpi=dpi)

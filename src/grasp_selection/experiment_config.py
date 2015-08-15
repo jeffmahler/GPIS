@@ -71,7 +71,8 @@ class ExperimentConfig(object):
             fname = os.path.join(config_dir, matchobj.group(1))
             with open(fname) as f:
                 return f.read()
-        self.file_contents = re.sub(include_re, include_repl, self.file_contents)
+        while re.search(include_re, self.file_contents): # for recursive !include
+            self.file_contents = re.sub(include_re, include_repl, self.file_contents)
 
         # read in dictionary
         self.config = self.__ordered_load(self.file_contents)
