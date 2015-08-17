@@ -29,7 +29,10 @@ new_dataset_path = os.path.join(database_path, args.dataset)
 new_feature_path = os.path.join(new_dataset_path, 'features')
 
 with open(args.dataset) as f:
-    os.mkdir(new_dataset_path)
+    try:
+        os.mkdir(new_dataset_path)
+    except:
+        pass
     # os.mkdir(new_feature_path)
     for line in f:
         tokens = line.split()

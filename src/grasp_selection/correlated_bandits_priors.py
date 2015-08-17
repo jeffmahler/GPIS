@@ -371,7 +371,8 @@ def plot_prior_diffs(obj, chunk, config, nearest_features_name=None):
     plt.ylabel('Error', fontsize=15)
 
 def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
-    nearest_features_names = ['nearest_features_15', 'nearest_features_150', 'nearest_features_all']
+    nearest_features_names = config['priors_feature_names']
+
     # plot params
     line_width = config['line_width']
     font_size = config['font_size']
@@ -410,26 +411,19 @@ def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
                       c=u'g', linewidth=2.0, label='TS (Uncorrelated)')
     ts_corr_obj = plt.plot(all_results.iters[0], ts_corr_normalized_reward,
                       c=u'r', linewidth=2.0, label='TS (Correlated)')
-    ts_corr_prior_0_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[0],
-                      c=u'c', linewidth=2.0, label='TS (Priors_15)')
-    ts_corr_prior_1_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[1],
-                      c=u'm', linewidth=2.0, label='TS (Priors_150)')
-    ts_corr_prior_2_obj = plt.plot(all_results.iters[0], ts_corr_prior_normalized_reward[2],
-                      c=u'b', linewidth=2.0, label='TS (Priors_all)')
+    for ts_corr_prior, label in zip(ts_corr_prior_normalized_reward, nearest_features_names):
+        plt.plot(all_results.iters[0], ts_corr_prior,
+                 c=u'c', linewidth=2.0, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
     plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)
     legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig(os.path.join(result_dir, obj.key+'_results.png'), dpi=dpi, bbox_extra_artists=(legend,), bbox_inches='tight')
 
     # plot kernels
-    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[0])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_15.png'), dpi=dpi)
-
-    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[1])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_150.png'), dpi=dpi)
-
-    plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[3])
-    plt.savefig(os.path.join(result_dir, obj.key+'_kernels_all.png'), dpi=dpi)
+    for nearest_features_name in nearest_features_names:
+        plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[0])
+        fname = nearest_features_name.replace('nearest_features', '%s_kernels' %(obj.key))
+        plt.savefig(os.path.join(result_dir, fname), dpi=dpi)
 
     # plot histograms
     num_bins = 100
@@ -462,11 +456,6 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     chunk = db.Chunk(config)
 
-    if 'priors_dataset' in config:
-        priors_dataset = db.Dataset(config['priors_dataset'], config)
-    else:
-        priors_dataset = None
-
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
     try:
@@ -474,5 +463,31 @@ if __name__ == '__main__':
     except os.error:
         pass
 
+    if 'priors_dataset' in config:
+        priors_dataset = db.Dataset(config['priors_dataset'], config)
+    else:
+        priors_dataset = None
+
+    # loop through objects, labelling each
+    results = []
     for obj in chunk:
-        run_and_save_experiment(obj, chunk, priors_dataset, config, dest)
+        logging.info('Labelling object {}'.format(obj.key))
+        experiment_result = label_correlated(obj, chunk, config,
+                                             priors_dataset=priors_dataset,
+                                             nearest_features_names=config['priors_feature_names'])
+        if experiment_result is None:
+            continue
+        results.append(experiment_result)
+
+    if len(results) == 0:
+        logging.info('Exiting. No grasps found')
+        exit(0)
+
+    # save to file
+    logging.info('Saving results to %s' %(dest))
+    for r in results:
+        r.save(dest)
+
+    if config['plot']:
+        # combine results
+        all_results = BanditCorrelatedExperimentResult.compile_results(results)

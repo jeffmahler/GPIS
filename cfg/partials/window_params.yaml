@@ -1,5 +1,5 @@
-window_width: 0.04
-window_steps: 9
+window_width: 0.05
+window_steps: 13
 window_sigma: 1.0
 kernel_sigma: 1.0
 kernel_l: 1.0

@@ -251,7 +251,6 @@ if __name__ == '__main__':
 
     # loop through objects, labelling each
     results = []
-    avg_experiment_result = None
     for obj in chunk:
         logging.info('Labelling object {}'.format(obj.key))
         experiment_result = label_correlated(obj, chunk, dest, config)
@@ -263,15 +262,20 @@ if __name__ == '__main__':
         logging.info('Exiting. No grasps found')
         exit(0)
 
-    # combine results
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
-
-    # plotting of final results
-    ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
-    ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
-    ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
+    # save to file
+    logging.info('Saving results to %s' %(dest))
+    for r in results:
+        r.save(dest)
 
     if config['plot']:
+        # combine results
+        all_results = BanditCorrelatedExperimentResult.compile_results(results)
+
+        # plotting of final results
+        ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
+        ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
+        ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
+
         plt.figure()
         ua_obj = plt.plot(all_results.iters[0], ua_normalized_reward,
                           c=u'b', linewidth=2.0, label='Uniform Allocation')
@@ -283,8 +287,3 @@ if __name__ == '__main__':
         plt.ylim(0.5, 1)
         plt.legend(loc='lower right')
         plt.show()
-
-    # save to file
-    logging.info('Saving results to %s' %(dest))
-    for r in results:
-        r.save(dest)

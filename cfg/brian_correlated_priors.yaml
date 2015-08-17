@@ -5,9 +5,14 @@
 dataset_counts: data/counts.txt
 datasets:
   - PriorsQuery
-priors_dataset: PriorsTrain
 max_chunk_size: 1
 num_trials: 5
+
+priors_dataset: PriorsTrain
+priors_feature_names:
+  - nearest_features_15
+  - nearest_features_150
+  - nearest_features_all
 
 # Will be overridden by startup script
 dataset:     PriorsQuery

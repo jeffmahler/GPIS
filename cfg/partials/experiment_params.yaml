@@ -7,7 +7,7 @@ vis_grasps: False
 vis_delay: 0.5
 check_collisions: False
 
-grasp_sampler: gaussian
+grasp_sampler: antipodal
 min_num_grasps: 250
 max_num_grasps: 500 # per object
 min_num_collision_free_grasps: 200
@@ -31,3 +31,5 @@ sigma_rot_obj: 0.1
 sigma_scale_obj: 0.025
 num_prealloc_obj_samples: 100 # zero if we want to sample on-line
 num_prealloc_grasp_samples: 0
+
+grasp_symmetry: True
