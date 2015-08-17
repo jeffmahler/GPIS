@@ -46,7 +46,7 @@ oauth_storage:  &id_oauth_storage  oauth2.dat
 bucket:         &id_bucket         dex-net-cm # TODO
 disk_type:      &id_disk_type      PERSISTENT
 num_processes: 8
-results_script: src/grasp_selection/compile_bandit_results.py
+results_script: src/grasp_selection/compile_bandit_prior_results.py
 compute:
   api_version:    v1
   machine_type:   n1-standard-1

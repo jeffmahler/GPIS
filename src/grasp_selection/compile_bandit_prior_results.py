@@ -18,9 +18,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
     parser.add_argument('result_dir')
+    args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
-    config = ec.ExperimentConfig(config_file)
+    config = ec.ExperimentConfig(args.config)
+    result_dir = args.result_dir
 
     # read in all pickle files
     results = []
@@ -71,9 +73,10 @@ if __name__ == '__main__':
     plt.plot(all_results.iters[0], ts_normalized_reward, c=u'g', linewidth=2.0, label='TS (Uncorrelated)')
     plt.plot(all_results.iters[0], ts_corr_normalized_reward, c=u'r', linewidth=2.0, label='TS (Correlated)')
 
-    for ts_corr_prior, label in zip(ts_corr_prior_normalized_reward, config['priors_feature_names']):
+    for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, u'cmb',
+                                           config['priors_feature_names']):
         plt.plot(all_results.iters[0], ts_corr_prior,
-                 c=u'c', linewidth=2.0, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+                 c=color, linewidth=2.0, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
 
     plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)
