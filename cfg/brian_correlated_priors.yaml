@@ -36,6 +36,11 @@ weight_grasp_axis:   3.0
 weight_grasp_angle:  0.0
 weight_gravity:      0.0
 
+# Prior generation parameters ########################################
+prior_neighbor_kernel_l: 10.0
+prior_num_neighbors: 5
+prior_kernel_tolerance: 0.01
+
 # Post-experiment parameters #########################################
 !include partials/plot_params.yaml
 
