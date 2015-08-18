@@ -54,7 +54,7 @@ class BanditCorrelatedPriorExperimentResult:
 
         self.neighbor_kernels = neighbor_kernels
         self.neighbor_pfc_diffs = neighbor_pfc_diffs
-        self.neighbor_distances = neighbor_distance
+        self.neighbor_distances = neighbor_distances
 
         self.obj_key = obj_key
         self.neighbor_keys = neighbor_keys
