@@ -1,3 +1,6 @@
+"""
+Generates plots for the prior correlated bandits experiments
+"""
 import argparse
 import IPython
 import logging
@@ -5,13 +8,14 @@ import matplotlib as mpl; mpl.use('Agg') # this doesn't seem to work...
 import matplotlib.pyplot as plt
 import models
 import numpy as np
+import plotting as p
 import pickle as pkl
 import os
 import sys
 import scipy.spatial.distance as ssd
 
 import correlated_bandits_priors as cb
-from correlated_bandits_priors import BanditCorrelatedExperimentResult
+from correlated_bandits_priors import BanditCorrelatedPriorExperimentResult
 import experiment_config as ec
 
 if __name__ == '__main__':
@@ -47,18 +51,42 @@ if __name__ == '__main__':
                         if p is not None:
                             results.append(p)
 
-    # aggregate results
     if len(results) == 0:
         exit(0)
-
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
 
     # plot params
     line_width = config['line_width']
     font_size = config['font_size']
     dpi = config['dpi']
 
-    # plotting of final results
+    # per-object plots
+    for result in results:
+        # kernel plot
+        p.plot_kernels(result.kernel_matrix, result.true_avg_reward, result.neighbor_kernels, result.neighbor_pfc_diffs)
+        figname = '%s_kernels.png' %(result.obj_key)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+        logging.info('Finished plotting %s', figname)
+
+        # grasp histogram plot
+        p.plot_grasp_histogram(result.true_avg_reward)
+        figname = '%s_grasp_histogram.png' %(result.obj_key)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+        logging.info('Finished plotting %s', figname)
+        
+        # avg reward plot
+        plt.figure()
+        plt.plot(result.iters, result.ua_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
+        plt.plot(result.iters, result.ts_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
+        plt.plot(result.iters, result.ts_corr_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
+        for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, u'cmb',
+                                               config['priors_feature_names']):
+            plt.plot(results.iters, ts_corr_prior,
+                     c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+
+    # aggregate results
+    all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
+
+    # plotting of average final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
     ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
     ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
@@ -69,14 +97,14 @@ if __name__ == '__main__':
         ts_corr_prior_normalized_reward.append(np.mean(ts_corr_prior_rewards, axis=0))
 
     plt.figure()
-    plt.plot(all_results.iters[0], ua_normalized_reward, c=u'b', linewidth=2.0, label='Uniform')
-    plt.plot(all_results.iters[0], ts_normalized_reward, c=u'g', linewidth=2.0, label='TS (Uncorrelated)')
-    plt.plot(all_results.iters[0], ts_corr_normalized_reward, c=u'r', linewidth=2.0, label='TS (Correlated)')
+    plt.plot(all_results.iters[0], ua_normalized_reward, c=u'b', linewidth=line_width, label='Uniform')
+    plt.plot(all_results.iters[0], ts_normalized_reward, c=u'g', linewidth=line_width, label='TS (Uncorrelated)')
+    plt.plot(all_results.iters[0], ts_corr_normalized_reward, c=u'r', linewidth=line_width, label='TS (Correlated)')
 
     for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, u'cmb',
                                            config['priors_feature_names']):
         plt.plot(all_results.iters[0], ts_corr_prior,
-                 c=color, linewidth=2.0, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+                 c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
 
     plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)
@@ -90,21 +118,3 @@ if __name__ == '__main__':
     figname = 'avg_reward.png'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
     logging.info('Finished plotting %s', figname)
-
-    exit(0)
-
-    # plot kernels
-    for nearest_features_name in nearest_features_names:
-        plot_kernels_for_key(obj, chunk, config, priors_dataset, nearest_features_names[0])
-        fname = nearest_features_name.replace('nearest_features', '%s_kernels' %(obj.key))
-        plt.savefig(os.path.join(result_dir, fname), dpi=dpi)
-
-    # plot histograms
-    num_bins = 100
-    bin_edges = np.linspace(0, 1, num_bins+1)
-    plt.figure()
-    n, bins, patches = plt.hist(experiment_result.true_avg_reward, bin_edges)
-    plt.xlabel('Probability of Success', fontsize=font_size)
-    plt.ylabel('Num Grasps', fontsize=font_size)
-    plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
-    plt.savefig(os.path.join(result_dir,  obj.key+'_histogram.png'), dpi=dpi)

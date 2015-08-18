@@ -3,7 +3,7 @@ window_steps: 13
 window_sigma: 1.0
 kernel_sigma: 1.0
 kernel_l: 1.0
-kernel_tolerance: 0.2
+kernel_tolerance: 0.05
 prior_neighbor_kernel_l: 8.0
 prior_neighbor_distance: 20
 prior_num_neighbors: 5

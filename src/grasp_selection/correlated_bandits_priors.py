@@ -38,10 +38,11 @@ import scipy.spatial.distance as ssd
 
 from correlated_bandits import experiment_hash, reward_vs_iters
 
-class BanditCorrelatedExperimentResult:
+class BanditCorrelatedPriorExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_reward,
                  true_avg_reward, iters, kernel_matrix,
-                 obj_key='', num_objects=1):
+                 neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
+                 obj_key='', neighbor_keys=[], num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
@@ -51,7 +52,12 @@ class BanditCorrelatedExperimentResult:
         self.iters = iters
         self.kernel_matrix = kernel_matrix
 
+        self.neighbor_kernels = neighbor_kernels
+        self.neighbor_pfc_diffs = neighbor_pfc_diffs
+        self.neighbor_distances = neighbor_distance
+
         self.obj_key = obj_key
+        self.neighbor_keys = neighbor_keys
         self.num_objects = num_objects
 
     def save(self, out_dir):
@@ -88,21 +94,23 @@ class BanditCorrelatedExperimentResult:
         iters = [r.iters for r in result_list]
         kernel_matrices = [r.kernel_matrix for r in result_list]
 
-        return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
-                                                true_avg_rewards,
-                                                iters,
-                                                kernel_matrices,
-                                                obj_keys,
-                                                len(result_list))
+        neighbor_kernels = [r.neighbor_kernels for r in result_list]
+        neighbor_pfc_diffs = [r.neighbor_pfc_diffs for r in result_list]
+        neighbor_distances = [r.neighbor_distances for r in result_list]
+        neighbor_keys = [r.neighbor_keys for r in result_list]
 
-def label_correlated(obj, chunk, config, plot=False,
-                     priors_dataset=None, nearest_features_names=None):
-    """Label an object with grasps according to probability of force closure,
-    using correlated bandits."""
-    bandit_start = time.clock()
+        return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
+                                                     true_avg_rewards,
+                                                     iters,
+                                                     kernel_matrices,
+                                                     neighbor_kernels,
+                                                     neighbor_pfc_diffs,
+                                                     neighbor_keys,
+                                                     obj_keys,
+                                                     neighbor_keys,
+                                                     len(result_list))
 
-    np.random.seed(100)
-
+def load_candidate_grasps(obj, chunk):
     # load grasps from database
     sample_start = time.clock()
     grasps = chunk.load_grasps(obj.key)
@@ -124,15 +132,6 @@ def label_correlated(obj, chunk, config, plot=False,
     logging.info('Loaded %d features' %(len(all_features)))
     logging.info('Grasp feature loading took %f sec' %(feature_duration))
 
-    # bandit params
-    num_trials = config['num_trials']
-    max_iter = config['bandit_max_iter']
-    confidence = config['bandit_confidence']
-    snapshot_rate = config['bandit_snapshot_rate']
-    tc_list = [
-        tc.MaxIterTerminationCondition(max_iter),
-        ]
-
     # run bandits!
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
@@ -148,6 +147,28 @@ def label_correlated(obj, chunk, config, plot=False,
             pfc_rv.set_features(features)
             candidates.append(pfc_rv)
 
+    return candidates
+
+
+def label_correlated(obj, chunk, config, plot=False,
+                     priors_dataset=None, nearest_features_names=None):
+    """Label an object with grasps according to probability of force closure,
+    using correlated bandits."""
+    # bandit params
+    num_trials = config['num_trials']
+    max_iter = config['bandit_max_iter']
+    confidence = config['bandit_confidence']
+    snapshot_rate = config['bandit_snapshot_rate']
+    tc_list = [
+        tc.MaxIterTerminationCondition(max_iter),
+        ]
+
+    bandit_start = time.clock()
+
+    np.random.seed(100)
+
+    candidates = load_candidate_grasps(obj, chunk)
+
     # feature transform
     def phi(rv):
         return rv.features
@@ -161,6 +182,7 @@ def label_correlated(obj, chunk, config, plot=False,
     if priors_dataset is None:
         priors_dataset = chunk
     prior_engine = pce.PriorComputationEngine(priors_dataset, config)
+    neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
 
     all_alpha_priors = []
     all_beta_priors = []
@@ -209,7 +231,8 @@ def label_correlated(obj, chunk, config, plot=False,
             ts_corr_prior = das.CorrelatedThompsonSampling(
                 objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
             logging.info('Running correlated Thompson sampling with priors.')
-            ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+            ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list),
+                                                       snapshot_rate=snapshot_rate)
             ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, estimated_pfc)
             ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
 
@@ -239,41 +262,14 @@ def label_correlated(obj, chunk, config, plot=False,
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
-    return BanditCorrelatedExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
-                                            all_avg_ts_corr_prior_rewards,
-                                            estimated_pfc, ua_result.iters, kernel_matrix, obj_key=obj.key)
+    return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
+                                                 all_avg_ts_corr_prior_rewards,
+                                                 estimated_pfc, ua_result.iters, kernel_matrix,
+                                                 all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances,
+                                                 obj_key=obj.key, neighbor_keys=neighbor_keys)
 
 def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):
-    # load grasps from database
-    grasps = chunk.load_grasps(obj.key)
-    logging.info('Loaded %d grasps' %(len(grasps)))
-
-    if not grasps:
-        logging.info('Skipping %s' %(obj.key))
-        return None
-
-    # load features for all grasps
-    feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
-    all_features = feature_loader.load_all_features(grasps) # in same order as grasps
-    feature_end = time.clock()
-    feature_duration = feature_end - feature_start
-    logging.info('Loaded %d features' %(len(all_features)))
-    logging.info('Grasp feature loading took %f sec' %(feature_duration))
-
-    graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
-    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
-
-    candidates = []
-    for grasp, features in zip(grasps, all_features):
-        logging.info('Adding grasp %d' %len(candidates))
-        grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
-        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if features is None:
-            logging.info('Could not compute features for grasp.')
-        else:
-            pfc_rv.set_features(features)
-            candidates.append(pfc_rv)
+    candidates = load_candidate_grasps(obj, chunk)
 
     if priors_dataset is None:
         priors_dataset = chunk
@@ -315,41 +311,7 @@ def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_featur
     plt.legend(scatter_objs, labels)
 
 def plot_prior_diffs(obj, chunk, config, nearest_features_name=None):
-    # load grasps from database
-    sample_start = time.clock()
-    grasps = chunk.load_grasps(obj.key)
-    sample_end = time.clock()
-    sample_duration = sample_end - sample_start
-    logging.info('Loaded %d grasps' %(len(grasps)))
-    logging.info('Grasp candidate loading took %f sec' %(sample_duration))
-
-    if not grasps:
-        logging.info('Skipping %s' %(obj.key))
-        return None
-
-    # run bandits!
-    graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
-    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
-
-    # load features for all grasps
-    feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
-    all_features = feature_loader.load_all_features(grasps) # in same order as grasps
-    feature_end = time.clock()
-    feature_duration = feature_end - feature_start
-    logging.info('Loaded %d features' %(len(all_features)))
-    logging.info('Grasp feature loading took %f sec' %(feature_duration))
-
-    candidates = []
-    for grasp, features in zip(grasps, all_features):
-        logging.info('Adding grasp %d' %len(candidates))
-        grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
-        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if features is None:
-            logging.info('Could not compute features for grasp.')
-        else:
-            pfc_rv.set_features(features)
-            candidates.append(pfc_rv)
+    candidates = load_candidate_grasps(obj, chunk)
 
     prior_engine = pce.PriorComputationEngine(chunk, config)
     alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
@@ -390,7 +352,7 @@ def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
         exit(0)
 
     # combine results
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
 
     logging.info('Creating and saving plots...')
 
@@ -490,4 +452,4 @@ if __name__ == '__main__':
 
     if config['plot']:
         # combine results
-        all_results = BanditCorrelatedExperimentResult.compile_results(results)
+        all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
