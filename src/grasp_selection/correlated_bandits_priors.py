@@ -195,7 +195,10 @@ def label_correlated(obj, chunk, config, plot=False,
             all_alpha_priors.append(alpha_priors)
             all_beta_priors.append(beta_priors)
 
-    neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
+    if nearest_features_name == None:
+        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
+    else:
+        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates, nearest_features_name=nearest_features_name)
 
     # pre-computed pfc values
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
