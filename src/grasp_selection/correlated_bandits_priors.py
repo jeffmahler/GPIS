@@ -95,14 +95,7 @@ class BanditCorrelatedExperimentResult:
                                                 obj_keys,
                                                 len(result_list))
 
-def label_correlated(obj, chunk, config, plot=False,
-                     priors_dataset=None, nearest_features_names=None):
-    """Label an object with grasps according to probability of force closure,
-    using correlated bandits."""
-    bandit_start = time.clock()
-
-    np.random.seed(100)
-
+def load_candidate_grasps(obj, chunk):
     # load grasps from database
     sample_start = time.clock()
     grasps = chunk.load_grasps(obj.key)
@@ -124,15 +117,6 @@ def label_correlated(obj, chunk, config, plot=False,
     logging.info('Loaded %d features' %(len(all_features)))
     logging.info('Grasp feature loading took %f sec' %(feature_duration))
 
-    # bandit params
-    num_trials = config['num_trials']
-    max_iter = config['bandit_max_iter']
-    confidence = config['bandit_confidence']
-    snapshot_rate = config['bandit_snapshot_rate']
-    tc_list = [
-        tc.MaxIterTerminationCondition(max_iter),
-        ]
-
     # run bandits!
     graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
@@ -147,6 +131,28 @@ def label_correlated(obj, chunk, config, plot=False,
         else:
             pfc_rv.set_features(features)
             candidates.append(pfc_rv)
+
+    return candidates
+
+
+def label_correlated(obj, chunk, config, plot=False,
+                     priors_dataset=None, nearest_features_names=None):
+    """Label an object with grasps according to probability of force closure,
+    using correlated bandits."""
+    # bandit params
+    num_trials = config['num_trials']
+    max_iter = config['bandit_max_iter']
+    confidence = config['bandit_confidence']
+    snapshot_rate = config['bandit_snapshot_rate']
+    tc_list = [
+        tc.MaxIterTerminationCondition(max_iter),
+        ]
+
+    bandit_start = time.clock()
+
+    np.random.seed(100)
+
+    candidates = load_candidate_grasps(obj, chunk)
 
     # feature transform
     def phi(rv):
@@ -244,36 +250,7 @@ def label_correlated(obj, chunk, config, plot=False,
                                             estimated_pfc, ua_result.iters, kernel_matrix, obj_key=obj.key)
 
 def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):
-    # load grasps from database
-    grasps = chunk.load_grasps(obj.key)
-    logging.info('Loaded %d grasps' %(len(grasps)))
-
-    if not grasps:
-        logging.info('Skipping %s' %(obj.key))
-        return None
-
-    # load features for all grasps
-    feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
-    all_features = feature_loader.load_all_features(grasps) # in same order as grasps
-    feature_end = time.clock()
-    feature_duration = feature_end - feature_start
-    logging.info('Loaded %d features' %(len(all_features)))
-    logging.info('Grasp feature loading took %f sec' %(feature_duration))
-
-    graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
-    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
-
-    candidates = []
-    for grasp, features in zip(grasps, all_features):
-        logging.info('Adding grasp %d' %len(candidates))
-        grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
-        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if features is None:
-            logging.info('Could not compute features for grasp.')
-        else:
-            pfc_rv.set_features(features)
-            candidates.append(pfc_rv)
+    candidates = load_candidate_grasps(obj, chunk)
 
     if priors_dataset is None:
         priors_dataset = chunk
@@ -315,41 +292,7 @@ def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_featur
     plt.legend(scatter_objs, labels)
 
 def plot_prior_diffs(obj, chunk, config, nearest_features_name=None):
-    # load grasps from database
-    sample_start = time.clock()
-    grasps = chunk.load_grasps(obj.key)
-    sample_end = time.clock()
-    sample_duration = sample_end - sample_start
-    logging.info('Loaded %d grasps' %(len(grasps)))
-    logging.info('Grasp candidate loading took %f sec' %(sample_duration))
-
-    if not grasps:
-        logging.info('Skipping %s' %(obj.key))
-        return None
-
-    # run bandits!
-    graspable_rv = pfc.GraspableObjectGaussianPose(obj, config)
-    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
-
-    # load features for all grasps
-    feature_start = time.clock()
-    feature_loader = ff.GraspableFeatureLoader(obj, chunk.name, config)
-    all_features = feature_loader.load_all_features(grasps) # in same order as grasps
-    feature_end = time.clock()
-    feature_duration = feature_end - feature_start
-    logging.info('Loaded %d features' %(len(all_features)))
-    logging.info('Grasp feature loading took %f sec' %(feature_duration))
-
-    candidates = []
-    for grasp, features in zip(grasps, all_features):
-        logging.info('Adding grasp %d' %len(candidates))
-        grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
-        pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
-        if features is None:
-            logging.info('Could not compute features for grasp.')
-        else:
-            pfc_rv.set_features(features)
-            candidates.append(pfc_rv)
+    candidates = load_candidate_grasps(obj, chunk)
 
     prior_engine = pce.PriorComputationEngine(chunk, config)
     alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
