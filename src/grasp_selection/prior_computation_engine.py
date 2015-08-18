@@ -56,8 +56,8 @@ class PriorComputationEngine:
 		alpha_priors = []
 		beta_priors = []
 		for candidate in candidates:
-			alpha = 1
-			beta = 1
+			alpha = 1.0
+			beta = 1.0
 			for neighbor_key in neighbor_grasps_dict:
 				object_distance = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector_dict[neighbor_key])
 				neighbor_features = neighbor_features_dict[neighbor_key]
@@ -117,8 +117,8 @@ class PriorComputationEngine:
 		neighbor_kernels = []
 		object_distance = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector)
 		for candidate in candidates:
-			alpha = 1
-			beta = 1
+			alpha = 1.0
+			beta = 1.0
 			for neighbor_grasp, features in zip(grasps, all_features):
 				features = self._transfer_features(features, neighbor_grasp, reg_solver)
 				grasp_distance = self.grasp_kernel(candidate.features, features.phi)
