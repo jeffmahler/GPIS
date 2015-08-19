@@ -8,6 +8,8 @@ from abc import ABCMeta, abstractmethod
 import numbers
 import numpy as np
 
+import kernels
+
 class Objective:
     __metaclass__ = ABCMeta
 
@@ -217,7 +219,7 @@ class StochasticLogisticCrossEntropyObjective(LogisticCrossEntropyObjective):
         return 2 - np.dot(np.dot(x.T, np.diag(mu * (1 - mu))), x)
 
 class StochasticGraspWeightObjective(DifferentiableObjective):
-    def __init__(self, X, S, F):
+    def __init__(self, X, S, F, config):
         self.X_ = X     # design matrix
         self.S_ = S     # num successes
         self.F_ = F     # num failures
@@ -228,24 +230,29 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         self.num_grasps_ = S.shape[0]
         self.num_features_ = X.shape[1]
 
+        self.config_ = config
+
         if not (X.shape[0] == S.shape[0] == F.shape[0]):
-            raise ValueError('Dimension mismatch')
+            raise ValueError('Dimension mismatch: %d %d %d' %(X.shape[0], S.shape[0], F.shape[0]))
 
     def check_valid_input(self, w):
         if not isinstance(w, np.ndarray):
             raise ValueError('Grasp weight objective only works with np.ndarrays')
-        if w.shape[0] == self.num_features_:
-            raise ValueError('weight vector dimension mismatch')
+        if w.shape[0] != self.num_features_:
+            raise ValueError('weight vector dimension mismatch: %d %d' %(w.shape[0], self.num_features_))
 
     def kernel(self, w):
         def phi(row):
             return w * row
         return kernels.SquaredExponentialKernel(
-            sigma=config['kernel_sigma'], l=config['kernel_l'], phi=phi)
+            sigma=self.config_['kernel_sigma'], l=self.config_['kernel_l'], phi=phi)
 
     def evaluate(self, w):
         self.check_valid_input(w)
         kernel = self.kernel(w)
+
+        # kernel_matrix = kernel.matrix(self.X_)
+        # alpha = 1 + np.dot(kernel_matrix, self.S_) - kernel * self.S_
 
         total = 0
         for i in range(self.num_grasps_):
@@ -256,35 +263,37 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
             alpha_i = 1 + sum(alpha for j, alpha in enumerate(alphas) if i != j)
             beta_i = 1 + sum(beta for j, beta in enumerate(betas) if i != j)
             total += self.mu_[i] * np.log(alpha_i) + (1 - self.mu_[i]) * np.log(beta_i) - np.log(alpha_i + beta_i)
-        return total
+        return -total
 
     def get_random_datum(self):
         i = np.random.randint(self.num_grasps_, size=self.batch_size)
         x = self.X_[i, :]
         without_x = np.delete(self.X_, i, 0)
-        return x, without_x
+        return x, without_x, i
 
     def gradient(self, w):
         self.check_valid_input(w)
         kernel = self.kernel(w)
         x, without_x, i = self.get_random_datum()
 
-        kernels = [kernel(x, xj) for xj in self.X_]
+        kernels = np.array([kernel(x, xj) for xj in self.X_])
         alphas = kernels * self.S_
         betas = kernels * self.F_
 
-        kernels = np.delete(kernels, i)
         alpha_i = 1 + sum(alpha for j, alpha in enumerate(alphas) if i != j)
         beta_i = 1 + sum(beta for j, beta in enumerate(betas) if i != j)
 
-        total = 0
-        norm = np.delete(np.linalg.norm(self.X_ - x), i, 0)
-        v = w * norm * norm
+        v = w * np.square(self.X_ - x)
+        vi = np.delete(v, i, axis=0)
 
-        return kernels * v * \
+        scale = kernels * \
             ((self.S_ * self.S_ / alpha_i / self.N_) + \
              (self.F_ * self.F_ / beta_i / self.N_) + \
              self.N_ / (alpha_i + beta_i))
+        scale = np.delete(scale, i)
+
+        gradient = np.dot(scale, vi)
+        return gradient
 
     def hessian(self, w):
         raise NotImplementedError

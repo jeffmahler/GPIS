@@ -92,6 +92,8 @@ class IterativeLocalOptimizer(solvers.OptimizationSolver):
                 iters.append(k)
                 iter_x.append(cur_x)
 
+                if cur_f is None:
+                    cur_f = self.objective_(cur_x)
                 iter_f.append(cur_f)
                 if cur_grad_f is not None:
                     iter_grads.append(cur_grad_f)
@@ -171,8 +173,8 @@ class UnconstrainedGradientAscent(IterativeLocalOptimizer):
 
     def update(self, x, iteration, f = None, grad_f = None, hess_f = None):
         """ Compute the next point based on gradient ascent """
-        if f is None:
-            f = self.objective_(x)
+        # if f is None:
+        #     f = self.objective_(x)
         if grad_f is None:
             grad_f = self.objective_.gradient(x)
 
@@ -181,9 +183,23 @@ class UnconstrainedGradientAscent(IterativeLocalOptimizer):
         next_x = x + step_size * grad_f
 
         # function value at new point
-        next_f = self.objective_(next_x)
-        next_grad_f = self.objective_.gradient(next_x)
+        next_f = None # self.objective_(next_x)
+        next_grad_f = None # self.objective_.gradient(next_x)
         return next_x, next_f, next_grad_f, None
+
+class ConstrainedGradientAscent(UnconstrainedGradientAscent):
+    def __init__(self, objective, step_policy, constraints):
+        UnconstrainedGradientAscent.__init__(self, objective, step_policy)
+        self.constraints_ = constraints
+
+    def update(self, x, iteration, f=None, grad_f=None, hess_f=None):
+        if grad_f is None:
+            grad_f = self.objective_.gradient(x)
+        step_size = self.step_policy_.step_size(self.objective_, x, iteration)
+        next_x = x + step_size * grad_f
+        for constraint in self.constraints_:
+            next_x = constraint(next_x)
+        return next_x, None, None, None
 
 def plot_value_vs_time_gradient(result, true_max, title=''):
     plt.figure()
