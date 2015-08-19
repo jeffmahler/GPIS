@@ -8,7 +8,7 @@ import matplotlib as mpl; mpl.use('Agg') # this doesn't seem to work...
 import matplotlib.pyplot as plt
 import models
 import numpy as np
-import plotting as p
+import plotting
 import pickle as pkl
 import os
 import sys
@@ -62,13 +62,17 @@ if __name__ == '__main__':
     # per-object plots
     for result in results:
         # kernel plot
-        p.plot_kernels(result.kernel_matrix, result.true_avg_reward, result.neighbor_kernels, result.neighbor_pfc_diffs)
+        pfc_arr = np.array([result.true_avg_reward]).T
+        pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+        plotting.plot_kernels(result.obj_key, result.kernel_matrix, pfc_diff,
+                              result.neighbor_kernels, result.neighbor_pfc_diffs, result.neighbor_keys,
+                              font_size=font_size)
         figname = '%s_kernels.png' %(result.obj_key)
         plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
         logging.info('Finished plotting %s', figname)
 
         # grasp histogram plot
-        p.plot_grasp_histogram(result.true_avg_reward)
+        plotting.plot_grasp_histogram(result.true_avg_reward, font_size=font_size)
         figname = '%s_grasp_histogram.png' %(result.obj_key)
         plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
         logging.info('Finished plotting %s', figname)
@@ -78,10 +82,16 @@ if __name__ == '__main__':
         plt.plot(result.iters, result.ua_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
         plt.plot(result.iters, result.ts_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
         plt.plot(result.iters, result.ts_corr_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
-        for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, u'cmb',
+        for ts_corr_prior, color, label in zip(result.ts_corr_prior_reward, u'cmb',
                                                config['priors_feature_names']):
-            plt.plot(results.iters, ts_corr_prior,
+            plt.plot(result.iters, ts_corr_prior,
                      c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+        handles, labels = plt.gca().get_legend_handles_labels()
+        plt.legend(handles, labels, loc='lower right')
+
+        figname = '%s_avg_reward.png' %(result.obj_key)
+        plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+        logging.info('Finished plotting %s', figname)
 
     # aggregate results
     all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
