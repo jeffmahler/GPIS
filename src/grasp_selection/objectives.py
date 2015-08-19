@@ -251,8 +251,13 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         self.check_valid_input(w)
         kernel = self.kernel(w)
 
+        # vectorized? not good for approximations
         # kernel_matrix = kernel.matrix(self.X_)
-        # alpha = 1 + np.dot(kernel_matrix, self.S_) - kernel * self.S_
+        # alpha = 1 + np.dot(kernel_matrix, self.S_) - self.S_
+        # beta = 1 + np.dot(kernel_matrix, self.F_) - self.F_
+        # return -np.sum(self.mu_ * np.log(alpha) + \
+        #                (1 - self.mu_) * np.log(beta) - \
+        #                np.log(alpha + beta))
 
         total = 0
         for i in range(self.num_grasps_):
@@ -262,7 +267,9 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
             betas = kernels * self.F_
             alpha_i = 1 + sum(alpha for j, alpha in enumerate(alphas) if i != j)
             beta_i = 1 + sum(beta for j, beta in enumerate(betas) if i != j)
-            total += self.mu_[i] * np.log(alpha_i) + (1 - self.mu_[i]) * np.log(beta_i) - np.log(alpha_i + beta_i)
+            total += self.mu_[i] * np.log(alpha_i) + \
+                     (1 - self.mu_[i]) * np.log(beta_i) - \
+                     np.log(alpha_i + beta_i)
         return -total
 
     def get_random_datum(self):

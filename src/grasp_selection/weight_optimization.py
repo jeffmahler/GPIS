@@ -28,6 +28,8 @@ config = {
 
     'kernel_sigma': 1.0,
     'kernel_l': 1.0,
+
+    'plot': True,
 }
 
 def load_data(path, config):
@@ -80,11 +82,11 @@ if __name__ == '__main__':
     np.random.seed(100)
 
     grasps, data = load_data('grasp_features.hdf5', config)
-    successes = np.array([g.successes for g in grasps])
-    failures = np.array([g.failures for g in grasps])
+    successes = np.array([g.successes for g in grasps]) - 1
+    failures = np.array([g.failures for g in grasps]) - 1
 
-    objective = MinimizationObjective(
-        StochasticGraspWeightObjective(data, successes, failures, config))
+    loss = StochasticGraspWeightObjective(data, successes, failures, config)
+    objective = MinimizationObjective(loss)
     step_policy = ilo.DecayingStepPolicy(10, 1000)
     def positive_constraint(x):
         x[x < 0] = 0
@@ -97,4 +99,31 @@ if __name__ == '__main__':
     logging.info('Starting optimization.')
     result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(5000),
                              snapshot_rate=100, start_x=start, true_x=None)
+
+    proj_win_weight = result.best_x
+    max_weight = np.max(proj_win_weight)
+    opt_weights = proj_win_weight.reshape((2, config['window_steps'], config['window_steps']))
+    rand_weights = start.reshape((2, config['window_steps'], config['window_steps']))
+
+    if config['plot']:
+        import matplotlib.pyplot as plt
+
+        # plot weight vectors
+        for weight in (rand_weights, opt_weights):
+            fig, axes = plt.subplots(nrows=1, ncols=2)
+            for ax, w in zip(axes.flat, weight):
+                im = ax.imshow(w, interpolation='none',
+                               vmin=0, vmax=1, cmap=plt.cm.binary)
+
+            fig.subplots_adjust(right=0.8)
+            cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+            fig.colorbar(im, cax=cbar_ax)
+
+        # plot minimization loss over time (should be increasing)
+        plt.figure()
+        plt.plot(result.iters, result.vals_f, color='blue', linewidth=2)
+        plt.xlabel('Iteration')
+        plt.ylabel('Minimization Objective Value')
+        plt.show()
+
     IPython.embed()
