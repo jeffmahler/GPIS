@@ -225,7 +225,7 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         self.F_ = F     # num failures
         self.N_ = S + F # num trials
 
-        self.mu_ = S / F
+        self.mu_ = S / (S + F)
         self.batch_size = 1 # hard-coded for now
         self.num_grasps_ = S.shape[0]
         self.num_features_ = X.shape[1]
@@ -251,7 +251,7 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         self.check_valid_input(w)
         kernel = self.kernel(w)
 
-        # vectorized? not good for approximations
+        # vectorized equivalent(?) not good for approximations
         # kernel_matrix = kernel.matrix(self.X_)
         # alpha = 1 + np.dot(kernel_matrix, self.S_) - self.S_
         # beta = 1 + np.dot(kernel_matrix, self.F_) - self.F_
@@ -294,9 +294,9 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         vi = np.delete(v, i, axis=0)
 
         scale = kernels * \
-            ((self.S_ * self.S_ / alpha_i / self.N_) + \
-             (self.F_ * self.F_ / beta_i / self.N_) + \
-             self.N_ / (alpha_i + beta_i))
+                ((self.mu_[i] * self.S_ / alpha_i) + \
+                 ((1 - self.mu_[i]) * self.F_ / beta_i) + \
+                 self.N_ / (alpha_i + beta_i))
         scale = np.delete(scale, i)
 
         gradient = np.dot(scale, vi)

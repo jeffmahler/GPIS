@@ -95,6 +95,69 @@ class GraspableObjectGaussianPose:
         # generate a new sample
         return self.sample(size=size)
 
+class ParamsGaussian:
+    def __init__(self,params,config):
+        self.params_=params
+        self._parse_config(config)
+	if (params is not None) and (params['target_wrench'].shape==(2,3)):
+            self.f_rv_=scipy.stats.multivariate_normal(self.params_['target_wrench'][0], self.params_forces_**2) #figure out forces
+            self.t_rv_=scipy.stats.multivariate_normal(self.params_['target_wrench'][1], self.params_torques_**2) #figure out torques
+            self.f_l_rv_=scipy.stats.norm(self.params_['force_limits'],self.params_scale_**2)
+        else:
+            self.f_rv_=scipy.stats.multivariate_normal(np.zeros(3),self.params_forces_**2)
+            self.t_rv_=scipy.stats.multivariate_normal(np.zeros(3),self.params_torques_**2)
+            self.f_l_rv_=scipy.stats.norm(0,self.params_scale_**2)
+        if self._num_prealloc_samples_>0:
+            self._preallocate_samples()
+            
+
+    def _parse_config(self,config):
+        self.params_forces_=config['sigma_forces_params']
+        self.params_torques_=config['sigma_torques_params']
+        self.params_scale_=config['sigma_scale_params']
+        self.num_prealloc_sample_=config['num_prealloc_params_samples'] 
+
+    def _preallocate_samples(self):
+        self.prealloc_samples_=[]
+        for i in range(slef.num_prealloc_samples_):
+            self.prealloc_samples_.append(self.sample())
+
+    @property
+    def params(self):
+        return self.params_ 
+
+    def sample(self,size=1):
+        samples = []
+        for i in range(size):
+            # sample random pose
+            f = self.f_rv_.rvs(size=1)
+            f_l=self.f_l_rv_.rvs(size=1)
+ 
+            t = self.t_rv_.rvs(size=1)
+
+
+            # transform object by pose
+            params_wrench_sample = np.vstack((f,t))
+            params_dict_sample={'force_limits':f_l,'target_wrench':params_wrench_sample}
+
+            samples.append(params_dict_sample)
+
+        if size == 1:
+            return samples[0]
+        return samples
+
+    def rvs(self, size=1, iteration=1):
+        """ Samples |size| random variables """
+        if self.num_prealloc_samples_ > 0:
+            samples = []
+            for i in range(size):
+                samples.append(self.prealloc_samples_[(iteration + i) % self.num_prealloc_samples_])
+            if size == 1:
+                return samples[0]
+            return samples
+        # generate a new sample
+        return self.sample(size=size)
+
 class ParallelJawGraspGaussian:
     def __init__(self, grasp, config):
         self.grasp_ = grasp
@@ -128,6 +191,7 @@ class ParallelJawGraspGaussian:
             # sample random pose
             xi = self.r_xi_rv_.rvs(size=1)
             S_xi = skew(xi)
+            
             v = scipy.linalg.expm(S_xi).dot(self.grasp_.axis)
             t = self.t_rv_.rvs(size=1)
 
@@ -152,6 +216,66 @@ class ParallelJawGraspGaussian:
             return samples
         # generate a new sample
         return self.sample(size=size)
+
+class PartialClosureRV:
+    """RV class for grasps in partial closure on an object"""
+    def __init__(self,grasp_rv,obj_rv,friction_coef_rv,config,params_rv):
+        self.grasp_rv_=grasp_rv
+        self.obj_rv_ = obj_rv
+        self.friction_coef_rv_ = friction_coef_rv # scipy stat rv
+        self.features_ = None
+
+        self._parse_config(config)
+        self.sample_count_ = 0
+        self.params_rv_=params_rv
+
+    def _parse_config(self, config):
+        """ Grab config data from the config file """
+        self.num_cone_faces_ = config['num_cone_faces']
+
+    @property
+    def grasp(self):
+        return self.grasp_rv_.grasp
+
+    def set_features(self, features):
+        self.features_ = features
+
+    @property
+    def features(self):
+        if self.features_ is None:
+            logging.warning('Features are uninitialized.')
+        else:
+            return self.features_.phi
+
+    def sample_success(self):
+        # sample grasp
+        cur_time = time.clock()
+        grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
+        grasp_time = time.clock()
+
+        # sample object
+        obj_sample = self.obj_rv_.rvs(size=1, iteration=self.sample_count_)
+        obj_time = time.clock()
+
+        # sample friction cone
+        friction_coef_sample = self.friction_coef_rv_.rvs(size=1)
+        friction_time = time.clock()
+
+        #sample params
+        params_rv_sample=self.params_rv_.rvs(size=1,iteration=self.sample_count_)
+        params_time=time.clock()
+
+        #logging.info('Grasp sample time %f'%(grasp_time - cur_time))
+        #logging.info('Obj sample time %f'%(obj_time - grasp_time))
+        #logging.info('Friction sample time %f'%(friction_time - obj_time))
+	
+
+        # compute force closure
+        fc = pgq.PointGraspMetrics3D.grasp_quality(grasp_sample, obj_sample, "partial_closure", friction_coef = friction_coef_sample,
+                                                   num_cone_faces = self.num_cone_faces_, soft_fingers = True, params=params_rv_sample)
+        self.sample_count_ = self.sample_count_ + 1
+        return fc
+
 
 class ForceClosureRV:
     """ RV class for grasps in force closure on an object """
@@ -181,14 +305,6 @@ class ForceClosureRV:
             logging.warning('Features are uninitialized.')
         else:
             return self.features_.phi
-
-    @property
-    def swapped_features(self):
-        if self.features_ is None:
-            logging.warning('Features are uninitialized.')
-        else:
-            swapped = self.features_.swap_windows()
-            return swapped.phi
 
     def sample_success(self):
         # sample grasp
@@ -262,7 +378,7 @@ def space_partition_grasps(grasps, config):
 
 def plot_value_vs_time_beta_bernoulli(result, candidate_true_p, true_max=None, color='blue'):
     """ Plots the number of samples for each value in for a discrete adaptive sampler"""
-    best_values = [candidate_true_p[pred_ind] for pred_ind in result.best_pred_ind]
+    best_values = [candidate_true_p[m.best_pred_ind] for m in result.models]
     plt.plot(result.iters, best_values, color=color, linewidth=2)
     if true_max is not None: # also plot best possible
         plt.plot(result.iters, true_max*np.ones(len(result.iters)), color='green', linewidth=2)
