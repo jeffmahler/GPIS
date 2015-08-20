@@ -84,17 +84,18 @@ if __name__ == '__main__':
     grasps, data = load_data('grasp_features.hdf5', config)
     successes = np.array([g.successes for g in grasps]) - 1
     failures = np.array([g.failures for g in grasps]) - 1
+    weight_range = (25, 55)
 
     loss = StochasticGraspWeightObjective(data, successes, failures, config)
     objective = MinimizationObjective(loss)
-    step_policy = ilo.DecayingStepPolicy(10, 1000)
+    step_policy = ilo.LogStepPolicy(10, 1000)
     def positive_constraint(x):
         x[x < 0] = 0
         return x
     # optimizer = ilo.UnconstrainedGradientAscent(objective, step_policy)
     optimizer = ilo.ConstrainedGradientAscent(objective, step_policy,
                                               [positive_constraint])
-    start = np.random.rand(2 * config['window_steps']**2)
+    start = np.random.uniform(*weight_range, size=2 * config['window_steps']**2)
 
     logging.info('Starting optimization.')
     result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(5000),
@@ -105,6 +106,7 @@ if __name__ == '__main__':
     opt_weights = proj_win_weight.reshape((2, config['window_steps'], config['window_steps']))
     rand_weights = start.reshape((2, config['window_steps'], config['window_steps']))
 
+    logging.info('Loss: %f to %f', loss(start), loss(result.best_x))
     if config['plot']:
         import matplotlib.pyplot as plt
 
@@ -113,17 +115,39 @@ if __name__ == '__main__':
             fig, axes = plt.subplots(nrows=1, ncols=2)
             for ax, w in zip(axes.flat, weight):
                 im = ax.imshow(w, interpolation='none',
-                               vmin=0, vmax=1, cmap=plt.cm.binary)
+                               vmin=weight_range[0], vmax=weight_range[1],
+                               cmap=plt.cm.binary)
 
             fig.subplots_adjust(right=0.8)
             cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
             fig.colorbar(im, cax=cbar_ax)
 
-        # plot minimization loss over time (should be increasing)
+        # plot error over time (should be decreasing)
         plt.figure()
-        plt.plot(result.iters, result.vals_f, color='blue', linewidth=2)
+        loss_over_time = -np.array(result.vals_f)
+        plt.plot(result.iters, loss_over_time, color='blue', linewidth=2)
         plt.xlabel('Iteration')
-        plt.ylabel('Minimization Objective Value')
-        plt.show()
+        plt.ylabel('Cross-Entropy Error')
+        plt.show(block=False)
+
+    def min_and_max(arr):
+        return np.min(arr), np.max(arr)
+
+    ground_truth = loss.mu_
+    logging.info('Actual pfc range: %s', min_and_max(ground_truth))
+
+    random_kernel = loss.kernel(start)
+    random_kernel_matrix = random_kernel.matrix(loss.X_)
+    random_alpha = 1 + np.dot(random_kernel_matrix, loss.S_) - loss.S_
+    random_beta = 1 + np.dot(random_kernel_matrix, loss.F_) - loss.F_
+    random_predicted = random_alpha / (random_alpha + random_beta)
+    logging.info('Initial random pfc range: %s', min_and_max(random_predicted))
+
+    kernel = loss.kernel(proj_win_weight)
+    kernel_matrix = kernel.matrix(loss.X_)
+    alpha = 1 + np.dot(kernel_matrix, loss.S_) - loss.S_
+    beta = 1 + np.dot(kernel_matrix, loss.F_) - loss.F_
+    predicted = alpha / (alpha + beta)
+    logging.info('Predicted pfc range: %s', min_and_max(predicted))
 
     IPython.embed()
