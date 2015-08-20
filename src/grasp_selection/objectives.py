@@ -294,9 +294,9 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         vi = np.delete(v, i, axis=0)
 
         scale = kernels * \
-            ((self.S_ * self.S_ / alpha_i / self.N_) + \
-             (self.F_ * self.F_ / beta_i / self.N_) + \
-             self.N_ / (alpha_i + beta_i))
+                ((self.mu_[i] * self.S_ / alpha_i) + \
+                 ((1 - self.mu_[i]) * self.F_ / beta_i) + \
+                 self.N_ / (alpha_i + beta_i))
         scale = np.delete(scale, i)
 
         gradient = np.dot(scale, vi)
