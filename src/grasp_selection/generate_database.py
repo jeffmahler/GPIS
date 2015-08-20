@@ -80,7 +80,8 @@ if __name__ == '__main__':
     padding = config['sdf_padding']
     density = config['density']
     gripper_size = config['gripper_size']
- 
+
+    dataset_start = 0
     # get indices of dataset configurations
     dataset_names = [d.name for d in DATASETS]
     if dataset != 'all' and dataset in dataset_names:
@@ -89,6 +90,9 @@ if __name__ == '__main__':
     # get all indices
     elif dataset == 'all':
         dataset_inds = range(len(DATASETS))
+        dataset_start = config['dataset_start']
+        if dataset_start == None:
+            dataset_start = 0
     else:
         raise Exception('Invalid dataset!')
 
@@ -96,8 +100,11 @@ if __name__ == '__main__':
     if not os.path.exists(dest_root_folder):
         os.mkdir(dest_root_folder)
 
+    # create list to store all exceptions
+    exceptions = []
+
     # loop through datasets and cleanup
-    for j in range(len(dataset_inds)):
+    for j in range(dataset_start, len(dataset_inds)):
         # clear filenames list
         all_filenames = []
 
@@ -136,40 +143,43 @@ if __name__ == '__main__':
                     else:
                         target_filename = os.path.join(target_dir, file_root)
 
-                    # convert to obj
-                    obj_filename = '%s.obj' %(fullpath_file_root)
-                    smoothing_script = ''
-                    m = MeshFile.extract_mesh(filename, obj_filename, smoothing_script)
+                    try:
+                        # convert to obj
+                        obj_filename = '%s.obj' %(fullpath_file_root)
+                        smoothing_script = ''
+                        m = MeshFile.extract_mesh(filename, obj_filename, smoothing_script)
 
-                    # clean up mesh triangles
-                    mesh_cleaner = MeshCleaner(m)
-                    mesh_cleaner.remove_bad_tris()
-                    mesh_cleaner.remove_unreferenced_vertices()
-                    mesh_cleaner.standardize_pose()
-                
-                    # scale mesh to meters
-                    mesh_cleaner.rescale_vertices(dataset.scale, rescaling_type=MeshCleaner.RescalingTypeAbsolute)
+                        # clean up mesh triangles
+                        mesh_cleaner = MeshCleaner(m)
+                        mesh_cleaner.remove_bad_tris()
+                        mesh_cleaner.remove_unreferenced_vertices()
+                        mesh_cleaner.standardize_pose()
+                    
+                        # scale mesh to meters
+                        mesh_cleaner.rescale_vertices(dataset.scale, rescaling_type=MeshCleaner.RescalingTypeAbsolute)
 
-                    # rescale synthetic meshes to fit within the gripper
-                    if dataset.synthetic:
-                        mesh_cleaner.rescale_vertices(gripper_size, rescaling_type=MeshCleaner.RescalingTypeMin)
+                        # rescale synthetic meshes to fit within the gripper
+                        if dataset.synthetic:
+                            mesh_cleaner.rescale_vertices(gripper_size, rescaling_type=MeshCleaner.RescalingTypeMin)
 
-                    # set metadata (mass + category)
-                    m.density = density
-                    m.category = category
-               
-                    # save obj, sdf, etc.
-                    MeshFile.write_obj(m, target_filename)
-                    MeshFile.write_sdf(m, target_filename, dim, padding)
-                    #MeshFile.write_stp(m, target_filename)
-                    MeshFile.write_json(m, target_filename)
-                    MeshFile.write_shot(m, target_filename)
+                        # set metadata (mass + category)
+                        m.density = density
+                        m.category = category
+                   
+                        # save obj, sdf, etc.
+                        MeshFile.write_obj(m, target_filename)
+                        MeshFile.write_sdf(m, target_filename, dim, padding)
+                        MeshFile.write_stp(m, target_filename)
+                        MeshFile.write_json(m, target_filename)
+                        MeshFile.write_shot(m, target_filename)
 
-                    # add filename to master list
-                    if dataset.fix_names:
-                        all_filenames.append(category)
-                    else:
-                        all_filenames.append(file_root)
+                        # add filename to master list
+                        if dataset.fix_names:
+                            all_filenames.append(category)
+                        else:
+                            all_filenames.append(file_root)
+                    except Exception as e:
+                        exceptions.append('Dataset: %s,  Model: %s, Exception: %s' % (dataset.name, filename, str(e))) 
                 
         # save filenames to master list (index.db)
         master_list_filename = os.path.join(target_dir, 'index.db')
@@ -178,3 +188,10 @@ if __name__ == '__main__':
             out_f.write('%s\n' %(filename))
         out_f.close()
         os.system('chmod a+rwx %s' %(master_list_filename) )
+
+    # print all exceptions
+    exceptions_filename = os.path.join(dest_root_folder, 'exceptions.txt')
+    out_exceptions = open(exceptions_filename, 'w')
+    for exception in exceptions:
+        out_exceptions.write('%s\n' %(exception))
+    out_exceptions.close()
