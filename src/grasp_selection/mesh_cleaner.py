@@ -6,7 +6,7 @@ class MeshCleaner:
 	RescalingTypeMin = 0
 	RescalingTypeMed = 1
 	RescalingTypeMax = 2
-	RescalingTypeAbsolute = 2
+	RescalingTypeAbsolute = 3
 
 	def __init__(self, mesh):
 		self.mesh_ = mesh
@@ -132,5 +132,5 @@ class MeshCleaner:
 		# compute scale factor and rescale vertices
 		scale_factor = scale / relative_scale 
 		vertex_array = scale_factor * vertex_array
-		self.vertices_ = vertex_array.tolist()
+		self.mesh_.vertices_ = vertex_array.tolist()
 

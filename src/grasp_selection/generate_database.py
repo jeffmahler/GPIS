@@ -38,7 +38,7 @@ DATASETS = [
 #    DatasetConfig(name='Archive3D', extension='.3DS'),
     DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False),
     DatasetConfig(name='Cat50_ModelDatabase', extension='.obj'),
-    DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-2, synthetic=False),
+    DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False),
     DatasetConfig(name='ModelNet40', extension='.off'),
     DatasetConfig(name='NTU3D', extension='.obj'),
     DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
