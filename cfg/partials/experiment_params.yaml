@@ -14,6 +14,7 @@ min_num_collision_free_grasps: 200
 min_contact_dist: 0.01
 grasp_samples_per_surface_point: 4 # lower for fewer samples
 
+# Antipodal Sampling Params
 dir_prior: 1.0
 alpha_thresh_div: 8.0 # in multiples of pi
 grasp_theta_res: 0.1 # in multiples of pi

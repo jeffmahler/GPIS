@@ -38,10 +38,11 @@ import scipy.spatial.distance as ssd
 
 from correlated_bandits import experiment_hash, reward_vs_iters
 
-class BanditCorrelatedExperimentResult:
+class BanditCorrelatedPriorExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_reward,
                  true_avg_reward, iters, kernel_matrix,
-                 obj_key='', num_objects=1):
+                 neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
+                 obj_key='', neighbor_keys=[], num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
@@ -51,7 +52,12 @@ class BanditCorrelatedExperimentResult:
         self.iters = iters
         self.kernel_matrix = kernel_matrix
 
+        self.neighbor_kernels = neighbor_kernels
+        self.neighbor_pfc_diffs = neighbor_pfc_diffs
+        self.neighbor_distances = neighbor_distances
+
         self.obj_key = obj_key
+        self.neighbor_keys = neighbor_keys
         self.num_objects = num_objects
 
     def save(self, out_dir):
@@ -88,12 +94,21 @@ class BanditCorrelatedExperimentResult:
         iters = [r.iters for r in result_list]
         kernel_matrices = [r.kernel_matrix for r in result_list]
 
-        return BanditCorrelatedExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
-                                                true_avg_rewards,
-                                                iters,
-                                                kernel_matrices,
-                                                obj_keys,
-                                                len(result_list))
+        neighbor_kernels = [r.neighbor_kernels for r in result_list]
+        neighbor_pfc_diffs = [r.neighbor_pfc_diffs for r in result_list]
+        neighbor_distances = [r.neighbor_distances for r in result_list]
+        neighbor_keys = [r.neighbor_keys for r in result_list]
+
+        return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
+                                                     true_avg_rewards,
+                                                     iters,
+                                                     kernel_matrices,
+                                                     neighbor_kernels,
+                                                     neighbor_pfc_diffs,
+                                                     neighbor_keys,
+                                                     obj_keys,
+                                                     neighbor_keys,
+                                                     len(result_list))
 
 def load_candidate_grasps(obj, chunk):
     # load grasps from database
@@ -180,6 +195,11 @@ def label_correlated(obj, chunk, config, plot=False,
             all_alpha_priors.append(alpha_priors)
             all_beta_priors.append(beta_priors)
 
+    if nearest_features_name == None:
+        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
+    else:
+        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates, nearest_features_name=nearest_features_name)
+
     # pre-computed pfc values
     estimated_pfc = np.array([c.grasp.quality for c in candidates])
 
@@ -215,7 +235,8 @@ def label_correlated(obj, chunk, config, plot=False,
             ts_corr_prior = das.CorrelatedThompsonSampling(
                 objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
             logging.info('Running correlated Thompson sampling with priors.')
-            ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+            ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list),
+                                                       snapshot_rate=snapshot_rate)
             ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, estimated_pfc)
             ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
 
@@ -245,9 +266,11 @@ def label_correlated(obj, chunk, config, plot=False,
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
-    return BanditCorrelatedExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
-                                            all_avg_ts_corr_prior_rewards,
-                                            estimated_pfc, ua_result.iters, kernel_matrix, obj_key=obj.key)
+    return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
+                                                 all_avg_ts_corr_prior_rewards,
+                                                 estimated_pfc, ua_result.iters, kernel_matrix,
+                                                 all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances,
+                                                 obj_key=obj.key, neighbor_keys=neighbor_keys)
 
 def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):
     candidates = load_candidate_grasps(obj, chunk)
@@ -333,7 +356,7 @@ def run_and_save_experiment(obj, chunk, priors_dataset, config, result_dir):
         exit(0)
 
     # combine results
-    all_results = BanditCorrelatedExperimentResult.compile_results(results)
+    all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
 
     logging.info('Creating and saving plots...')
 
@@ -433,4 +456,4 @@ if __name__ == '__main__':
 
     if config['plot']:
         # combine results
-        all_results = BanditCorrelatedExperimentResult.compile_results(results)
+        all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
