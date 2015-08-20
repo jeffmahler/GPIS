@@ -141,6 +141,14 @@ class DecayingStepPolicy(BasicStepPolicy):
     def step_size(self, objective, x, iteration):
         return self.size / float(iteration//self.decay_rate + 1)
 
+class LogStepPolicy(BasicStepPolicy):
+    def __init__(self, start=10.0, decay_rate=500):
+        self.start = float(start)
+        self.decay_rate = decay_rate
+
+    def step_size(self, objective, x, iteration):
+        return self.start / pow(10, iteration // self.decay_rate)
+
 class BacktrackingLSPolicy(StepPolicy):
     def __init__(self, alpha = 0.45, beta = 0.9):
         self.alpha_ = alpha
