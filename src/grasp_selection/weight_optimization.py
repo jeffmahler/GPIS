@@ -82,13 +82,13 @@ if __name__ == '__main__':
     np.random.seed(100)
 
     grasps, data = load_data('grasp_features.hdf5', config)
-    successes = np.array([g.successes for g in grasps]) - 1
-    failures = np.array([g.failures for g in grasps]) - 1
+    successes = np.array([g.successes for g in grasps]) - 1 # subtract alpha0
+    failures = np.array([g.failures for g in grasps]) - 1 # subtract beta0
     weight_range = (25, 55)
 
     loss = StochasticGraspWeightObjective(data, successes, failures, config)
     objective = MinimizationObjective(loss)
-    step_policy = ilo.LogStepPolicy(10, 1000)
+    step_policy = ilo.LogStepPolicy(1000, 100)
     def positive_constraint(x):
         x[x < 0] = 0
         return x
@@ -96,39 +96,20 @@ if __name__ == '__main__':
     optimizer = ilo.ConstrainedGradientAscent(objective, step_policy,
                                               [positive_constraint])
     start = np.random.uniform(*weight_range, size=2 * config['window_steps']**2)
+    start = 1e2 * np.ones(2 * config['window_steps']**2)
 
     logging.info('Starting optimization.')
-    result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(5000),
-                             snapshot_rate=100, start_x=start, true_x=None)
+    result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(300),
+                             snapshot_rate=20, start_x=start, true_x=None)
 
     proj_win_weight = result.best_x
     max_weight = np.max(proj_win_weight)
     opt_weights = proj_win_weight.reshape((2, config['window_steps'], config['window_steps']))
     rand_weights = start.reshape((2, config['window_steps'], config['window_steps']))
 
-    logging.info('Loss: %f to %f', loss(start), loss(result.best_x))
-    if config['plot']:
-        import matplotlib.pyplot as plt
+    logging.info('Loss: %f to %f, delta=%f', loss(start), loss(result.best_x), np.linalg.norm(start - result.best_x))
 
-        # plot weight vectors
-        for weight in (rand_weights, opt_weights):
-            fig, axes = plt.subplots(nrows=1, ncols=2)
-            for ax, w in zip(axes.flat, weight):
-                im = ax.imshow(w, interpolation='none',
-                               vmin=weight_range[0], vmax=weight_range[1],
-                               cmap=plt.cm.binary)
-
-            fig.subplots_adjust(right=0.8)
-            cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-            fig.colorbar(im, cax=cbar_ax)
-
-        # plot error over time (should be decreasing)
-        plt.figure()
-        loss_over_time = -np.array(result.vals_f)
-        plt.plot(result.iters, loss_over_time, color='blue', linewidth=2)
-        plt.xlabel('Iteration')
-        plt.ylabel('Cross-Entropy Error')
-        plt.show(block=False)
+    # debugging stuff
 
     def min_and_max(arr):
         return np.min(arr), np.max(arr)
@@ -149,5 +130,37 @@ if __name__ == '__main__':
     beta = 1 + np.dot(kernel_matrix, loss.F_) - loss.F_
     predicted = alpha / (alpha + beta)
     logging.info('Predicted pfc range: %s', min_and_max(predicted))
+
+    if config['plot']:
+        import matplotlib.pyplot as plt
+
+        # plot weight vectors
+        for weight in (rand_weights, opt_weights):
+            fig, axes = plt.subplots(nrows=1, ncols=2)
+            for ax, w in zip(axes.flat, weight):
+                im = ax.imshow(w, interpolation='none',
+                               vmin=0, vmax=100,
+                               cmap=plt.cm.binary)
+
+            fig.subplots_adjust(right=0.8)
+            cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+            fig.colorbar(im, cax=cbar_ax)
+
+        # plot error over time (should be decreasing)
+        plt.figure()
+        # negate bc vals_f is from minimization objective, normalize by num_grasps
+        loss_over_time = -np.array(result.vals_f) / len(grasps)
+        plt.plot(result.iters, loss_over_time, color='blue', linewidth=2)
+        plt.xlabel('Iteration')
+        plt.ylabel('Cross-Entropy Error')
+
+        plt.figure()
+        r1 = plt.bar(np.arange(250)+0.00, random_predicted, 0.25, color='r')
+        r2 = plt.bar(np.arange(250)+0.25, predicted, 0.25, color='y')
+        r3 = plt.bar(np.arange(250)+0.50, ground_truth, 0.25, color='g')
+        plt.legend((r1[0], r2[0], r3[0]), ('Random', 'Predicted', 'Actual'))
+        plt.xlim((0, 20))
+
+        plt.show(block=False)
 
     IPython.embed()
