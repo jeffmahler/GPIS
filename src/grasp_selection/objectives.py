@@ -265,8 +265,8 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
             kernels = [kernel(xi, xj) for xj in self.X_]
             alphas = kernels * self.S_
             betas = kernels * self.F_
-            alpha_i = 1 + sum(alpha for j, alpha in enumerate(alphas) if i != j)
-            beta_i = 1 + sum(beta for j, beta in enumerate(betas) if i != j)
+            alpha_i = 1 + np.sum(alphas) - alphas[i]
+            beta_i = 1 + np.sum(betas) - betas[i]
             total += self.mu_[i] * np.log(alpha_i) + \
                      (1 - self.mu_[i]) * np.log(beta_i) - \
                      np.log(alpha_i + beta_i)
@@ -283,23 +283,40 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         kernel = self.kernel(w)
         x, without_x, i = self.get_random_datum()
 
-        kernels = np.array([kernel(x, xj) for xj in self.X_])
-        alphas = kernels * self.S_
-        betas = kernels * self.F_
+        num_indices = self.config_['partial_gradient_size']
+        if num_indices in (None, 0, self.num_grasps_):
+            X = np.delete(self.X_, i, axis=0)
+            S, F = np.delete(self.S_, i), np.delete(self.F_, i)
+        elif num_indices > self.num_grasps_:
+            raise ValueError('partial_gradient_size is too large.')
+        else:
+            random_indices = np.random.choice(self.num_grasps_,
+                                              size=num_indices+1, # if i is selected
+                                              replace=False).tolist()
+            if i in random_indices:
+                random_indices.remove(i)
+            else:
+                random_indices = random_indices[1:]
+            random_indices = np.array(random_indices)
 
-        alpha_i = 1 + sum(alpha for j, alpha in enumerate(alphas) if i != j)
-        beta_i = 1 + sum(beta for j, beta in enumerate(betas) if i != j)
+            X = self.X_[random_indices, :]
+            S, F = self.S_[random_indices], self.F_[random_indices]
 
-        v = w * np.square(self.X_ - x)
-        vi = np.delete(v, i, axis=0)
+        kernels = np.array([kernel(x, xj) for xj in X])
+        alphas = kernels * S
+        betas = kernels * F
+
+        alpha_i = 1 + np.sum(alphas)
+        beta_i = 1 + np.sum(betas)
+
+        v = w * np.square(X - x)
 
         scale = kernels * \
-                ((self.mu_[i] * self.S_ / alpha_i) + \
-                 ((1 - self.mu_[i]) * self.F_ / beta_i) + \
-                 self.N_ / (alpha_i + beta_i))
-        scale = np.delete(scale, i)
+                ((self.mu_[i] * S / alpha_i) + \
+                 ((1 - self.mu_[i]) * F / beta_i) + \
+                 (S + F) / (alpha_i + beta_i))
 
-        gradient = np.dot(scale, vi)
+        gradient = np.dot(scale, v)
         return gradient
 
     def hessian(self, w):

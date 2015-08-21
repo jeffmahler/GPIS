@@ -28,12 +28,13 @@ config = {
 
     'kernel_sigma': 1.0,
     'kernel_l': 1.0,
+    'partial_gradient_size': 200,
 
     'plot': True,
 }
 
 def load_data(path, config):
-    precomputed = False # exists(path)
+    precomputed = exists(path)
 
     training = db.Dataset(config['dataset'], config)
     all_grasps = []
@@ -70,10 +71,10 @@ def load_data(path, config):
         design_matrix[i, :] = np.concatenate([proj1.phi, proj2.phi])
         i += 1
 
-    # logging.info('Saving to %s', path)
-    # with h5py.File(path, 'w') as f:
-    #     f['projection_window'] = design_matrix
-    # logging.info('Saved.')
+    logging.info('Saving to %s', path)
+    with h5py.File(path, 'w') as f:
+        f['projection_window'] = design_matrix
+    logging.info('Saved.')
     return all_grasps, design_matrix
 
 if __name__ == '__main__':
@@ -88,7 +89,7 @@ if __name__ == '__main__':
 
     loss = StochasticGraspWeightObjective(data, successes, failures, config)
     objective = MinimizationObjective(loss)
-    step_policy = ilo.LogStepPolicy(1000, 100)
+    step_policy = ilo.LogStepPolicy(1000, 150)
     def positive_constraint(x):
         x[x < 0] = 0
         return x
@@ -99,8 +100,8 @@ if __name__ == '__main__':
     start = 1e2 * np.ones(2 * config['window_steps']**2)
 
     logging.info('Starting optimization.')
-    result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(300),
-                             snapshot_rate=20, start_x=start, true_x=None)
+    result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(5000),
+                             snapshot_rate=1000, start_x=start, true_x=None)
 
     proj_win_weight = result.best_x
     max_weight = np.max(proj_win_weight)
