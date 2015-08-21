@@ -66,7 +66,9 @@ class IterativeLocalOptimizer(solvers.OptimizationSolver):
         iter_hess = []
         checkpt_times = []
         start_time = time.clock()
+        logging.info('Computing initial objective value.')
         cur_f = self.objective_(cur_x)
+        logging.info('Finished computing initial objective value.')
 
         while not terminate:
             # update to next point and evaluate
@@ -93,7 +95,9 @@ class IterativeLocalOptimizer(solvers.OptimizationSolver):
                 iter_x.append(cur_x)
 
                 if cur_f is None:
+                    logging.info('Computing objective value.')
                     cur_f = self.objective_(cur_x)
+                    logging.info('Finished computing objective value.')
                 iter_f.append(cur_f)
                 if cur_grad_f is not None:
                     iter_grads.append(cur_grad_f)

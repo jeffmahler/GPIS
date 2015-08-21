@@ -1,5 +1,5 @@
 import logging
-from os.path import exists
+from os.path import exists, join
 
 import h5py
 import IPython
@@ -11,6 +11,24 @@ import feature_functions as ff
 import iterative_local_optimizers as ilo
 from objectives import MinimizationObjective, StochasticGraspWeightObjective
 import termination_conditions as tc
+
+def save_everything(path,
+                    opt_weights, orig_weights,
+                    opt_kernel, orig_kernel,
+                    true_pfc, opt_pfc, orig_pfc,
+                    loss, iters):
+    fname = join(path, 'results.hdf5')
+    logging.info('Saving results to %s.', fname)
+    with h5py.File(fname, 'w') as f:
+        f['opt_weights'] = opt_weights
+        f['orig_weights'] = orig_weights
+        f['opt_kernel'] = opt_kernel
+        f['orig_kernel'] = orig_kernel
+        f['true_pfc'] = true_pfc
+        f['opt_pfc'] = opt_pfc
+        f['orig_pfc'] = orig_pfc
+        f['loss'] = loss
+        f['iters'] = iters
 
 def load_data(path, config):
     precomputed = exists(path)
@@ -57,11 +75,17 @@ def load_data(path, config):
     return all_grasps, design_matrix
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config')
+    parser.add_argument('output_dest')
+    args = parser.parse_args()
+
     logging.getLogger().setLevel(logging.INFO)
 
-    np.random.seed(100)
+    # np.random.seed(100)
 
-    config = ec.ExperimentConfig('cfg/weight_optimization.yaml')
+    config = ec.ExperimentConfig(args.config)
 
     if config['design_matrix']:
         grasps, data = load_data(config['design_matrix'], config)
@@ -112,6 +136,12 @@ if __name__ == '__main__':
     beta = 1 + np.dot(kernel_matrix, loss.F_) - loss.F_
     predicted = alpha / (alpha + beta)
     logging.info('Predicted pfc range: %s', min_and_max(predicted))
+
+    save_everything(args.output_dest,
+                    proj_win_weight, start,
+                    kernel_matrix, random_kernel_matrix,
+                    ground_truth, predicted, random_predicted,
+                    -np.array(result.vals_f), result.iters)
 
     if config['plot']:
         import matplotlib.pyplot as plt

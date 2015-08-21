@@ -14,16 +14,16 @@ weight_grasp_axis: 0.0
 weight_grasp_angle: 0.0
 weight_gravity: 0.0
 
-step_size_max: 1000
-step_size_period: 150 # step size drops 10x every step_size_period iters
+step_size_max: 1000 # TUNE
+step_size_period: 150 # step size drops 10x every step_size_period iters, TUNE
 
-weight_initial: 100.0
+weight_initial: 100.0 # TUNE
 
 max_iters: 5000
 snapshot_rate: 300
 
 kernel_sigma: 1.0
 kernel_l: 1.0
-partial_gradient_size: 250
+partial_gradient_size: 250 # TUNE
 
 plot: False
