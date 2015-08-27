@@ -259,9 +259,6 @@ def make_chunks(config):
                          chunk=[assigned, assigned+max_chunk_size])
             chunks.append(chunk)
             assigned += max_chunk_size
-    yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks))
-    if yesno.lower() == 'n':
-        sys.exit(1)
     return chunks
 
 def oauth_authorization(config, args):
@@ -330,6 +327,10 @@ def launch_experiment(args, sleep_time):
     instance_results = []
     num_zones = len(config['compute']['zones'])
 
+    yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks)*len(grasp_samplers)*len(grasp_samplers))
+    if yesno.lower() == 'n':
+        sys.exit(1)
+
     for chunk in chunks:
         for grasp_sampler in grasp_samplers:
             for num_grasps in all_num_grasps:
@@ -350,8 +351,8 @@ def launch_experiment(args, sleep_time):
                     {'key': 'dataset', 'value': dataset},
                     {'key': 'chunk_start', 'value': chunk_start},
                     {'key': 'chunk_end', 'value': chunk_end},
-                    {'key': 'run_script', 'value': run_script}
-                    {'key': 'num_grasps', 'value': num_grasps}
+                    {'key': 'run_script', 'value': run_script},
+                    {'key': 'num_grasps', 'value': num_grasps},
                     {'key': 'grasp_sampler', 'value': grasp_sampler}
                     ]
 

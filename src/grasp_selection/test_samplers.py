@@ -110,7 +110,6 @@ if __name__ == '__main__':
             'grasp_sampler': config['grasp_sampler'],
             'ua_result': ua_result
         }
-        import IPython; IPython.embed()
         out_filename = os.path.join(dest, 'results.pkl')
         with open(out_filename, 'w') as f:
             pkl.dump(results, f)
