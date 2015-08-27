@@ -1,39 +1,37 @@
 import logging
-from os.path import exists
+from os.path import exists, join
 
 import h5py
 import IPython
 import numpy as np
 
 import database as db
+import experiment_config as ec
 import feature_functions as ff
 import iterative_local_optimizers as ilo
 from objectives import MinimizationObjective, StochasticGraspWeightObjective
 import termination_conditions as tc
 
-config = {
-    'database_dir': '/mnt/terastation/shape_data/MASTER_DB_v1',
-    'dataset': 'PriorsTrain',
-
-    'window_steps': 13,
-
-    'weight_proj_win': 1.0,
-    'weight_grad_x': 0.0,
-    'weight_grad_y': 0.0,
-    'weight_curvature': 0.0,
-    'weight_grasp_center': 0.0,
-    'weight_grasp_axis': 0.0,
-    'weight_grasp_angle': 0.0,
-    'weight_gravity': 0.0,
-
-    'kernel_sigma': 1.0,
-    'kernel_l': 1.0,
-
-    'plot': True,
-}
+def save_everything(path,
+                    opt_weights, orig_weights,
+                    opt_kernel, orig_kernel,
+                    true_pfc, opt_pfc, orig_pfc,
+                    loss, iters):
+    fname = join(path, 'results.hdf5')
+    logging.info('Saving results to %s.', fname)
+    with h5py.File(fname, 'w') as f:
+        f['opt_weights'] = opt_weights
+        f['orig_weights'] = orig_weights
+        f['opt_kernel'] = opt_kernel
+        f['orig_kernel'] = orig_kernel
+        f['true_pfc'] = true_pfc
+        f['opt_pfc'] = opt_pfc
+        f['orig_pfc'] = orig_pfc
+        f['loss'] = loss
+        f['iters'] = iters
 
 def load_data(path, config):
-    precomputed = False # exists(path)
+    precomputed = exists(path)
 
     training = db.Dataset(config['dataset'], config)
     all_grasps = []
@@ -70,37 +68,45 @@ def load_data(path, config):
         design_matrix[i, :] = np.concatenate([proj1.phi, proj2.phi])
         i += 1
 
-    # logging.info('Saving to %s', path)
-    # with h5py.File(path, 'w') as f:
-    #     f['projection_window'] = design_matrix
-    # logging.info('Saved.')
+    logging.info('Saving to %s', path)
+    with h5py.File(path, 'w') as f:
+        f['projection_window'] = design_matrix
+    logging.info('Saved.')
     return all_grasps, design_matrix
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config')
+    parser.add_argument('output_dest')
+    args = parser.parse_args()
+
     logging.getLogger().setLevel(logging.INFO)
 
-    np.random.seed(100)
+    # np.random.seed(100)
 
-    grasps, data = load_data('grasp_features.hdf5', config)
+    config = ec.ExperimentConfig(args.config)
+
+    if config['design_matrix']:
+        grasps, data = load_data(config['design_matrix'], config)
+    else:
+        grasps, data = load_data('grasp_features.hdf5', config)
     successes = np.array([g.successes for g in grasps]) - 1 # subtract alpha0
     failures = np.array([g.failures for g in grasps]) - 1 # subtract beta0
-    weight_range = (25, 55)
 
     loss = StochasticGraspWeightObjective(data, successes, failures, config)
     objective = MinimizationObjective(loss)
-    step_policy = ilo.LogStepPolicy(1000, 100)
+    step_policy = ilo.LogStepPolicy(config['step_size_max'], config['step_size_period'])
     def positive_constraint(x):
         x[x < 0] = 0
         return x
-    # optimizer = ilo.UnconstrainedGradientAscent(objective, step_policy)
     optimizer = ilo.ConstrainedGradientAscent(objective, step_policy,
                                               [positive_constraint])
-    start = np.random.uniform(*weight_range, size=2 * config['window_steps']**2)
-    start = 1e2 * np.ones(2 * config['window_steps']**2)
+    start = config['weight_initial'] * np.ones(2 * config['window_steps']**2)
 
     logging.info('Starting optimization.')
-    result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(300),
-                             snapshot_rate=20, start_x=start, true_x=None)
+    result = optimizer.solve(termination_condition=tc.MaxIterTerminationCondition(config['max_iters']),
+                             snapshot_rate=config['snapshot_rate'], start_x=start, true_x=None)
 
     proj_win_weight = result.best_x
     max_weight = np.max(proj_win_weight)
@@ -131,6 +137,12 @@ if __name__ == '__main__':
     predicted = alpha / (alpha + beta)
     logging.info('Predicted pfc range: %s', min_and_max(predicted))
 
+    save_everything(args.output_dest,
+                    proj_win_weight, start,
+                    kernel_matrix, random_kernel_matrix,
+                    ground_truth, predicted, random_predicted,
+                    -np.array(result.vals_f), result.iters)
+
     if config['plot']:
         import matplotlib.pyplot as plt
 
@@ -139,7 +151,7 @@ if __name__ == '__main__':
             fig, axes = plt.subplots(nrows=1, ncols=2)
             for ax, w in zip(axes.flat, weight):
                 im = ax.imshow(w, interpolation='none',
-                               vmin=0, vmax=100,
+                               vmin=0, vmax=config['weight_initial'],
                                cmap=plt.cm.binary)
 
             fig.subplots_adjust(right=0.8)
@@ -154,13 +166,14 @@ if __name__ == '__main__':
         plt.xlabel('Iteration')
         plt.ylabel('Cross-Entropy Error')
 
+        # plot grasp qualities
         plt.figure()
-        r1 = plt.bar(np.arange(250)+0.00, random_predicted, 0.25, color='r')
-        r2 = plt.bar(np.arange(250)+0.25, predicted, 0.25, color='y')
-        r3 = plt.bar(np.arange(250)+0.50, ground_truth, 0.25, color='g')
+        r1 = plt.bar(np.arange(len(grasps))+0.00, random_predicted, 0.25, color='r')
+        r2 = plt.bar(np.arange(len(grasps))+0.25, predicted, 0.25, color='y')
+        r3 = plt.bar(np.arange(len(grasps))+0.50, ground_truth, 0.25, color='g')
         plt.legend((r1[0], r2[0], r3[0]), ('Random', 'Predicted', 'Actual'))
         plt.xlim((0, 20))
 
         plt.show(block=False)
 
-    IPython.embed()
+    # IPython.embed()
