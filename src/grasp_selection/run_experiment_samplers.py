@@ -327,7 +327,7 @@ def launch_experiment(args, sleep_time):
     instance_results = []
     num_zones = len(config['compute']['zones'])
 
-    yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks)*len(grasp_samplers)*len(grasp_samplers))
+    yesno = raw_input('Create %d instances? [Y/n] ' % (len(chunks)*len(grasp_samplers)*len(all_num_grasps)))
     if yesno.lower() == 'n':
         sys.exit(1)
 

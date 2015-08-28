@@ -62,7 +62,7 @@ def run_ua_on(obj, config):
     logging.info('%d candidates', len(candidates))
 
     brute_force_iter = config['bandit_brute_force_iter']*len(candidates)
-    snapshot_rate = config['bandit_snapshot_rate']
+    snapshot_rate = brute_force_iter
     objective = objectives.RandomBinaryObjective()
 
     ua = das.UniformAllocationMean(objective, candidates)
@@ -112,6 +112,6 @@ if __name__ == '__main__':
         }
         out_filename = os.path.join(dest, 'results.pkl')
         with open(out_filename, 'w') as f:
-            pkl.dump(results, f)
+            pkl.dump(results, f, protocol=2)
 
 
