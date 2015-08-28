@@ -76,7 +76,7 @@ parseCommandLine (int argc, char *argv[])
   std::vector<int> in_filenames;
   std::vector<int> out_filenames;
   in_filenames = pcl::console::parse_file_extension_argument (argc, argv, ".obj");
-  out_filenames = pcl::console::parse_file_extension_argument (argc, argv, ".txt");
+  out_filenames = pcl::console::parse_file_extension_argument (argc, argv, ".ftr");
 
   if (in_filenames.size () != 1) {
     std::cout << "Filenames missing.\n";

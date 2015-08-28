@@ -10,10 +10,15 @@ Author: Nikhil Sharma
 
 import os
 import sys
+import IPython
 import math
+import mayavi.mlab as mv
+import numpy as np
 import stable_poses as st
 import obj_file
 import stable_pose_class as spc
+import similarity_tf as stf
+import tfx
 
 class StablePoseFile:
     """
@@ -64,12 +69,24 @@ class StablePoseFile:
                     R_list.append([p, basis])
             self.write_mesh_stable_poses(mesh, filename, min_prob)
     
-    def write_mesh_stable_poses(self, mesh, filename, min_prob=0):
+    def write_mesh_stable_poses(self, mesh, filename, min_prob=0, vis=False):
         prob_mapping, cv_hull = st.compute_stable_poses(mesh), mesh.convex_hull()
         R_list = []
         for face, p in prob_mapping.items():
             if p >= min_prob:
                 R_list.append([p, st.compute_basis([cv_hull.vertices()[i] for i in face])])
+
+        if vis:
+            print 'P', R_list[0][0]
+            mv.figure()
+            mesh.visualize()
+            mv.axes()
+
+            mv.figure()
+            cv_hull_tf = cv_hull.transform(stf.SimilarityTransform3D(tfx.transform(R_list[0][1], np.zeros(3))))
+            cv_hull_tf.visualize()
+            mv.axes()
+            mv.show()
 
         f = open(filename[:-4] + ".stp", "w")
         f.write("#############################################################\n")

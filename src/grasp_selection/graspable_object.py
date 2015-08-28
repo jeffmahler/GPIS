@@ -181,7 +181,6 @@ class GraspableObject3D(GraspableObject):
             ax.set_xlim3d(0, self.sdf.dims_[0])
             ax.set_ylim3d(0, self.sdf.dims_[1])
             ax.set_zlim3d(0, self.sdf.dims_[2])
-            #plt.show()
 
         return found, projection_contact
 
@@ -190,7 +189,7 @@ class GraspableObject3D(GraspableObject):
         Returns the local surface window, gradient, and curvature for the two
         point contacts of a grasp.
         """
-        contacts_found, contacts = grasp.close_fingers(self)
+        contacts_found, contacts = grasp.close_fingers(self)#, vis=True)
         if not contacts_found:
             raise ValueError('Failed to find contacts')
         contact1, contact2 = contacts
@@ -504,9 +503,60 @@ def plot_window_both(window, num_steps):
     plot_window_2d(window, num_steps)
     plot_window_3d(window, num_steps)
 
+def generate_window_for_figure(width, num_steps, plot=None):
+    import sdf_file, obj_file
+    np.random.seed(100)
+
+    mesh_file_name = '/mnt/terastation/shape_data/MASTER_DB_v2/SHREC14LSGTB/M000385.obj'
+    sdf_3d_file_name = '/mnt/terastation/shape_data/MASTER_DB_v2/SHREC14LSGTB/M000385.sdf'
+
+    sdf = sdf_file.SdfFile(sdf_3d_file_name).read()
+    mesh = obj_file.ObjFile(mesh_file_name).read()
+    graspable = GraspableObject3D(sdf, mesh)
+
+    grasp_axis = np.array([1, 0, 0])
+    grasp_width = 0.15
+
+    grasp1_center = np.array([0, 0, 0.075])
+    grasp1 = g.ParallelJawPtGrasp3D(grasp1_center, grasp_axis, grasp_width)
+    _, contacts1 = grasp1.close_fingers(graspable, vis=True)
+    contact1 = contacts1[0]
+
+    grasp2_center = np.array([0, 0, 0.025])
+    grasp2 = g.ParallelJawPtGrasp3D(grasp2_center, grasp_axis, grasp_width)
+    _, contacts2 = grasp2.close_fingers(graspable, vis=True)
+    contact2 = contacts2[0]
+
+    grasp3_center = np.array([0, 0.012, -0.089])
+    grasp3 = g.ParallelJawPtGrasp3D(grasp3_center, grasp_axis, grasp_width)
+    _, contacts3 = grasp3.close_fingers(graspable, vis=True)
+    contact3 = contacts3[0]
+
+    if plot:
+        plt.figure()
+        contact1.plot_friction_cone()
+        contact2.plot_friction_cone()
+
+    print 'aligned projection window'
+    aligned_window1 = contact1.surface_window_projection(width, num_steps, vis=True)
+    aligned_window2 = contact2.surface_window_projection(width, num_steps, vis=True)
+    aligned_window3 = contact3.surface_window_projection(width, num_steps, vis=True)
+    plt.show()
+    IPython.embed()
+
+    if plot:
+        plot(sdf_window1, num_steps, 'SDF Window 1')
+        plot(unaligned_window1, num_steps, 'Unaligned Projection Window 1')
+        plot(aligned_window1, num_steps, 'Aligned Projection Window 1')
+        plot(sdf_window2, num_steps, 'SDF Window 2')
+        plot(unaligned_window2, num_steps, 'Unaligned Projection Window 2')
+        plot(aligned_window2, num_steps, 'Aligned Projection Window 2')
+        plt.show()
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
-    test_window_distance(width=2e-2, num_steps=21)
-    test_window_curvature(width=2e-2, num_steps=21, plot=plot_window_2d)
-    test_window_correlation(width=2e-2, num_steps=21)
+#    test_windows(width=2e-2, num_steps=21, plot=plot_window_2d)
+#    test_window_distance(width=2e-2, num_steps=21)
+#    test_window_curvature(width=2e-2, num_steps=21, plot=plot_window_2d)
+#    test_window_correlation(width=2e-2, num_steps=21)
+    generate_window_for_figure(width=5e-2, num_steps=11)

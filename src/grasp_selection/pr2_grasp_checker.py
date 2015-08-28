@@ -18,8 +18,11 @@ import openravepy as rave
 import database as db
 import grasp as g
 import graspable_object
+import mesh_cleaner
 import obj_file
 import sdf_file
+import similarity_tf as stf
+import tfx
 
 import IPython
 
@@ -226,7 +229,7 @@ class OpenRaveGraspChecker(object):
                     # close fingers until collision
                     self.taskprob_.CloseFingers()
                     self.robot.WaitForController(0) # wait
-                    time.sleep(1)
+                    time.sleep(30)
 
                     # check that the gripper contacted something
                     closed_amount = self.finger_joint_.GetValues()[0]
@@ -293,6 +296,43 @@ def test_grasp_poses():
     grasp_checker = OpenRaveGraspChecker()
     rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step = True)
 
+def grasp_model_figure():
+    np.random.seed(100)
+
+    h = plt.figure()
+    ax = h.add_subplot(111, projection = '3d')
+
+    sdf_3d_file_name = '/mnt/terastation/shape_data/MASTER_DB_v2/Cat50_ModelDatabase/5c7bf45b0f847489181be2d6e974dccd.sdf'
+    sf = sdf_file.SdfFile(sdf_3d_file_name)
+    sdf_3d = sf.read()
+
+    mesh_name = '/mnt/terastation/shape_data/MASTER_DB_v2/Cat50_ModelDatabase/5c7bf45b0f847489181be2d6e974dccd.obj'
+    of = obj_file.ObjFile(mesh_name)
+    m = of.read()
+
+    clean_mesh_name = 'data/test/meshes/flashlight.obj'
+    mc = mesh_cleaner.MeshCleaner(m)
+    mc.rescale_vertices(0.07)
+    oof = obj_file.ObjFile(clean_mesh_name)
+    oof.write(mc.mesh())
+
+    graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m, model_name=clean_mesh_name,
+                                                   tf=stf.SimilarityTransform3D(tfx.identity_tf(), 0.75))
+
+    rave.raveSetDebugLevel(rave.DebugLevel.Error)
+    grasp_checker = OpenRaveGraspChecker()
+
+    center = np.array([0, 0.01, 0])
+    axis = np.array([1, 0, 0]) 
+    axis = axis / np.linalg.norm(axis)
+    width = 0.1
+    grasp = g.ParallelJawPtGrasp3D(center, axis, width)
+
+    rotated_grasps = grasp.transform(graspable.tf, 2.0 * np.pi / 20.0)
+    print len(rotated_grasps)
+    grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=False, close_fingers=True, delay=1)
+
 if __name__ == "__main__":
-    test_grasp_collisions()
+#    test_grasp_collisions()
 #    test_grasp_poses()
+    grasp_model_figure()

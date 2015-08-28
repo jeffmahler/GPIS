@@ -231,11 +231,6 @@ class Contact3D(Contact):
         if u1 is not None and u2 is not None: # use given basis
             t1, t2 = u1, u2
 
-        # display sdf for debugging
-#        if vis:
-#            plt.figure()
-#            self.graspable.sdf.scatter()
-
         # number of samples used when looking for contacts
         no_contact = NO_CONTACT_DIST
         back_up = back_up_units * self.graspable.sdf.resolution
@@ -288,7 +283,9 @@ class Contact3D(Contact):
         if sigma > 0.0:
             window = spfilt.gaussian_filter(window, sigma)
         if compute_weighted_covariance:
-            return window, cov / cov_weight
+            if cov_weight > 0:
+                return window, cov / cov_weight
+            return window, cov
         return window
 
     def surface_window_projection_unaligned(self, width=1e-2, num_steps=21,
@@ -340,7 +337,7 @@ class Contact3D(Contact):
         window, cov = self._compute_surface_window_projection(t1, t2,
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
-            sigma=sigma, direction=direction, vis=vis, compute_weighted_covariance=True)
+            sigma=sigma, direction=direction, vis=False, compute_weighted_covariance=True)
         
         # compute principal axis
         pca = PCA()
@@ -370,21 +367,6 @@ class Contact3D(Contact):
             plt.scatter([center, center*u1t[0] + center], [center, -center*u1t[1] + center], color='blue')
             plt.scatter([center, center*u2t[0] + center], [center, -center*u2t[1] + center], color='green')
 
-
-            """
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
-            self.graspable.sdf.scatter()
-            point_grid = self.graspable_.sdf.transform_pt_obj_to_grid(self.point_)
-            dir_grid = self.graspable_.sdf.transform_pt_obj_to_grid(direction, direction=True)
-            ax.scatter(point_grid[0], point_grid[1], point_grid[2], c=u'g', s=100)
-            ax.scatter(point_grid[0] - dir_grid[0], point_grid[1] - dir_grid[1], point_grid[2] - dir_grid[2], c=u'm', s=80)
-            ax.set_xlim3d(0, self.graspable_.sdf.dims_[0])
-            ax.set_ylim3d(0, self.graspable_.sdf.dims_[1])
-            ax.set_zlim3d(0, self.graspable_.sdf.dims_[2])
-            """
-#            plt.show()
-
         u1 = np.dot(principal_axis, t1) * t1 + np.dot(principal_axis, t2) * t2
         u2 = np.cross(direction, u1) # u2 must be orthogonal to u1 on plane
         u1 = u1 / np.linalg.norm(u1)
@@ -393,7 +375,7 @@ class Contact3D(Contact):
         window = self._compute_surface_window_projection(u1, u2,
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
-            sigma=sigma, direction=direction, vis=vis)
+            sigma=sigma, direction=direction, vis=False)
 
         # arbitrarily require that right_avg > left_avg (inspired by SHOT)
         left_avg = np.average(window[:, :num_steps//2])
@@ -424,7 +406,6 @@ class Contact3D(Contact):
 
         proj_window = self.surface_window_projection(width, num_steps,
             back_up_units=back_up_units, direction=direction, vis=False)
-#        IPython.embed()
 
         if proj_window is None:
             raise ValueError('Surface window could not be computed')

@@ -64,6 +64,7 @@ if __name__ == '__main__':
         # kernel plot
         pfc_arr = np.array([result.true_avg_reward]).T
         pfc_diff = ssd.squareform(ssd.pdist(pfc_arr))
+        #IPython.embed()
         plotting.plot_kernels(result.obj_key, result.kernel_matrix, pfc_diff,
                               result.neighbor_kernels, result.neighbor_pfc_diffs, result.neighbor_keys,
                               font_size=font_size)
@@ -82,10 +83,18 @@ if __name__ == '__main__':
         plt.plot(result.iters, result.ua_reward, c=u'b', linewidth=line_width, label='Uniform Allocation')
         plt.plot(result.iters, result.ts_reward, c=u'g', linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
         plt.plot(result.iters, result.ts_corr_reward, c=u'r', linewidth=line_width, label='Thompson Sampling (Correlated)')
-        for ts_corr_prior, color, label in zip(result.ts_corr_prior_reward, u'cmb',
+        for ts_corr_prior, color, label in zip(result.ts_corr_prior_reward, u'cmk',
                                                config['priors_feature_names']):
             plt.plot(result.iters, ts_corr_prior,
                      c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+
+
+        plt.xlim(0, np.max(result.iters))
+        plt.ylim(0.5, 1)
+        plt.xlabel('Iteration', fontsize=font_size)
+        plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+        plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
+
         handles, labels = plt.gca().get_legend_handles_labels()
         plt.legend(handles, labels, loc='lower right')
 
@@ -111,7 +120,7 @@ if __name__ == '__main__':
     plt.plot(all_results.iters[0], ts_normalized_reward, c=u'g', linewidth=line_width, label='TS (Uncorrelated)')
     plt.plot(all_results.iters[0], ts_corr_normalized_reward, c=u'r', linewidth=line_width, label='TS (Correlated)')
 
-    for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, u'cmb',
+    for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, u'cmk',
                                            config['priors_feature_names']):
         plt.plot(all_results.iters[0], ts_corr_prior,
                  c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))

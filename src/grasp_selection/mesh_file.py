@@ -42,11 +42,11 @@ class MeshFile:
 		os.system('chmod a+rwx \"%s\"' %(target_sdf_filename) )
 
 	@staticmethod
-	def write_stp(mesh, target_filename):
+	def write_stp(mesh, target_filename, min_prob = 0.05):
 		target_stp_filename = target_filename + '.stp'
 
 		stpf = stp_file.StablePoseFile()
-		stpf.write_mesh_stable_poses(mesh, target_stp_filename)
+		stpf.write_mesh_stable_poses(mesh, target_stp_filename, min_prob=min_prob)
 
 	@staticmethod
 	def write_json(mesh, target_filename):

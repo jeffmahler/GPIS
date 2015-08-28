@@ -214,7 +214,7 @@ class PointGraspMetrics3D:
 
     @staticmethod
     def min_norm_vector_in_facet(facet):
-        eps = 1e-4
+        eps = 1e-2
         dim = facet.shape[1] # num vertices in facet
 
         # create alpha weights for vertices of facet
@@ -228,6 +228,7 @@ class PointGraspMetrics3D:
         h = cvx.matrix(np.zeros((dim, 1)))
         A = cvx.matrix(np.ones((1, dim)))  # sum constraint to enforce convex
         b = cvx.matrix(np.ones(1))         # combinations of vertices
+
         sol = cvx.solvers.qp(P, q, G, h, A, b)
 
         min_norm = sol['primal objective']
@@ -331,8 +332,6 @@ def test_quality_metrics(vis=True):
             grasp.visualize(graspable)
             graspable.visualize()
             mv.show()
-
-    IPython.embed()
 
 
 # TODO: find a way to log output?
