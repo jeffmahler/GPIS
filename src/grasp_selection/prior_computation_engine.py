@@ -19,7 +19,7 @@ class PriorComputationEngine:
 		self.grasp_kernel = kernels.SquaredExponentialKernel(
 			sigma=config['kernel_sigma'], l=config['kernel_l'])
 		self.neighbor_kernel = kernels.SquaredExponentialKernel(
-			sigma=1.0, l=config['prior_neighbor_kernel_l'])
+			sigma=1.0, l=(1/config['prior_neighbor_weight']))
 		self.neighbor_distance = config['prior_neighbor_distance']
 		self.num_neighbors = config['prior_num_neighbors']
 		self.config = config

@@ -1,0 +1,29 @@
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
+dataset: PriorsTrain
+# design_matrix: grasp_features.hdf5
+design_matrix: /home/brian/data/PriorsTrain/grasp_features.hdf5
+
+window_steps: 13
+
+weight_proj_win: 1.0
+weight_grad_x: 0.0
+weight_grad_y: 0.0
+weight_curvature: 0.0
+weight_grasp_center: 0.0
+weight_grasp_axis: 0.0
+weight_grasp_angle: 0.0
+weight_gravity: 0.0
+
+step_size_max: 1000 # TUNE
+step_size_period: 150 # step size drops 10x every step_size_period iters, TUNE
+
+weight_initial: 100.0 # TUNE
+
+max_iters: 5000
+snapshot_rate: 300
+
+kernel_sigma: 1.0
+kernel_l: 1.0
+partial_gradient_size: 250 # TUNE
+
+plot: False
