@@ -1,6 +1,14 @@
 26 amazon_picking_challenge
 120 BigBIRD
 1382 Cat50_ModelDatabase
+7 dataset_10_train
+3 dataset_10_val
+70 dataset_100_train
+30 dataset_100_val
+700 dataset_1000_train
+300 dataset_1000_val
+7438 dataset_all_train
+3189 dataset_all_val
 122 KIT
 9 MiniBIRD
 9449 ModelNet40
