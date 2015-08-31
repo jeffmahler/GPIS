@@ -86,4 +86,18 @@ if __name__ == '__main__':
         plt.legend((r1[0], r2[0], r3[0]), ('Random', 'Predicted', 'Actual'))
         plt.savefig(os.path.join(image_dir, 'pfc'))
 
+        # plot absolute differences histogram
+        initial_diff = np.absolute(random_predicted - ground_truth)
+        optimized_diff = np.absolute(predicted - ground_truth)
+        logging.info('Initial absolute difference: (mean=%f, var=%f, med=%f)',
+                     np.mean(initial_diff), np.var(initial_diff), np.median(initial_diff))
+        logging.info('Absolute difference: (mean=%f, var=%f, med=%f)',
+                     np.mean(optimized_diff), np.var(optimized_diff), np.median(optimized_diff))
+        _, _, patches = plt.hist([initial_diff, optimized_diff],
+                                 bins=np.linspace(0, 1, 50+1), color='ry')
+        plt.legend(patches, ('Random', 'Predicted'))
+        plt.xlabel('Absolute Difference')
+        plt.ylabel('Frequency')
+        plt.savefig(os.path.join(image_dir, 'abs_diff'))
+
         # IPython.embed()
