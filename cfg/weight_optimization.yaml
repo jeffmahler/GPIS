@@ -2,6 +2,7 @@ database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
 dataset: PriorsTrain
 # design_matrix: grasp_features.hdf5
 design_matrix: /home/brian/data/PriorsTrain/grasp_features.hdf5
+param_function: make_weight_params
 
 window_steps: 13
 

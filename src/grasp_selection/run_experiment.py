@@ -256,13 +256,37 @@ def make_chunks(config):
         assigned = 0
         while assigned < counts[dataset]:
             chunk = dict(dataset=dataset,
-                         chunk=[assigned, assigned+max_chunk_size])
+                         chunk_start=assigned,
+                         chunk_end=assigned+max_chunk_size)
             chunks.append(chunk)
             assigned += max_chunk_size
     yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks))
     if yesno.lower() == 'n':
         sys.exit(1)
     return chunks
+
+import itertools as it
+def make_weight_params(config):
+    params = []
+    # dpgdhvqkvr
+    # max_step_sizes = np.logspace(2, 6, num=30)           # 30
+    # step_size_periods = np.array([250, 500, 750])        # 3
+    # partial_gradient_size = np.array([250, 500])         # 2
+
+    # dkmuojaqqb
+    max_step_sizes = np.arange(100, 2000, step=100)        # 19
+    step_size_periods = np.arange(700, 1200, step=100)     # 5
+    partial_gradient_size = np.array([500, 1000])          # 2
+
+    for a, b, c in it.product(max_step_sizes, step_size_periods, partial_gradient_size):
+        params.append(dict(weight_initial=100.0,
+                           step_size_max=a,
+                           step_size_period=b,
+                           partial_gradient_size=c))
+    yesno = raw_input('Create %d instances? [Y/n] ' % len(params))
+    if yesno.lower() == 'n':
+        sys.exit(1)
+    return params
 
 def oauth_authorization(config, args):
     """
@@ -310,9 +334,6 @@ def launch_experiment(args, sleep_time):
     image_name = config['compute']['image']
     run_script = config['compute']['run_script']
 
-    # Make chunks
-    chunks = make_chunks(config)
-
     # Initialize gce.Gce
     logging.info('Initializing GCE')
     gce_helper = gce.Gce(auth_http, config, project_id=config['project'])
@@ -328,26 +349,29 @@ def launch_experiment(args, sleep_time):
     instance_results = []
     num_zones = len(config['compute']['zones'])
 
-    for chunk in chunks:
-        # Create instance-specific configuration
-        dataset = chunk['dataset']
-        chunk_start, chunk_end = chunk['chunk']
+    # Make chunks
+    param_function = config['param_function']
+    if param_function == 'make_weight_params':
+        param_function = make_weight_params
+    else:
+        param_function = make_chunks
 
+    for params in param_function(config):
+        # Create instance-specific configuration
         curr_instance_name = instance_name % num_instances
         curr_disk_name = disk_name % num_instances
 
         # Create instance metadata
         metadata=[
+            {'key': 'run_script', 'value': run_script},
             {'key': 'config', 'value': config.file_contents},
             {'key': 'instance_name', 'value': curr_instance_name},
             {'key': 'project_name', 'value': config['project']},
             {'key': 'bucket_name', 'value': bucket},
-            # chunking metadata
-            {'key': 'dataset', 'value': dataset},
-            {'key': 'chunk_start', 'value': chunk_start},
-            {'key': 'chunk_end', 'value': chunk_end},
-            {'key': 'run_script', 'value': run_script}
-            ]
+        ]
+
+        for param_key, param_val in params.items():
+            metadata.append({'key': param_key, 'value': param_val})
 
         # Create a new instance
         logging.info('Creating GCE instance %s' % curr_instance_name)
