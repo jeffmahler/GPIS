@@ -399,7 +399,7 @@ def launch_experiment(args, sleep_time):
     while service_not_ready:
         try:
             service = discovery.build('storage', config['compute']['api_version'], http=auth_http)
-            req = service.objects().list(bucket=bucket)
+            req = service.objects().list(bucket=bucket, prefix=instance_root)
             service_not_ready = False
         except (ValueError, Exception) as e:
             logging.info('Connection failed. Retrying...')
@@ -461,7 +461,8 @@ def launch_experiment(args, sleep_time):
 
     # Download the results
     download_start_time = time.time()
-    store_dir, instance_result_dirs = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
+    if config['cache_dir'] is not None:
+        store_dir, _ = gcs_helper.retrieve_results(config['bucket'], completed_instance_results, instance_root)
 
     # Send the user an email
     message = EMAIL_NOTIFICATION % dict(
@@ -476,13 +477,16 @@ def launch_experiment(args, sleep_time):
                             subject="Your experiment has completed.")
 
     # Save config file
-    with open(os.path.join(store_dir, 'config.yaml'), 'w') as f:
-        f.write(config.file_contents)
+    if config['cache_dir'] is not None:
+        with open(os.path.join(store_dir, 'config.yaml'), 'w') as f:
+            f.write(config.file_contents)
 
-    # Run the results script TODO: move above the email
-    result_agg_start_time = time.time()
-    results_script_call = 'python %s %s %s' %(config['results_script'], config_file, store_dir)
-    os.system(results_script_call)
+        # Run the results script TODO: move above the email
+        result_agg_start_time = time.time()
+        results_script_call = 'python %s %s %s' %(config['results_script'], config_file, store_dir)
+        os.system(results_script_call)
+    else:
+        result_agg_start_time = time.time()
 
     # get runtime
     end_time = time.time()
