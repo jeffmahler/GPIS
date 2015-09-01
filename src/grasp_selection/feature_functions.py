@@ -12,7 +12,7 @@ from contacts import SurfaceWindow
 import graspable_object as go
 
 class Weight:
-    # valid weights: numbers, gaussian_number_number, crop_number_number
+    # valid weights: numbers, CSV paths, gaussian_number_number, crop_number_number
     def __init__(self, value):
         self.value = value
         if isinstance(value, (float, int)):
@@ -21,6 +21,9 @@ class Weight:
             self.is_value = True
         elif isinstance(value, str):
             self.is_value = False
+            if os.path.exists(value): # must be path to CSV!
+                self.value = np.genfromtxt(value, delimiter=',')
+                self.is_value = True
         else:
             raise ValueError('Invalid weight: %s' %(value))
 

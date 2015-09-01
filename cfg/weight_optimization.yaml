@@ -2,6 +2,7 @@ database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
 dataset: PriorsTrain
 # design_matrix: grasp_features.hdf5
 design_matrix: /home/brian/data/PriorsTrain/grasp_features.hdf5
+param_function: make_weight_params
 
 window_steps: 13
 
@@ -27,3 +28,46 @@ kernel_l: 1.0
 partial_gradient_size: 250 # TUNE
 
 plot: False
+
+# extra stuff to make it go
+# cache_dir:    /home/jmahler/brian/GPIS/data/gcs
+dataset_counts: data/counts.txt
+datasets:
+  - PriorsTrain
+max_chunk_size: 100
+
+project:        &id_project        nth-clone-620
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+bucket:         &id_bucket         dex-net-weights # TODO
+disk_type:      &id_disk_type      PERSISTENT
+num_processes: 8
+results_script: src/grasp_selection/compile_weights.py
+compute:
+  api_version:    v1
+  machine_type:   n1-standard-1
+  zones:
+    - us-central1-a
+    - europe-west1-b
+    - asia-east1-a
+  instance_quota: 200
+  startup_script: scripts/weight_optimization.sh
+  image_project:  *id_project
+  image:          dex-net-image
+  data_disks:
+    - dex-net-data
+  service_email:  default
+  network:        default
+  run_script:     src/grasp_selection/weight_optimization.py
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+# Notification parameters ############################################
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgicallab
+notify_email:   &id_notify_email    brian.hou@berkeley.edu
+
+!include partials/paths_gce.yaml
