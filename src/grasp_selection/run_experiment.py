@@ -113,12 +113,13 @@ def stop_instance(instance):
     instance.stop()
 
 class GceInstance:
-    def __init__(self, instance_name, disk_name, image_name, zone, metadata, config):
+    def __init__(self, instance_name, disk_name, image_name, zone, metadata, data_disks, config):
         self.instance_name = instance_name
         self.disk_name = disk_name
         self.image_name = image_name
         self.zone = zone
         self.metadata = metadata
+        self.data_disks = data_disks
         self.project = config['project']
         self.config = config
 
@@ -168,7 +169,7 @@ class GceInstance:
                 startup_script = self.config['compute']['startup_script'],
                 zone = self.zone,
                 metadata = self.metadata,
-                additional_ro_disks = self.config['compute']['data_disks']
+                additional_ro_disks = self.data_disks
             )
         except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
             # Delete the disk in case the instance fails to start.
@@ -352,7 +353,7 @@ def launch_experiment(args, sleep_time):
         # Create a new instance
         logging.info('Creating GCE instance %s' % curr_instance_name)
         instances.append(GceInstance(curr_instance_name, curr_disk_name, image_name, config['compute']['zones'][zone_index],
-                                     metadata, config))
+                                     metadata, [config['compute']['data_disks'][zone_index]], config))
 
         # update loop info
         num_instances += 1
