@@ -6,6 +6,9 @@ REL_PATH_TO_MAYA_RENDERER = 'src/grasp_selection/feature_vectors/'
 if __name__ == '__main__':
 	maya_config = MayaConfig()
 
+	if not os.path.exists(maya_config.dest_dir()):
+		os.mkdir(maya_config.dest_dir())
+
 	back_color = maya_config.back_color()
 	os_cmd = maya_config.mayapy()+\
 				' '+os.path.join(REL_PATH_TO_MAYA_RENDERER+'maya_renderer.py')+\

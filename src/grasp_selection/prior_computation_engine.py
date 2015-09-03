@@ -13,6 +13,11 @@ import numpy as np
 import time
 
 class PriorComputationEngine:
+	GRASP_TRANSFER_METHOD_NONE = 0
+	GRASP_TRANSFER_METHOD_SHOT = 1
+	GRASP_TRANSFER_METHOD_SCALE_XYZ = 2
+	GRASP_TRANSFER_METHOD_SCALE_SINGLE = 3
+
 	def __init__(self, db, config):
 		self.feature_db = FeatureDatabase(config)
 		self.db = db
@@ -25,7 +30,7 @@ class PriorComputationEngine:
 		self.config = config
 		self.kernel_tolerance = config['prior_kernel_tolerance']
 
-	def compute_priors(self, obj, candidates, nearest_features_name=None):
+	def compute_priors(self, obj, candidates, nearest_features_name=None, grasp_transfer_method=0):
 		if nearest_features_name == None:
 			nf = self.feature_db.nearest_features()
 		else:
@@ -33,13 +38,14 @@ class PriorComputationEngine:
 		feature_vector = nf.project_feature_vector(self.feature_db.feature_vectors()[obj.key])
 		neighbor_vector_dict = nf.k_nearest(feature_vector, k=self.num_neighbors) # nf.within_distance(feature_vector, dist=self.neighbor_distance)
 		print 'Found %d neighbors!' % (len(neighbor_vector_dict))
-		return self._compute_priors_with_neighbor_vectors(obj, feature_vector, candidates, neighbor_vector_dict)
+		import IPython; IPython.embed()
+		return [],[]
+		# return self._compute_priors_with_neighbor_vectors(obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=grasp_transfer_method)
 
-	def _compute_priors_with_neighbor_vectors(self, obj, feature_vector, candidates, neighbor_vector_dict):
+	def _compute_priors_with_neighbor_vectors(self, obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=0):
 		print 'Loading features...'
 		neighbor_features_dict = {}
 		neighbor_grasps_dict = {}
-		reg_solver_dict = {}
 		for neighbor_key in neighbor_vector_dict:
 			if neighbor_key == obj.key:
 				continue
@@ -48,8 +54,18 @@ class PriorComputationEngine:
 			grasps, neighbor_features = self._load_grasps_and_features(neighbor_obj)
 			neighbor_features_dict[neighbor_key] = neighbor_features
 			neighbor_grasps_dict[neighbor_key] = grasps
-			reg_solver_dict[neighbor_key] = self._registration_solver(obj, neighbor_obj)
+			
 		print 'Finished loading features'
+
+		if grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SHOT:
+			reg_solver_dict = {}
+			for neighbor_key in neighbor_vector_dict:
+				reg_solver_dict[neighbor_key] = self._registration_solver(obj, neighbor_obj)
+			self.reg_solver_dict = reg_solver_dict
+		elif grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SCALE_XYZ:
+			self._create_feature_scales_xyz(obj, neighbor_vector_dict.keys())
+		elif grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SCALE_SINGLE:
+			self._create_feature_scales_single(obj, neighbor_vector_dict.keys())
 
 		print 'Creating priors...'
 		prior_compute_start = time.clock()
@@ -62,11 +78,10 @@ class PriorComputationEngine:
 				object_distance = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector_dict[neighbor_key])
 				neighbor_features = neighbor_features_dict[neighbor_key]
 				grasps = neighbor_grasps_dict[neighbor_key]
-				reg_solver = reg_solver_dict[neighbor_key]
 				for neighbor_grasp, features in zip(grasps, neighbor_features):
 					successes = neighbor_grasp.successes
 					failures = neighbor_grasp.failures
-					self._transfer_features(features, neighbor_grasp, reg_solver)
+					features = self._transfer_features(features, neighbor_grasp, neighbor_key, grasp_transfer_method)
 					grasp_distance = object_distance * self.grasp_kernel(candidate.features, features.phi)
 					if grasp_distance >= self.kernel_tolerance:
 						alpha += grasp_distance * successes
@@ -78,7 +93,7 @@ class PriorComputationEngine:
 
 		return alpha_priors, beta_priors
 
-	def compute_grasp_kernels(self, obj, candidates, nearest_features_name=None):
+	def compute_grasp_kernels(self, obj, candidates, nearest_features_name=None, grasp_transfer_method=0):
 		if nearest_features_name == None:
 			nf = self.feature_db.nearest_features()
 		else:
@@ -94,14 +109,14 @@ class PriorComputationEngine:
 			if neighbor_key == obj.key:
 				continue
 			neighbor_obj = self.db[neighbor_key]
-			neighbor_pfc_diffs, neighbor_kernels, object_distance = self.kernel_info_from_neighbor(obj, candidates, neighbor_obj)
+			neighbor_pfc_diffs, neighbor_kernels, object_distance = self.kernel_info_from_neighbor(obj, candidates, neighbor_obj, grasp_transfer_method=grasp_transfer_method)
 			all_neighbor_pfc_diffs.append(neighbor_pfc_diffs)
 			all_neighbor_kernels.append(neighbor_kernels)
 			all_distances.append(object_distance)
 			neighbor_keys.append(neighbor_key)
 		return neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances
 
-	def kernel_info_from_neighbor(self, obj, candidates, neighbor):
+	def kernel_info_from_neighbor(self, obj, candidates, neighbor, grasp_transfer_method=0):
 		feature_vectors = self.feature_db.feature_vectors()
 		# nf = self.feature_db.nearest_features()
 		feature_vector = np.array(feature_vectors[obj.key]) # nf.project_feature_vector(feature_vectors[obj.key])
@@ -120,7 +135,7 @@ class PriorComputationEngine:
 			alpha = 1.0
 			beta = 1.0
 			for neighbor_grasp, features in zip(grasps, all_features):
-				features = self._transfer_features(features, neighbor_grasp, reg_solver)
+				features = self._transfer_features(features, neighbor_grasp, neighbor_key, grasp_transfer_method)
 				grasp_distance = self.grasp_kernel(candidate.features, features.phi)
 				neighbor_pfc_diffs.append(abs(candidate.grasp.quality - neighbor_grasp.quality))
 				neighbor_kernels.append(grasp_distance*object_distance)
@@ -144,13 +159,40 @@ class PriorComputationEngine:
 		reg_solver.scale(neighbor_obj.mesh)
 		return reg_solver
 
-	def _transfer_features(self, features, grasp, reg_solver):
+	def _create_feature_scales_xyz(self, obj, neighbor_keys):
+		scales = {}
+		principal_dims = obj.mesh.principal_dims()
+		for neighbor_key in neighbor_keys:
+			scale_vector = principal_dims / self.db[neighbor_key].mesh.principal_dims()
+			scales[neighbor_key] = scale_vector
+		self.scales = scales
+
+	def _create_feature_scales_single(self, obj, neighbor_keys):
+		scales = {}
+		normalized_scale = np.mean(np.linalg.norm(np.array(obj.mesh.vertices_), axis=0))
+		for neighbor_key in neighbor_keys:
+			neighbor_normalized_scale = np.mean(np.linalg.norm(np.array(self.db[neighbor_key].mesh.vertices_), axis=0))
+			scales[neighbor_key] = normalized_scale / neighbor_normalized_scale
+		self.scales = scales
+
+	def _transfer_features(self, features, neighbor_grasp, neighbor_key, grasp_transfer_method):
+		if grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SHOT:
+			return self._transfer_features_shot(features, neighbor_grasp, self.reg_solver_dict[neighbor_key])
+		elif grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SCALE_XYZ:
+			return self._transfer_features_by_scale(features, neighbor_key)
+		elif grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SCALE_SINGLE:
+			return self._transfer_features_by_scale(features, neighbor_key)
+		return features
+
+	def _transfer_features_shot(self, features, grasp, reg_solver):
 		grasp = gt.transformgrasp(grasp, reg_solver)
 		features.extractors_[2].center_ = grasp.center
 		features.extractors_[3].axis_ = grasp.axis
-		# contact_points = grasp.close_fingers(obj)[1]
-		# features.extractors_[4].moment1_ = grasp.moment_arm(contact_points[0])
-		# features.extractors_[4].moment2_ = grasp.moment_arm(contact_points[1])
+		return features
+
+	def _transfer_features_by_scale(self, features, neighbor_key):
+		old_center = features.extractors_[2].center_
+		features.extractors_[2].center_ = old_center * self.scales[neighbor_key]
 		return features
 
 
