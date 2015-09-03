@@ -9,7 +9,6 @@ from rendered_object import RenderedObject
 
 DATABASE_DIR_KEY = 'database_dir'
 DATASET_NAME_KEY = 'dataset'
-MESH_DATABASE_ID_KEY = 'mesh_database_id'
 MESH_DATABASE_INDEX_KEY = 'mesh_database_index'
 PORTION_TRAINING_KEY = 'portion_training'
 
@@ -17,9 +16,6 @@ RENDERED_IMAGES_KEY = 'rendered_images'
 FEATURE_VECTORS_KEY = 'feature_vectors'
 NEAREST_FEATURES_KEY = 'nearest_features'
 DATASET_SORTER_KEY = 'dataset_sorter'
-
-CAT50_DATASET_KEY = 'CAT50'
-SHREC_DATASET_KEY = 'SHREC'
 
 class FeatureDatabase:
 	def __init__(self, config):
@@ -47,10 +43,10 @@ class FeatureDatabase:
 		return self.mesh_database_
 
 	def create_mesh_database(self, config):
-		mesh_database_id = config[MESH_DATABASE_ID_KEY]
-		if mesh_database_id == CAT50_DATASET_KEY:
+		dataset_name = config[DATASET_NAME_KEY]
+		if dataset_name == 'Cat50_ModelDatabase':
 			self.mesh_database_ = mesh_database.Cat50ObjectDatabase(config[MESH_DATABASE_INDEX_KEY])
-		elif mesh_database_id == SHREC_DATASET_KEY:
+		elif dataset_name == 'SHREC14LSGTB':
 			self.mesh_database_ = mesh_database.SHRECObjectDatabase(config[MESH_DATABASE_INDEX_KEY])
 		else:
 			print 'Warning: no mesh database matched id in config'

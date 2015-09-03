@@ -8,6 +8,9 @@ import feature_database
 import caffe_config
 import numpy as np
 import h5py
+import sys
+sys.path.insert(0, 'src/grasp_selection/')
+import experiment_config as ec
 
 class FeatureVectorDatabase:
 	def __init__(self, feature_db, caffe_config):

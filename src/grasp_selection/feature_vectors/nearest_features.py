@@ -20,8 +20,6 @@ import sys
 sys.path.append('src/grasp_selection/')
 import kernels
 
-UNKNOWN_TAG = 'No Results'
-
 class FeatureObject:
 	def __init__(self, key, feature_vector):
 		self.key = key
@@ -91,6 +89,7 @@ class NearestFeatures:
 		print 'DONE'
 		end = time.time()
 		print end - start
+		print 'Explained variance ratio %f' % np.sum(svd.explained_variance_ratio_)
 		return svd
 
 	def _project_feature_vectors(self, feature_vectors):
