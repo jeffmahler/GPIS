@@ -38,9 +38,7 @@ class PriorComputationEngine:
 		feature_vector = nf.project_feature_vector(self.feature_db.feature_vectors()[obj.key])
 		neighbor_vector_dict = nf.k_nearest(feature_vector, k=self.num_neighbors) # nf.within_distance(feature_vector, dist=self.neighbor_distance)
 		print 'Found %d neighbors!' % (len(neighbor_vector_dict))
-		import IPython; IPython.embed()
-		return [],[]
-		# return self._compute_priors_with_neighbor_vectors(obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=grasp_transfer_method)
+		return self._compute_priors_with_neighbor_vectors(obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=grasp_transfer_method)
 
 	def _compute_priors_with_neighbor_vectors(self, obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=0):
 		print 'Loading features...'
