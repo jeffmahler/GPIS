@@ -3,7 +3,10 @@ from abc import ABCMeta, abstractmethod
 class MeshDatabase:
 	def object_category_for_key(self, key):
 		"""Get an object category for a given object key"""
-		return self.object_dict_[key]
+		if key in self.object_dict_:
+			return self.object_dict_[key]
+		else:
+			return None
 
 	def object_keys(self):
 		"""Get a dictionary of objects: keys: object ids, values: object category"""
