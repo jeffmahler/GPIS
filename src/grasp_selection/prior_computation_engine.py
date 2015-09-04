@@ -74,7 +74,6 @@ class PriorComputationEngine:
 			alpha = 1.0
 			beta = 1.0
 			for neighbor_key in neighbor_grasps_dict:
-                                print 'Priors for neighbor', neighbor_key
 				object_distance = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector_dict[neighbor_key])
 				neighbor_features = neighbor_features_dict[neighbor_key]
 				grasps = neighbor_grasps_dict[neighbor_key]

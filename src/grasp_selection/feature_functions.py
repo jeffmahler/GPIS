@@ -476,7 +476,6 @@ class GraspableFeatureLoader:
                     feature_json, grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
                 features.append(feature)
         except Exception as e:
-            raise e
             logging.warning('Exception in feature loading')
             return []
         return features
