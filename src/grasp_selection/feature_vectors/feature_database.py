@@ -4,6 +4,7 @@ import yaml
 import pickle
 import mesh_database
 import h5py
+import IPython
 
 from rendered_object import RenderedObject
 
@@ -22,7 +23,7 @@ class FeatureDatabase:
 		self._parse_config(config)
 
 	def _parse_config(self, config):
-		self.database_root_dir_ = os.path.join(config[DATABASE_DIR_KEY], config[DATASET_NAME_KEY])
+		self.database_root_dir_ = config[DATABASE_DIR_KEY]
 		self.path_to_image_dir_ = os.path.join(self.database_root_dir_, RENDERED_IMAGES_KEY)
 		self.portion_training_ = config[PORTION_TRAINING_KEY]
 		self.create_mesh_database(config)

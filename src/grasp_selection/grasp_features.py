@@ -58,7 +58,7 @@ def extract_features(obj, dest, feature_dest, config):
     sample_duration = sample_end - sample_start
     logging.info('Grasp candidate generation took %f sec' %(sample_duration))
 
-    if not grasps:
+    if not grasps or len(grasps) == 0:
         logging.info('Skipping %s' %(obj.key))
         return
 

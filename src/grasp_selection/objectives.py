@@ -283,6 +283,7 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
         kernel = self.kernel(w)
         x, without_x, i = self.get_random_datum()
 
+
         num_indices = self.config_['partial_gradient_size']
         if num_indices in (None, 0, self.num_grasps_):
             X = np.delete(self.X_, i, axis=0)
@@ -321,3 +322,49 @@ class StochasticGraspWeightObjective(DifferentiableObjective):
 
     def hessian(self, w):
         raise NotImplementedError
+
+class CrossEntropyLoss(Objective):
+    def __init__(self, true_p):
+        self.true_p_ = true_p
+        self.N_ = true_p.shape[0]
+
+    def evaluate(self, est_p):
+        self.check_valid_input(est_p)
+        return -1.0 / self.N_ * np.sum((self.true_p_ * np.log(est_p) + (1.0 - self.true_p_) * np.log(1.0 - est_p)))
+    
+    def check_valid_input(self, est_p):
+        if not isinstance(est_p, np.ndarray):
+            raise ValueError('Cross entropy must be called with ndarray')
+        if est_p.shape[0] != self.N_:
+            raise ValueError('Must supply same number of datapoints as true P')
+
+class SquaredErrorLoss(Objective):
+    def __init__(self, true_p):
+        self.true_p_ = true_p
+        self.N_ = true_p.shape[0]
+
+    def evaluate(self, est_p):
+        self.check_valid_input(est_p)
+        return 1.0 / self.N_ * np.sum((self.true_p_ - est_p)**2)
+    
+    def check_valid_input(self, est_p):
+        if not isinstance(est_p, np.ndarray):
+            raise ValueError('Cross entropy must be called with ndarray')
+        if est_p.shape[0] != self.N_:
+            raise ValueError('Must supply same number of datapoints as true P')
+
+class WeightedSquaredErrorLoss(Objective):
+    def __init__(self, true_p):
+        self.true_p_ = true_p
+        self.N_ = true_p.shape[0]
+
+    def evaluate(self, est_p, weights):
+        self.check_valid_input(est_p)
+        return np.sum(weights * (self.true_p_ - est_p)**2) * (1.0 / np.sum(weights))
+    
+    def check_valid_input(self, est_p):
+        if not isinstance(est_p, np.ndarray):
+            raise ValueError('Cross entropy must be called with ndarray')
+        if est_p.shape[0] != self.N_:
+            raise ValueError('Must supply same number of datapoints as true P')
+

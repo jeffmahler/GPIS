@@ -31,9 +31,12 @@ if __name__ == '__main__':
     # read in all pickle files
     results = []
     names = []
-    for _, dirs, _ in os.walk(result_dir):
+    if True:
+ #   for _, dirs, _ in os.walk(result_dir):
         # compile each subdirectory
-        for d in dirs:
+        d = 'PriorsQuery'
+        if True:
+#        for d in dirs:
             # get the pickle files from each directory
             for root, _, files in os.walk(os.path.join(result_dir, d)):
                 for f in files:
@@ -104,6 +107,41 @@ if __name__ == '__main__':
 
     # aggregate results
     all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
+
+    # plot ce and se
+    avg_ce = np.sum(np.diag(all_results.num_grasps).dot(all_results.ce_vals), axis=0) * (1.0 / np.sum(all_results.num_grasps))
+    avg_se = np.sum(np.diag(all_results.num_grasps).dot(all_results.se_vals), axis=0) * (1.0 / np.sum(all_results.num_grasps))
+    avg_we = np.sum(all_results.total_weights * all_results.we_vals, axis=0)  / np.sum(all_results.total_weights, axis=0)
+    np.savetxt('cross_entropy_vs_nn.csv', avg_ce, delimiter=',')
+    np.savetxt('squared_error_vs_nn.csv', avg_se, delimiter=',')
+    np.savetxt('weighted_squared_error_vs_nn.csv', avg_we, delimiter=',')
+
+    plt.figure()
+    plt.plot(avg_ce, c=u'b', linewidth=line_width)
+    plt.xlabel('Prior Data', fontsize=font_size)
+    plt.ylabel('Cross Entropy', fontsize=font_size)
+    plt.title('Cross Entropy vs Prior Data', fontsize=font_size)
+    figname = 'cross_entropy_vs_nn.png'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
+
+    plt.figure()
+    plt.plot(avg_se, c=u'b', linewidth=line_width)
+    plt.xlabel('Prior Data', fontsize=font_size)
+    plt.ylabel('Squared Error', fontsize=font_size)
+    plt.title('Squared Error vs Prior Data', fontsize=font_size)
+    figname = 'squared_error_vs_nn.png'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
+
+    plt.figure()
+    plt.plot(avg_we, c=u'b', linewidth=line_width)
+    plt.xlabel('Prior Data', fontsize=font_size)
+    plt.ylabel('Weighted Squared Error', fontsize=font_size)
+    plt.title('Weighted Squared Error vs Prior Data', fontsize=font_size)
+    figname = 'weighted_squared_error_vs_nn.png'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
 
     # plotting of average final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)

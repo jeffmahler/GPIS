@@ -465,13 +465,16 @@ class GraspableFeatureLoader:
     def load_all_features(self, grasps):
         path = os.path.join(self.features_dir_,
                             self.graspable_.key + '.json')
-        with open(path) as f:
-            features_json = jsons.load(f)
-        num_digits = len(str(len(grasps)-1)) # for padding with zeros
-        features = []
-        for i, (feature_json, grasp) in enumerate(zip(features_json, grasps)):
-            logging.info('Loading features for grasp %d' %(i))
-            feature = self._load_feature_rep(
-                feature_json, grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
-            features.append(feature)
+        try:
+            with open(path) as f:
+                features_json = jsons.load(f)
+            num_digits = len(str(len(grasps)-1)) # for padding with zeros
+            features = []
+            for i, (feature_json, grasp) in enumerate(zip(features_json, grasps)):
+                logging.info('Loading features for grasp %d' %(i))
+                feature = self._load_feature_rep(
+                    feature_json, grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
+                features.append(feature)
+        except:
+            return []
         return features

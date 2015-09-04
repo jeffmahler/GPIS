@@ -6,6 +6,7 @@ import kernels
 import database
 import feature_functions as ff
 import feature_matcher as fm
+import IPython
 import registration as reg
 import obj_file as of
 import grasp_transfer as gt
@@ -38,9 +39,7 @@ class PriorComputationEngine:
 		feature_vector = nf.project_feature_vector(self.feature_db.feature_vectors()[obj.key])
 		neighbor_vector_dict = nf.k_nearest(feature_vector, k=self.num_neighbors) # nf.within_distance(feature_vector, dist=self.neighbor_distance)
 		print 'Found %d neighbors!' % (len(neighbor_vector_dict))
-		import IPython; IPython.embed()
-		return [],[]
-		# return self._compute_priors_with_neighbor_vectors(obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=grasp_transfer_method)
+		return self._compute_priors_with_neighbor_vectors(obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=grasp_transfer_method)
 
 	def _compute_priors_with_neighbor_vectors(self, obj, feature_vector, candidates, neighbor_vector_dict, grasp_transfer_method=0):
 		print 'Loading features...'
@@ -75,6 +74,7 @@ class PriorComputationEngine:
 			alpha = 1.0
 			beta = 1.0
 			for neighbor_key in neighbor_grasps_dict:
+                                print 'Priors for neighbor', neighbor_key
 				object_distance = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector_dict[neighbor_key])
 				neighbor_features = neighbor_features_dict[neighbor_key]
 				grasps = neighbor_grasps_dict[neighbor_key]
@@ -135,7 +135,7 @@ class PriorComputationEngine:
 			alpha = 1.0
 			beta = 1.0
 			for neighbor_grasp, features in zip(grasps, all_features):
-				features = self._transfer_features(features, neighbor_grasp, neighbor_key, grasp_transfer_method)
+				features = self._transfer_features(features, neighbor_grasp, neighbor.key, grasp_transfer_method)
 				grasp_distance = self.grasp_kernel(candidate.features, features.phi)
 				neighbor_pfc_diffs.append(abs(candidate.grasp.quality - neighbor_grasp.quality))
 				neighbor_kernels.append(grasp_distance*object_distance)

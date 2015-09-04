@@ -19,4 +19,4 @@
 33 PriorsTrain
 8987 SHREC14LSGTB
 28 test_data
-160 YCB
+80 YCB
