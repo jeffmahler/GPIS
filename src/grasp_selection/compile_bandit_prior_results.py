@@ -31,12 +31,9 @@ if __name__ == '__main__':
     # read in all pickle files
     results = []
     names = []
-    if True:
- #   for _, dirs, _ in os.walk(result_dir):
+    for _, dirs, _ in os.walk(result_dir):
         # compile each subdirectory
-        d = 'PriorsQuery'
-        if True:
-#        for d in dirs:
+        for d in dirs:
             # get the pickle files from each directory
             for root, _, files in os.walk(os.path.join(result_dir, d)):
                 for f in files:

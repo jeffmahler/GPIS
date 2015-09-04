@@ -199,6 +199,8 @@ def label_correlated(obj, chunk, config, plot=False,
     np.random.seed(100)
 
     candidates = load_candidate_grasps(obj, chunk)
+    if candidates is None:
+        return None
 
     # feature transform
     def phi(rv):

@@ -4,19 +4,19 @@
 
 dataset_counts: data/counts.txt
 datasets:
-  - dataset_10_val
+  - keys_10_test
 max_chunk_size: 1
 num_trials: 1
 
-priors_dataset: dataset_10_train
+priors_dataset: keys_10000_train_and_val
 priors_feature_names:
-  - nearest_features_10_train
-  - nearest_features_100_train
-  - nearest_features_1000_train
-  - nearest_features_all_train
+  - nearest_features_10_train_and_val
+  - nearest_features_100_train_and_val
+#  - nearest_features_1000_train
+#  - nearest_features_all_train
 
 # Will be overridden by startup script
-dataset:     dataset_10_val
+dataset:     keys_10_test
 chunk_start: 0
 chunk_end:   1
 
@@ -44,7 +44,7 @@ kernel_tolerance: 0.05
 
 prior_neighbor_weight: 0.1
 prior_neighbor_distance: 20
-prior_num_neighbors: 1
+prior_num_neighbors: 11
 prior_kernel_tolerance: 0.05
 
 # Post-experiment parameters #########################################

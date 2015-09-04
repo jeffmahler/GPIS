@@ -19,6 +19,7 @@ from dataset_sorter import DatasetSorter
 import sys
 sys.path.append('src/grasp_selection/')
 import kernels
+import IPython
 
 class FeatureObject:
 	def __init__(self, key, feature_vector):
@@ -57,12 +58,12 @@ class NearestFeatures:
 
 	def k_nearest(self, feature_vector, k=1):
 		feature_object = self._create_query_object(feature_vector)
-		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, k)
+		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, min(k, len(self.neighbors.data_)))
 		return self._create_feature_vector_dict(neighbor_feature_objects)
 
 	def k_nearest_keys(self, feature_vector, k=1):
 		feature_object = self._create_query_object(feature_vector)
-		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, k)
+		neighbor_feature_objects, distances = self.neighbors.nearest_neighbors(feature_object, min(k, len(self.neighbors.data_)))
 		return map(lambda x: x.key, neighbor_feature_objects), distances
 
 	def _create_query_object(self, feature_vector):
