@@ -2,6 +2,9 @@ import train_cnn
 from dataset_sorter import DatasetSorter
 from feature_database import FeatureDatabase
 from caffe_config import CaffeConfig
+import sys
+sys.path.insert(0, 'src/grasp_selection/')
+import experiment_config as ec
 
 if __name__ == '__main__':
 	import argparse
