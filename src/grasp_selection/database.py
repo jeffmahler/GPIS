@@ -148,8 +148,12 @@ class Dataset(object):
         if grasp_dir is None:
             grasp_dir = self.dataset_root_dir_
         path = os.path.join(grasp_dir, Dataset.json_filename(key))
-        with open(path) as f:
-            grasps = jsons.load(f)
+        try:
+            with open(path) as f:
+                grasps = jsons.load(f)
+        except:
+            logging.warning('No grasp file found for key %s' %(key))
+            return []
         return [grasp.ParallelJawPtGrasp3D.from_json(g) for g in grasps]
 
     def save_grasps(self, graspable, grasps):

@@ -42,6 +42,7 @@ class BanditCorrelatedPriorExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_reward,
                  true_avg_reward, iters, kernel_matrix,
                  neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
+                 ce_vals, se_vals, we_vals, num_grasps, total_weights,
                  obj_key='', neighbor_keys=[], num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
@@ -55,6 +56,12 @@ class BanditCorrelatedPriorExperimentResult:
         self.neighbor_kernels = neighbor_kernels
         self.neighbor_pfc_diffs = neighbor_pfc_diffs
         self.neighbor_distances = neighbor_distances
+
+        self.ce_vals = ce_vals
+        self.se_vals = se_vals
+        self.we_vals = we_vals
+        self.num_grasps = num_grasps
+        self.total_weights = total_weights
 
         self.obj_key = obj_key
         self.neighbor_keys = neighbor_keys
@@ -78,6 +85,12 @@ class BanditCorrelatedPriorExperimentResult:
         ts_corr_prior_rewards = []
         for x in range(0, len(result_list[0].ts_corr_prior_reward)):
             ts_corr_prior_rewards.append(np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]]))
+            
+        ce_vals = np.zeros([len(result_list), result_list[0].ce_vals.shape[0]])
+        se_vals = np.zeros([len(result_list), result_list[0].se_vals.shape[0]])
+        we_vals = np.zeros([len(result_list), result_list[0].we_vals.shape[0]])
+        num_grasps = np.zeros(len(result_list))
+        total_weights = np.zeros([len(result_list), result_list[0].total_weights.shape[0]])
 
         i = 0
         obj_keys = []
@@ -87,6 +100,13 @@ class BanditCorrelatedPriorExperimentResult:
             ts_corr_reward[i,:] = r.ts_corr_reward
             for n, ts_corr_prior_reward in enumerate(ts_corr_prior_rewards):
                 ts_corr_prior_reward[i,:] = r.ts_corr_prior_reward[n]
+
+            ce_vals[i,:] = r.ce_vals
+            se_vals[i,:] = r.se_vals
+            we_vals[i,:] = r.we_vals
+            num_grasps[i] = r.num_grasps
+            total_weights[i] = r.total_weights
+
             obj_keys.append(r.obj_key)
             i = i + 1
 
@@ -99,6 +119,12 @@ class BanditCorrelatedPriorExperimentResult:
         neighbor_distances = [r.neighbor_distances for r in result_list]
         neighbor_keys = [r.neighbor_keys for r in result_list]
 
+        """
+        ce_vals = [r.ce_vals for r in result_list]
+        se_vals = [r.se_vals for r in result_list]
+        num_grasps = [r.num_grasps for r in result_list]
+        """
+
         return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
                                                      true_avg_rewards,
                                                      iters,
@@ -106,6 +132,11 @@ class BanditCorrelatedPriorExperimentResult:
                                                      neighbor_kernels,
                                                      neighbor_pfc_diffs,
                                                      neighbor_keys,
+                                                     ce_vals,
+                                                     se_vals,
+                                                     we_vals,
+                                                     num_grasps,
+                                                     total_weights,
                                                      obj_keys,
                                                      neighbor_keys,
                                                      len(result_list))
@@ -168,6 +199,8 @@ def label_correlated(obj, chunk, config, plot=False,
     np.random.seed(100)
 
     candidates = load_candidate_grasps(obj, chunk)
+    if candidates is None:
+        return None
 
     # feature transform
     def phi(rv):
@@ -201,7 +234,32 @@ def label_correlated(obj, chunk, config, plot=False,
         neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates, nearest_features_name=nearest_features_name)
 
     # pre-computed pfc values
-    estimated_pfc = np.array([c.grasp.quality for c in candidates])
+    true_pfc = np.array([c.grasp.quality for c in candidates])
+    prior_pfc = 0.5*np.ones(true_pfc.shape)
+
+    ce_loss = objectives.CrossEntropyLoss(true_pfc)
+    se_loss = objectives.SquaredErrorLoss(true_pfc)
+    we_loss = objectives.WeightedSquaredErrorLoss(true_pfc)
+    ce_vals = [ce_loss(prior_pfc)]
+    se_vals = [se_loss(prior_pfc)]
+    we_vals = [se_loss(prior_pfc)] # uniform weights at first
+    total_weights = [len(candidates)]
+
+    # compute estimated pfc values from alphas and betas
+    for alpha_prior, beta_prior in zip(all_alpha_priors, all_beta_priors):
+        estimated_pfc = models.BetaBernoulliModel.beta_mean(np.array(alpha_prior), np.array(beta_prior))
+        estimated_vars = models.BetaBernoulliModel.beta_variance(np.array(alpha_prior), np.array(beta_prior))
+        
+        # compute losses
+        ce_vals.append(ce_loss(estimated_pfc))
+        se_vals.append(se_loss(estimated_pfc))
+        we_vals.append(we_loss.evaluate(estimated_pfc, estimated_vars))
+        total_weights.append(np.sum(estimated_vars))
+
+    ce_vals = np.array(ce_vals)
+    se_vals = np.array(se_vals)
+    we_vals = np.array(we_vals)
+    total_weights = np.array(total_weights)
 
     # run bandits for several trials
     ua_rewards = []
@@ -237,13 +295,13 @@ def label_correlated(obj, chunk, config, plot=False,
             logging.info('Running correlated Thompson sampling with priors.')
             ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list),
                                                        snapshot_rate=snapshot_rate)
-            ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, estimated_pfc)
+            ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, true_pfc)
             ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
 
         # compile results
-        ua_normalized_reward = reward_vs_iters(ua_result, estimated_pfc)
-        ts_normalized_reward = reward_vs_iters(ts_result, estimated_pfc)
-        ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, estimated_pfc)
+        ua_normalized_reward = reward_vs_iters(ua_result, true_pfc)
+        ts_normalized_reward = reward_vs_iters(ts_result, true_pfc)
+        ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, true_pfc)
 
         ua_rewards.append(ua_normalized_reward)
         ts_rewards.append(ts_normalized_reward)
@@ -268,8 +326,9 @@ def label_correlated(obj, chunk, config, plot=False,
 
     return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
                                                  all_avg_ts_corr_prior_rewards,
-                                                 estimated_pfc, ua_result.iters, kernel_matrix,
+                                                 true_pfc, ua_result.iters, kernel_matrix,
                                                  all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances,
+                                                 ce_vals, se_vals, we_vals, len(candidates), total_weights,
                                                  obj_key=obj.key, neighbor_keys=neighbor_keys)
 
 def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):

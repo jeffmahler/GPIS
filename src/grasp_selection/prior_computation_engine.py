@@ -6,6 +6,7 @@ import kernels
 import database
 import feature_functions as ff
 import feature_matcher as fm
+import IPython
 import registration as reg
 import obj_file as of
 import grasp_transfer as gt
@@ -133,7 +134,7 @@ class PriorComputationEngine:
 			alpha = 1.0
 			beta = 1.0
 			for neighbor_grasp, features in zip(grasps, all_features):
-				features = self._transfer_features(features, neighbor_grasp, neighbor_key, grasp_transfer_method)
+				features = self._transfer_features(features, neighbor_grasp, neighbor.key, grasp_transfer_method)
 				grasp_distance = self.grasp_kernel(candidate.features, features.phi)
 				neighbor_pfc_diffs.append(abs(candidate.grasp.quality - neighbor_grasp.quality))
 				neighbor_kernels.append(grasp_distance*object_distance)

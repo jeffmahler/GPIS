@@ -8,68 +8,22 @@ import shutil
 import sys
 import time
 
-big_data_dir = '/home/brian/big_data'
-#experiment_names = ['jeufzcrent']
+big_data_dir = '/home/brian/data'
+#experiment_names = ['szrvyjkidb']
 experiment_names = ['axlneljhga', 'dqqsbdpqgf', 'jeufzcrent', 'szrvyjkidb']
 datasets = ['dataset_all_train', 'dataset_all_val', 'ModelNet40', 'NTU3D', 'YCB']
 feature_subdir= 'features'
 json_matches = ['*.json']
-any_matches = ['*.json', '*[0-4]', '*[5-9]']
+any_matches = ['*.json', '*[0-3]', '*[4-7]', '*[8-9]']
 
-debug = True
+debug = False
 
 def link_subdirs(source_data_dir, dest_data_dir, matches, debug=False):
     for match in matches:
         ln_cmd = 'ln -fs %s/%s %s/' %(source_data_dir, match, dest_data_dir)
+        print ln_cmd
         os.system(ln_cmd)
     return
-
-"""
-    # loop through subdirs, creating links as necessary
-    source_subdirs = os.listdir(source_data_dir)
-    for d in source_subdirs:
-        if d not in invalid_subdirs:
-            # create link names
-            source_link = os.path.join(source_data_dir, d)
-            dest_link = os.path.join(dest_data_dir, d)
-
-            # remove dest link if it exists
-            if os.path.exists(dest_link):
-                os.remove(dest_link)
-
-            # create link
-            os.symlink(source_link, dest_link)
-
-            if debug:
-                print 'Source', source_link
-                print 'Dest', dest_link
-
-            # hardcoded to also symlink in the small dataset directories
-            other_datasets = []
-            if dataset == 'dataset_all_train':
-                other_datasets = ['dataset_10_train', 'dataset_100_train', 'dataset_1000_train']
-            elif dataset == 'dataset_all_val':
-                other_datasets = ['dataset_10_val', 'dataset_100_val', 'dataset_1000_val']
-
-            # link all against the other datasets (yes there will be too many grasps in the small ones but fuck it)
-            if len(invalid_subdirs) == 0:
-                other_datsets = []
-            for od in other_datasets:
-                dest_link = os.path.join(big_data_dir, od, d)
-                
-                # remove dest link if it exists
-                if os.path.exists(dest_link):
-                    os.remove(dest_link)
-                    
-                os.symlink(source_link, dest_link)
-                
-                if debug:
-                    print 'Source', source_link
-                    print 'Dest', dest_link
-#        if len(invalid_subdirs) == 0:
-#            print 'Source subdirs', source_subdirs
-#            exit(0)
-"""
 
 if __name__ == '__main__':
     k = 0
@@ -109,10 +63,9 @@ if __name__ == '__main__':
 
             # link other datasets
             other_datasets = []
-            if dataset == 'dataset_all_train':
-                other_datasets = ['dataset_10_train', 'dataset_100_train', 'dataset_1000_train']
-            elif dataset == 'dataset_all_val':
+            if dataset == 'dataset_all_train' or dataset == 'dataset_all_val':
                 other_datasets = ['dataset_10_val', 'dataset_100_val', 'dataset_1000_val']
+                other_datasets.extend(['dataset_10_train', 'dataset_100_train', 'dataset_1000_train'])
 
             # link all against the other datasets (yes there will be too many grasps in the small ones but fuck it)
             for od in other_datasets:
@@ -135,15 +88,16 @@ if __name__ == '__main__':
             # link the subdirectories
             link_subdirs(experiment_features_dir, dataset_features_dir, any_matches, debug)
             
-            # link other datasets
+            # link other datasets (TODO: this is swapped due to a nesting bug)
             other_datasets = []
-            if dataset == 'dataset_all_train':
-                other_datasets = ['dataset_10_train', 'dataset_100_train', 'dataset_1000_train']
-            elif dataset == 'dataset_all_val':
+            if dataset == 'dataset_all_train' or dataset == 'dataset_all_val':
                 other_datasets = ['dataset_10_val', 'dataset_100_val', 'dataset_1000_val']
+                other_datasets.extend(['dataset_10_train', 'dataset_100_train', 'dataset_1000_train'])
 
             for od in other_datasets:
                 other_dataset_features_dir = os.path.join(big_data_dir, od, feature_subdir) 
+                if debug:
+                    print 'Other feature dir', other_dataset_features_dir
 
                 # create features subdir if not yet in existence
                 if os.path.exists(other_dataset_features_dir) and not os.path.isdir(other_dataset_features_dir):
@@ -151,7 +105,7 @@ if __name__ == '__main__':
                 if not os.path.exists(other_dataset_features_dir):
                     os.makedirs(other_dataset_features_dir)
 
-                link_subdirs(experiment_features_dir, other_dataset_features_dir, any_matches, debug)
+                link_subdirs(experiment_features_dir, other_dataset_features_dir, json_matches, debug)
                     
             end_time = time.time()
             print 'Linking took %f sec' %(end_time - start_time)
