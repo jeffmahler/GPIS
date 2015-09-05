@@ -462,7 +462,7 @@ class GraspableFeatureLoader:
             surface_features + grasp_pose_features + gravity_features, root_name)
         return features
 
-    def load_all_features(self, grasps):
+    def load_all_features(self, grasps, out_rate = 50):
         path = os.path.join(self.features_dir_,
                             self.graspable_.key + '.json')
         try:
@@ -471,7 +471,8 @@ class GraspableFeatureLoader:
             num_digits = len(str(len(grasps)-1)) # for padding with zeros
             features = []
             for i, (feature_json, grasp) in enumerate(zip(features_json, grasps)):
-                logging.info('Loading features for grasp %d' %(i))
+                if i % out_rate == 0:
+                    logging.info('Loading features for grasp %d' %(i))
                 feature = self._load_feature_rep(
                     feature_json, grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
                 features.append(feature)

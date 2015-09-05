@@ -171,7 +171,7 @@ class NearestNeighbor:
             list of indices, list of distances (when return_indices is True)
         """
 
-    def featurize(self, data):
+    def featurize(self, data, out_rate = 100):
         """Computes features for each object in data.
         Params:
             data - list of objects to compute features for
@@ -180,11 +180,12 @@ class NearestNeighbor:
         """
         featurized = []
         for i, d in enumerate(data, 1):
-            logging.info('Extracting features from object %d (of %d).' %(i, len(data)))
+            if i % out_rate == 0:
+                logging.info('Extracting features from object %d (of %d).' %(i, len(data)))
             featurize_start = time.clock()
             featurized.append(self.phi_(d))
             featurize_end = time.clock()
-            logging.info('Took %f sec' %(featurize_end - featurize_start))
+            #logging.info('Took %f sec' %(featurize_end - featurize_start))
         return np.array(featurized)
 
 class BinaryTree(NearestNeighbor):

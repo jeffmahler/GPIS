@@ -168,8 +168,10 @@ def load_candidate_grasps(obj, chunk):
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu']) # friction Gaussian RV
 
     candidates = []
-    for grasp, features in zip(grasps, all_features):
-        logging.info('Adding grasp %d' %len(candidates))
+    out_rate = 50
+    for k, (grasp, features) in enumerate(zip(grasps, all_features)):
+        if k % out_rate == 0:
+            logging.info('Adding grasp %d' %(k))
         grasp_rv = pfc.ParallelJawGraspGaussian(grasp, config)
         pfc_rv = pfc.ForceClosureRV(grasp_rv, graspable_rv, f_rv, config)
         if features is None:
@@ -212,10 +214,12 @@ def label_correlated(obj, chunk, config, plot=False,
     objective = objectives.RandomBinaryObjective()
 
     # compute priors
+    logging.info('Computing priors')
     if priors_dataset is None:
         priors_dataset = chunk
     prior_engine = pce.PriorComputationEngine(priors_dataset, config)
 
+    # Compute priors
     all_alpha_priors = []
     all_beta_priors = []
     if nearest_features_names == None:
@@ -224,16 +228,17 @@ def label_correlated(obj, chunk, config, plot=False,
         all_beta_priors.append(beta_priors)
     else:
         for nearest_features_name in nearest_features_names:
-            alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
+            logging.info('Computing priors using %s' %(nearest_features_name))
+            priors_start_time = time.time()
+            alpha_priors, beta_priors, neighbor_keys, neighbor_kernels, neighbor_pfc_diffs = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
+
             all_alpha_priors.append(alpha_priors)
             all_beta_priors.append(beta_priors)
-
-    if nearest_features_name == None:
-        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates)
-    else:
-        neighbor_keys, all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances = prior_engine.compute_grasp_kernels(obj, candidates, nearest_features_name=nearest_features_name)
+            priors_end_time = time.time()
+            logging.info('Priors for %s took %f' %(nearest_features_name, priors_end_time - priors_start_time))
 
     # pre-computed pfc values
+    logging.info('Computing regression errors')
     true_pfc = np.array([c.grasp.quality for c in candidates])
     prior_pfc = 0.5*np.ones(true_pfc.shape)
 
@@ -249,7 +254,7 @@ def label_correlated(obj, chunk, config, plot=False,
     for alpha_prior, beta_prior in zip(all_alpha_priors, all_beta_priors):
         estimated_pfc = models.BetaBernoulliModel.beta_mean(np.array(alpha_prior), np.array(beta_prior))
         estimated_vars = models.BetaBernoulliModel.beta_variance(np.array(alpha_prior), np.array(beta_prior))
-        
+ 
         # compute losses
         ce_vals.append(ce_loss(estimated_pfc))
         se_vals.append(se_loss(estimated_pfc))
@@ -262,6 +267,7 @@ def label_correlated(obj, chunk, config, plot=False,
     total_weights = np.array(total_weights)
 
     # run bandits for several trials
+    logging.info('Running bandits')
     ua_rewards = []
     ts_rewards = []
     ts_corr_rewards = []
@@ -289,10 +295,10 @@ def label_correlated(obj, chunk, config, plot=False,
         ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
         # correlated Thompson sampling with priors for even faster than that convergence
-        for alpha_priors, beta_priors, ts_corr_prior_rewards in zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards):
+        for alpha_priors, beta_priors, ts_corr_prior_rewards, nearest_features_name in zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards, nearest_features_names):
             ts_corr_prior = das.CorrelatedThompsonSampling(
                 objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
-            logging.info('Running correlated Thompson sampling with priors.')
+            logging.info('Running correlated Thompson sampling with priors from %s' %(nearest_features_names))
             ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list),
                                                        snapshot_rate=snapshot_rate)
             ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, true_pfc)
@@ -324,10 +330,36 @@ def label_correlated(obj, chunk, config, plot=False,
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
+    """
+    line_width = config['line_width']
+    font_size = config['font_size']
+    dpi = config['dpi']
+
+    plt.figure()
+    plt.plot(ua_result.iters, avg_ua_rewards, c=u'b', linewidth=line_width, label='Uniform')
+    plt.plot(ua_result.iters, avg_ts_rewards, c=u'g', linewidth=line_width, label='TS (Uncorrelated)')
+    plt.plot(ua_result.iters, avg_ts_corr_rewards, c=u'r', linewidth=line_width, label='TS (Correlated)')
+
+    for ts_corr_prior, color, label in zip(all_avg_ts_corr_prior_rewards, u'cmk',
+                                           config['priors_feature_names']):
+        plt.plot(ua_result.iters, ts_corr_prior,
+                 c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+
+    plt.xlim(0, np.max(ua_result.iters))
+    plt.ylim(0.5, 1)
+    plt.xlabel('Iteration', fontsize=font_size)
+    plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+    plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles, labels, loc='lower right')
+    plt.show()
+    """
+
     return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
                                                  all_avg_ts_corr_prior_rewards,
                                                  true_pfc, ua_result.iters, kernel_matrix,
-                                                 all_neighbor_kernels, all_neighbor_pfc_diffs, all_distances,
+                                                 neighbor_kernels, neighbor_pfc_diffs, [],
                                                  ce_vals, se_vals, we_vals, len(candidates), total_weights,
                                                  obj_key=obj.key, neighbor_keys=neighbor_keys)
 

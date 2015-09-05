@@ -1,6 +1,7 @@
 # directories
 bin/*
 build/*
+cfg/weight_search/*
 feedback/*
 matlab/dependencies/*
 lib/*
