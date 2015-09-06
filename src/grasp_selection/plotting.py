@@ -8,8 +8,8 @@ def distinguishable_colors(n):
     colors = []
     for i in range(n):
         h = 359.0 * float(i) / float(n);
-        s = 0.6 + 0.4*random.random();
-        v = 0.7 + 0.3*random.random();
+        s = 0.8 + 0.2*random.random();
+        v = 0.8 + 0.2*random.random();
         colors.append(clr.hsv_to_rgb(h, s, v))
     return colors
 

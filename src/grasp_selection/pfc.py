@@ -306,6 +306,13 @@ class ForceClosureRV:
         else:
             return self.features_.phi
 
+    @property
+    def feature_extractors(self):
+        if self.features_ is None:
+            logging.warning('Features are uninitialized.')
+        else:
+            return self.features_
+
     def sample_success(self):
         # sample grasp
         cur_time = time.clock()

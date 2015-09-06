@@ -40,6 +40,9 @@ import scipy.spatial.distance as ssd
 
 from correlated_bandits import experiment_hash, reward_vs_iters
 
+# list of keys that cause trouble (right now there ones that take way too damn long)
+skip_keys = ['ModelNet40_radio_112']
+
 class BanditCorrelatedPriorExperimentResult:
     def __init__(self, ua_reward, ts_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_reward, bucb_corr_prior_reward,
                  true_avg_reward, iters, kernel_matrix,
@@ -241,7 +244,8 @@ def label_correlated(obj, chunk, config, plot=False,
         for nearest_features_name in nearest_features_names:
             logging.info('Computing priors using %s' %(nearest_features_name))
             priors_start_time = time.time()
-            alpha_priors, beta_priors, neighbor_keys, neighbor_kernels, neighbor_pfc_diffs = prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
+            alpha_priors, beta_priors, neighbor_keys, neighbor_distances, neighbor_kernels, neighbor_pfc_diffs, num_grasp_neighbors = \
+                prior_engine.compute_priors(obj, candidates, nearest_features_name=nearest_features_name)
 
             all_alpha_priors.append(alpha_priors)
             all_beta_priors.append(beta_priors)
@@ -251,14 +255,18 @@ def label_correlated(obj, chunk, config, plot=False,
     # pre-computed pfc values
     logging.info('Computing regression errors')
     true_pfc = np.array([c.grasp.quality for c in candidates])
+    prior_alphas = np.ones(true_pfc.shape)
+    prior_betas = np.ones(true_pfc.shape)
     prior_pfc = 0.5*np.ones(true_pfc.shape)
 
     ce_loss = objectives.CrossEntropyLoss(true_pfc)
     se_loss = objectives.SquaredErrorLoss(true_pfc)
     we_loss = objectives.WeightedSquaredErrorLoss(true_pfc)
+    ccbp_ll = objectives.CCBPLogLikelihood(true_pfc)
     ce_vals = [ce_loss(prior_pfc)]
     se_vals = [se_loss(prior_pfc)]
     we_vals = [se_loss(prior_pfc)] # uniform weights at first
+    ccbp_vals = [ccbp_ll.evaluate(prior_alphas, prior_betas)]
     total_weights = [len(candidates)]
 
     # compute estimated pfc values from alphas and betas
@@ -270,11 +278,13 @@ def label_correlated(obj, chunk, config, plot=False,
         ce_vals.append(ce_loss(estimated_pfc))
         se_vals.append(se_loss(estimated_pfc))
         we_vals.append(we_loss.evaluate(estimated_pfc, estimated_vars))
+        ccbp_vals.append(ccbp_ll.evaluate(np.array(alpha_prior), np.array(beta_prior)))
         total_weights.append(np.sum(estimated_vars))
 
     ce_vals = np.array(ce_vals)
     se_vals = np.array(se_vals)
     we_vals = np.array(we_vals)
+    ccbp_vals = np.array(ccbp_vals)
     total_weights = np.array(total_weights)
 
     # run bandits for several trials
@@ -367,7 +377,7 @@ def label_correlated(obj, chunk, config, plot=False,
 
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
-
+    
     """
     line_width = config['line_width']
     font_size = config['font_size']
@@ -407,7 +417,7 @@ def label_correlated(obj, chunk, config, plot=False,
                                                  all_avg_ts_corr_prior_rewards, all_avg_bucb_corr_prior_rewards,
                                                  true_pfc, ua_result.iters, kernel_matrix,
                                                  [], [], [],
-                                                 ce_vals, se_vals, we_vals, len(candidates), total_weights,
+                                                 ce_vals, ccbp_vals, we_vals, len(candidates), total_weights,
                                                  obj_key=obj.key, neighbor_keys=neighbor_keys)
 
 def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):
@@ -575,6 +585,9 @@ if __name__ == '__main__':
     # loop through objects, labelling each
     results = []
     for obj in chunk:
+        if obj.key in skip_keys:
+            continue
+
         logging.info('Labelling object {}'.format(obj.key))
         experiment_result = label_correlated(obj, chunk, config,
                                              priors_dataset=priors_dataset,

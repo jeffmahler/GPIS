@@ -55,30 +55,8 @@ class PriorComputationEngine:
                 # load in all grasps and features
 		logging.info('Loading features...')
                 start_time = time.time()
-                neighbor_key_list = neighbor_vector_dict.keys()
-                neighbor_index_list = []
-                neighbor_feature_list = []
-                neighbor_grasp_list = []
-                neighbor_distance_list = []
-		for k, neighbor_key in enumerate(neighbor_vector_dict):
-			if neighbor_key == obj.key:
-				continue
-                        logging.info('Loading features for %s' % (neighbor_key))
-			neighbor_obj = self.db[neighbor_key]
-			grasps, neighbor_features = self._load_grasps_and_features(neighbor_obj)
 
-                        # put stuff in a list
-                        neighbor_index_list.extend([k] * len(neighbor_features))
-                        neighbor_distance = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector_dict[neighbor_key])
-                        if neighbor_distance < self.prior_kernel_tolerance:
-                                neighbor_distance = 0
-                        neighbor_distance_list.extend([neighbor_distance]*len(neighbor_features))
-                        neighbor_feature_list.extend([f.phi for f in neighbor_features])
-                        neighbor_grasp_list.extend(grasps)
-
-                # transfer over all grasps and features (TODO: Update to use lists)
-                lf_time = time.time()			
-                logging.info('Loading features took %f sec' %(lf_time - start_time))
+                # transfer features
                 logging.info('Using grasp transfer method %d' %(grasp_transfer_method))
 
 		if grasp_transfer_method == self.GRASP_TRANSFER_METHOD_SHOT:
@@ -92,7 +70,41 @@ class PriorComputationEngine:
 			self._create_feature_scales_single(obj, neighbor_vector_dict.keys())
 
                 transfer_time = time.time()
-                logging.info('Grasp transfer took %f sec' %(transfer_time - lf_time))
+                logging.info('Grasp transfer precomp took %f sec' %(transfer_time - start_time))
+
+                # extract all neighbor properties
+                neighbor_key_list = neighbor_vector_dict.keys()
+                neighbor_index_list = []
+                neighbor_feature_list = []
+                neighbor_grasp_list = []
+                neighbor_kernel_list = []
+                neighbor_distance_list = []
+		for k, neighbor_key in enumerate(neighbor_vector_dict):
+			if neighbor_key == obj.key:
+				continue
+                        logging.info('Loading features for %s' % (neighbor_key))
+			neighbor_obj = self.db[neighbor_key]
+			grasps, neighbor_features = self._load_grasps_and_features(neighbor_obj)
+
+                        # put stuff in a list
+                        neighbor_index_list.extend([k] * len(neighbor_features))
+                        neighbor_kernel = self.neighbor_kernel.evaluate(feature_vector, neighbor_vector_dict[neighbor_key])
+                        neighbor_distance = np.linalg.norm(feature_vector - neighbor_vector_dict[neighbor_key])
+                        logging.info('Distance %f' %(neighbor_distance))
+                        if neighbor_kernel < self.prior_kernel_tolerance:
+                                neighbor_kernel = 0
+                        neighbor_kernel_list.extend([neighbor_kernel]*len(neighbor_features))
+                        neighbor_distance_list.append(neighbor_distance)
+                        neighbor_grasp_list.extend(grasps)
+
+                        # transfer all features
+                        f_list = []
+                        for features, grasp in zip(neighbor_features, grasps):
+                                f_list.append(self._transfer_features(features, grasp, neighbor_key, grasp_transfer_method))                        
+                        neighbor_feature_list.extend([f.phi for f in f_list])
+
+                lf_time = time.time()			
+                logging.info('Loading features took %f sec' %(lf_time - transfer_time))
 
                 # create nn struct with neighbor features
                 def phi(x):
@@ -100,6 +112,7 @@ class PriorComputationEngine:
                 error_radius = self.grasp_kernel.error_radius(self.grasp_kernel_tolerance)
                 nn = kernels.KDTree(phi=phi)
                 nn.train(neighbor_feature_list)
+                logging.info('Num total features %d' %(len(neighbor_feature_list)))
 
                 # create priors using the nn struct
 		logging.info('Creating priors')
@@ -108,19 +121,22 @@ class PriorComputationEngine:
                 all_neighbor_pfc_diffs = [[]] * len(neighbor_key_list)
 		alpha_priors = []
 		beta_priors = []
+                num_neighbors = []
                 out_rate = 50
 		for k, candidate in enumerate(candidates):
 			alpha = alpha_prior
 			beta = beta_prior
                         if k % out_rate == 0:
                                 logging.info('Creating priors for candidate %d' %(k))
-                                
+
                         # get neighbors within distance and compute kernels
                         neighbor_indices, _ = nn.within_distance(candidate.features, error_radius, return_indices=True)
+                        num_neighbors.append(len(neighbor_indices))
                         for index in neighbor_indices:
                                 successes = neighbor_grasp_list[index].successes
                                 failures = neighbor_grasp_list[index].failures
-                                object_kernel = neighbor_distance_list[index]
+                                object_kernel = neighbor_kernel_list[index]
+
                                 grasp_kernel = self.grasp_kernel(candidate.features, neighbor_feature_list[index])
                                 kernel_val = object_kernel * grasp_kernel
 
@@ -134,7 +150,7 @@ class PriorComputationEngine:
 		prior_compute_end = time.clock()
 		logging.info('Created priors in %f sec' % (prior_compute_end - prior_compute_start))
 
-		return alpha_priors, beta_priors, neighbor_key_list, all_neighbor_kernels, all_neighbor_pfc_diffs
+		return alpha_priors, beta_priors, neighbor_key_list, neighbor_distance_list, all_neighbor_kernels, all_neighbor_pfc_diffs, num_neighbors
 
 	def compute_grasp_kernels(self, obj, candidates, nearest_features_name=None, grasp_transfer_method=0):
 		if nearest_features_name == None:

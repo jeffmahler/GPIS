@@ -7,6 +7,7 @@ from abc import ABCMeta, abstractmethod
 
 import numbers
 import numpy as np
+import scipy.stats as ss
 
 import kernels
 
@@ -366,5 +367,23 @@ class WeightedSquaredErrorLoss(Objective):
         if not isinstance(est_p, np.ndarray):
             raise ValueError('Cross entropy must be called with ndarray')
         if est_p.shape[0] != self.N_:
+            raise ValueError('Must supply same number of datapoints as true P')
+
+class CCBPLogLikelihood(Objective):
+    """ The log likelihood of the true params under the current distribution """
+    def __init__(self, true_p):
+        self.true_p_ = true_p
+        self.N_ = true_p.shape[0]
+
+    def evaluate(self, alphas, betas):
+        self.check_valid_input(alphas)
+        self.check_valid_input(betas)
+        log_density = ss.beta.logpdf(self.true_p_, alphas, betas)
+        return (1.0 / self.N_) * np.sum(log_density)
+    
+    def check_valid_input(self, alphas):
+        if not isinstance(alphas, np.ndarray):
+            raise ValueError('CCBP ML must be called with ndarray')
+        if alphas.shape[0] != self.N_:
             raise ValueError('Must supply same number of datapoints as true P')
 
