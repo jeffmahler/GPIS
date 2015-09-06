@@ -16,6 +16,7 @@ import time
 
 import IPython
 import matplotlib.pyplot as plt
+import matplotlib.colors as clr
 import numpy as np
 import scipy.stats
 
@@ -30,6 +31,7 @@ import kernels
 import models
 import objectives
 import pfc
+import plotting
 import pr2_grasp_checker as pgc
 import termination_conditions as tc
 import prior_computation_engine as pce
@@ -39,7 +41,7 @@ import scipy.spatial.distance as ssd
 from correlated_bandits import experiment_hash, reward_vs_iters
 
 class BanditCorrelatedPriorExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_reward,
+    def __init__(self, ua_reward, ts_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_reward, bucb_corr_prior_reward,
                  true_avg_reward, iters, kernel_matrix,
                  neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
                  ce_vals, se_vals, we_vals, num_grasps, total_weights,
@@ -47,7 +49,9 @@ class BanditCorrelatedPriorExperimentResult:
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
         self.ts_corr_reward = ts_corr_reward
+        self.bucb_corr_reward = bucb_corr_reward
         self.ts_corr_prior_reward = ts_corr_prior_reward
+        self.bucb_corr_prior_reward = bucb_corr_prior_reward
         self.true_avg_reward = true_avg_reward
 
         self.iters = iters
@@ -82,9 +86,13 @@ class BanditCorrelatedPriorExperimentResult:
         ua_reward = np.zeros([len(result_list), result_list[0].ua_reward.shape[0]])
         ts_reward = np.zeros([len(result_list), result_list[0].ts_reward.shape[0]])
         ts_corr_reward = np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]])
+        bucb_corr_reward = np.zeros([len(result_list), result_list[0].bucb_corr_reward.shape[0]])
         ts_corr_prior_rewards = []
         for x in range(0, len(result_list[0].ts_corr_prior_reward)):
             ts_corr_prior_rewards.append(np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]]))
+        bucb_corr_prior_rewards = []
+        for x in range(0, len(result_list[0].bucb_corr_prior_reward)):
+            bucb_corr_prior_rewards.append(np.zeros([len(result_list), result_list[0].bucb_corr_reward.shape[0]]))
             
         ce_vals = np.zeros([len(result_list), result_list[0].ce_vals.shape[0]])
         se_vals = np.zeros([len(result_list), result_list[0].se_vals.shape[0]])
@@ -98,8 +106,11 @@ class BanditCorrelatedPriorExperimentResult:
             ua_reward[i,:] = r.ua_reward
             ts_reward[i,:] = r.ts_reward
             ts_corr_reward[i,:] = r.ts_corr_reward
+            bucb_corr_reward[i,:] = r.bucb_corr_reward
             for n, ts_corr_prior_reward in enumerate(ts_corr_prior_rewards):
                 ts_corr_prior_reward[i,:] = r.ts_corr_prior_reward[n]
+            for n, bucb_corr_prior_reward in enumerate(bucb_corr_prior_rewards):
+                bucb_corr_prior_reward[i,:] = r.bucb_corr_prior_reward[n]
 
             ce_vals[i,:] = r.ce_vals
             se_vals[i,:] = r.se_vals
@@ -125,7 +136,7 @@ class BanditCorrelatedPriorExperimentResult:
         num_grasps = [r.num_grasps for r in result_list]
         """
 
-        return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, ts_corr_reward, ts_corr_prior_rewards,
+        return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_rewards, bucb_corr_prior_rewards,
                                                      true_avg_rewards,
                                                      iters,
                                                      kernel_matrices,
@@ -271,9 +282,13 @@ def label_correlated(obj, chunk, config, plot=False,
     ua_rewards = []
     ts_rewards = []
     ts_corr_rewards = []
+    bucb_corr_rewards = []
     all_ts_corr_prior_rewards = []
     for x in range(0, len(all_alpha_priors)):
         all_ts_corr_prior_rewards.append([])
+    all_bucb_corr_prior_rewards = []
+    for x in range(0, len(all_alpha_priors)):
+        all_bucb_corr_prior_rewards.append([])
 
     for t in range(num_trials):
         logging.info('Trial %d' %(t))
@@ -294,38 +309,61 @@ def label_correlated(obj, chunk, config, plot=False,
         logging.info('Running correlated Thompson sampling.')
         ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
+        # correlated Thompson sampling for even faster convergence
+        bucb_corr = das.CorrelatedBayesUCB(
+            objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], horizon=max_iter)
+        logging.info('Running correlated Bayes UCB.')
+        bucb_corr_result = bucb_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+
         # correlated Thompson sampling with priors for even faster than that convergence
-        for alpha_priors, beta_priors, ts_corr_prior_rewards, nearest_features_name in zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards, nearest_features_names):
+        for alpha_priors, beta_priors, ts_corr_prior_rewards, bucb_corr_prior_rewards, nearest_features_name in \
+                zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards, all_bucb_corr_prior_rewards, nearest_features_names):
             ts_corr_prior = das.CorrelatedThompsonSampling(
                 objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
-            logging.info('Running correlated Thompson sampling with priors from %s' %(nearest_features_names))
+            logging.info('Running correlated Thompson sampling with priors from %s' %(nearest_features_name))
             ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list),
                                                        snapshot_rate=snapshot_rate)
             ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, true_pfc)
             ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
 
+            bucb_corr = das.CorrelatedBayesUCB(
+                objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], horizon=max_iter,
+                alpha_prior = alpha_priors, beta_prior = beta_priors)
+            logging.info('Running correlated Bayes UCB with priors from %s' %(nearest_features_name))
+            bucb_corr_prior_result = bucb_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+            bucb_corr_prior_normalized_reward = reward_vs_iters(bucb_corr_prior_result, true_pfc)
+            bucb_corr_prior_rewards.append(bucb_corr_prior_normalized_reward)
+
         # compile results
         ua_normalized_reward = reward_vs_iters(ua_result, true_pfc)
         ts_normalized_reward = reward_vs_iters(ts_result, true_pfc)
         ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, true_pfc)
+        bucb_corr_normalized_reward = reward_vs_iters(bucb_corr_result, true_pfc)
 
         ua_rewards.append(ua_normalized_reward)
         ts_rewards.append(ts_normalized_reward)
         ts_corr_rewards.append(ts_corr_normalized_reward)
+        bucb_corr_rewards.append(bucb_corr_normalized_reward)
 
     # get the bandit rewards
     all_ua_rewards = np.array(ua_rewards)
     all_ts_rewards = np.array(ts_rewards)
     all_ts_corr_rewards = np.array(ts_corr_rewards)
+    all_bucb_corr_rewards = np.array(bucb_corr_rewards)
 
     all_avg_ts_corr_prior_rewards = []
     for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
         all_avg_ts_corr_prior_rewards.append(np.mean(np.array(ts_corr_prior_rewards), axis=0))
 
+    all_avg_bucb_corr_prior_rewards = []
+    for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
+        all_avg_bucb_corr_prior_rewards.append(np.mean(np.array(bucb_corr_prior_rewards), axis=0))
+
     # compute avg normalized rewards
     avg_ua_rewards = np.mean(all_ua_rewards, axis=0)
     avg_ts_rewards = np.mean(all_ts_rewards, axis=0)
     avg_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
+    avg_bucb_corr_rewards = np.mean(all_bucb_corr_rewards, axis=0)
 
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
@@ -335,15 +373,24 @@ def label_correlated(obj, chunk, config, plot=False,
     font_size = config['font_size']
     dpi = config['dpi']
 
-    plt.figure()
-    plt.plot(ua_result.iters, avg_ua_rewards, c=u'b', linewidth=line_width, label='Uniform')
-    plt.plot(ua_result.iters, avg_ts_rewards, c=u'g', linewidth=line_width, label='TS (Uncorrelated)')
-    plt.plot(ua_result.iters, avg_ts_corr_rewards, c=u'r', linewidth=line_width, label='TS (Correlated)')
+    colors = plotting.distinguishable_colors(10)
 
-    for ts_corr_prior, color, label in zip(all_avg_ts_corr_prior_rewards, u'cmk',
+    plt.figure()
+    plt.plot(ua_result.iters, avg_ua_rewards, c=colors[0], linewidth=line_width, label='Uniform')
+    plt.plot(ua_result.iters, avg_ts_rewards, c=colors[1], linewidth=line_width, label='TS (Uncorrelated)')
+    plt.plot(ua_result.iters, avg_ts_corr_rewards, c=colors[2], linewidth=line_width, label='TS (Correlated)')
+    plt.plot(ua_result.iters, avg_bucb_corr_rewards, c=colors[3], linewidth=line_width, label='BUCB (Correlated)')
+
+    for ts_corr_prior, color, label in zip(all_avg_ts_corr_prior_rewards, colors[4:7],
                                            config['priors_feature_names']):
         plt.plot(ua_result.iters, ts_corr_prior,
                  c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+
+    for bucb_corr_prior, color, label in zip(all_avg_bucb_corr_prior_rewards, colors[7:],
+                                           config['priors_feature_names']):
+        plt.plot(ua_result.iters, bucb_corr_prior,
+                 c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
+
 
     plt.xlim(0, np.max(ua_result.iters))
     plt.ylim(0.5, 1)
@@ -356,10 +403,10 @@ def label_correlated(obj, chunk, config, plot=False,
     plt.show()
     """
 
-    return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards,
-                                                 all_avg_ts_corr_prior_rewards,
+    return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards, avg_bucb_corr_rewards,
+                                                 all_avg_ts_corr_prior_rewards, all_avg_bucb_corr_prior_rewards,
                                                  true_pfc, ua_result.iters, kernel_matrix,
-                                                 neighbor_kernels, neighbor_pfc_diffs, [],
+                                                 [], [], [],
                                                  ce_vals, se_vals, we_vals, len(candidates), total_weights,
                                                  obj_key=obj.key, neighbor_keys=neighbor_keys)
 

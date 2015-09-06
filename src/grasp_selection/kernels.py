@@ -197,7 +197,7 @@ class BinaryTree(NearestNeighbor):
         train_start = time.clock()
         self.tree_ = tree_class(self.featurized_, metric=self.dist_metric_)
         train_end = time.clock()
-        logging.info('Took %f sec' %(train_end - train_start))
+#        logging.info('Took %f sec' %(train_end - train_start))
 
     def within_distance(self, x, dist=0.2, return_indices=False):
         indices, distances = self.tree_.query_radius(self.phi_(x), dist,
@@ -268,7 +268,7 @@ class LSHForest(NearestNeighbor):
         self.lshf_ = neighbors.LSHForest() # TODO -- set params
         self.lshf_.fit(data)
         train_end = time.clock()
-        logging.info('Took %f sec' %(train_end - train_start))
+#        logging.info('Took %f sec' %(train_end - train_start))
 
     def within_distance(self, x, dist=0.2, return_indices=False):
         distances, indices = self.lshf_.radius_neighbors(self.phi_(x), dist,
@@ -321,7 +321,7 @@ class NearPy(NearestNeighbor):
         train_start = time.clock()
         self._create_engine(k)
         train_end = time.clock()
-        logging.info('Took %f sec' %(train_end - train_start))
+#        logging.info('Took %f sec' %(train_end - train_start))
 
     def within_distance(x, dist=0.5, return_indices=False):
         raise NotImplementedError

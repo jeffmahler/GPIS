@@ -1,6 +1,17 @@
 import IPython
+import colorsys as clr
 import matplotlib.pyplot as plt
 import numpy as np
+import random
+
+def distinguishable_colors(n):
+    colors = []
+    for i in range(n):
+        h = 359.0 * float(i) / float(n);
+        s = 0.6 + 0.4*random.random();
+        v = 0.7 + 0.3*random.random();
+        colors.append(clr.hsv_to_rgb(h, s, v))
+    return colors
 
 def plot_kernels(obj_key, k_mat, pfc_diff, all_neighbor_kernels=None, all_neighbor_pfc_diffs=None, neighbor_keys=None, font_size=10):
     """
@@ -16,6 +27,8 @@ def plot_kernels(obj_key, k_mat, pfc_diff, all_neighbor_kernels=None, all_neighb
     scatter_objs.append(plt.scatter(k_mat.ravel(), pfc_diff.ravel(), c='#eeeeff'))
     for i, (neighbor_pfc_diffs, neighbor_kernels) in enumerate(zip(all_neighbor_pfc_diffs, all_neighbor_kernels)):
         scatter_objs.append(plt.scatter(np.array(neighbor_kernels).ravel(), np.array(neighbor_pfc_diffs).ravel(), c=colors[i]))
+    plt.xlim(0,1)
+    plt.ylim(0,1)
     plt.xlabel('Kernel', fontsize=font_size)
     plt.ylabel('PFC Diff', fontsize=font_size)
     plt.title('Correlations', fontsize=font_size)

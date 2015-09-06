@@ -8,6 +8,7 @@ from abc import ABCMeta, abstractmethod
 import logging
 import numpy as np
 import scipy.io
+import scipy.stats as ss
 
 import models
 import IPython
@@ -95,6 +96,30 @@ class BetaBernoulliGittinsIndex98Policy(DiscreteSelectionPolicy):
 #        IPython.embed()
         num_max_indices = max_indices.shape[0]
         next_index = np.random.choice(num_max_indices)
+        return max_indices[next_index]        
+
+class BetaBernoulliBayesUCBPolicy(DiscreteSelectionPolicy):
+    """ Chooses the next point using the Bayes UCB selection policy"""
+    def __init__(self, horizon=1000, c=6, model=None):
+        self.t_ = 1
+        self.n_ = horizon
+        self.c_ = c
+        DiscreteSelectionPolicy.__init__(self, model)        
+    
+    def choose_next(self, stop = False):
+        """ Returns the index of the maximal random sample, breaking ties uniformly at random"""
+        if self.model_ is None:
+            raise ValueError('Must set predictive model')
+        gamma = 1.0 - (1.0 / (self.t_ * np.log(self.n_)**self.c_))
+        alphas = self.model_.posterior_alphas
+        betas = self.model_.posterior_betas
+        intervals = ss.beta.interval(gamma, alphas, betas)
+        ucbs = intervals[1]
+
+        max_indices = np.where(ucbs == np.max(ucbs))[0]
+        num_max_indices = max_indices.shape[0]
+        next_index = np.random.choice(num_max_indices)
+        self.t_ += 1
         return max_indices[next_index]        
 
 class GaussianUCBPolicy(DiscreteSelectionPolicy):

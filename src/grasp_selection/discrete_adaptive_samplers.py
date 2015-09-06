@@ -99,7 +99,7 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
 
             # snapshot the model and whatnot
             if (k % snapshot_rate) == 0:
-                logging.info('Iteration %d' %(k))
+                #logging.info('Iteration %d' %(k))
 
                 # log time and stuff
                 checkpt = time.clock()
@@ -174,7 +174,6 @@ class GittinsIndex98(BetaBernoulliBandit):
         self.selection_policy_ = dcsp.BetaBernoulliGittinsIndex98Policy()
         BetaBernoulliBandit.__init__(self, objective, candidates, self.selection_policy_, alpha_prior=1, beta_prior=1)
 
-
 # Gaussian bandit models
 class GaussianBandit(DiscreteAdaptiveSampler):
     def __init__(self, objective, candidates, policy, mean_prior=0.5, sigma=1e-2):
@@ -229,6 +228,15 @@ class CorrelatedThompsonSampling(CorrelatedBetaBernoulliBandit):
             nn, kernel, tolerance, alpha_prior, beta_prior
         )
 
+class CorrelatedBayesUCB(CorrelatedBetaBernoulliBandit):
+    """ Performs Gittins index policy with gamma = 0.98 to get the candidate that maximizes the mean value of the objective"""
+    def __init__(self, objective, candidates, nn, kernel, tolerance=1e-4,
+                 alpha_prior=1.0, beta_prior=1.0, horizon=1000, c=6):
+        policy = dcsp.BetaBernoulliBayesUCBPolicy(horizon=horizon, c=c)
+        CorrelatedBetaBernoulliBandit.__init__(
+            self, objective, candidates, policy,
+            nn, kernel, tolerance, alpha_prior, beta_prior
+        )
 
 class RandomVariable:
     """Abstract class for random variables."""
