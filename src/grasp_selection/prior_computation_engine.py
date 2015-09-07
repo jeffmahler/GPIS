@@ -33,7 +33,7 @@ class PriorComputationEngine:
 		self.grasp_kernel_tolerance = config['kernel_tolerance']
 		self.prior_kernel_tolerance = config['prior_kernel_tolerance']
 
-	def compute_priors(self, obj, candidates, nearest_features_name=None, grasp_transfer_method=0):
+	def compute_priors(self, obj, candidates, nearest_features_name=None, grasp_transfer_method=2):
                 start_time = time.time()
 		if nearest_features_name == None:
 			nf = self.feature_db.nearest_features()
