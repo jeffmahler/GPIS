@@ -411,9 +411,19 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         # TODO: should num_observations_ be updated by correlations instead?
         self.num_observations_[index] += 1.0
 
+    def lcb_prediction(self, p=0.95):
+        """ Return the index with the highest lower confidence bound """
+        lcb, ucb = scipy.stats.beta.interval(p, self.posterior_alphas_, self.posterior_betas_)
+        max_indices = np.where(lcb == np.max(lcb))[0]
+        posterior_means = BetaBernoulliModel.beta_mean(self.posterior_alphas_[max_indices], self.posterior_betas[max_indices])
+        posterior_vars = BetaBernoulliModel.beta_variance(self.posterior_alphas_[max_indices], self.posterior_betas[max_indices])
+
+        return max_indices, posterior_means, posterior_vars        
+
     def snapshot(self):
         """
         Return copys of the model params
         """
-        ind, mn, var = self.max_prediction()
+        #ind, mn, var = self.max_prediction()
+        ind, mn, var = self.lcb_prediction()
         return BetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.num_observations_)
