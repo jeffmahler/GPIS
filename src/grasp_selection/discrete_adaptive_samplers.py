@@ -222,7 +222,7 @@ class CorrelatedBetaBernoulliBandit(DiscreteAdaptiveSampler):
 
 class CorrelatedThompsonSampling(CorrelatedBetaBernoulliBandit):
     def __init__(self, objective, candidates, nn, kernel,
-                 tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0):
+                 tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0, p=0.95):
         CorrelatedBetaBernoulliBandit.__init__(
             self, objective, candidates, dcsp.ThompsonSelectionPolicy(),
             nn, kernel, tolerance, alpha_prior, beta_prior
@@ -231,7 +231,7 @@ class CorrelatedThompsonSampling(CorrelatedBetaBernoulliBandit):
 class CorrelatedBayesUCB(CorrelatedBetaBernoulliBandit):
     """ Performs Gittins index policy with gamma = 0.98 to get the candidate that maximizes the mean value of the objective"""
     def __init__(self, objective, candidates, nn, kernel, tolerance=1e-4,
-                 alpha_prior=1.0, beta_prior=1.0, horizon=1000, c=6):
+                 alpha_prior=1.0, beta_prior=1.0, horizon=1000, c=6, p=0.95):
         policy = dcsp.BetaBernoulliBayesUCBPolicy(horizon=horizon, c=c)
         CorrelatedBetaBernoulliBandit.__init__(
             self, objective, candidates, policy,

@@ -365,7 +365,7 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         distribution over the probability of success for each candidate
     """
     def __init__(self, candidates, nn, kernel, tolerance=1e-2,
-                 alpha_prior=1.0, beta_prior=1.0):
+                 alpha_prior=1.0, beta_prior=1.0, p=0.5):
         BetaBernoulliModel.__init__(self, len(candidates), alpha_prior, beta_prior)
         self.candidates_ = candidates
 
@@ -373,6 +373,7 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         self.tolerance_ = tolerance
         self.error_radius_ = kernel.error_radius(tolerance)
         self.kernel_matrix_ = None
+        self.p_ = p
 
         self.nn_ = nn
         self.nn_.train(candidates)
@@ -425,5 +426,5 @@ class CorrelatedBetaBernoulliModel(BetaBernoulliModel):
         Return copys of the model params
         """
         #ind, mn, var = self.max_prediction()
-        ind, mn, var = self.lcb_prediction()
+        ind, mn, var = self.lcb_prediction(self.p_)
         return BetaBernoulliSnapshot(ind[0], self.posterior_alphas_, self.posterior_betas_, self.num_observations_)

@@ -59,7 +59,7 @@ if __name__ == '__main__':
     font_size = config['font_size']
     dpi = config['dpi']
 
-    num_colors = 4 + len(results[0].ts_corr_prior_reward) + len(results[0].bucb_corr_prior_reward)
+    num_colors = 5 + len(results[0].ts_corr_prior_reward) + len(results[0].bucb_corr_prior_reward)
     colors = plotting.distinguishable_colors(num_colors)
 
     # per-object plots
@@ -84,17 +84,18 @@ if __name__ == '__main__':
         plt.figure()
         plt.plot(result.iters, result.ua_reward, c=colors[0], linewidth=line_width, label='Uniform Allocation')
         plt.plot(result.iters, result.ts_reward, c=colors[1], linewidth=line_width, label='Thompson Sampling (Uncorrelated)')
-        plt.plot(result.iters, result.ts_corr_reward, c=colors[2], linewidth=line_width, label='Thompson Sampling (Correlated)')
-        plt.plot(result.iters, result.bucb_corr_reward, c=colors[3], linewidth=line_width, label='Bayes UCB (Correlated)')
-        for ts_corr_prior, color, label in zip(result.ts_corr_prior_reward, colors[4:4+len(result.ts_corr_prior_reward)],
+        plt.plot(result.iters, result.gi_reward, c=colors[2], linewidth=line_width, label='Gittins Indices')
+        plt.plot(result.iters, result.ts_corr_reward, c=colors[3], linewidth=line_width, label='Thompson Sampling (Correlated)')
+        #plt.plot(result.iters, result.bucb_corr_reward, c=colors[4], linewidth=line_width, label='Bayes UCB (Correlated)')
+        for ts_corr_prior, color, label in zip(result.ts_corr_prior_reward, colors[5:5+len(result.ts_corr_prior_reward)],
                                                config['priors_feature_names']):
             plt.plot(result.iters, ts_corr_prior,
                      c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
-        for bucb_corr_prior, color, label in zip(result.bucb_corr_prior_reward, colors[4+len(result.bucb_corr_prior_reward):],
-                                               config['priors_feature_names']):
-            plt.plot(result.iters, bucb_corr_prior,
-                     c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
 
+        #for bucb_corr_prior, color, label in zip(result.bucb_corr_prior_reward, colors[5+len(result.bucb_corr_prior_reward):],
+        #                                       config['priors_feature_names']):
+        #    plt.plot(result.iters, bucb_corr_prior,
+        #             c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
 
         plt.xlim(0, np.max(result.iters))
         plt.ylim(0.5, 1)
@@ -150,34 +151,36 @@ if __name__ == '__main__':
     # plotting of average final results
     ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
     ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
+    gi_normalized_reward = np.mean(all_results.gi_reward, axis=0)
     ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
-    bucb_corr_normalized_reward = np.mean(all_results.bucb_corr_reward, axis=0)
+    #bucb_corr_normalized_reward = np.mean(all_results.bucb_corr_reward, axis=0)
 
     all_ts_corr_prior_rewards = all_results.ts_corr_prior_reward
     ts_corr_prior_normalized_reward = []
     for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
         ts_corr_prior_normalized_reward.append(np.mean(ts_corr_prior_rewards, axis=0))
 
-    all_bucb_corr_prior_rewards = all_results.bucb_corr_prior_reward
-    bucb_corr_prior_normalized_reward = []
-    for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
-        bucb_corr_prior_normalized_reward.append(np.mean(bucb_corr_prior_rewards, axis=0))
+    #all_bucb_corr_prior_rewards = all_results.bucb_corr_prior_reward
+    #bucb_corr_prior_normalized_reward = []
+    #for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
+    #    bucb_corr_prior_normalized_reward.append(np.mean(bucb_corr_prior_rewards, axis=0))
 
     plt.figure()
     plt.plot(all_results.iters[0], ua_normalized_reward, c=colors[0], linewidth=line_width, label='Uniform')
     plt.plot(all_results.iters[0], ts_normalized_reward, c=colors[1], linewidth=line_width, label='TS (Uncorrelated)')
-    plt.plot(all_results.iters[0], ts_corr_normalized_reward, c=colors[2], linewidth=line_width, label='TS (Correlated)')
-    plt.plot(all_results.iters[0], bucb_corr_normalized_reward, c=colors[3], linewidth=line_width, label='BUCB (Correlated)')
+    plt.plot(all_results.iters[0], gi_normalized_reward, c=colors[2], linewidth=line_width, label='Gittins Indices')
+    plt.plot(all_results.iters[0], ts_corr_normalized_reward, c=colors[3], linewidth=line_width, label='TS (Correlated)')
+    #plt.plot(all_results.iters[0], bucb_corr_normalized_reward, c=colors[4], linewidth=line_width, label='BUCB (Correlated)')
 
-    for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, colors[4:4+len(ts_corr_prior_normalized_reward)],
+    for ts_corr_prior, color, label in zip(ts_corr_prior_normalized_reward, colors[5:5+len(ts_corr_prior_normalized_reward)],
                                            config['priors_feature_names']):
         plt.plot(all_results.iters[0], ts_corr_prior,
                  c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
 
-    for bucb_corr_prior, color, label in zip(bucb_corr_prior_normalized_reward, colors[4+len(ts_corr_prior_normalized_reward):],
-                                           config['priors_feature_names']):
-        plt.plot(all_results.iters[0], bucb_corr_prior,
-                 c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
+    #for bucb_corr_prior, color, label in zip(bucb_corr_prior_normalized_reward, colors[5+len(ts_corr_prior_normalized_reward):],
+    #                                       config['priors_feature_names']):
+    #    plt.plot(all_results.iters[0], bucb_corr_prior,
+    #             c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
 
     plt.xlim(0, np.max(all_results.iters[0]))
     plt.ylim(0.5, 1)

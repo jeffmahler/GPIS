@@ -40,17 +40,19 @@ import scipy.spatial.distance as ssd
 
 from correlated_bandits import experiment_hash, reward_vs_iters
 
-# list of keys that cause trouble (right now there ones that take way too damn long)
-skip_keys = ['ModelNet40_radio_112']
+# list of keys that cause trouble (right now the ones that take way too damn long)
+skip_keys = ['BigBIRD_nutrigrain_strawberry_greek_yogurt', 'ModelNet40_radio_112']
 
 class BanditCorrelatedPriorExperimentResult:
-    def __init__(self, ua_reward, ts_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_reward, bucb_corr_prior_reward,
+    def __init__(self, ua_reward, ts_reward, gi_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_reward, bucb_corr_prior_reward,
                  true_avg_reward, iters, kernel_matrix,
                  neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
                  ce_vals, se_vals, we_vals, num_grasps, total_weights,
+                 ua_runtime, ts_runtime, ts_corr_runtime, bucb_corr_runtime, ts_corr_prior_runtime, bucb_corr_prior_runtime, prior_comp_time,
                  obj_key='', neighbor_keys=[], num_objects=1):
         self.ua_reward = ua_reward
         self.ts_reward = ts_reward
+        self.gi_reward = gi_reward
         self.ts_corr_reward = ts_corr_reward
         self.bucb_corr_reward = bucb_corr_reward
         self.ts_corr_prior_reward = ts_corr_prior_reward
@@ -70,6 +72,14 @@ class BanditCorrelatedPriorExperimentResult:
         self.num_grasps = num_grasps
         self.total_weights = total_weights
 
+        self.ua_runtime = ua_runtime
+        self.ts_runtime = ts_runtime
+        self.ts_corr_runtime = ts_corr_runtime
+        self.bucb_corr_runtime = bucb_corr_runtime
+        self.ts_corr_prior_runtime = ts_corr_prior_runtime
+        self.bucb_corr_prior_runtime = bucb_corr_prior_runtime
+        self.prior_comp_time = prior_comp_time
+
         self.obj_key = obj_key
         self.neighbor_keys = neighbor_keys
         self.num_objects = num_objects
@@ -88,6 +98,7 @@ class BanditCorrelatedPriorExperimentResult:
 
         ua_reward = np.zeros([len(result_list), result_list[0].ua_reward.shape[0]])
         ts_reward = np.zeros([len(result_list), result_list[0].ts_reward.shape[0]])
+        gi_reward = np.zeros([len(result_list), result_list[0].gi_reward.shape[0]])
         ts_corr_reward = np.zeros([len(result_list), result_list[0].ts_corr_reward.shape[0]])
         bucb_corr_reward = np.zeros([len(result_list), result_list[0].bucb_corr_reward.shape[0]])
         ts_corr_prior_rewards = []
@@ -103,11 +114,20 @@ class BanditCorrelatedPriorExperimentResult:
         num_grasps = np.zeros(len(result_list))
         total_weights = np.zeros([len(result_list), result_list[0].total_weights.shape[0]])
 
+        ua_runtime = np.zeros(len(result_list))
+        ts_runtime = np.zeros(len(result_list))
+        ts_corr_runtime = np.zeros(len(result_list))
+        bucb_corr_runtime = np.zeros(len(result_list))
+        ts_corr_prior_runtime = np.zeros([len(result_list), len(result_list[0].ts_corr_prior_runtime)])
+        bucb_corr_prior_runtime = np.zeros([len(result_list), len(result_list[0].bucb_corr_prior_runtime)])
+        prior_comp_time = np.zeros([len(result_list), len(result_list[0].prior_comp_time)])
+        
         i = 0
         obj_keys = []
         for r in result_list:
             ua_reward[i,:] = r.ua_reward
             ts_reward[i,:] = r.ts_reward
+            gi_reward[i,:] = r.gi_reward
             ts_corr_reward[i,:] = r.ts_corr_reward
             bucb_corr_reward[i,:] = r.bucb_corr_reward
             for n, ts_corr_prior_reward in enumerate(ts_corr_prior_rewards):
@@ -121,6 +141,14 @@ class BanditCorrelatedPriorExperimentResult:
             num_grasps[i] = r.num_grasps
             total_weights[i] = r.total_weights
 
+            ua_runtime[i] = r.ua_runtime
+            ts_runtime[i] = r.ts_runtime
+            ts_corr_runtime[i] = r.ts_corr_runtime
+            bucb_corr_runtime[i] = r.bucb_corr_runtime
+            ts_corr_prior_runtime[i,:] = np.asarray(r.ts_corr_prior_runtime)
+            bucb_corr_prior_runtime[i,:] = np.asarray(r.bucb_corr_prior_runtime)
+            prior_comp_time[i,:] = np.asarray(r.prior_comp_time)
+
             obj_keys.append(r.obj_key)
             i = i + 1
 
@@ -133,27 +161,12 @@ class BanditCorrelatedPriorExperimentResult:
         neighbor_distances = [r.neighbor_distances for r in result_list]
         neighbor_keys = [r.neighbor_keys for r in result_list]
 
-        """
-        ce_vals = [r.ce_vals for r in result_list]
-        se_vals = [r.se_vals for r in result_list]
-        num_grasps = [r.num_grasps for r in result_list]
-        """
-
-        return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_rewards, bucb_corr_prior_rewards,
-                                                     true_avg_rewards,
-                                                     iters,
-                                                     kernel_matrices,
-                                                     neighbor_kernels,
-                                                     neighbor_pfc_diffs,
-                                                     neighbor_keys,
-                                                     ce_vals,
-                                                     se_vals,
-                                                     we_vals,
-                                                     num_grasps,
-                                                     total_weights,
-                                                     obj_keys,
-                                                     neighbor_keys,
-                                                     len(result_list))
+        return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, gi_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_rewards, bucb_corr_prior_rewards,
+                                                     true_avg_rewards, iters, kernel_matrices, neighbor_kernels, neighbor_pfc_diffs,
+                                                     neighbor_keys, ce_vals, se_vals, we_vals, num_grasps, total_weights,
+                                                     ua_runtime, ts_runtime, ts_corr_runtime, bucb_corr_runtime, ts_corr_prior_runtime, bucb_corr_prior_runtime,
+                                                     prior_comp_time,
+                                                     obj_keys, neighbor_keys, len(result_list))
 
 def load_candidate_grasps(obj, chunk):
     # load grasps from database
@@ -236,6 +249,7 @@ def label_correlated(obj, chunk, config, plot=False,
     # Compute priors
     all_alpha_priors = []
     all_beta_priors = []
+    prior_comp_times = []
     if nearest_features_names == None:
         alpha_priors, beta_priors = prior_engine.compute_priors(obj, candidates)
         all_alpha_priors.append(alpha_priors)
@@ -250,6 +264,7 @@ def label_correlated(obj, chunk, config, plot=False,
             all_alpha_priors.append(alpha_priors)
             all_beta_priors.append(beta_priors)
             priors_end_time = time.time()
+            prior_comp_times.append(priors_end_time - priors_start_time)
             logging.info('Priors for %s took %f' %(nearest_features_name, priors_end_time - priors_start_time))
 
     # pre-computed pfc values
@@ -287,10 +302,10 @@ def label_correlated(obj, chunk, config, plot=False,
     ccbp_vals = np.array(ccbp_vals)
     total_weights = np.array(total_weights)
 
-    # run bandits for several trials
-    logging.info('Running bandits')
+    # setup reward buffers
     ua_rewards = []
     ts_rewards = []
+    gi_rewards = []
     ts_corr_rewards = []
     bucb_corr_rewards = []
     all_ts_corr_prior_rewards = []
@@ -300,6 +315,21 @@ def label_correlated(obj, chunk, config, plot=False,
     for x in range(0, len(all_alpha_priors)):
         all_bucb_corr_prior_rewards.append([])
 
+    # setup runtime buffers
+    ua_runtimes = []
+    ts_runtimes = []
+    gi_runtimes = []
+    ts_corr_runtimes = []
+    bucb_corr_runtimes = []
+    all_ts_corr_prior_runtimes = []
+    for x in range(0, len(all_alpha_priors)):
+        all_ts_corr_prior_runtimes.append([])
+    all_bucb_corr_prior_runtimes = []
+    for x in range(0, len(all_alpha_priors)):
+        all_bucb_corr_prior_runtimes.append([])
+
+    # run bandits for several trials
+    logging.info('Running bandits')
     for t in range(num_trials):
         logging.info('Trial %d' %(t))
 
@@ -313,51 +343,74 @@ def label_correlated(obj, chunk, config, plot=False,
         logging.info('Running Thompson sampling.')
         ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
+        # Gittins indices
+        gi = das.GittinsIndex98(objective, candidates)
+        logging.info('Running Gittins Indices.')
+        gi_result = gi.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+
         # correlated Thompson sampling for even faster convergence
         ts_corr = das.CorrelatedThompsonSampling(
-            objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'])
+            objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], p=config['lb_alpha'])
         logging.info('Running correlated Thompson sampling.')
         ts_corr_result = ts_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
         # correlated Thompson sampling for even faster convergence
+        """
         bucb_corr = das.CorrelatedBayesUCB(
             objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], horizon=max_iter)
         logging.info('Running correlated Bayes UCB.')
         bucb_corr_result = bucb_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+        """
 
-        # correlated Thompson sampling with priors for even faster than that convergence
-        for alpha_priors, beta_priors, ts_corr_prior_rewards, bucb_corr_prior_rewards, nearest_features_name in \
-                zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards, all_bucb_corr_prior_rewards, nearest_features_names):
+        # correlated MAB for faster convergence
+        for alpha_priors, beta_priors, ts_corr_prior_rewards, bucb_corr_prior_rewards, ts_corr_runtimes, bucb_corr_runtimes, nearest_features_name in \
+                zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards, all_bucb_corr_prior_rewards, all_ts_corr_prior_runtimes, all_bucb_corr_prior_runtimes, nearest_features_names):
+            # thompson sampling
             ts_corr_prior = das.CorrelatedThompsonSampling(
-                objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors, beta_prior = beta_priors)
+                objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], alpha_prior = alpha_priors,
+                beta_prior = beta_priors, p=config['lb_alpha'])
             logging.info('Running correlated Thompson sampling with priors from %s' %(nearest_features_name))
             ts_corr_prior_result = ts_corr_prior.solve(termination_condition=tc.OrTerminationCondition(tc_list),
                                                        snapshot_rate=snapshot_rate)
             ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, true_pfc)
             ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
+            ts_corr_runtimes.append(ts_corr_prior_result.total_time)
 
+            # bayes ucb
+            """
             bucb_corr = das.CorrelatedBayesUCB(
                 objective, candidates, nn, kernel, tolerance=config['kernel_tolerance'], horizon=max_iter,
-                alpha_prior = alpha_priors, beta_prior = beta_priors)
+                alpha_prior = alpha_priors, beta_prior = beta_priors, p=config['lb_alpha'])
             logging.info('Running correlated Bayes UCB with priors from %s' %(nearest_features_name))
             bucb_corr_prior_result = bucb_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
             bucb_corr_prior_normalized_reward = reward_vs_iters(bucb_corr_prior_result, true_pfc)
             bucb_corr_prior_rewards.append(bucb_corr_prior_normalized_reward)
+            bucb_corr_runtimes.append(bucb_corr_prior_result.total_time)
+            """
 
         # compile results
         ua_normalized_reward = reward_vs_iters(ua_result, true_pfc)
         ts_normalized_reward = reward_vs_iters(ts_result, true_pfc)
+        gi_normalized_reward = reward_vs_iters(gi_result, true_pfc)
         ts_corr_normalized_reward = reward_vs_iters(ts_corr_result, true_pfc)
-        bucb_corr_normalized_reward = reward_vs_iters(bucb_corr_result, true_pfc)
+        #bucb_corr_normalized_reward = reward_vs_iters(bucb_corr_result, true_pfc)
 
         ua_rewards.append(ua_normalized_reward)
         ts_rewards.append(ts_normalized_reward)
+        gi_rewards.append(gi_normalized_reward)
         ts_corr_rewards.append(ts_corr_normalized_reward)
-        bucb_corr_rewards.append(bucb_corr_normalized_reward)
+        #bucb_corr_rewards.append(bucb_corr_normalized_reward)
+
+        ua_runtimes.append(ua_result.total_time)
+        ts_runtimes.append(ts_result.total_time)
+        gi_runtimes.append(gi_result.total_time)
+        ts_corr_runtimes.append(ts_corr_result.total_time)
+        #bucb_corr_runtimes.append(bucb_corr_result.total_time)
 
     # get the bandit rewards
     all_ua_rewards = np.array(ua_rewards)
     all_ts_rewards = np.array(ts_rewards)
+    all_gi_rewards = np.array(gi_rewards)
     all_ts_corr_rewards = np.array(ts_corr_rewards)
     all_bucb_corr_rewards = np.array(bucb_corr_rewards)
 
@@ -367,16 +420,35 @@ def label_correlated(obj, chunk, config, plot=False,
 
     all_avg_bucb_corr_prior_rewards = []
     for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
-        all_avg_bucb_corr_prior_rewards.append(np.mean(np.array(bucb_corr_prior_rewards), axis=0))
+        #all_avg_bucb_corr_prior_rewards.append(np.mean(np.array(bucb_corr_prior_rewards), axis=0))
+        all_avg_bucb_corr_prior_rewards.append([])
 
     # compute avg normalized rewards
     avg_ua_rewards = np.mean(all_ua_rewards, axis=0)
     avg_ts_rewards = np.mean(all_ts_rewards, axis=0)
+    avg_gi_rewards = np.mean(all_gi_rewards, axis=0)
     avg_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
-    avg_bucb_corr_rewards = np.mean(all_bucb_corr_rewards, axis=0)
+    #avg_bucb_corr_rewards = np.mean(all_bucb_corr_rewards, axis=0)
+    avg_bucb_corr_rewards = all_bucb_corr_rewards
+
+    # compute avg runtimes
+    avg_ua_runtimes = np.mean(np.array(ua_runtimes), axis=0)
+    avg_ts_runtimes = np.mean(np.array(ts_runtimes), axis=0)
+    avg_ts_corr_runtimes = np.mean(np.array(ts_corr_runtimes), axis=0)
+    avg_bucb_corr_runtimes = np.mean(np.array(bucb_corr_runtimes), axis=0)
+    all_avg_ts_corr_prior_runtimes = []
+    for ts_corr_prior_runtimes in all_ts_corr_prior_runtimes:
+        all_avg_ts_corr_prior_runtimes.append(np.mean(np.array(ts_corr_prior_runtimes), axis=0))
+    all_avg_bucb_corr_prior_runtimes = []    
+    """
+    for bucb_corr_prior_runtimes in all_bucb_corr_prior_runtimes:
+        all_avg_bucb_corr_prior_runtimes.append(np.mean(np.array(bucb_corr_prior_runtimes), axis=0))
+    """
 
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
+
+    IPython.embed()
     
     """
     line_width = config['line_width']
@@ -413,12 +485,13 @@ def label_correlated(obj, chunk, config, plot=False,
     plt.show()
     """
 
-    return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_ts_corr_rewards, avg_bucb_corr_rewards,
+    return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_gi_rewards, avg_ts_corr_rewards, avg_bucb_corr_rewards,
                                                  all_avg_ts_corr_prior_rewards, all_avg_bucb_corr_prior_rewards,
                                                  true_pfc, ua_result.iters, kernel_matrix,
                                                  [], [], [],
                                                  ce_vals, ccbp_vals, we_vals, len(candidates), total_weights,
-                                                 obj_key=obj.key, neighbor_keys=neighbor_keys)
+                                                 avg_ua_runtimes, avg_ts_runtimes, avg_ts_corr_runtimes, avg_bucb_corr_runtimes, all_avg_ts_corr_prior_runtimes, all_avg_bucb_corr_prior_runtimes,
+                                                 prior_comp_times, obj_key=obj.key, neighbor_keys=neighbor_keys)
 
 def plot_kernels_for_key(obj, chunk, config, priors_dataset=None, nearest_features_name=None):
     candidates = load_candidate_grasps(obj, chunk)

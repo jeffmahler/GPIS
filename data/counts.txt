@@ -9,6 +9,7 @@
 300 dataset_1000_val
 7438 dataset_all_train
 3189 dataset_all_val
+30 hand_picked_test_small
 30 hand_picked_test
 20 hand_picked_val_small
 50 hand_picked_val
