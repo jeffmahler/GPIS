@@ -238,6 +238,16 @@ class CorrelatedBayesUCB(CorrelatedBetaBernoulliBandit):
             nn, kernel, tolerance, alpha_prior, beta_prior, p
         )
 
+class CorrelatedGittins(CorrelatedBetaBernoulliBandit):
+    """ Performs Gittins index policy with gamma = 0.98 to get the candidate that maximizes the mean value of the objective"""
+    def __init__(self, objective, candidates, nn, kernel, tolerance=1e-4,
+                 alpha_prior=1.0, beta_prior=1.0, p=0.95):
+        policy = dcsp.BetaBernoulliGittinsIndex98Policy()
+        CorrelatedBetaBernoulliBandit.__init__(
+            self, objective, candidates, policy,
+            nn, kernel, tolerance, alpha_prior, beta_prior, p
+        )
+
 class RandomVariable:
     """Abstract class for random variables."""
     __metaclass__ = ABCMeta

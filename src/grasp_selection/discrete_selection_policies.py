@@ -88,12 +88,13 @@ class BetaBernoulliGittinsIndex98Policy(DiscreteSelectionPolicy):
         # snap alphas and betas to boundaries of index matrix
         alphas[alphas >= self.indices_.shape[0]] = self.indices_.shape[0] - 1
         betas[betas >= self.indices_.shape[1]] = self.indices_.shape[1] - 1
+        np.round(alphas)
+        np.round(betas)
 
         # find maximum of gittins indices
         gittins_indices = self.indices_[alphas, betas]
 
         max_indices = np.where(gittins_indices == np.max(gittins_indices))[0]
-#        IPython.embed()
         num_max_indices = max_indices.shape[0]
         next_index = np.random.choice(num_max_indices)
         return max_indices[next_index]        
