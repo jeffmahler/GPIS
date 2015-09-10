@@ -204,9 +204,9 @@ class GaussianUCBSampling(GaussianBandit):
 # Correlated Beta-Bernoulli bandit models
 class CorrelatedBetaBernoulliBandit(DiscreteAdaptiveSampler):
     """ Performs uniform allocation to get the candidate that maximizes the mean value of the objective"""
-    def __init__(self, objective, candidates, policy, nn, kernel, tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0):
+    def __init__(self, objective, candidates, policy, nn, kernel, tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0, p=0.95):
         self.num_candidates_ = len(candidates)
-        self.model_ = models.CorrelatedBetaBernoulliModel(candidates, nn, kernel, tolerance, alpha_prior, beta_prior)
+        self.model_ = models.CorrelatedBetaBernoulliModel(candidates, nn, kernel, tolerance, alpha_prior, beta_prior, p)
         self.selection_policy_ = policy
         self.selection_policy_.set_model(self.model_)
 
@@ -225,7 +225,7 @@ class CorrelatedThompsonSampling(CorrelatedBetaBernoulliBandit):
                  tolerance=1e-4, alpha_prior=1.0, beta_prior=1.0, p=0.95):
         CorrelatedBetaBernoulliBandit.__init__(
             self, objective, candidates, dcsp.ThompsonSelectionPolicy(),
-            nn, kernel, tolerance, alpha_prior, beta_prior
+            nn, kernel, tolerance, alpha_prior, beta_prior, p
         )
 
 class CorrelatedBayesUCB(CorrelatedBetaBernoulliBandit):
@@ -235,7 +235,7 @@ class CorrelatedBayesUCB(CorrelatedBetaBernoulliBandit):
         policy = dcsp.BetaBernoulliBayesUCBPolicy(horizon=horizon, c=c)
         CorrelatedBetaBernoulliBandit.__init__(
             self, objective, candidates, policy,
-            nn, kernel, tolerance, alpha_prior, beta_prior
+            nn, kernel, tolerance, alpha_prior, beta_prior, p
         )
 
 class RandomVariable:
