@@ -239,7 +239,7 @@ def wait_for_input(timeout, prompt='> ', no_input_msg=''):
     signal.signal(signal.SIGALRM, signal.SIG_IGN)
     return ''
 
-def make_chunks(config):
+def make_chunks(config, prompt=True):
     """Chunks datasets according to configuration. Each chunk only contains
     data from one dataset."""
     # Read counts file
@@ -261,13 +261,14 @@ def make_chunks(config):
                          chunk_end=assigned+max_chunk_size)
             chunks.append(chunk)
             assigned += max_chunk_size
-    yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks))
-    if yesno.lower() == 'n':
-        sys.exit(1)
+    if prompt:
+        yesno = raw_input('Create %d instances? [Y/n] ' % len(chunks))
+        if yesno.lower() == 'n':
+            sys.exit(1)
     return chunks
 
 import itertools as it
-def make_weight_params(config):
+def make_weight_params(config, prompt=True):
     params = []
     # dpgdhvqkvr
     # max_step_sizes = np.logspace(2, 6, num=30)           # 30
@@ -284,10 +285,27 @@ def make_weight_params(config):
                            step_size_max=a,
                            step_size_period=b,
                            partial_gradient_size=c))
-    yesno = raw_input('Create %d instances? [Y/n] ' % len(params))
-    if yesno.lower() == 'n':
-        sys.exit(1)
+    if prompt:
+        yesno = raw_input('Create %d instances? [Y/n] ' % len(params))
+        if yesno.lower() == 'n':
+            sys.exit(1)
     return params
+
+def make_many_params(*param_fns):
+    def param_function(config, prompt=True):
+        out_params = []
+        params = [fn(config, prompt=False) for fn in param_fns]
+        for param_tup in it.product(*params):
+            all_param = {}
+            for param in param_tup:
+                all_param.update(param)
+            out_params.append(all_param)
+        if prompt:
+            yesno = raw_input('Create %d instances? [Y/n] ' % len(out_params))
+            if yesno.lower() == 'n':
+                sys.exit(1)
+        return out_params
+    return param_function
 
 def oauth_authorization(config, args):
     """
@@ -354,6 +372,8 @@ def launch_experiment(args, sleep_time):
     param_function = config['param_function']
     if param_function == 'make_weight_params':
         param_function = make_weight_params
+    elif param_function == 'weight_and_chunk_params':
+        param_function = make_many_params(make_weight_params, make_chunks)
     else:
         param_function = make_chunks
 
