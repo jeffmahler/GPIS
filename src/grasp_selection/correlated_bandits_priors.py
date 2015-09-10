@@ -448,8 +448,6 @@ def label_correlated(obj, chunk, config, plot=False,
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
-    IPython.embed()
-    
     """
     line_width = config['line_width']
     font_size = config['font_size']
