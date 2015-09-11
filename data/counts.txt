@@ -27,6 +27,7 @@
 327 keys_1000_test
 7000 keys_10000_train
 3000 keys_10000_val
+100 keys_10000_val_small
 10000 keys_10000_train_and_val
 3238 keys_10000_test
 122 KIT
