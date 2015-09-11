@@ -291,6 +291,28 @@ def make_weight_params(config, prompt=True):
             sys.exit(1)
     return params
 
+def make_weight_params_from_list(config, prompt=True):
+    params = []
+    grad_mu = config['param_values']['grad_mu']
+    grad_sigma = config['param_values']['grad_sigma']
+    moment = config['param_values']['moment']
+    num_nearest = config['param_values']['num_nearest']
+    nn_weight = config['param_values']['nn_weight']
+
+    for a, b, c, d, e in it.product(grad_mu, grad_sigma, moment, num_nearest, nn_weight):
+        p = {}
+        p['grad_weight'] = 'gaussian_%f_%f' %(a, b)
+        p['moment_weight'] = c
+        p['num_nearest'] = d
+        p['nn_weight'] = e
+        params.append(p)
+    if prompt:
+        yesno = raw_input('Create %d instances? [Y/n] ' % len(params))
+        if yesno.lower() == 'n':
+            sys.exit(1)
+    return params
+
+
 def make_many_params(*param_fns):
     def param_function(config, prompt=True):
         out_params = []
@@ -373,7 +395,7 @@ def launch_experiment(args, sleep_time):
     if param_function == 'make_weight_params':
         param_function = make_weight_params
     elif param_function == 'weight_and_chunk_params':
-        param_function = make_many_params(make_weight_params, make_chunks)
+        param_function = make_many_params(make_weight_params_from_list, make_chunks)
     else:
         param_function = make_chunks
 
@@ -416,6 +438,8 @@ def launch_experiment(args, sleep_time):
         if zone_index >= num_zones:
             logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
             break
+
+        break
 
     # clear global q
     global instance_launch_queue

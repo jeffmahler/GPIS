@@ -45,3 +45,11 @@ def plot_grasp_histogram(quality, num_bins=100, font_size=10):
     plt.ylabel('Num Grasps', fontsize=font_size)
     plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
 
+def plot_histogram(values, num_bins=100):
+    """
+    Generates a plot of the histograms of grasps by probability of force closure
+    """
+    bin_edges = np.linspace(np.min(values), np.max(values), num_bins+1)
+    plt.figure()
+    n, bins, patches = plt.hist(values, bin_edges)
+
