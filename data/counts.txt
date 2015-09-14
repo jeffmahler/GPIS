@@ -14,7 +14,7 @@
 30 hand_picked_test_small_high_u
 30 hand_picked_test
 20 hand_picked_val_small
-50 hand_picked_val
+45 hand_picked_val
 7 keys_10_train
 3 keys_10_val
 10 keys_10_train_and_val
