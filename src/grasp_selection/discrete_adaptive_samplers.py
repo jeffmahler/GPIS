@@ -169,10 +169,10 @@ class ThompsonSampling(BetaBernoulliBandit):
 
 class GittinsIndex98(BetaBernoulliBandit):
     """ Performs Gittins index policy with gamma = 0.98 to get the candidate that maximizes the mean value of the objective"""
-    def __init__(self, objective, candidates):
-        # NOTE: can't set prior alpha and beta because we need integers to index gittins array
+    def __init__(self, objective, candidates, alpha_prior = 1.0, beta_prior = 1.0):
+        # NOTE: priors will be rounded to the nearest integers
         self.selection_policy_ = dcsp.BetaBernoulliGittinsIndex98Policy()
-        BetaBernoulliBandit.__init__(self, objective, candidates, self.selection_policy_, alpha_prior=1, beta_prior=1)
+        BetaBernoulliBandit.__init__(self, objective, candidates, self.selection_policy_, alpha_prior, beta_prior)
 
 # Gaussian bandit models
 class GaussianBandit(DiscreteAdaptiveSampler):
@@ -216,7 +216,7 @@ class CorrelatedBetaBernoulliBandit(DiscreteAdaptiveSampler):
         """ Needed to independently maximize over subsets of data """
         self.model_ = models.CorrelatedBetaBernoulliModel(
             self.candidates_, self.model_.nn_, self.model_.kernel_,
-            self.model_.tolerance_, self.model_.alpha_prior_, self.model_.beta_prior_
+            self.model_.tolerance_, self.model_.alpha_prior_, self.model_.beta_prior_, p=self.model_.p_
         )
         self.selection_policy_.set_model(self.model_) # always update the selection policy!
 

@@ -48,6 +48,7 @@ class BanditCorrelatedPriorExperimentResult:
                  true_avg_reward, iters, kernel_matrix,
                  neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
                  ce_vals, se_vals, we_vals, num_grasps, total_weights,
+                 ua_ind, ts_ind, ts_corr_ind, bucb_corr_ind, ts_corr_prior_ind, bucb_corr_prior_ind,
                  ua_runtime, ts_runtime, ts_corr_runtime, bucb_corr_runtime, ts_corr_prior_runtime, bucb_corr_prior_runtime, prior_comp_time,
                  obj_key='', neighbor_keys=[], num_objects=1):
         self.ua_reward = ua_reward
@@ -71,6 +72,13 @@ class BanditCorrelatedPriorExperimentResult:
         self.we_vals = we_vals
         self.num_grasps = num_grasps
         self.total_weights = total_weights
+
+        self.ua_ind = ua_ind
+        self.ts_ind = ts_ind
+        self.ts_corr_ind = ts_corr_ind
+        self.bucb_corr_ind = bucb_corr_ind
+        self.ts_corr_prior_ind = ts_corr_prior_ind
+        self.bucb_corr_prior_ind = bucb_corr_prior_ind
 
         self.ua_runtime = ua_runtime
         self.ts_runtime = ts_runtime
@@ -361,6 +369,8 @@ def label_correlated(obj, chunk, config, plot=False,
         bucb_corr_result = bucb_corr.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
 
         # correlated MAB for faster convergence
+        all_ts_corr_prior_ind = []
+        all_bucb_corr_prior_ind = []
         for alpha_priors, beta_priors, ts_corr_prior_rewards, bucb_corr_prior_rewards, ts_corr_runtimes, bucb_corr_runtimes, nearest_features_name in \
                 zip(all_alpha_priors, all_beta_priors, all_ts_corr_prior_rewards, all_bucb_corr_prior_rewards, all_ts_corr_prior_runtimes, all_bucb_corr_prior_runtimes, nearest_features_names):
             # thompson sampling
@@ -373,6 +383,7 @@ def label_correlated(obj, chunk, config, plot=False,
             ts_corr_prior_normalized_reward = reward_vs_iters(ts_corr_prior_result, true_pfc)
             ts_corr_prior_rewards.append(ts_corr_prior_normalized_reward)
             ts_corr_runtimes.append(ts_corr_prior_result.total_time)
+            all_ts_corr_prior_ind.append(ts_corr_prior_result.best_pred_ind)
 
             # bayes ucb
             bucb_corr = das.CorrelatedGittins(
@@ -383,6 +394,7 @@ def label_correlated(obj, chunk, config, plot=False,
             bucb_corr_prior_normalized_reward = reward_vs_iters(bucb_corr_prior_result, true_pfc)
             bucb_corr_prior_rewards.append(bucb_corr_prior_normalized_reward)
             bucb_corr_runtimes.append(bucb_corr_prior_result.total_time)
+            all_bucb_corr_prior_ind.append(bucb_corr_prior_result.best_pred_ind)
 
         # compile results
         ua_normalized_reward = reward_vs_iters(ua_result, true_pfc)
@@ -403,6 +415,9 @@ def label_correlated(obj, chunk, config, plot=False,
         ts_corr_runtimes.append(ts_corr_result.total_time)
         bucb_corr_runtimes.append(bucb_corr_result.total_time)
 
+    if num_trials == 0:
+        return None
+
     # get the bandit rewards
     all_ua_rewards = np.array(ua_rewards)
     all_ts_rewards = np.array(ts_rewards)
@@ -418,6 +433,12 @@ def label_correlated(obj, chunk, config, plot=False,
     for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
         all_avg_bucb_corr_prior_rewards.append(np.mean(np.array(bucb_corr_prior_rewards), axis=0))
         #all_avg_bucb_corr_prior_rewards.append([])
+
+    # get bandit indices
+    ua_ind = ua_result.best_pred_ind
+    ts_ind = ts_result.best_pred_ind
+    ts_corr_ind = ts_corr_result.best_pred_ind
+    bucb_corr_ind = bucb_corr_result.best_pred_ind
 
     # compute avg normalized rewards
     avg_ua_rewards = np.mean(all_ua_rewards, axis=0)
@@ -442,46 +463,12 @@ def label_correlated(obj, chunk, config, plot=False,
     # kernel matrix
     kernel_matrix = kernel.matrix(candidates)
 
-    """
-    line_width = config['line_width']
-    font_size = config['font_size']
-    dpi = config['dpi']
-
-    colors = plotting.distinguishable_colors(10)
-
-    plt.figure()
-    plt.plot(ua_result.iters, avg_ua_rewards, c=colors[0], linewidth=line_width, label='Uniform')
-    plt.plot(ua_result.iters, avg_ts_rewards, c=colors[1], linewidth=line_width, label='TS (Uncorrelated)')
-    plt.plot(ua_result.iters, avg_ts_corr_rewards, c=colors[2], linewidth=line_width, label='TS (Correlated)')
-    plt.plot(ua_result.iters, avg_bucb_corr_rewards, c=colors[3], linewidth=line_width, label='BUCB (Correlated)')
-
-    for ts_corr_prior, color, label in zip(all_avg_ts_corr_prior_rewards, colors[4:7],
-                                           config['priors_feature_names']):
-        plt.plot(ua_result.iters, ts_corr_prior,
-                 c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
-
-    for bucb_corr_prior, color, label in zip(all_avg_bucb_corr_prior_rewards, colors[7:],
-                                           config['priors_feature_names']):
-        plt.plot(ua_result.iters, bucb_corr_prior,
-                 c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
-
-
-    plt.xlim(0, np.max(ua_result.iters))
-    plt.ylim(0.5, 1)
-    plt.xlabel('Iteration', fontsize=font_size)
-    plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
-    plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
-
-    handles, labels = plt.gca().get_legend_handles_labels()
-    plt.legend(handles, labels, loc='lower right')
-    plt.show()
-    """
-
     return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_gi_rewards, avg_ts_corr_rewards, avg_bucb_corr_rewards,
                                                  all_avg_ts_corr_prior_rewards, all_avg_bucb_corr_prior_rewards,
                                                  true_pfc, ua_result.iters, kernel_matrix,
                                                  [], [], [],
                                                  ce_vals, ccbp_vals, we_vals, len(candidates), total_weights,
+                                                 ua_ind, ts_ind, ts_corr_ind, bucb_corr_ind, all_ts_corr_prior_ind, all_bucb_corr_prior_ind,
                                                  avg_ua_runtimes, avg_ts_runtimes, avg_ts_corr_runtimes, avg_bucb_corr_runtimes, all_avg_ts_corr_prior_runtimes, all_avg_bucb_corr_prior_runtimes,
                                                  prior_comp_times, obj_key=obj.key, neighbor_keys=neighbor_keys)
 
