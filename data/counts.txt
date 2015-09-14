@@ -10,6 +10,8 @@
 7438 dataset_all_train
 3189 dataset_all_val
 30 hand_picked_test_small
+30 hand_picked_test_small_low_u
+30 hand_picked_test_small_high_u
 30 hand_picked_test
 20 hand_picked_val_small
 50 hand_picked_val
@@ -32,6 +34,7 @@
 100 keys_10000_val_small_3
 10000 keys_10000_train_and_val
 3238 keys_10000_test
+100 keys_10000_test_small
 122 KIT
 9 MiniBIRD
 9449 ModelNet40
