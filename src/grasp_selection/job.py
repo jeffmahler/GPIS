@@ -343,7 +343,7 @@ def test_gce_job_run():
     gce_job.run()
 
 def test_gce_job_update():
-    config_name = 'cfg/test_gce_update.yaml'
+    config_name = 'cfg/test_gce_update2.yaml'
     config = ec.ExperimentConfig(config_name)
     gce_job = GceJob(config)
     gce_job.store()
