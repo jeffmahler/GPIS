@@ -20,5 +20,5 @@ if __name__ == '__main__':
     dest = config['database_dir']
     filename = os.path.join(dest, 'test.txt')
     f = open(filename, 'a')
-    f.write('wrote to db2\n')
+    f.write('wrote to db3\n')
     f.close()
