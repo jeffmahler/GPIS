@@ -4,6 +4,7 @@ import IPython
 
 from apiclient import discovery
 import copy
+import data_manager as dm
 import experiment_config as ec
 import gce
 import gcs
@@ -236,16 +237,17 @@ class GceJob(Job):
         """ Start the job! """
         self.user_terminated = False
         self.complete_instances = []
-        try:
+        if True:
             # allocate instance list
+            data_disks = [gce.Disk(name, mode) for name, mode in zip(self.config['compute']['data_disks'], self.config['compute']['data_disk_modes'])]
             gce_allocator = instance.GceInstanceAllocator(self.config, self.gce_helper)
-            instances = gce_allocator.allocate(self.job_name_root, self.config['compute']['run_script'], self.config['compute']['data_disks'])
+            instances = gce_allocator.allocate(self.job_name_root, self.config['compute']['run_script'], data_disks)
  
             # launch instances using multiprocessing
             self.launched_instances = self.instance_manager.launch_instances(instances, self.config['num_processes'])
-        except Exception as e:
-            logging.error('Failed to launch instances')
-            return False
+#        except Exception as e:
+#            logging.error('Failed to launch instances')
+#            return False
         return True
 
     def stop(self):
@@ -305,58 +307,33 @@ class GceJob(Job):
         update_config['update'] = True
 
         compute_config = self.config['compute']
-        update_data_disks = []
 
-        # TODO: handle critical cases using a standalone data server
         # create data disk names, ensure their availability
         if compute_config['update_script'] is not None:
-            # launch one instance per disk
-            update_instances = []
-            for zone, disk in zip(compute_config['zones'], compute_config['data_disks']):
-                update_disk_name = '%s-update' %(disk)
-                update_data_disks.append(update_disk_name)
+            # create a data manager
+            data_manager = dm.GceDataManager(self.config)
+            try:
+                # get write access
+                data_manager.request_write_access()
 
-                # check for existence of the update disk (taken as a flag for the existence of an update node)
-                disk_valid = self.gce_helper.get_disk(update_disk_name, zone)
-                if not disk_valid:
-                    # create a snapshot of the current disk
-                    logging.info('Snapshotting disk %s' %(disk))                    
-                    snapshot_response = self.gce_helper.snapshot_disk(disk, compute_config['project'], zone)
+                # now launch one instance per disk to do the updating
+                update_config['compute']['data_disks'] = data_manager.update_data_disks
+                update_config['compute']['data_disk_modes'] = ['READ_WRITE' for a in data_manager.update_data_disks]
+                update_config['compute']['instance_quota'] = 1
+                update_config['compute']['run_script'] = compute_config['update_script']
+                logging.info('Running update job with script %s' %(compute_config['update_script']))
 
-                    # create a disk from the snapshot
-                    logging.info('Creating update disk %s' %(update_disk_name))
-                    self.gce_helper.create_disk(update_disk_name, zone=zone, size_gb=compute_config['disk_size_gb'],
-                                                source_snapshot=snapshot_response['name'])
+                update_job = GceJob(update_config)
+                update_job.run()
 
-                else:
-                    # TODO: this must be changed to prevent race conditions
-
-                    # wait for the disk to be freed up
-                    disk_available = False
-
-                    # request database access
-                    while not disk_available:
-                        time.sleep(wait_time)
-                        disk_valid = self.gce_helper.get_disk(update_disk_name, zone)
-                        if 'users' not in disk_valid.keys():
-                            disk_available = True
-
-            # now launch one instance per disk to do the updating
-            update_config['compute']['data_disks'] = update_data_disks
-            update_config['compute']['instance_quota'] = 1
-            update_config['compute']['run_script'] = compute_config['update_script']
-            update_job = self.GceJob(update_config)
-            update_job.run()
-
-            # TODO: check if others are waiting for the disk to prevent race conditions
-            # finally update all of the data disks
-            for zone, disk in zip(compute_config['zones'], update_data_disks):
-                # snapshot the updated data disks
-                snapshot_response = self.gce_helper.snapshot_disk(disk, compute_config['project'], zone)
-
-                # TODO: delete old disk or create new version of database?
-
-            return True
+                # release access and attempt to stop the server
+                data_manager.release_write_access()
+                data_manager.stop()
+                return True
+            except Exception as e:
+                # just make sure to terminate the goddamn server
+                data_manager.force_stop()
+                raise e
         return False
 
 def test_gce_job_run():
@@ -366,7 +343,7 @@ def test_gce_job_run():
     gce_job.run()
 
 def test_gce_job_update():
-    config_name = 'cfg/test_gce.yaml'
+    config_name = 'cfg/test_gce_update.yaml'
     config = ec.ExperimentConfig(config_name)
     gce_job = GceJob(config)
     gce_job.store()

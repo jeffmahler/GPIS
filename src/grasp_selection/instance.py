@@ -5,6 +5,7 @@ import IPython
 import itertools as it
 import logging
 import multiprocessing as mp
+import time
 
 import httplib2
 from oauth2client.client import flow_from_clientsecrets
@@ -119,13 +120,12 @@ class GceInstanceAllocator(VMInstanceAllocator):
         available_instances = {}
         for zone in self.config['compute']['zones']:
             zone_instances = self.gce_helper.list_instances(zone)
+            available_instances[zone] = instance_quota
             if use_hard_limits:
                 available_instances[zone] = instance_quota - len(zone_instances)
-            else:
-                available_instances[zone] = instance_quota
         return available_instances
 
-    def allocate(self, instance_root, use_hard_limits=True):
+    def allocate(self, instance_root, run_script, data_disks, use_hard_limits=True):
         """
         Returns a list of GCE instance objects with parameters from config.
         The config must be an object that can be accessed using string dictionary keys and containing the chunking / splitting params 
@@ -148,7 +148,6 @@ class GceInstanceAllocator(VMInstanceAllocator):
         project = compute_config['project']
         bucket = compute_config['bucket']
         image = compute_config['image']
-        data_disks = compute_config['data_disks']
         cur_zone = zones[zone_index]
 
         # loop through the params
@@ -161,7 +160,7 @@ class GceInstanceAllocator(VMInstanceAllocator):
             metadata=[
                 {'key': 'config', 'value': self.config.file_contents},
                 {'key': 'instance_name', 'value': cur_instance_name},
-                {'key': 'run_script', 'value': compute_config['run_script']},
+                {'key': 'run_script', 'value': run_script},
                 {'key': 'project_name', 'value': compute_config['project']},
                 {'key': 'bucket_name', 'value': compute_config['bucket']},
                 ]
@@ -169,7 +168,7 @@ class GceInstanceAllocator(VMInstanceAllocator):
                 metadata.append({'key': param_key, 'value': param_val})
 
             # create a new instance
-            logging.info('Allocating GCE instance %s' % cur_instance_name)
+            logging.info('Allocating GCE instance %s in zone %s' %(cur_instance_name, zones[zone_index]))
             instances.append(GceInstance(cur_instance_name, cur_disk_name, image, zones[zone_index],
                                          metadata, [data_disks[zone_index]], project, self.config))
             instances_per_zone += 1
@@ -178,14 +177,15 @@ class GceInstanceAllocator(VMInstanceAllocator):
             if instances_per_zone >= instance_lims[cur_zone]:
                 instances_per_zone = 0
                 zone_index += 1
+
+                # check for zone overflows
+                if zone_index >= len(zones):
+                    logging.warning('Cannot create more instances! Capping allocation at %d instances.' %(instance_num+1))
+                    return instances
+
+                # update current zone
                 cur_zone = zones[zone_index]
 
-            # check for zone overflows
-            if zone_index >= len(zones):
-                logging.warning('Cannot create more instances! Capping allocation at %d instances.' %(instance_num))
-                # TODO: raise exception
-                return instances
-        
         # return list of instances
         return instances
 
@@ -214,12 +214,13 @@ class VMInstanceManager(object):
         # launch everything
         if num_processes == 1:
             for instance in instances:
-                instance.start()
+                self._launch_instance(instance)
         else:
             pool = mp.Pool(min(num_processes, len(instances)))
             pool.map(self._launch_instance, instances)
 
         # return dictionary of launched instances mapped by name (some may fail)
+        time.sleep(1) # wait for queue population, which sometimes fucks up
         launched_instances = {}
         while not VMInstanceManager.instance_launch_queue.empty():
             cur_instance = VMInstanceManager.instance_launch_queue.get() 
@@ -324,7 +325,7 @@ class GceInstance(VMInstance):
                 startup_script = self.config['compute']['startup_script'],
                 zone = self.zone,
                 metadata = self.metadata,
-                additional_ro_disks = self.data_disks
+                additional_disks = self.data_disks
             )
         except (gce.ApiError, gce.ApiOperationError, ValueError, Exception) as e:
             # Delete the disk in case the instance fails to start.
