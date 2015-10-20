@@ -1,0 +1,10 @@
+window_width: 0.05
+window_steps: 13
+window_sigma: 1.0
+kernel_sigma: 1.0
+kernel_l: 1.0
+kernel_tolerance: 0.05
+prior_neighbor_weight: 0.1
+prior_neighbor_distance: 20
+prior_num_neighbors: 5
+prior_kernel_tolerance: 0.0001

@@ -1,0 +1,125 @@
+#:kivy 1.9.0
+#:import kivy kivy
+
+# Name of this file must match App name in main (GraspSelectionApp)
+
+# Window layout
+FloatLayout:
+	width: 800
+	height: self.width*3/4
+	minimum_height: 200
+	size_hint: (None, 1)
+	pos_hint: {'center_x':.5,'center_y':.5}
+	canvas:
+		Color:
+			rgba: .15, .15, .15, 1
+		Rectangle: 
+			pos: self.pos
+			size: self.size
+
+    # Title text
+    BoxLayout: 
+        padding: 10
+        spacing: 10
+        size_hint: 1, None
+        pos_hint: {'top': .96, 'x': .05}
+        height: 44
+        Label:
+            height: 24
+            text_size: self.width, None
+            font_size: '30sp'
+            color: (1, 1, 1, .8)
+            text: 'Robotic Grasp Rating'
+
+    # Subtitle text
+    BoxLayout:
+        padding: 10
+        spacing: 10
+        size_hint: 1, None
+        pos_hint: {'top': .89, 'x': .05}
+        height: 30
+        Label:
+            height: 18
+            text_size: self.width, None
+            font_size: '16sp'
+            color: (1, 1, 1, .8)
+            text: 'Automation Lab, UC Berkeley'
+
+
+<SelectionGrid>:
+	id: selection_grid
+	source: root.source
+	spacing: 10
+	canvas:
+		Color:
+			rgba: (0,0,0,0)
+#	size: (600,450)
+#	size_hint: (None,None)
+
+	
+<ImageButton>:
+	id: image_button
+	source: root.source
+	background_color: [0,0,0,0]
+	background_normal: self.grasp.image
+	background_down: self.grasp.image
+
+
+<HelpButton>:
+	id: help_button
+	source: root.source
+	pos_hint: {'x':.78, 'y':.85}
+	size_hint: (.1,.1)
+	text: 'Help'
+
+
+<HelpScreenButton>:
+	id: help_screen_button
+	source: root.source
+	pos_hint: {'x':.3, 'y':.25}
+	size_hint: (.4,.5)
+	text: 'Help Screen:\n\nTo mark good (green), click once\nTo mark bad (red), click twice\n\nKeep clicking if you mess up\n\nUse "Next" button to proceed\nSave when you are done\n\nClick here to close help screen'
+
+
+<NextButton>:
+	id: next_button
+	source: root.source
+	pos_hint: {'x':.54, 'y':.85}
+	size_hint: (.1,.1)
+	text: 'Next'
+
+<SaveButton>:
+	id: save_button
+	source: root.source
+	pos_hint: {'x':.66, 'y':.85}
+	size_hint: (.1,.1)
+	text: 'Save'
+
+<SaveScreen>:
+	id: save_screen
+	source: root.source
+	pos_hint: {'x':.3, 'y':.3}
+	size_hint: (.4,.4)
+	text:'Button'
+	canvas:
+		Color:
+			rgba: .4, .4, .4, 1
+		Rectangle: 
+			pos: self.pos
+			size: self.size
+
+<SaveScreenSave>:
+	id: save_screen_save
+	source: root.source
+	pos_hint: {'x':.55, 'y':.35}
+	size_hint: (.1,.1)
+	text:'Save'
+
+<FinalSaveButton>:
+	id: final_save_button
+	source: root.source
+	pos_hint: {'x':.3, 'y':.4}
+	size_hint: (.4,.2)
+	background_color: [0,0,0,0]
+	text: 'You are done! Click to save.'
+

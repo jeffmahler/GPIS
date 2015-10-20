@@ -1,0 +1,9 @@
+caffe_tools: '/Users/MelRod/lib/caffe-master/build/tools/'
+config_dir: '/Users/MelRod/myProjects/GPIS_data/caffe_data/'
+caffe_model: 'caffenet.caffemodel'
+caffe_finetuning_model: 'alexnet.caffemodel'
+
+portion_training: 0.75
+deploy_mode: 'cpu'
+batch_size: 1000
+vector_merging_method: 'max'

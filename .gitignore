@@ -1,9 +1,12 @@
 # directories
 bin/*
 build/*
-cfg/*
+cfg/weight_search/*
+feedback/*
 matlab/dependencies/*
 lib/*
+images/*
+results/*
 
 # temp files
 *~
@@ -17,3 +20,12 @@ lib/*
 *.pyc
 *.recv
 *.send
+.DS_Store
+*.stp
+
+# secret files
+client_secrets.json
+oauth2.dat
+
+# common outputs
+profile.txt

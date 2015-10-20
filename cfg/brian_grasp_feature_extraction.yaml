@@ -1,0 +1,70 @@
+# Core parameters ####################################################
+!include partials/paths_tank.yaml
+!include partials/paths_rll4_brian.yaml
+!include partials/paths_gce.yaml
+
+local_database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
+dataset_counts: data/counts.txt
+datasets:
+  - PriorsTest
+max_chunk_size: 1
+
+# Will be overridden by startup script
+dataset:     PriorsTest
+chunk_start: 27
+chunk_end:   28
+
+# Experiment parameters ##############################################
+!include partials/experiment_params.yaml
+!include partials/bandit_params.yaml
+!include partials/window_params.yaml
+
+# Window weights #####################################################
+inf:   &id_inf       100000000000000000000.0
+zero:  &id_zero      0.0
+weight_proj_win:     1.0
+weight_grad_x:       1.0
+weight_grad_y:       1.0
+weight_curvature:    1.0
+weight_grasp_center: 1.0
+weight_grasp_axis:   1.0
+weight_grasp_angle:  1.0
+weight_gravity:      1.0
+
+# Post-experiment parameters #########################################
+!include partials/plot_params.yaml
+
+# GCE parameters #####################################################
+project:        &id_project        nth-clone-620
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+bucket:         &id_bucket         dex-net-cm # TODO
+disk_type:      &id_disk_type      PERSISTENT
+num_processes: 8
+results_script: src/grasp_selection/save_grasps_and_features.py
+compute:
+  api_version:    v1
+  machine_type:   n1-standard-1
+  zones:
+    - us-central1-a
+    - europe-west1-b
+    - asia-east1-a
+  instance_quota: 200
+  startup_script: scripts/cm_startup.sh # TODO
+  image_project:  *id_project
+  image:          dex-net-image
+  data_disks:
+    - dex-net-data
+  service_email:  default
+  network:        default
+  run_script:     src/grasp_selection/grasp_features.py
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+# Notification parameters ############################################
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgicallab
+notify_email:   &id_notify_email    brian.hou@berkeley.edu

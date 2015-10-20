@@ -1,0 +1,18 @@
+<package>
+  <description brief="tfx">
+
+     tfx
+
+  </description>
+  <author>Ben Kehoe</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://bitbucket.org/benkehoe/tfx</url>
+  <depend package="rospy"/>
+  <depend package="tf"/>
+  <depend package="geometry_msgs"/>
+  <depend package="std_msgs"/>
+
+</package>
+
+

@@ -1,0 +1,4 @@
+database_dir: '/Users/MelRod/myProjects/GPIS_data/data'
+mesh_database_id: 'CAT50'
+mesh_database_index: '/Users/MelRod/myProjects/GPIS_data/Cat50_ModelDatabase/index.db'
+portion_training: 1.0

@@ -1,0 +1,25 @@
+<package>
+  <name>tfx</name>
+  <description>
+
+     tfx
+
+  </description>
+  <version>0.1.0</version>
+  <author>Ben Kehoe</author>
+  <maintainer email="benk@berkeley.edu">Ben Kehoe</maintainer>
+  <license>BSD</license>
+  <url>http://bitbucket.org/benkehoe/tfx</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>geometry_msgs</build_depend>
+  
+  <run_depend>rospy</run_depend>
+  <run_depend>tf</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>std_msgs</run_depend>
+
+</package>
+
+

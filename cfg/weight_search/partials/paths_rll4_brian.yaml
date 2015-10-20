@@ -1,0 +1,4 @@
+#TODO: Change back to brian
+root_dir:     /home/jmahler/jeff_working/GPIS
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v1
+cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs

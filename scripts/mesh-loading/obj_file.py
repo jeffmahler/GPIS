@@ -16,8 +16,8 @@ class ObjFile:
         self.filepath_ = filepath
         file_root, file_ext = os.path.splitext(self.filepath_)
         if file_ext != '.obj':
-            print 'Extension', file_ext
-            raise Exception('Cannot load file extension %s. Please supply a .obj file' %(file_ext))
+            message = 'Cannot load file extension %s. Please supply a .obj file' %(file_ext)
+            raise Exception(message)
 
     def get_filepath(self):
         '''
@@ -70,7 +70,8 @@ class ObjFile:
                                 if i == 0:
                                     vi.append(int(tokens[i]) - 1) # adjust for python 0 - indexing
                                 elif i == 1:
-                                    vti.append(int(tokens[i]))
+                                    if tokens[i] != '':
+                                        vti.append(int(tokens[i]))
                                 elif i == 2:
                                     nti.append(int(tokens[i]))
                     faces.append(vi)
