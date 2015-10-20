@@ -37,7 +37,7 @@ def kinematicControl():
         time.sleep(.03)
 
 #DIRECT CONTROL
-
+# Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
 def directControl():
     c = XboxController([100,155,155,155,155,100])
     while True:

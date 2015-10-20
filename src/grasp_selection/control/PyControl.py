@@ -1,15 +1,12 @@
-
-from PID import *
 import time
 import serial
 import numpy as np
 class PyControl:
-    def __init__(self, comm = "COM6",baudrate=115200,timeout=.01):
+    def __init__(self, comm = "COM3",baudrate=115200,timeout=.01):
         # initialize Serial Connection
         self.ser = serial.Serial(comm,baudrate)
         self.ser.setTimeout(timeout)
         time.sleep(1)
-        
         
     def stop(self):
         self.ser.flushOutput()
@@ -93,11 +90,3 @@ class PyControl:
         # rotation elevation extension wrist closure turntable
         # rotation elevation extension closure       
         return sensorVals
-        
-    
-        
-    
-    
-
-    
-        
