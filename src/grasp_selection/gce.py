@@ -35,8 +35,18 @@ import multiprocessing as mp
 
 from apiclient.discovery import build
 from apiclient.errors import HttpError
+import httplib2
 from httplib2 import HttpLib2Error
 from oauth2client.client import AccessTokenRefreshError
+from oauth2client.client import flow_from_clientsecrets
+from oauth2client.file import Storage
+from oauth2client.tools import argparser, run_flow
+from oauth2client import tools
+
+class Disk(object):
+  def __init__(self, name, mode='READ_ONLY'):
+    self.name = name
+    self.mode = mode
 
 class Gce(object):
   """Demonstrates some of the image and instance API functionality.
@@ -52,14 +62,14 @@ class Gce(object):
     """Initialize the Gce object.
 
     Args:
-      auth_http: an authorized instance of httplib2.Http.
-      project_id: the API console project name.
+      config: a yaml config file
+      project_id: the API console project name
     """
-
     self.config = config
+    self.auth_http = auth_http
 
     self.service = build(
-        'compute', self.config['compute']['api_version'], http=auth_http)
+        'compute', self.config['compute']['api_version'], http=self.auth_http)
 
     self.gce_url = 'https://www.googleapis.com/compute/%s/projects' % (
         self.config['compute']['api_version'])
@@ -84,7 +94,7 @@ class Gce(object):
                      startup_script=None,
                      startup_script_url=None,
                      blocking=True,
-                     additional_ro_disks=[]):
+                     additional_disks=[]):
     """Start an instance with the given name and settings.
 
     Args:
@@ -100,7 +110,7 @@ class Gce(object):
       startup_script: The filename of a startup script.
       startup_script_url: Url of a startup script.
       blocking: Whether the function will wait for the operation to complete.
-      additional_ro_disks: List of read-only string disk names
+      additional_disks: List of disk names
 
     Returns:
       Dictionary response representing the operation.
@@ -149,15 +159,15 @@ class Gce(object):
     }]
 
     # Attach additional disks
-    for disk in additional_ro_disks:
-      disk_valid = self.get_disk(disk, zone)
+    for disk in additional_disks:
+      disk_valid = self.get_disk(disk.name, zone)
       if not disk_valid:
-        logging.error('Disk %s does not exist.' % disk)
-        raise DiskDoesNotExistError(disk)
+        logging.error('Disk %s does not exist.' % disk.name)
+        raise DiskDoesNotExistError(disk.name)
       disk_info = {
         'boot': False,
         'type': self.config['disk_type'],
-        'mode': 'READ_ONLY',
+        'mode': disk.mode,
         'source': disk_valid['selfLink'],
       }
       instance['disks'].append(disk_info)
@@ -306,6 +316,8 @@ class Gce(object):
                   image_project=None,
                   image=None,
                   zone=None,
+                  size_gb=500,
+                  source_snapshot=None,
                   blocking=True):
     """Creates a new persistent disk.
 
@@ -314,6 +326,8 @@ class Gce(object):
       image_project: The string name for the project of the image.
       image: String name of the image to apply to the disk.
       zone: The string zone name.
+      size_gb: Int size of disk in GB
+      source_snapshot: String id of the snapshot to source from
       blocking: Whether the function will wait for the operation to complete.
 
     Returns:
@@ -332,13 +346,14 @@ class Gce(object):
 
     # Set required disk fields with defaults if not provided.
     disk['name'] = disk_name
+    disk['sizeGb'] = size_gb
+    if source_snapshot:
+      disk['sourceSnapshot'] = 'global/snapshots/%s' %(source_snapshot)
     if not zone:
       zone = self.config['compute']['zones'][0]
-    if not image_project:
-      image_project = self.config['compute']['image_project']
-    if not image:
-      image = self.config['compute']['image']
-    source_image = '%s/%s/global/images/%s' % (
+    source_image = None
+    if image_project and image:
+      source_image = '%s/%s/global/images/%s' % (
         self.gce_url, image_project, image)
 
     request = self.service.disks().insert(
@@ -353,6 +368,81 @@ class Gce(object):
     if response and 'error' in response:
       raise ApiOperationError(response['error']['errors'])
 
+    return response
+
+  def snapshot_disk(self,
+                    disk_name,
+                    project,
+                    zone,
+                    blocking=True):
+    """Creates a new persistent disk.
+
+    Args:
+      disk_name: String name for the disk.
+      project: String name for the project
+      zone: The string zone name.
+      blocking: Whether the function will wait for the operation to complete.
+
+    Returns:
+      Dictionary response representing the operation.
+
+    Raises:
+      ApiOperationError: Operation contains an error message.
+      ValueError: disk_name is None or an empty string.
+    """
+
+    if not disk_name:
+      raise ValueError('disk_name required.')
+
+    body = {}
+    body['sourceDisk'] = disk_name
+    body['name'] = disk_name + '-snapshot'
+
+    request = self.service.disks().createSnapshot(
+      disk=disk_name, project=project, zone=zone, body=body
+      )
+    response = self._execute_request(request)
+
+    if response and blocking:
+      response = self._blocking_call(response)
+
+    if response and 'error' in response:
+      raise ApiOperationError(response['error']['errors'])
+
+    response['snapshot_name'] = body['name']
+    return response
+
+  def delete_snapshot(self,
+                      snapshot_name,
+                      project,
+                      blocking=True):
+    """Creates a new persistent disk.
+
+    Args:
+      snapshot_name: String name for the disk.
+      project: String name for the project
+
+    Returns:
+      Dictionary response representing the operation.
+
+    Raises:
+      ApiOperationError: Operation contains an error message.
+      ValueError: disk_name is None or an empty string.
+    """
+
+    if not snapshot_name:
+      raise ValueError('snapshot_name required.')
+
+    request = self.service.snapshots().delete(
+      snapshot=snapshot_name, project=project
+      )
+    response = self._execute_request(request)
+
+    if response and blocking:
+      response = self._blocking_call(response)
+
+    if response and 'error' in response:
+      raise ApiOperationError(response['error']['errors'])
     return response
 
   def get_disk(self, disk_name, zone=None):

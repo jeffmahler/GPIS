@@ -40,6 +40,7 @@ from oauth2client.client import AccessTokenRefreshError
 
 import boto
 import gce
+import os
 import StringIO
 import tarfile
 
@@ -70,7 +71,12 @@ class Gcs(object):
     else:
       self.project_id = project_id
 
+    # setup data storage directory
     self.cache_dir = self.config['cache_dir'] # directory to cache downloads
+    if self.cache_dir is None:
+      self.cache_dir = 'gcs'
+    if not os.path.exists(self.cache_dir):
+      os.makedirs(self.cache_dir)
 
   def retrieve(self, bucket_name, file_name, out_dir):
     """
@@ -111,6 +117,8 @@ class Gcs(object):
       """
       result_dirs = []
       store_dir = os.path.join(self.cache_dir, dir_name)
+      if not os.path.exists(store_dir):
+        os.mkdir(store_dir)
 
       # download each result
       for result_name in results_list:
