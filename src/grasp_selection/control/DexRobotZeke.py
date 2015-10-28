@@ -46,6 +46,7 @@ class DexRobotZeke:
 
 	def setState(self, state):
 		def action_setState(zeke):
+			#TODO: check for state dimensions
 			print "Before: ", zeke.getState()
 			print "Sent State: ", state
 			zeke.sendStateRequest(state)
@@ -59,11 +60,27 @@ class DexRobotZeke:
 	def getState(self):
 		return self._execute_once(lambda zeke: zeke.getState())
 		
-	def _process(self, pose):
+	def _pose_to_transforms(self, pose):
+		'''
+		Takes in a pose and returns the following list of joint transforms:
+		Elevation
+		Rotation about Z axis
+		Extension of Arm
+		Rotation of gripper
+		'''
 		
+	def _transforms_to_state(self, transforms):
+		'''
+		Takes in a list of transforms and concats them into one single 
+		final target state
+		'''
 		
 		
 	def transform(self, target_pose):
 		target_pose = ZEKE_LOCAL_T * target_pose
 		
+		#TODO: Check for unreasonable rotation DOF in target_pose
+		transforms = self._pose_to_transforms(target_pose)
+		target_state = self._transforms_to_state()
 		
+		self.setState(target_state)
