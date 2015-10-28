@@ -31,32 +31,22 @@ class PyControl:
         # Checks out of bounds 
         self.ser.flushOutput()
         PWMs = []
-        for i in range(0,len(requests)):
-            req = requests[i]
+        for req in requests:
             if req >= 0:
-#                if self.state[i+7]>self.maxStates[i]:
-#                    req = 0
                 PWMs.append(int(req))
                 PWMs.append(0)
-                
             else:
-#                if self.state[i+7]<self.minStates[i]:
-#                    req = 0
                 PWMs.append(0)
                 PWMs.append(int(abs(req)))
         # send PWMs
-        for elem in PWMs:
-            self.ser.write(chr(elem))
-            
-        return
+        for e in PWMs:
+            self.ser.write(chr(e))
         
     def control(self,requests):
         self.ser.flushOutput()
         self.ser.flushInput()
         self.ser.write("s")
         self.sendControls(requests)
-        return
-
 
     def getState(self):
         self.ser.flushInput()
@@ -75,18 +65,18 @@ class PyControl:
         # rotation elevation extension closure       
         return sensorVals
         
+'''
     def getPositonState(self):
         self.ser.flushInput()
         self.ser.write("c")
         sensorVals = []
-        for i in range(0,6):
-            thing = self.ser.readline();
-            if type(thing)!=float:
-                return
-            sensorVals.append(float(self.ser.readline()))
+        for i in range(6):
+            val = self.ser.readline()
+            sensorVals.append(float(val))
         # timeout gives time for arduino to catch up no matter what
         # encoders 1-3, encoder velocities 1-3, potentiometers 1-6, currents 1-4
         # rotation elevation extension
         # rotation elevation extension wrist closure turntable
         # rotation elevation extension closure       
         return sensorVals
+'''

@@ -1,5 +1,3 @@
-
-
 from PyControl import * 
 from xboxController import *
 import numpy as np
