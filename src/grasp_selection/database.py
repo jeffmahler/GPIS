@@ -12,6 +12,7 @@ import graspable_object as go
 import obj_file
 import sdf_file
 import feature_file
+import stp_file
 
 import IPython
 
@@ -110,6 +111,10 @@ class Dataset(object):
         return file_root + '.json'
 
     @staticmethod
+    def stp_filename(file_root):
+        return file_root + '.stp'
+
+    @staticmethod
     def features_filename(file_root):
         return file_root + '.ftr'
 
@@ -175,6 +180,13 @@ class Dataset(object):
         # TODO: what should happen if grasp_filename already exists?
         with open(grasp_filename, 'w') as f:
             jsons.dump(grasps, f)
+
+    def load_stable_poses(self, graspable):
+        file_root = os.path.join(self.dataset_root_dir_, graspable.key)
+        stp = stp_file.StablePoseFile()
+        stp_filename = Dataset.stp_filename(file_root)
+        stable_poses = stp.read(stp_filename)
+        return stable_poses
 
     def __getitem__(self, index):
         """ Index a particular object in the dataset """
