@@ -18,7 +18,7 @@ import sdf
 import similarity_tf as stf
 import tfx
 
-PR2_GRASP_OFFSET = np.array([-0.0375, 0, 0])
+PR2_GRASP_OFFSET = np.array([-0.05, 0, 0])
 
 class Grasp:
     __metaclass__ = ABCMeta
@@ -33,6 +33,21 @@ class Grasp:
     @abstractmethod
     def to_json(self):
         """ Converts a grasp to json """
+        pass
+
+    @abstractmethod
+    def configuration(self):
+        """ Returns a numpy array representing the hand configuration """
+        pass
+
+    @abstractmethod
+    def reference_frame(self):
+        """ Returns the string name of the object reference frame  """
+        pass
+
+    @abstractmethod
+    def from_configuration(configuration):
+        """ Static method that creates a grasp from a numpy configuration vector """
         pass
 
 class PointGrasp(Grasp):
@@ -280,6 +295,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasps_tf = []
         while theta <= 2*np.pi - theta_res:
             grasps_tf.append(ParallelJawPtGrasp3D(grasp_center_obj, grasp_axis_y_obj, grasp_width_obj, self.jaw_width, theta, tf))
+            grasps_tf[-1].quality = self.quality
             theta = theta + theta_res
         return grasps_tf
 

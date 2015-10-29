@@ -4,7 +4,7 @@ Author: Nikhil Sharma
 """
 import math
 import sys
-# import IPython
+import IPython
 import numpy as np
 # import similarity_tf as stf
 # import tfx
@@ -55,7 +55,7 @@ def compute_stable_poses(mesh):
 
     mesh -- a 3D Mesh object
     """
-    convex_hull, cm = mesh.convex_hull(), mesh.vertex_mean_
+    convex_hull, cm = mesh.convex_hull(), mesh.centroid()
 
     # mapping each edge in the convex hull to the two faces it borders
     triangles, vertices, edge_to_faces, triangle_to_vertex = convex_hull.triangles(), convex_hull.vertices(), {}, {}
@@ -166,9 +166,9 @@ def compute_projected_area(vertices, cm):
     """
     angles, projected_vertices = [], [np.subtract(vertex, cm) / np.linalg.norm(np.subtract(vertex, cm)) for vertex in vertices]
 
-    a = math.acos(max(1, min(-1, np.dot(projected_vertices[0], projected_vertices[1]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[1])))))
-    b = math.acos(max(1, min(-1, np.dot(projected_vertices[0], projected_vertices[2]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[2])))))
-    c = math.acos(max(1, min(-1, np.dot(projected_vertices[1], projected_vertices[2]) / (np.linalg.norm(projected_vertices[1]) * np.linalg.norm(projected_vertices[2])))))
+    a = math.acos(min(1, max(-1, np.dot(projected_vertices[0], projected_vertices[1]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[1])))))
+    b = math.acos(min(1, max(-1, np.dot(projected_vertices[0], projected_vertices[2]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[2])))))
+    c = math.acos(min(1, max(-1, np.dot(projected_vertices[1], projected_vertices[2]) / (np.linalg.norm(projected_vertices[1]) * np.linalg.norm(projected_vertices[2])))))
     s = (a + b + c) / 2
 
     try:

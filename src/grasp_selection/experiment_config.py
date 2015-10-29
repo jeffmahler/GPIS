@@ -52,6 +52,7 @@ class ExperimentConfig(object):
     def __init__(self, filename = None, use_templates=False, create_dbs=False):
         self.config = None # initialize empty config
         self.use_templates = use_templates
+        self.filename = filename
 
         if filename is not None:
             self.load_config(filename)
