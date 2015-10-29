@@ -12,7 +12,6 @@ import os
 import sys
 import IPython
 import math
-import mayavi.mlab as mv
 import numpy as np
 import stable_poses as st
 import obj_file
@@ -37,8 +36,9 @@ class StablePoseFile:
         data = [line.split() for line in f]
         for i in range(len(data)):
             if len(data[i]) > 0 and data[i][0] == "p":
-                p = data[i][1]
+                p = float(data[i][1])
                 r = [[data[i+1][1], data[i+1][2], data[i+1][3]], [data[i+2][0], data[i+2][1], data[i+2][2]], [data[i+3][0], data[i+3][1], data[i+3][2]]]
+                r = np.array(r).astype(np.float64)
                 stable_poses.append(spc.StablePose(p, r))
         return stable_poses
 
