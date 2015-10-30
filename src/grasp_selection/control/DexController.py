@@ -13,8 +13,6 @@ class DexController:
 		if robot is None:
 			robot = DexRobotZeke(comm, baudrate, timeout)
 		self.robot = robot
-		#initialization methods
-		self.robot.reset()
 		
 	def transform(self, target_pose):
 		'''
@@ -23,5 +21,11 @@ class DexController:
 		if target_pose.frame is not DexConstants.WORLD_FRAME:
 			raise Exception("Given target_pose is not in WORLD frame")
 		self.robot.transform(target_pose)
+		
+	def reset(self):
+		self.robot.reset()
+		
+	def stop(self):
+		self.robot.stop()
 		
 ctrl = DexController()

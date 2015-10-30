@@ -1,7 +1,14 @@
 import time
 import serial
+from time import sleep
 import numpy as np
 class PyControl:
+
+    STEP_ROT = np.pi / 40
+    STEP_TRA = 0.001
+    STEP_TIME = 0.05
+    NUM_STATES = 6
+    
     def __init__(self, comm = "COM3",baudrate=115200,timeout=.01):
         # initialize Serial Connection
         self.ser = serial.Serial(comm,baudrate)
@@ -15,7 +22,7 @@ class PyControl:
         self.sendControls([0,0,0,0,0,0])
         return
         
-    def sendStateRequest(self,requests):
+    def _sendSingleStateRequest(self, requests):
         self.ser.flushInput()
         self.ser.flushOutput()
         self.ser.write("a")
@@ -25,6 +32,65 @@ class PyControl:
             self.ser.write(chr((val>>16) & 0xff))
             self.ser.write(chr((val>>8) & 0xff))
             self.ser.write(chr(val & 0xff))
+            
+    def _interpolate(self, initial, target):
+        initial = initial[::] #copies the array
+        target = target[::]
+        
+        states = []
+        is_rot = lambda x : x in (0, 3, 5)
+                        
+        def allTrue(lst):
+            for b in lst:
+                if not b:
+                    return False
+            return True
+                
+        sgn = [0] * PyControl.NUM_STATES
+        for i in range(PyControl.NUM_STATES):
+            if target[i] > initial[i]:
+                sgn[i] = 1
+            elif target[i] == initial[i]:
+                sgn[i] = 0
+            else:
+                sgn[i] = -1
+            
+        current = initial
+        reached = [False] * PyControl.NUM_STATES
+        while not allTrue(reached):
+            for i in range(PyControl.NUM_STATES):
+                if not reached[i]:
+                    if is_rot(i):
+                        next = current[i] + sgn[i] * PyControl.STEP_ROT
+                    else:
+                        next = current[i] + sgn[i] * PyControl.STEP_TRA
+                        
+                    if sgn[i] == 0:
+                        reached[i] = True
+                        current[i] = target[i]
+                    elif sgn[i] == 1:
+                        if next >= target[i]:
+                            reached[i] = True
+                            current[i] = target[i]
+                        else:
+                            current[i] = next
+                    else:
+                        if next <= target[i]:
+                            reached[i] = True
+                            current[i] = target[i]
+                        else:
+                            current[i] = next
+            
+            states.append(current[::])
+        
+        return states
+
+    def sendStateRequest(self, target):
+        current = self.getState()       
+        states = self._interpolate(current, target)
+        for state in states:
+            self._sendSingleStateRequest(state)
+            sleep(PyControl.STEP_TIME)
 
     def sendControls(self,requests):
         # Converts an array of requests to an array of PWM signals sent to the robot
@@ -62,21 +128,7 @@ class PyControl:
         # encoders 1-3, encoder velocities 1-3, potentiometers 1-6, currents 1-4
         # rotation elevation extension
         # rotation elevation extension wrist closure turntable
-        # rotation elevation extension closure       
+        # rotation elevation extension closure 
         return sensorVals
         
-'''
-    def getPositonState(self):
-        self.ser.flushInput()
-        self.ser.write("c")
-        sensorVals = []
-        for i in range(6):
-            val = self.ser.readline()
-            sensorVals.append(float(val))
-        # timeout gives time for arduino to catch up no matter what
-        # encoders 1-3, encoder velocities 1-3, potentiometers 1-6, currents 1-4
-        # rotation elevation extension
-        # rotation elevation extension wrist closure turntable
-        # rotation elevation extension closure       
-        return sensorVals
-'''
+zeke = PyControl()
