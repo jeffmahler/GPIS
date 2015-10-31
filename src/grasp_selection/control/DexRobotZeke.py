@@ -2,6 +2,8 @@ from operator import add
 from tfx import pose, transform, vector, rotation
 from DexConstants import DexConstants
 from PyControl import PyControl
+from math import sqrt
+import numpy as np
 
 class DexRobotZeke:
 	'''
@@ -13,12 +15,14 @@ class DexRobotZeke:
 	NUM_STATES = 6
 	#TODO: find actual physical values
 	# Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-	MIN_STATES = [0,.02,.01,0.183086039735,-.01,0.197775641646]
-	MAX_STATES = [6.58991792126, .3, 0.3, 6.61606370861, 0.0348490572685, 6.83086639225]
+	MIN_STATES = [0 , 0.008, 0.008, 0.183086039735, -.01, 0]
+	MAX_STATES = [2*np.pi, 0.3, 0.3, 2*np.pi, 0.05, 2*np.pi]
 	
-	RESET_STATE = [2.3931, 1.4635, 1.4513, 3.4204, 0.0348, 2.842]
+	PHI = 0.0568
+	
+	RESET_STATE = [np.pi + PHI, 0.01, 0.01, 0.5076, 0, 0]
 	ZEKE_LOCAL_T = transform(
-											vector(-10, 0, 0), 
+											vector(-0.20, 0, 0), 
 											rotation.identity(), 
 											parent=DexConstants.WORLD_FRAME,
 											frame="ZEKE_LOCAL")
@@ -57,7 +61,6 @@ class DexRobotZeke:
 
 	def setState(self, state):
 		def action_setState(zeke):
-		
 			for i in range(DexRobotZeke.NUM_STATES):
 				if not (DexRobotZeke.MIN_STATES[i] <= state[i] <= DexRobotZeke.MAX_STATES[i]):
 					raise Exception("State " + str(i) + " is out of zeke bounds: " + str(state[i]))
@@ -118,20 +121,22 @@ class DexRobotZeke:
 		'''
 		# Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
 		state = [0] * 6
-		state[0] = settings["rot_z"]
+		state[0] = settings["rot_z"] + DexRobotZeke.PHI
 		state[1] = settings["elevation"]
 		state[2] = settings["extension"]
-		state[3] = settings["rot_z"]
-		state[4] = MIN_STATES[4] #TODO: verify this is open gripper
-		state[5] = MIN_STATES[5]
+		state[3] = settings["rot_y"]
+		state[4] = DexRobotZeke.MIN_STATES[4] #TODO: verify this is open gripper
+		state[5] = DexRobotZeke.MIN_STATES[5]
+		
+		return state
 		
 	def transform(self, target_pose):
-		target_pose = ZEKE_LOCAL_T * target_pose
+		target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
 		
 		if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
 			raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
 
 		joint_settings = self._pose_IK(target_pose)
-		target_state = self._settings_to_state()
-		
-		self.setState(target_state)
+		target_state = self._settings_to_state(joint_settings)
+		print target_state
+		#self.setState(target_state)

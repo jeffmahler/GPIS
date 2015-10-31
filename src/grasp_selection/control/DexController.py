@@ -1,6 +1,6 @@
 from DexRobotZeke import DexRobotZeke
 from DexConstants import DexConstants
-
+import tfx
 class DexController:
 	'''Transformation Controller class. Currently robot defaults to Zeke
 	Usage Pattern: To be instantiated once per robot
@@ -13,7 +13,7 @@ class DexController:
 		if robot is None:
 			robot = DexRobotZeke(comm, baudrate, timeout)
 		self.robot = robot
-		
+
 	def transform(self, target_pose):
 		'''
 		target_pose is a tfx.pose object
@@ -29,3 +29,4 @@ class DexController:
 		self.robot.stop()
 		
 ctrl = DexController()
+origin = tfx.pose(DexConstants.ORIGIN, tfx.rotation.identity(), frame = DexConstants.WORLD_FRAME)

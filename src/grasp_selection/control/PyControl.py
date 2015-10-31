@@ -4,8 +4,8 @@ from time import sleep
 import numpy as np
 class PyControl:
 
-    STEP_ROT = np.pi / 40
-    STEP_TRA = 0.001
+    STEP_ROT = np.pi / 50
+    STEP_TRA = 0.005
     STEP_TIME = 0.05
     NUM_STATES = 6
     
@@ -13,7 +13,7 @@ class PyControl:
         # initialize Serial Connection
         self.ser = serial.Serial(comm,baudrate)
         self.ser.setTimeout(timeout)
-        time.sleep(1)
+        time.sleep(2)
         
     def stop(self):
         self.ser.flushOutput()
@@ -23,6 +23,7 @@ class PyControl:
         return
         
     def _sendSingleStateRequest(self, requests):
+        print "about to send ", requests
         self.ser.flushInput()
         self.ser.flushOutput()
         self.ser.write("a")
@@ -82,11 +83,10 @@ class PyControl:
                             current[i] = next
             
             states.append(current[::])
-        
         return states
 
     def sendStateRequest(self, target):
-        current = self.getState()       
+        current = self.getState() 
         states = self._interpolate(current, target)
         for state in states:
             self._sendSingleStateRequest(state)
@@ -132,3 +132,17 @@ class PyControl:
         return sensorVals
         
 zeke = PyControl()
+# Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
+def run(zeke):
+    current = zeke.getState()
+    states = [
+		[3.4, 0.07, 0.0056, 6.4, 0.035, 0],
+		[3.4, 0.07, 0.1265, 6.4, 0.035, 0],
+		[3.4, 0.07, 0.1265, 6.4, 0, 0],
+		[3.4, 0.07, 0.1265, 6.4, 0, 0],
+		[3.4, 0.07, 0.1265, 6.4, 0, 0],
+		[3.4, 0.07, 0.1265, 6.4, 0, 0]
+    ]
+    for state in states:
+        print state
+        zeke.sendStateRequest(state)

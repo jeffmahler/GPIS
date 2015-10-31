@@ -5,4 +5,3 @@ class DexConstants:
 	WORLD_FRAME = "WORLD_FRAME"
 	
 	ORIGIN = point(0,0,0)
-	I_ROT = rotation(0,0,0,1)
