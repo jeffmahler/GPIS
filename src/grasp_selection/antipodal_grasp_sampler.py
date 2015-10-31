@@ -103,8 +103,11 @@ class AntipodalGraspSampler(gs.ExactGraspSampler):
         # get surface points
         ap_grasps = []
         surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
-
-        for x_surf in surface_points:
+        random.shuffle(surface_points)
+        shuffled_surface_points = surface_points[:min(self.max_num_surface_points_, len(surface_points))]
+        logging.info('Num surface: %d' %(len(surface_points)))
+        
+        for x_surf in shuffled_surface_points:
             start_time = time.clock()
 
             # perturb grasp for num samples

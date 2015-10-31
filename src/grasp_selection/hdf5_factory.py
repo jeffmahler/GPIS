@@ -8,6 +8,7 @@ import grasp
 import mesh
 import sdf
 import similarity_tf as stf
+import stable_pose_class as stpc
 
 import datetime as dt
 import h5py
@@ -40,6 +41,8 @@ FEATURE_KEY = 'feature'
 
 NUM_STP_KEY = 'num_stable_poses'
 POSE_KEY = 'pose'
+STABLE_POSE_PROB_KEY = 'p'
+STABLE_POSE_ROT_KEY = 'r'
 
 NUM_GRASPS_KEY = 'num_grasps'
 GRASP_KEY = 'grasp'
@@ -141,6 +144,18 @@ class Hdf5ObjectFactory(object):
         data[SHOT_FEATURES_KEY].create_dataset(LOCAL_FEATURE_NORMAL_KEY, data=local_features.normals)
 
     @staticmethod
+    def stable_poses(data):
+        """ Read out a list of stable pose objects """
+        num_stable_poses = data.attrs[NUM_STP_KEY]
+        stable_poses = []
+        for i in range(num_stable_poses):
+            stp_key = POSE_KEY + '_' + str(i)            
+            p = data[stp_key][STABLE_POSE_PROB_KEY]
+            r = data[stp_key][STABLE_POSE_ROT_KEY]
+            stable_poses.append(stpc.StablePose(p, r))
+        return stable_poses
+
+    @staticmethod
     def write_stable_poses(stable_poses, data):
         """ Writes shot features to HDF5 data provided in |data| """
         num_stable_poses = len(stable_poses)
@@ -148,8 +163,8 @@ class Hdf5ObjectFactory(object):
         for i, stable_pose in enumerate(stable_poses):
             stp_key = POSE_KEY + '_' + str(i)
             data.create_group(stp_key)
-            data[stp_key].attrs.create(stp_key, stable_pose.p)
-            data[stp_key].attrs.create(stp_key, stable_pose.r)
+            data[stp_key].attrs.create(STABLE_POSE_PROB_KEY, stable_pose.p)
+            data[stp_key].attrs.create(STABLE_POSE_ROT_KEY, stable_pose.r)
 
     @staticmethod
     def grasps(data):
@@ -191,8 +206,8 @@ class Hdf5ObjectFactory(object):
             data.create_group(grasp_key)
             data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
             data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
-            data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration())
-            data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.reference_frame())
+            data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
+            data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
             data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
             data[grasp_key].create_group(GRASP_METRICS_KEY) 
             data[grasp_key].create_group(GRASP_FEATURES_KEY) 

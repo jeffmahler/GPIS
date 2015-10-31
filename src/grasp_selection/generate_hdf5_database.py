@@ -47,17 +47,17 @@ class DatasetConfig:
 
 # Global array of all datasets and params
 DATASETS = [
-    DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/amazon_picking_challenge')),
+    DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
     DatasetConfig(name='autodesk', extension='.off', synthetic=True),
 #    DatasetConfig(name='Archive3D', extension='.3DS'),
-    DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/BigBIRD')),
+    DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
     DatasetConfig(name='Cat50_ModelDatabase', extension='.obj', cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/Cat50_ModelDatabase')),
     DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False),
     DatasetConfig(name='ModelNet40', extension='.off', cat_db=mdb.ModelNet40ObjectDatabase('/mnt/terastation/shape_data/MASTER_DB_v2/ModelNet40/index.db')),
     DatasetConfig(name='NTU3D', extension='.obj'),
     DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
     DatasetConfig(name='SHREC14LSGTB', extension='.off', cat_db=mdb.SHRECObjectDatabase('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla')),
-    DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/YCB'))
+    DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase())
 ]
 
 # read in params
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
 
     # filesystem params
-    dataset = config['dataset']
+    dataset = config['gen_dataset']
     shape_db_root_folder = config['shape_data_dir']
     dest_root_folder = config['database_dir']
 
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     # get all indices
     elif dataset == 'all':
         dataset_inds = range(len(DATASETS))
-        dataset_start = config['dataset_start']
+        dataset_start = config['gen_dataset_start']
         if dataset_start == None:
             dataset_start = 0
     else:
@@ -109,9 +109,8 @@ if __name__ == '__main__':
     exceptions = []
 
     # open up the database
-    database = db.Hdf5Database(config, access_level=db.READ_WRITE_ACCESS)
-    #IPython.embed()
-    #exit(0)
+    database_filename = os.path.join(config['database_dir'], config['database_name'])
+    database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
     
     # loop through datasets and cleanup
     for j in range(dataset_start, len(dataset_inds)):
@@ -148,7 +147,11 @@ if __name__ == '__main__':
                 # grab the models with a given format and filtered by the given filter (fresh clean for each file)
                 if file_ext == dataset.extension and filename.find(dataset.name_filter) > -1 and filename.find('clean') == -1:
                     # optionally rename by category
-                    category = dataset.category(file_root)
+                    if dataset.fix_names:
+                        category = dataset.category(root)
+                    else:
+                        category = dataset.category(file_root)
+
                     if dataset.fix_names:
                         target_filename = os.path.join(target_dir, category)
                     else:
@@ -206,3 +209,5 @@ if __name__ == '__main__':
     for exception in exceptions:
         out_exceptions.write('%s\n' %(exception))
     out_exceptions.close()
+
+    IPython.embed()

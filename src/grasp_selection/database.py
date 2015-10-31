@@ -23,9 +23,11 @@ import IPython
 
 INDEX_FILE = 'index.db'
 HDF5_EXT = '.hdf5'
+OBJ_EXT = '.obj'
 
 READ_ONLY_ACCESS = 'READ_ONLY'
 READ_WRITE_ACCESS = 'READ_WRITE'
+WRITE_ACCESS = 'WRITE'
 
 # Keys for easy lookups in HDF5 databases
 OBJECTS_KEY = 'objects'
@@ -70,44 +72,55 @@ class Database(object):
         return self.dataset_names_
 
 class Hdf5Database(Database):
-    def __init__(self, config, access_level=READ_ONLY_ACCESS):
+    def __init__(self, database_filename, config, access_level=READ_ONLY_ACCESS):
         Database.__init__(self, config, access_level)
+        self.database_filename_ = database_filename
+        if not self.database_filename_.endswith(HDF5_EXT):
+            raise ValueError('Must provide HDF5 database')
+
         self.config_ = config
-        self._parse_config(config)
+        self.dataset_names_ = [] # override default behavior
+        self._parse_config()
+
         self._load_database()
         self._load_datasets(config)
 
     def _parse_config(self, config):
         """ Parse the configuation file """
-        self.database_name_ = config['database_name']
-        if not self.database_name_.endswith(HDF5_EXT):
-            raise ValueError('Must provide HDF5 database')
+        self.database_cache_dir_ = config['database_cache_dir']
+
+    def _create_new_db(self):
+        """ Creates a new database """
+        self.data_ = h5py.File(self.database_filename_, 'w')
+
+        dt_now = dt.datetime.now()
+        creation_stamp = '%s-%s-%s-%sh-%sm-%ss' %(dt_now.month, dt_now.day, dt_now.year, dt_now.hour, dt_now.minute, dt_now.second) 
+        self.data_.attrs[CREATION_KEY] = creation_stamp
+        self.data_.create_group(DATASETS_KEY)
 
     def _load_database(self):
         """ Loads in the HDF5 file """
-        database_filename = os.path.join(self.database_root_dir_, self.database_name_)
-
         if self.access_level == READ_ONLY_ACCESS:
-            self.data_ = h5py.File(database_filename, 'r')
+            self.data_ = h5py.File(self.database_filename_, 'r')
         elif self.access_level == READ_WRITE_ACCESS:
-            if os.path.exists(database_filename):
-                self.data_ = h5py.File(database_filename, 'r+')
+            if os.path.exists(self.database_filename_):
+                self.data_ = h5py.File(self.database_filename_, 'r+')
             else:
-                self.data_ = h5py.File(database_filename, 'w')
-
-                dt_now = dt.datetime.now()
-                creation_stamp = '%s-%s-%s-%sh-%sm-%ss' %(dt_now.month, dt_now.day, dt_now.year, dt_now.hour, dt_now.minute, dt_now.second) 
-                self.data_.attrs[CREATION_KEY] = creation_stamp
-                self.data_.create_group(DATASETS_KEY)
+                self._create_new_db()
+        elif self.access_level == WRITE_ACCESS:
+            self._create_new_db()
 
     def _load_datasets(self, config):
         """ Load in the datasets """
         self.datasets_ = []
+        self.dataset_names_ = self.data_[DATASETS_KEY].keys()
         for dataset_name in self.dataset_names_:
             if dataset_name not in self.data_[DATASETS_KEY].keys():
                 logging.warning('Dataset %s not in database' %(dataset_name))
             else:
-                self.datasets_.append(Hdf5Dataset(dataset_name, self.data_[DATASETS_KEY][dataset_name], config))
+                dataset_cache_dir = os.path.join(self.database_cache_dir_, dataset_name)
+                self.datasets_.append(Hdf5Dataset(dataset_name, self.data_[DATASETS_KEY][dataset_name], config,
+                                                  cache_dir=dataset_cache_dir))
 
     @property
     def datasets(self):
@@ -129,16 +142,18 @@ class Hdf5Database(Database):
     def create_dataset(self, dataset_name, obj_keys=[]):
         """ Create dataset with obj keys"""
         if dataset_name in self.data_[DATASETS_KEY].keys():
-            logging.warning('Dataset %s already exists. Cannot overwrite')
-            return False
+            logging.warning('Dataset %s already exists. Cannot overwrite' %(dataset_name))
+            return None
         self.data_[DATASETS_KEY].create_group(dataset_name)
         self.data_[DATASETS_KEY][dataset_name].create_group(OBJECTS_KEY)
         for obj_key in obj_keys:
             self.data_[DATASETS_KEY][dataset_name][OBJECTS_KEY].create_group(obj_key)
 
+        dataset_cache_dir = os.path.join(self.database_cache_dir_, dataset_name)
         self.dataset_names_.append(dataset_name)
-        self.datasets_.append(Hdf5Dataset(dataset_name, self.data_[DATASETS_KEY][dataset_name], self.config_))
-        return True
+        self.datasets_.append(Hdf5Dataset(dataset_name, self.data_[DATASETS_KEY][dataset_name], self.config_,
+                                          cache_dir=dataset_cache_dir))
+        return self.datasets_[-1] # return the dataset
         
     def create_linked_dataset(self, dataset_name, graspable_list, nearest_neighbors):
         """ Creates a new dataset that links to objects physically stored as part of another dataset """
@@ -148,14 +163,21 @@ class Dataset(object):
     pass
 
 class Hdf5Dataset(Dataset):
-    def __init__(self, dataset_name, data, config):
-        self._parse_config(config)
-
+    def __init__(self, dataset_name, data, config, cache_dir=''):
         self.dataset_name_ = dataset_name
         self.data_ = data
+        self.start_index_ = 0
+        self.end_index_ = len(self.object_keys)
+        self.cache_dir_ = cache_dir
+        if not os.path.exists(self.cache_dir_):
+            os.mkdir(self.cache_dir_)
+
+        self._parse_config(config)
 
     def _parse_config(self, config):
-        self.database_root_dir_ = config['database_dir']
+        if config['datasets'] and config['datasets'][self.dataset_name_]:
+            self.start_index_ = config['datasets'][self.dataset_name_]['start_index']
+            self.end_index_ = config['datasets'][self.dataset_name_]['end_index']
 
     @property
     def name(self):
@@ -200,17 +222,7 @@ class Hdf5Dataset(Dataset):
     def category(self, key):
         return self.objects[key].attrs[CATEGORY_KEY]
 
-    def read_datum(self, key):
-        """Read in the GraspableObject3D corresponding to given key."""
-        if key not in self.object_keys:
-            raise ValueError('Key %s not found in dataset %s' % (key, self.name))
-
-        # read in data (need new interfaces for this....
-        sdf = hfact.Hdf5ObjectFactory.sdf_3d(self.sdf_data(key))
-        mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
-        features = hfact.Hdf5ObjectFactory.local_features(self.shot_feature_data(key))
-        return go.GraspableObject3D(sdf, mesh=mesh, features=features, key=key, model_name='', category=self.category(key))
-
+    # iterators
     def __getitem__(self, index):
         """ Index a particular object in the dataset """
         if isinstance(index, numbers.Number):
@@ -224,17 +236,17 @@ class Hdf5Dataset(Dataset):
 
     def __iter__(self):
         """ Generate iterator """
-        self.iter_count_ = 0 # NOT THREAD SAFE!
+        self.iter_count_ = self.start_index_ # NOT THREAD SAFE!
         return self
     
     def next(self):
         """ Read the next object file in the list """
-        if self.iter_count_ >= len(self.object_keys):
+        if self.iter_count_ >= len(self.object_keys) or self.iter_count_ >= self.end_index_:
             raise StopIteration
         else:
             logging.info('Returning datum %s' %(self.object_keys[self.iter_count_]))
             try:
-                 obj = self.read_datum(self.object_keys[self.iter_count_])    
+                 obj = self.graspable(self.object_keys[self.iter_count_])    
             except:
                 logging.warning('Error reading %s. Skipping' %(self.object_keys[self.iter_count_]))
                 self.iter_count_ = self.iter_count_ + 1
@@ -243,7 +255,19 @@ class Hdf5Dataset(Dataset):
             self.iter_count_ = self.iter_count_ + 1
             return obj
 
-    def create_graspable(self, key, mesh, sdf, shot_features, stable_poses, category='', mass=1.0):
+    # direct reading / writing
+    def graspable(self, key):
+        """Read in the GraspableObject3D corresponding to given key."""
+        if key not in self.object_keys:
+            raise ValueError('Key %s not found in dataset %s' % (key, self.name))
+
+        # read in data (need new interfaces for this....
+        sdf = hfact.Hdf5ObjectFactory.sdf_3d(self.sdf_data(key))
+        mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
+        features = hfact.Hdf5ObjectFactory.local_features(self.shot_feature_data(key))
+        return go.GraspableObject3D(sdf, mesh=mesh, features=features, key=key, model_name='', category=self.category(key))
+
+    def create_graspable(self, key, mesh=None, sdf=None, shot_features=None, stable_poses=None, category='', mass=1.0):
         """ Creates a graspable object """
         # create object tree
         self.objects.create_group(key)
@@ -256,30 +280,40 @@ class Hdf5Dataset(Dataset):
         self.object(key).create_group(SENSOR_DATA_KEY)
         self.object(key).create_group(GRASPS_KEY)
 
-        # add the different pieces
-        hfact.Hdf5ObjectFactory.write_sdf_3d(sdf, self.sdf_data(key))
-        hfact.Hdf5ObjectFactory.write_mesh_3d(mesh, self.mesh_data(key))
-        hfact.Hdf5ObjectFactory.write_shot_features(shot_features, self.local_feature_data(key))
-        hfact.Hdf5ObjectFactory.write_stable_poses(stable_poses, self.stable_pose_data(key))
+        # add the different pieces if provided
+        if sdf:
+            hfact.Hdf5ObjectFactory.write_sdf_3d(sdf, self.sdf_data(key))
+        if mesh:
+            hfact.Hdf5ObjectFactory.write_mesh_3d(mesh, self.mesh_data(key))
+        if shot_features:
+            hfact.Hdf5ObjectFactory.write_shot_features(shot_features, self.local_feature_data(key))
+        if stable_poses:
+            hfact.Hdf5ObjectFactory.write_stable_poses(stable_poses, self.stable_pose_data(key))
 
         # add the attributes
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
 
+    def obj_mesh_file(self, key):
+        """ Writes an obj file in the database "cache"  directory and returns the path to the file """
+        mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
+        obj_filename = os.path.join(self.cache_dir_, key + OBJ_EXT)
+        obj_file = obj_file.ObjFile(obj_filename)
+        obj_file.write(mesh)
+        return obj_filename
+
     # grasp data
     # TODO: implement handling of stable poses and tasks
-    def grasps(self, graspable, gripper='pr2', stable_pose_id=None):
+    def grasps(self, key, gripper='pr2', stable_pose_id=None):
         """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
-        key = graspable.key
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
             return []
-        return hfact.Hdf5ObjectFactory(self.grasp_data(key, gripper))
+        return hfact.Hdf5ObjectFactory.grasps(self.grasp_data(key, gripper))
 
-    def store_grasps(self, graspable, grasps, gripper='pr2', stable_pose_id=None):
+    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
         # create group for gripper if necessary
-        key = graspable.key
         if gripper not in self.grasp_data(key).keys():
             self.grasp_data(key).create_group(gripper)
             self.grasp_data(key, gripper).attrs.create(NUM_GRASPS_KEY, 0)
@@ -287,14 +321,17 @@ class Hdf5Dataset(Dataset):
         # store each grasp in the database
         return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper))
 
-    def store_grasp_metrics(self, graspable, grasps, metrics, metric_tag, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
+    def store_grasp_metrics(self, key, grasps, metrics, metric_tag, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
         if len(grasps) != len(metrics):
             logging.error('Grasp and metric lists must be the same length. Aborting store request')
             return False
 
-        key = graspable.key
         return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasps, metrics, metric_tag, self.grasp_data(key, gripper), force_overwrite)
+
+    # stable pose data
+    def stable_pose_data(self, key):
+        return hfact.Hdf5ObjectFactory
 
 """ Deprecated dataset for use with filesystems """
 class FilesystemDataset(object):
