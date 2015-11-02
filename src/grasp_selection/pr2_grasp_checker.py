@@ -8,7 +8,6 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
 import numpy as np
 
 import openravepy as rave

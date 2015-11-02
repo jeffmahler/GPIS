@@ -1,7 +1,6 @@
 import copy
 import logging
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
 import numpy as np
 import time
 

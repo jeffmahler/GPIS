@@ -6,7 +6,10 @@ Author: Jeff Mahler
 """
 import logging
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import random
 import time

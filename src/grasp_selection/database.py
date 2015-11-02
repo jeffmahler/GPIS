@@ -80,7 +80,7 @@ class Hdf5Database(Database):
 
         self.config_ = config
         self.dataset_names_ = [] # override default behavior
-        self._parse_config()
+        self._parse_config(config)
 
         self._load_database()
         self._load_datasets(config)

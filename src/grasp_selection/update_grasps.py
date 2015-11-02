@@ -1,4 +1,4 @@
-"""
+B"""
 Main file for labelling an object with "raw" grasps.
 Author: Jeff Mahler
 """
@@ -67,22 +67,26 @@ if __name__ == '__main__':
     # read config file and database
     config = ec.ExperimentConfig(args.config)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
-    database = db.Hdf5Database(database_filename, config)
+    database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
 
     # download all experiment data
-    config['experiment_name'] = 'experiment-tmjbiyaiin'
+    config['experiment_name'] = 'experiment-abcdabcdab'
     result_dirs = download_experiment_data(config['experiment_name'], config)
 
     # for each experiment result, load and write to the database
     for result_dir in result_dirs:
-        result_db_filename = os.path.join(result_dir, config['results_database_name'])
-        result_db = db.Hdf5Database(result_db_filename, config)
+        for root, dirs, files in os.walk(result_dir):
+            for f in files:
+                if f.find(config['results_database_name']) != -1:
+                    result_db_filename = os.path.join(root, config['results_database_name'])
+                    print result_db_filename
+                    result_db = db.Hdf5Database(result_db_filename, config)
 
-        # write to dataset
-        result_datasets = result_db.datasets
-        for result_dataset in result_datasets:
-            dataset = database.dataset(result_dataset.name)
-            for obj_key in result_datasets.object_keys:
-                grasps = result_dataset.grasps(obj_key)
-                dataset.store_grasps(obj.key, grasps)
+                    # write to dataset
+                    result_datasets = result_db.datasets
+                    for result_dataset in result_datasets:
+                        dataset = database.dataset(result_dataset.name)
+                        for obj_key in result_dataset.object_keys:
+                            grasps = result_dataset.grasps(obj_key)
+                            dataset.store_grasps(obj_key, grasps)
                         

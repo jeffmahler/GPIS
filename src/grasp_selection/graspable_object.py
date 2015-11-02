@@ -6,7 +6,10 @@ from abc import ABCMeta, abstractmethod
 
 import copy
 import logging
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 
 import grasp as g

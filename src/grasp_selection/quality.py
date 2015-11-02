@@ -11,7 +11,6 @@ import sdf_file
 
 import logging
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
 
 import IPython
 
