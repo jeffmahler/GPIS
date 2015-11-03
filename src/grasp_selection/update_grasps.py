@@ -34,7 +34,7 @@ def download_experiment_data(experiment_name, config):
     if not os.path.exists(experiment_data_dir):
         os.mkdir(experiment_data_dir)
 
-    download_data_command = 'gsutil -m cp gs://dex-net-results/%s*.tar.gz %s' %(experiment_name, experiment_data_dir)
+    download_data_command = 'gsutil -m cp gs://%s/%s*.tar.gz %s' %(config['compute']['bucket'], experiment_name, experiment_data_dir)
     os.system(download_data_command)
 
     tar_commands = []
