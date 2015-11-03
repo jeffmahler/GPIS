@@ -70,8 +70,7 @@ if __name__ == '__main__':
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
 
     # download all experiment data
-    config['experiment_name'] = 'experiment-abcdabcdab'
-    result_dirs = download_experiment_data(config['experiment_name'], config)
+    result_dirs = download_experiment_data(config['job_root'], config)
 
     # for each experiment result, load and write to the database
     for result_dir in result_dirs:

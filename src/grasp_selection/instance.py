@@ -159,10 +159,11 @@ class GceInstanceAllocator(VMInstanceAllocator):
             # create instance metadata
             metadata=[
                 {'key': 'config', 'value': self.config.file_contents},
+                {'key': 'job_root', 'value': self.config['job_root']},
                 {'key': 'instance_name', 'value': cur_instance_name},
                 {'key': 'run_script', 'value': run_script},
                 {'key': 'project_name', 'value': compute_config['project']},
-                {'key': 'bucket_name', 'value': compute_config['bucket']},
+                {'key': 'bucket_name', 'value': compute_config['bucket']}
                 ]
             for param_key, param_val in params.items():
                 metadata.append({'key': param_key, 'value': param_val})
