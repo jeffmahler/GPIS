@@ -30,7 +30,7 @@ import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
 def download_experiment_data(experiment_name, config):
-    experiment_data_dir = 'cache'
+    experiment_data_dir = 'gce_cache'
     if not os.path.exists(experiment_data_dir):
         os.mkdir(experiment_data_dir)
 
@@ -69,9 +69,11 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
+    logging.info('Database filename %s' %(database_filename))
 
     # download all experiment data
     result_dirs = download_experiment_data(config['job_root'], config)
+    logging.info('Job root %s' %(config['job_root']))
 
     # for each experiment result, load and write to the database
     for result_dir in result_dirs:
@@ -79,7 +81,7 @@ if __name__ == '__main__':
             for f in files:
                 if f.find(config['results_database_name']) != -1:
                     result_db_filename = os.path.join(root, config['results_database_name'])
-                    print result_db_filename
+                    logging.info('Result database filename %s' %(result_db_filename))
                     result_db = db.Hdf5Database(result_db_filename, config)
 
                     # write to dataset
