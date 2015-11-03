@@ -21,8 +21,8 @@ sudo bash scripts/mount_data_disk.sh
 
 # Retrieve metadata: dataset, chunk_start, chunk_end, bucket_name, instance_name, config
 DATASET=$(/usr/share/google/get_metadata_value attributes/dataset)
-CHUNK_START=$(/usr/share/google/get_metadata_value attributes/chunk_start)
-CHUNK_END=$(/usr/share/google/get_metadata_value attributes/chunk_end)
+START_INDEX=$(/usr/share/google/get_metadata_value attributes/start_index)
+END_INDEX=$(/usr/share/google/get_metadata_value attributes/end_index)
 RUN_SCRIPT=$(/usr/share/google/get_metadata_value attributes/run_script)
 JOB_ROOT=$(/usr/share/google/get_metadata_value attributes/job_root)
 BUCKET_NAME=$(/usr/share/google/get_metadata_value attributes/bucket_name)
@@ -33,9 +33,9 @@ CONFIG=$(/usr/share/google/get_metadata_value attributes/config)
 cat <<EOF >> config.yaml
 $CONFIG
 datasets:
-\t$DATASET:
-\t\tstart_index: $CHUNK_START
-\t\tend_index:   $CHUNK_END
+  $DATASET:
+    start_index: $START_INDEX
+    end_index:   $END_INDEX
 
 job_root: $JOB_ROOT
 EOF

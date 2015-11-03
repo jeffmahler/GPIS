@@ -54,12 +54,12 @@ class VMInstanceAllocator(object):
         datasets = config['datasets']
         max_chunk_size = config['max_chunk_size']
         chunks = []
-        for dataset in datasets:
+        for dataset in datasets.keys():
             assigned = 0
             while assigned < counts[dataset]:
                 chunk = dict(dataset=dataset,
-                             chunk_start=assigned,
-                             chunk_end=assigned+max_chunk_size)
+                             start_index=assigned,
+                             end_index=assigned+max_chunk_size)
                 chunks.append(chunk)
                 assigned += max_chunk_size
         return chunks
@@ -71,14 +71,16 @@ class VMInstanceAllocator(object):
         """
         params = []
         param_dict = config['param_values']
+        if param_dict is not None:
 
-        # take the product of the paraeter values in a list
-        for param_combination in it.product(*param_dict.values()):
-            p = {}
-            for param_name, param_val in zip(param_dict.keys(), param_combination):
-                p[param_name] = param_val
-            params.append(p)
-        return params
+            # take the product of the paraeter values in a list
+            for param_combination in it.product(*param_dict.values()):
+                p = {}
+                for param_name, param_val in zip(param_dict.keys(), param_combination):
+                    p[param_name] = param_val
+                params.append(p)
+            return params
+        return [{'params': 0}]
 
     @staticmethod
     def partition(config, param_fns = None):
@@ -149,6 +151,11 @@ class GceInstanceAllocator(VMInstanceAllocator):
         bucket = compute_config['bucket']
         image = compute_config['image']
         cur_zone = zones[zone_index]
+
+        # prompt
+        yesno = raw_input('Create %d instances? [Y/n] ' % len(param_list))
+        if yesno.lower() == 'n':
+            sys.exit(1)
 
         # loop through the params
         for instance_num, params in enumerate(param_list):

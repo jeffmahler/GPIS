@@ -330,8 +330,9 @@ class Hdf5Dataset(Dataset):
         return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasps, metrics, metric_tag, self.grasp_data(key, gripper), force_overwrite)
 
     # stable pose data
-    def stable_pose_data(self, key):
-        return hfact.Hdf5ObjectFactory
+    def stable_poses(self, key):
+        """ Stable poses for object key """
+        return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
 
 """ Deprecated dataset for use with filesystems """
 class FilesystemDataset(object):
