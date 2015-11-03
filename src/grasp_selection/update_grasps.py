@@ -60,6 +60,7 @@ def download_experiment_data(experiment_name, config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
+    parser.add_argument('output_dest')
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
