@@ -124,25 +124,4 @@ class PyControl:
             except:
                 return 'Comm Failure'
             
-        # timeout gives time for arduino to catch up no matter what
-        # encoders 1-3, encoder velocities 1-3, potentiometers 1-6, currents 1-4
-        # rotation elevation extension
-        # rotation elevation extension wrist closure turntable
-        # rotation elevation extension closure 
         return sensorVals
-        
-zeke = PyControl()
-# Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-def run(zeke):
-    current = zeke.getState()
-    states = [
-		[3.4, 0.07, 0.0056, 6.4, 0.035, 0],
-		[3.4, 0.07, 0.1265, 6.4, 0.035, 0],
-		[3.4, 0.07, 0.1265, 6.4, 0, 0],
-		[3.4, 0.07, 0.1265, 6.4, 0, 0],
-		[3.4, 0.07, 0.1265, 6.4, 0, 0],
-		[3.4, 0.07, 0.1265, 6.4, 0, 0]
-    ]
-    for state in states:
-        print state
-        zeke.sendStateRequest(state)

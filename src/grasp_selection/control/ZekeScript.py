@@ -9,7 +9,6 @@ zeke.stop()
 maxStates = [6.58991792126, .3, 0.3, 6.61606370861, 0.0348490572685, 6.83086639225];
 minStates = [0,.02,.01,0.183086039735,-.01,0.197775641646];
 
-
 #POSITION CONTROL
 def kinematicControl():
     c = XboxController([.06,.005,.01,.08,.002,.05])
