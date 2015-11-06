@@ -18,7 +18,7 @@ class DexRobotZeke:
     MIN_STATES = [0 , 0.008, 0.008, 0.183086039735, -.01, 0]
     MAX_STATES = [2*np.pi, 0.3, 0.3, 2*np.pi, 0.05, 2*np.pi]
     
-    PHI = 0.0568
+    PHI = 0.35 #zeke arm rotation angle offset to make calculations easier
     
     RESET_STATE = [np.pi + PHI, 0.01, 0.01, 0.5076, 0, 0]
     ZEKE_LOCAL_T = transform(
@@ -28,55 +28,17 @@ class DexRobotZeke:
                                             frame="ZEKE_LOCAL")
     
     def __init__(self, comm, baudrate, time):
-        self.comm = comm 
-        self.baudrate = baudrate
-        self.time = time
+        self._zeke= ZekeSerialInterface(comm, baudrate, time)        
     
     def reset(self):
-        self.setState(DexRobotZeke.RESET_STATE)
-        return
-    
-    def _execute_once(self, action):
-        return_val = None
-        zeke = PyControl(self.comm, self.baudrate, self.time)
-        zeke.stop()
-        try:
-            return_val = action(zeke)
-        except Exception, e:
-            print e
-        finally:
-            zeke.ser.close()
-        return return_val
-    
-    def move(self, controls):
-        def action_move(zeke):
-            print "Before: ", zeke.getState()
-            print "Controlling: ", controls
-            zeke.control(controls)    
-            print "After: ", zeke.getState()
-        self._execute_once(action_move)
-    
+        self.gotoState(DexRobotZeke.RESET_STATE)
+            
     def stop(self):
-        self._execute_once(lambda zeke: zeke.stop())
+        self._zeke.stop()
 
-    def setState(self, state):
-        def action_setState(zeke):
-            for i in range(DexRobotZeke.NUM_STATES):
-                if not (DexRobotZeke.MIN_STATES[i] <= state[i] <= DexRobotZeke.MAX_STATES[i]):
-                    raise Exception("State " + str(i) + " is out of zeke bounds: " + str(state[i]))
-            print "Before: ", zeke.getState()
-            print "Sent State: ", state
-            zeke.sendStateRequest(state)
-        self._execute_once(action_setState)
+    def gotoState(self, state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
+        self._zeke.gotoState(state, rot_speed, tra_speed)
     
-    def changeState(self, deltas):
-        cur_state = self.getState()
-        target_state = map(add, cur_state, deltas)
-        self.setState(target_state)
-    
-    def getState(self):
-        return self._execute_once(lambda zeke: zeke.getState())
-        
     def _pose_IK(self, pose):
         '''
         Takes in a pose and returns the following list of joint settings:
@@ -127,12 +89,12 @@ class DexRobotZeke:
         state[3] = settings["rot_y"]
         state[4] = DexRobotZeke.MIN_STATES[4] #TODO: verify this is open gripper
         state[5] = DexRobotZeke.MIN_STATES[5]
-        
+
         return state
         
     def transform(self, target_pose):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
-        
+
         if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
 
