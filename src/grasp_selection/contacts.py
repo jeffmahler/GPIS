@@ -495,7 +495,7 @@ def test_plot_friction_cone():
     grasp_axis = np.array([0, 1, 0])
     grasp_width = 0.1
     grasp_center = np.array([0, 0, -0.025])
-    grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, 0, grasp_width, 0))
 
     _, (c1, c2) = grasp.close_fingers(graspable)
     plt.figure()

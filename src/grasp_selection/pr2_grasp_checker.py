@@ -8,7 +8,6 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
 import numpy as np
 
 import openravepy as rave
@@ -214,8 +213,11 @@ class OpenRaveGraspChecker(object):
             if T_gripper_obj is None:
                 continue
 
+            print 'Q =', grasp.quality
+
             # only display grasps out of collision
             in_collision = self.env.CheckCollision(self.robot, obj)
+            time.sleep(1)
             if not in_collision:
                 if auto_step:
                     time.sleep(delay)
@@ -229,7 +231,11 @@ class OpenRaveGraspChecker(object):
                     # close fingers until collision
                     self.taskprob_.CloseFingers()
                     self.robot.WaitForController(0) # wait
-                    time.sleep(30)
+
+                    user_input = 'x'
+                    while user_input != '':
+                        user_input = raw_input()
+                    #time.sleep(1)
 
                     # check that the gripper contacted something
                     closed_amount = self.finger_joint_.GetValues()[0]
@@ -272,7 +278,7 @@ def test_grasp_collisions():
     axis = np.array([1, 0, 0]) 
     axis = axis / np.linalg.norm(axis)
     width = 0.1
-    grasp = g.ParallelJawPtGrasp3D(center, axis, width)
+    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
 
     grasp.close_fingers(graspable, vis=True)
     grasp_checker.prune_grasps_in_collision(graspable, [grasp], auto_step=True, close_fingers=True, delay=30)
@@ -290,7 +296,7 @@ def test_grasp_poses():
     center = np.array([0, 0, 0.02])
     axis = np.array([1, 0, 0])
     axis = axis / np.linalg.norm(axis)
-    grasp = g.ParallelJawPtGrasp3D(center, axis, 0.1)
+    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center, axis, 0.1))
     rotated_grasps = grasp.transform(graspable.tf, 2 * np.pi / 10)
 
     grasp_checker = OpenRaveGraspChecker()
@@ -326,7 +332,7 @@ def grasp_model_figure():
     axis = np.array([1, 0, 0]) 
     axis = axis / np.linalg.norm(axis)
     width = 0.1
-    grasp = g.ParallelJawPtGrasp3D(center, axis, width)
+    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
 
     rotated_grasps = grasp.transform(graspable.tf, 2.0 * np.pi / 20.0)
     print len(rotated_grasps)
