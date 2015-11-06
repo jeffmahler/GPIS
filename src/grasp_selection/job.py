@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 import IPython
+import traceback
 
 from apiclient import discovery
 import copy
@@ -166,6 +167,7 @@ class GceJob(Job):
         self.job_name_root = 'job-%s' %(self.id)
         if self.config['update']:
             self.job_name_root = 'job-updater-%s' %(self.id)            
+        self.config['job_root'] = self.job_name_root
 
         # setup instance completion api call
         service_not_ready = True
@@ -237,7 +239,7 @@ class GceJob(Job):
         """ Start the job! """
         self.user_terminated = False
         self.complete_instances = []
-        if True:
+        try:
             # allocate instance list
             data_disks = [gce.Disk(name, mode) for name, mode in zip(self.config['compute']['data_disks'], self.config['compute']['data_disk_modes'])]
             gce_allocator = instance.GceInstanceAllocator(self.config, self.gce_helper)
@@ -245,9 +247,10 @@ class GceJob(Job):
  
             # launch instances using multiprocessing
             self.launched_instances = self.instance_manager.launch_instances(instances, self.config['num_processes'])
-#        except Exception as e:
-#            logging.error('Failed to launch instances')
-#            return False
+        except Exception as e:
+            logging.error('Failed to launch instances')
+            logging.error('Traceback: %s' %(traceback.print_exc()))
+            return False
         return True
 
     def stop(self):
@@ -290,11 +293,12 @@ class GceJob(Job):
 
     def analyze(self):
         """ Analyze the results """
-        start_time = time.time()
         # just call an analysis script for now
-        results_script_call = 'python %s %s %s' %(self.config['results_script'], self.config.filename, self.job_store_dir)
-        end_time = time.time()
-        logging.info('Result analysis took %f sec' %(end_time - start_time))
+        if self.config['results_script']:
+            start_time = time.time()
+            results_script_call = 'python %s %s %s' %(self.config['results_script'], self.config.filename, self.job_store_dir)
+            end_time = time.time()
+            logging.info('Result analysis took %f sec' %(end_time - start_time))
 
     def store(self, wait_time=1.0):
         """
@@ -317,6 +321,7 @@ class GceJob(Job):
                 data_manager.request_write_access()
 
                 # now launch one instance per disk to do the updating
+                update_config['job_root'] = self.job_name_root
                 update_config['compute']['data_disks'] = data_manager.update_data_disks
                 update_config['compute']['data_disk_modes'] = ['READ_WRITE' for a in data_manager.update_data_disks]
                 update_config['compute']['instance_quota'] = 1

@@ -110,6 +110,7 @@ class DataManager:
 
     def start(self):
         """ Start up the server """
+        logging.info('Starting server')
         # check for running server
         if self.running():
             return False

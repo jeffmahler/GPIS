@@ -1,7 +1,6 @@
 import copy
 import logging
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
 import numpy as np
 import time
 
@@ -197,7 +196,7 @@ class ParallelJawGraspGaussian:
 
             # transform object by pose
             #grasp_sample = copy.copy(self.grasp_)
-            grasp_sample = gr.ParallelJawPtGrasp3D(t, v, self.grasp_.grasp_width)
+            grasp_sample = gr.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(t, v, self.grasp_.grasp_width))
 
             samples.append(grasp_sample)
 

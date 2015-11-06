@@ -6,7 +6,10 @@ from abc import ABCMeta, abstractmethod
 
 import logging
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import IPython
 import time
@@ -18,7 +21,7 @@ import sdf
 import similarity_tf as stf
 import tfx
 
-PR2_GRASP_OFFSET = np.array([-0.0375, 0, 0])
+PR2_GRASP_OFFSET = np.array([-0.05, 0, 0])
 
 class Grasp:
     __metaclass__ = ABCMeta
@@ -31,8 +34,23 @@ class Grasp:
         pass
 
     @abstractmethod
-    def to_json(self):
-        """ Converts a grasp to json """
+    def configuration(self):
+        """ Returns a numpy array representing the hand configuration """
+        pass
+
+    @abstractmethod
+    def frame(self):
+        """ Returns the string name of the grasp reference frame  """
+        pass
+
+    @abstractmethod
+    def params_from_configuration(configuration):
+        """ Convert configuration vector to a set of params for the class """
+        pass
+
+    @abstractmethod
+    def configuration_from_params(*params):
+        """ Convert param list to a configuration vector for the class """
         pass
 
 class PointGrasp(Grasp):
@@ -43,26 +61,22 @@ class PointGrasp(Grasp):
         """ Creates a line of action, or list of grid points, from a point g in world coordinates on an object """
         pass
 
-    #NOTE: close_fingers must return success, array of contacts (one per column)
+    #NOTE: implementation of close_fingers must return success, array of contacts (one per column)
 
 class ParallelJawPtGrasp3D(PointGrasp):
-    def __init__(self, grasp_center, grasp_axis, grasp_width, jaw_width = 0, grasp_angle = 0,
-                 tf = stf.SimilarityTransform3D(tfx.identity_tf(from_frame = 'world'), 1.0)):
+    def __init__(self, configuration, frame='object', timestamp='', grasp_id=''):
         """
         Create a point grasp for parallel jaws with given center and width (relative to object)
         Params: (Note: all in meters!)
-            grasp_center - numpy 3-array for center of grasp
-            grasp_axis - numpy 3-array for grasp direction (should be normalized)
-            grasp_width - how wide the jaws open in meters
-            jaw_width - the width of the jaws tangent to the axis (0 means classical point grasp)
-            grasp_angle - the angle of approach for parallel-jaw grippers (the 6th DOF for point grasps)
-                wrt the orthogonal dir to the axis in the XY plane
-            tf - the similarity tf of the grasp wrt the world
+           configuration: numpy array specifying the configuration of the hand as follows:
+                          [grasp_center, grasp_axis, grasp_angle, grasp_width, jaw_width]
+           frame: string specifying the frame of reference for the object
+           timestamp : string specifying the timestamp of when the grasp was created (for database purposes)
+           grasp_id: string key to index the grasp in the database
         """
-        if not isinstance(grasp_center, np.ndarray) or grasp_center.shape[0] != 3:
-            raise ValueError('Center must be numpy ndarray of size 3')
-        if not isinstance(grasp_axis, np.ndarray)  or grasp_axis.shape[0] != 3:
-            raise ValueError('Axis must be numpy ndarray of size 3')
+        # get parameters from configuration array
+        grasp_center, grasp_axis, grasp_width, grasp_angle, jaw_width = ParallelJawPtGrasp3D.params_from_configuration(configuration)
+
         if jaw_width != 0:
             raise ValueError('Nonzero jaw width not yet supported')
 
@@ -71,9 +85,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.grasp_width_ = grasp_width
         self.jaw_width_ = jaw_width
         self.approach_angle_ = grasp_angle
-        self.tf_ = tf
-
-        self.quality_ = None
+        self.frame_ = frame
+        self.timestamp_ = timestamp
+        self.grasp_id_ = grasp_id
 
     @property
     def center(self):
@@ -91,11 +105,30 @@ class ParallelJawPtGrasp3D(PointGrasp):
     def approach_angle(self):
         return self.approach_angle_
     @property
-    def tf(self):
-        return self.tf_
+    def configuration(self):
+        return ParallelJawPtGrasp3D.configuration_from_params(self.center_, self.axis_, self.grasp_width_, self.approach_angle_, self.jaw_width_)
+    @property
+    def frame(self):
+        return self.frame_
 
     def endpoints(self):
         return self.center_ - (self.grasp_width_ / 2.0) * self.axis_, self.center_ + (self.grasp_width_ / 2.0) * self.axis_,
+
+    @staticmethod
+    def configuration_from_params(center, axis, width, angle=0, jaw_width=0):
+        configuration = np.zeros(9)
+        configuration[0:3] = center
+        configuration[3:6] = axis
+        configuration[6] = width
+        configuration[7] = angle
+        configuration[8] = jaw_width
+        return configuration
+
+    @staticmethod
+    def params_from_configuration(configuration):
+        if not isinstance(configuration, np.ndarray) or configuration.shape[0] != 9:
+            raise ValueError('Configuration must be numpy ndarray of size 9')
+        return configuration[0:3], configuration[3:6], configuration[6], configuration[7], configuration[8]
 
     @staticmethod
     def grasp_center_from_endpoints(g1, g2):
@@ -279,7 +312,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         theta = 0
         grasps_tf = []
         while theta <= 2*np.pi - theta_res:
-            grasps_tf.append(ParallelJawPtGrasp3D(grasp_center_obj, grasp_axis_y_obj, grasp_width_obj, self.jaw_width, theta, tf))
+            configuration = ParallelJawPtGrasp3D.configuration_from_params(grasp_center_obj, grasp_axis_y_obj, grasp_width_obj, theta, self.jaw_width)
+            grasps_tf.append(ParallelJawPtGrasp3D(configuration, frame=self.frame_))
             theta = theta + theta_res
         return grasps_tf
 
@@ -324,7 +358,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
 
     @staticmethod
-    def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, jaw_width_world = 0,
+    def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, grasp_angle=0, jaw_width_world=0,
                                             vis = False, stop = False, backup=0.5):
         """
         Creates a grasp from a single contact point in grid coordinates and direction in grid coordinates
@@ -374,7 +408,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         # create grasp
         grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c1.point, c2.point)
         grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c1.point, c2.point)
-        return ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width_world, jaw_width_world, grasp_angle=0, tf=obj.tf), c2 # relative to object
+        configuration = ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, grasp_width_world, grasp_angle, jaw_width_world)
+        return ParallelJawPtGrasp3D(configuration), c2 # relative to object
 
     def visualize(self, obj, arrow_len=0.01, line_width=20.0):
         """ Display point grasp as arrows on the contact points of the mesh """
@@ -420,14 +455,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
             'successes': num_successes,
             'failures': num_failures,
         }
-
-    @property
-    def quality(self):
-        return self.quality_
-
-    @quality.setter
-    def quality(self, value):
-        self.quality_ = value
 
     @staticmethod
     def from_json(data):

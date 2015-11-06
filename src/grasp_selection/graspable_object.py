@@ -6,7 +6,10 @@ from abc import ABCMeta, abstractmethod
 
 import copy
 import logging
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 
 import grasp as g
@@ -223,12 +226,12 @@ def test_windows(width, num_steps, plot=None):
     grasp_width = 0.1
 
     grasp1_center = np.array([0, 0, -0.025])
-    grasp1 = g.ParallelJawPtGrasp3D(grasp1_center, grasp_axis, grasp_width)
+    grasp1 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp1_center, grasp_axis, grasp_width))
     _, contacts1 = grasp1.close_fingers(graspable)
     contact1 = contacts1[0]
 
     grasp2_center = np.array([0, 0, -0.030])
-    grasp2 = g.ParallelJawPtGrasp3D(grasp2_center, grasp_axis, grasp_width)
+    grasp2 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp2_center, grasp_axis, grasp_width))
     _, contacts2 = grasp2.close_fingers(graspable)
     contact2 = contacts2[0]
 
@@ -281,9 +284,9 @@ def test_window_distance(width, num_steps, plot=None):
     grasp_width = 0.1
 
     grasp1_center = np.array([0, 0, -0.025])
-    grasp1 = g.ParallelJawPtGrasp3D(grasp1_center, grasp_axis, grasp_width)
+    grasp1 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp1_center, grasp_axis, grasp_width))
     grasp2_center = np.array([0, 0, -0.030])
-    grasp2 = g.ParallelJawPtGrasp3D(grasp2_center, grasp_axis, grasp_width)
+    grasp2 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp2_center, grasp_axis, grasp_width))
 
     w1, w2 = graspable.surface_information(grasp1, width, num_steps)
     v1, v2 = graspable.surface_information(grasp2, width, num_steps)
@@ -318,7 +321,7 @@ def test_window_curvature(width, num_steps, plot=None):
     for i, z in enumerate([-0.030, -0.035, -0.040, -0.045], 1):
         print 'w%d' %(i)
         grasp_center = np.array([0, 0, z])
-        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, grasp_width))
         w, _ = graspable.surface_information(grasp, width, num_steps)
         for info in (w.proj_win_, w.gauss_curvature_):
             print 'min:', np.min(info), np.argmin(info)
@@ -360,7 +363,7 @@ def test_window_correlation(width, num_steps, vis=True):
     grasps = []
     for z in [-0.030, -0.035, -0.040, -0.045]:
         grasp_center = np.array([0, 0, z])
-        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, grasp_width))
         grasps.append(grasp)
 
     graspable_rv = pfc.GraspableObjectGaussianPose(graspable, config)
@@ -518,17 +521,17 @@ def generate_window_for_figure(width, num_steps, plot=None):
     grasp_width = 0.15
 
     grasp1_center = np.array([0, 0, 0.075])
-    grasp1 = g.ParallelJawPtGrasp3D(grasp1_center, grasp_axis, grasp_width)
+    grasp1 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp1_center, grasp_axis, grasp_width))
     _, contacts1 = grasp1.close_fingers(graspable, vis=True)
     contact1 = contacts1[0]
 
     grasp2_center = np.array([0, 0, 0.025])
-    grasp2 = g.ParallelJawPtGrasp3D(grasp2_center, grasp_axis, grasp_width)
+    grasp2 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp2_center, grasp_axis, grasp_width))
     _, contacts2 = grasp2.close_fingers(graspable, vis=True)
     contact2 = contacts2[0]
 
     grasp3_center = np.array([0, 0.012, -0.089])
-    grasp3 = g.ParallelJawPtGrasp3D(grasp3_center, grasp_axis, grasp_width)
+    grasp3 = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp3_center, grasp_axis, grasp_width))
     _, contacts3 = grasp3.close_fingers(graspable, vis=True)
     contact3 = contacts3[0]
 
