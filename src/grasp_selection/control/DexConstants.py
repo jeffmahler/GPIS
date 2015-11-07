@@ -12,7 +12,7 @@ class DexConstants:
     MAX_ROT_SPEED = pi/2 #90 degrees per second maximum rotation
     MAX_TRA_SPEED = 0.1 #10cm per second maximum translation
     
-    INTERP_TIME_STEP = 0.01 #10ms interpolation time step
+    INTERP_TIME_STEP = 0.03 #30ms interpolation time step
     INTERP_MAX_RAD = MAX_ROT_SPEED * INTERP_TIME_STEP 
     INTERP_MAX_M = MAX_TRA_SPEED * INTERP_TIME_STEP 
 

@@ -1,9 +1,9 @@
 from operator import add
 from tfx import pose, transform, vector, rotation
 from DexConstants import DexConstants
-from PyControl import PyControl
+from ZekeSerial import ZekeSerialInterface
 from math import sqrt
-import numpy as np
+from numpy import pi, arctan
 
 class DexRobotZeke:
     '''
@@ -13,35 +13,34 @@ class DexRobotZeke:
     '''
 
     NUM_STATES = 6
-    #TODO: find actual physical values
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-    MIN_STATES = [0 , 0.008, 0.008, 0.183086039735, -.01, 0]
-    MAX_STATES = [2*np.pi, 0.3, 0.3, 2*np.pi, 0.05, 2*np.pi]
-    
+    MIN_STATES = [0 , 0.008, 0.008, 0.1831, -.01, 0]
+    MAX_STATES = [2*pi, 0.3, 0.3, 2*pi, 0.05, 2*pi]
+    RESET_STATE = [pi + PHI, 0.01, 0.01, 0.5076, 0, 0]
     PHI = 0.35 #zeke arm rotation angle offset to make calculations easier
     
-    RESET_STATE = [np.pi + PHI, 0.01, 0.01, 0.5076, 0, 0]
     ZEKE_LOCAL_T = transform(
-                                            vector(-0.20, 0, 0), 
+                                            vector(0.22, 0, 0), 
                                             rotation.identity(), 
                                             parent=DexConstants.WORLD_FRAME,
                                             frame="ZEKE_LOCAL")
     
     def __init__(self, comm, baudrate, time):
-        self._zeke= ZekeSerialInterface(comm, baudrate, time)        
+        self._zeke= ZekeSerialInterface(comm, baudrate, time)      
+        self._zeke.start()
     
     def reset(self):
-        self.gotoState(DexRobotZeke.RESET_STATE)
+        self._gotoState(DexRobotZeke.RESET_STATE)
             
     def stop(self):
         self._zeke.stop()
 
-    def gotoState(self, state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
+    def _gotoState(self, state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._zeke.gotoState(state, rot_speed, tra_speed)
     
     def _pose_IK(self, pose):
         '''
-        Takes in a pose and returns the following list of joint settings:
+        Takes in a pose w/ respect to zeke and returns the following list of joint settings:
         Elevation
         Rotation about Z axis
         Extension of Arm
@@ -53,23 +52,27 @@ class DexRobotZeke:
         #calculate rotation about z axis
         x = pose.position.x
         y = pose.position.y
+        
         theta = 0
         if x == 0:
-            if y > 0:
-                theta = np.pi / 2
+            if y >= 0:
+                theta = pi / 2
             else: 
-                theta = - np.pi / 2
+                theta = - pi / 2
         else:
-            theta_ref = abs(np.arctan(y/x))
+            theta_ref = abs(arctan(y/x))
+            if theta_ref > pi/2:
+                theta_ref = pi - theta_ref
+
             if x >= 0 and y >= 0:
                 theta = theta_ref
             elif y >= 0 and x < 0:
-                theta = np.pi - theta_ref
+                theta = pi - theta_ref
             elif y < 0 and x < 0:
-                theta = np.pi + theta_ref
+                theta = pi + theta_ref
             else:
-                theta = 2*np.pi - theta_ref
-        
+                theta = 2*pi - theta_ref
+                
         settings["rot_z"] = theta
         settings["extension"] = sqrt(pow(x, 2) + pow(y, 2))
         settings["rot_y"] = pose.rotation.euler['sxyz'][1]
@@ -100,5 +103,4 @@ class DexRobotZeke:
 
         joint_settings = self._pose_IK(target_pose)
         target_state = self._settings_to_state(joint_settings)
-        print target_state
-        #self.setState(target_state)
+        self._gotoState(target_state)

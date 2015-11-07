@@ -1,5 +1,6 @@
 from numpy import sign
 class DexInterpolater:
+    #Helper interpolator class
 
     @staticmethod
     def interpolate(origin, dest, speeds_ids, speeds, time_delta):
@@ -13,10 +14,7 @@ class DexInterpolater:
         current = origin[::]
         
         and_function = lambda x, y : x and y
-        while not reduce(and_function, reached):
-            for i in range(n):
-                reached[i] = reached[i] or dirs[i] * (dest[i] - current[i]) <= 0
-           
+        while not reduce(and_function, reached):       
             for i in range(n):
                 if not reached[i]:
                     abs_delta = min(abs_deltas[i], abs(dest[i] - current[i]))
@@ -24,4 +22,7 @@ class DexInterpolater:
         
             vectors.append(current[::])
             
+            for i in range(n):
+                reached[i] = reached[i] or dirs[i] * (dest[i] - current[i]) <= 0
+
         return vectors

@@ -1,4 +1,3 @@
-import numpy as np
 from serial import Serial
 from multiprocessing import Process, Queue
 from time import sleep, time
@@ -6,7 +5,7 @@ from DexConstants import DexConstants
 from DexInterpolater import DexInterpolater
 
 class _ZekeSerial(Process):    
-    #Private class that abstracts serial communication with Zeke
+    #Private class that abstracts continuous serial communication with Zeke
 
     INIT_DELAY = 3 #magic 3 seconds initial wait for serial connection to stablize
     NUM_STATES = 6
@@ -165,7 +164,3 @@ class ZekeSerialInterface:
         states = DexInterpolater.interpolate(self.getState(), target_state[::], speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
         for state in states:
             self._queueState(state)
-            
-z = ZekeSerialInterface()
-rot = 3.1415926/4
-tra = 0.06
