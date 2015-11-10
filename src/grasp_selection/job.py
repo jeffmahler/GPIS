@@ -321,14 +321,16 @@ class GceJob(Job):
                 data_manager.request_write_access()
 
                 # now launch one instance per disk to do the updating
-                update_config['job_root'] = self.job_name_root
                 update_config['compute']['data_disks'] = data_manager.update_data_disks
                 update_config['compute']['data_disk_modes'] = ['READ_WRITE' for a in data_manager.update_data_disks]
                 update_config['compute']['instance_quota'] = 1
                 update_config['compute']['run_script'] = compute_config['update_script']
+                update_config['prompt'] = 0 # turn off prompting
                 logging.info('Running update job with script %s' %(compute_config['update_script']))
 
                 update_job = GceJob(update_config)
+                update_config['job_root'] = self.job_name_root
+                
                 update_job.run()
 
                 # release access and attempt to stop the server

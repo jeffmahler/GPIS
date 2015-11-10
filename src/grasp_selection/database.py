@@ -88,6 +88,7 @@ class Hdf5Database(Database):
     def _parse_config(self, config):
         """ Parse the configuation file """
         self.database_cache_dir_ = config['database_cache_dir']
+        self.dataset_names_ = config['datasets'].keys()
 
     def _create_new_db(self):
         """ Creates a new database """
@@ -113,7 +114,6 @@ class Hdf5Database(Database):
     def _load_datasets(self, config):
         """ Load in the datasets """
         self.datasets_ = []
-        self.dataset_names_ = self.data_[DATASETS_KEY].keys()
         for dataset_name in self.dataset_names_:
             if dataset_name not in self.data_[DATASETS_KEY].keys():
                 logging.warning('Dataset %s not in database' %(dataset_name))
@@ -143,7 +143,7 @@ class Hdf5Database(Database):
         """ Create dataset with obj keys"""
         if dataset_name in self.data_[DATASETS_KEY].keys():
             logging.warning('Dataset %s already exists. Cannot overwrite' %(dataset_name))
-            return None
+            return self.datasets_[self.data_[DATASETS_KEY].keys().index(dataset_name)]
         self.data_[DATASETS_KEY].create_group(dataset_name)
         self.data_[DATASETS_KEY][dataset_name].create_group(OBJECTS_KEY)
         for obj_key in obj_keys:
@@ -166,6 +166,7 @@ class Hdf5Dataset(Dataset):
     def __init__(self, dataset_name, data, config, cache_dir=''):
         self.dataset_name_ = dataset_name
         self.data_ = data
+        self.object_keys_ = None
         self.start_index_ = 0
         self.end_index_ = len(self.object_keys)
         self.cache_dir_ = cache_dir
@@ -175,7 +176,7 @@ class Hdf5Dataset(Dataset):
         self._parse_config(config)
 
     def _parse_config(self, config):
-        if config['datasets'] and config['datasets'][self.dataset_name_]:
+        if config['datasets'] and self.dataset_name_ in config['datasets']:
             self.start_index_ = config['datasets'][self.dataset_name_]['start_index']
             self.end_index_ = config['datasets'][self.dataset_name_]['end_index']
 
@@ -193,7 +194,9 @@ class Hdf5Dataset(Dataset):
 
     @property
     def object_keys(self):
-        return self.objects.keys()
+        if not self.object_keys_:
+            self.object_keys_ = self.objects.keys()
+        return self.object_keys_
 
     # easy data accessors
     def object(self, key):
@@ -228,10 +231,10 @@ class Hdf5Dataset(Dataset):
         if isinstance(index, numbers.Number):
             if index < 0 or index >= len(self.object_keys):
                 raise ValueError('Index out of bounds. Dataset contains %d objects' %(len(self.object_keys)))
-            obj = self.read_datum(self.object_keys[index])
+            obj = self.graspable(self.object_keys[index])
             return obj
         elif isinstance(index, (str, unicode)):
-            obj = self.read_datum(index)
+            obj = self.graspable(index)
             return obj
 
     def __iter__(self):
@@ -328,6 +331,14 @@ class Hdf5Dataset(Dataset):
             return False
 
         return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasps, metrics, metric_tag, self.grasp_data(key, gripper), force_overwrite)
+
+    def store_grasp_features(self, key, grasps, features, feature_tag, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
+        """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
+        if len(grasps) != len(features):
+            logging.error('Grasp and metric lists must be the same length. Aborting store request')
+            return False
+
+        return hfact.Hdf5ObjectFactory.write_grasp_features(grasps, features, feature_tag, self.grasp_data(key, gripper), force_overwrite)
 
     # stable pose data
     def stable_poses(self, key):
