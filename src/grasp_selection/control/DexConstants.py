@@ -2,6 +2,8 @@ from tfx import point, rotation
 from numpy import pi
 class DexConstants:
 
+    INIT_DELAY = 3 #magic 3 seconds initial wait for serial connection to stablize
+    
     ROBOT_OP_TIMEOUT = 2
 
     ZEKE_LOCAL_FRAME = "ZEKE_LOCAL_FRAME"
@@ -16,5 +18,5 @@ class DexConstants:
     INTERP_MAX_RAD = MAX_ROT_SPEED * INTERP_TIME_STEP 
     INTERP_MAX_M = MAX_TRA_SPEED * INTERP_TIME_STEP 
 
-    DEFAULT_ROT_SPEED = pi/4 #rad per second
+    DEFAULT_ROT_SPEED = pi/4 #45 degrees per second
     DEFAULT_TRA_SPEED = 0.06 #6cm per second (roughly 5 secs for 1 ft)

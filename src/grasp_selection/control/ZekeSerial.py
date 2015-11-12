@@ -7,7 +7,6 @@ from DexInterpolater import DexInterpolater
 class _ZekeSerial(Process):    
     #Private class that abstracts continuous serial communication with Zeke
 
-    INIT_DELAY = 3 #magic 3 seconds initial wait for serial connection to stablize
     NUM_STATES = 6
     
     def __init__(self, flags_q, states_q, state_read_q, comm, baudrate, timeout):
@@ -31,7 +30,7 @@ class _ZekeSerial(Process):
         self.ser = Serial(self._comm,self._baudrate)
         self.ser.setTimeout(self._timeout)
         self._stop_robot()
-        sleep(_ZekeSerial.INIT_DELAY)
+        sleep(DexConstants.INIT_DELAY)
         
         self._current_state = self._getStateSerial()
         
@@ -66,6 +65,7 @@ class _ZekeSerial(Process):
                 bound = DexConstants.INTERP_MAX_RAD
             else:
                 bound = DexConstants.INTERP_MAX_M
+                
             if abs(state[i] - self._current_state[i]) >= bound:
                 return False
         return True                   
@@ -157,9 +157,13 @@ class ZekeSerialInterface:
     def _queueState(self, state):
         self._states_q.put(state[::])
         
-    def gotoState(self, target_state, rot_speed, tra_speed):
+    def gotoState(self, target_state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         speeds_ids = (1, 0, 0, 1, 0, 1)
         speeds = (tra_speed, rot_speed)
+        
+        if rot_speed > DexConstants.MAX_ROT_SPEED or tra_speed > DexConstants.MAX_TRA_SPEED:
+            raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
+                                    DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
         
         states = DexInterpolater.interpolate(self.getState(), target_state[::], speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
         for state in states:
