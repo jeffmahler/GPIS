@@ -30,7 +30,6 @@ class DexRobotZeke:
     def __init__(self, comm, baudrate, time):
         self._zeke= ZekeSerialInterface(comm, baudrate, time)      
         self._zeke.start()
-        sleep(DexConstants.INIT_DELAY)
     
     def reset(self, rot_speed, tra_speed):
         self._zeke.gotoState(DexRobotZeke.RESET_STATE, rot_speed, tra_speed)

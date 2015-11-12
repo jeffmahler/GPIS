@@ -133,6 +133,7 @@ class ZekeSerialInterface:
         
     def start(self):
         self._zeke_serial.start()
+        sleep(DexConstants.INIT_DELAY)
         
     def stop(self):
         self._flags_q.put(("stopping", True))
