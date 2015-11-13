@@ -14,12 +14,14 @@ class DexRobotZeke:
     '''
 
     NUM_STATES = 6
-    PHI = 0.35 #zeke arm rotation angle offset to make calculations easier
+    #For the two offsets below, actual angle = desired angle + OFFSET
+    PHI = 0.35 #zeke arm rotation angle offset to make calculations easier.
+    THETA = 0.53 #zeke wrist rotation 0 degree offset.
     
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     MIN_STATES = [0 , 0.008, 0.008, 0.1831, 0.001, 0]
     MAX_STATES = [2*pi, 0.3, 0.3, 2*pi, 0.05, 2*pi]
-    RESET_STATE = [pi + PHI, 0.01, 0.01, 0.5076, 0, 0]
+    RESET_STATE = [pi + PHI, 0.01, 0.01, THETA, 0, 0]
     
     ZEKE_LOCAL_T = transform(
                                             vector(0.22, 0, 0), 
@@ -101,7 +103,7 @@ class DexRobotZeke:
         state[0] = settings["rot_z"] + DexRobotZeke.PHI
         state[1] = settings["elevation"]
         state[2] = settings["extension"]
-        state[3] = settings["rot_y"]
+        state[3] = settings["rot_y"] + DexRobotZeke.THETA
         state[4] = DexRobotZeke.MIN_STATES[4] #TODO: verify this is open gripper
         state[5] = DexRobotZeke.MIN_STATES[5]
 
