@@ -24,8 +24,6 @@ def load_contacts(graspable, plot=False):
 
     if plot:
         sdf_surface_points, _ = sdf.surface_points()
-        print(sdf.transform_pt_obj_to_grid(np.array([0, 0, 0])))
-        # sdf_surface_points = sdf_surface_points - 1
         vertex_points = np.array([sdf.transform_pt_obj_to_grid(np.array(v)) for v in mesh.vertices()])
         plot_sdf_vs_mesh(sdf_surface_points, vertex_points, max(sdf.dimensions))
 

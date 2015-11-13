@@ -122,7 +122,7 @@ class Mesh3D(object):
         vertex_array = np.array(self.vertices_)
         min_vertices = np.min(vertex_array, axis=0)
         max_vertices = np.max(vertex_array, axis=0)
-        self.bb_center_ = (max_vertices + min_vertices) / 2 
+        self.bb_center_ = (max_vertices + min_vertices) / 2.0
 
     def _signed_volume_of_tri(self, tri, vertex_array):
         """ Get the bounding box center of the mesh  """
