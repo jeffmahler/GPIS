@@ -157,7 +157,7 @@ class PointGraspMetrics3D:
 
     @staticmethod
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
-        """ The Ferrari-Canny L-infinity metric """
+        """ The Ferrari-Canny L1 metric """
         eps = 1e-2
         if params is not None:
             eps = params['eps']
@@ -318,7 +318,8 @@ def test_quality_metrics(vis=True):
         grasp_center = np.array([0, 0, z_vals[i]])
         grasp_axis = np.array([0, 1, 0])
         grasp_width = 0.1
-        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        configuration = np.r_[grasp_center, grasp_axis, grasp_width, 0, 0]
+        grasp = g.ParallelJawPtGrasp3D(configuration)
 
         qualities = []
         metrics = ['force_closure', 'min_singular', 'wrench_volume', 'grasp_isotropy', 'ferrari_canny_L1']
