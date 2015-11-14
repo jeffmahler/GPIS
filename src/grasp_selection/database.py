@@ -337,13 +337,9 @@ class Hdf5Dataset(Dataset):
             return []
         return hfact.Hdf5ObjectFactory.grasp_metrics(grasps, self.grasp_data(key, gripper))
 
-    def store_grasp_metrics(self, key, grasps, metrics, metric_tag, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
+    def store_grasp_metrics(self, key, grasp_metric_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
-        if len(grasps) != len(metrics):
-            logging.error('Grasp and metric lists must be the same length. Aborting store request')
-            return False
-
-        return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasps, metrics, metric_tag, self.grasp_data(key, gripper), force_overwrite)
+        return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasp_metric_dict, self.grasp_data(key, gripper), force_overwrite)
 
     def grasp_features(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None):
         """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
@@ -352,13 +348,9 @@ class Hdf5Dataset(Dataset):
             return []
         return hfact.Hdf5ObjectFactory.grasp_features(grasps, self.grasp_data(key, gripper))        
 
-    def store_grasp_features(self, key, grasps, features, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
+    def store_grasp_features(self, key, grasp_feature_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
-        if len(grasps) != len(features):
-            logging.error('Grasp and metric lists must be the same length. Aborting store request')
-            return False
-
-        return hfact.Hdf5ObjectFactory.write_grasp_features(grasps, features, self.grasp_data(key, gripper), force_overwrite)
+        return hfact.Hdf5ObjectFactory.write_grasp_features(grasp_feature_dict, self.grasp_data(key, gripper), force_overwrite)
 
     # stable pose data
     def stable_poses(self, key):

@@ -235,20 +235,21 @@ class Hdf5ObjectFactory(object):
         return grasp_metrics
 
     @staticmethod
-    def write_grasp_metrics(grasps, metrics, metric_tag, data, force_overwrite=False):
+    def write_grasp_metrics(grasp_metric_dict, data, force_overwrite=False):
         """ Write grasp metrics to database """
-        for grasp, metric in zip(grasps, metrics):
-            grasp_id = grasp.grasp_id
+        for grasp_id, metric_dict in grasp_metric_dict.iteritems():
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
             if grasp_key in data.keys():
                 grasp_metric_data = data[grasp_key][GRASP_METRICS_KEY]
-                if metric_tag not in grasp_metric_data.attrs.keys():
-                    grasp_metric_data.attrs.create(metric_tag, metric)
-                elif force_overwrite:
-                    grasp_metric_data.attrs[metric_tag] = metric
-                else:
-                    logging.warning('Metric %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(metric_tag, grasp_id))
-                    return False
+
+                for metric_tag, metric in metric_dict.iteritems():
+                    if metric_tag not in grasp_metric_data.attrs.keys():
+                        grasp_metric_data.attrs.create(metric_tag, metric)
+                    elif force_overwrite:
+                        grasp_metric_data.attrs[metric_tag] = metric
+                    else:
+                        logging.warning('Metric %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(metric_tag, grasp_id))
+                        return False
         return True
 
     @staticmethod
@@ -267,14 +268,13 @@ class Hdf5ObjectFactory(object):
         return features
 
     @staticmethod
-    def write_grasp_features(grasps, feature_extractors, data, force_overwrite=False):
+    def write_grasp_features(grasp_feature_dict, data, force_overwrite=False):
         """ Write grasp metrics to database """
-        for grasp, feature_extractor in zip(grasps, feature_extractors):
-            grasp_id = grasp.grasp_id
+        for grasp_id, feature_list in grasp_feature_dict.iteritems():
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
             if grasp_key in data.keys():
                 # parse all feature extractor objects
-                for feature in feature_extractor.features():
+                for feature in feature_list:
                     if feature.name not in data[grasp_key].keys():
                         data[grasp_key][GRASP_FEATURES_KEY].create_group(feature.name)
                     elif not force_overwrite:

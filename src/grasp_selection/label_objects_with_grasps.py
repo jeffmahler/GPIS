@@ -119,29 +119,35 @@ def label_grasps(obj, output_ds, config):
     # extract features
     feature_extractor = ff.GraspableFeatureExtractor(obj, config)
     all_features = feature_extractor.compute_all_features(grasps)
+    raw_feature_dict = {}
+    for g, f in zip(grasps, all_features):
+        raw_feature_dict[g.grasp_id] = f.features()
 
     # store features
-    output_ds.store_grasp_features(obj.key, grasps, all_features)
+    output_ds.store_grasp_features(obj.key, raw_feature_dict)
     f = output_ds.grasp_features(obj.key, grasps)
 
     # compute quality
-    estimated_pfc = []
-    estimated_q = []
+    grasp_metrics = {}
     graspable_rv = rvs.GraspableObjectPoseGaussianRV(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
     for i, grasp in enumerate(grasps):
         logging.info('Evaluating quality for grasp %d' %(i))
         grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, config)
+        grasp_metrics[grasp.grasp_id] = {}
 
         # probability of force closure
-        pfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric="force_closure")
-        estimated_pfc.append(pfc)
+        pfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
+                                                         num_samples=config['pfc_num_samples'])
+        grasp_metrics[grasp.grasp_id]['pfc'] = pfc
 
-        q = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric="ferrari_canny_L1")
-        estimated_q.append(q)
+        # expected ferrari canny
+        eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
+                                                     num_samples=config['eq_num_samples'])
+        grasp_metrics[grasp.grasp_id]['efc_L1'] = eq
 
-    output_ds.store_grasp_metrics(obj.key, grasps, estimated_q, 'fc_L1')
-    output_ds.store_grasp_metrics(obj.key, grasps, estimated_pfc, 'pfc')
+    # store grasp metrics
+    output_ds.store_grasp_metrics(obj.key, grasp_metrics)
 
 if __name__ == '__main__':
     np.random.seed(100)
