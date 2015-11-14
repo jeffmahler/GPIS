@@ -13,8 +13,10 @@ import tfx
 
 import camera_params as cp
 import obj_file
-
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import pyhull.convex_hull as cvh
 
 class Mesh3D(object):
