@@ -7,7 +7,7 @@ class DexController:
     Goal: Takes in a target pose and controls the Zeke robot to achieve that pose
     '''
     
-    def __init__(self, robot = None, comm = "COM3", baudrate=115200, timeout=.01):
+    def __init__(self, robot = None, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         #instantiating variables
         if robot is None:
             robot = DexRobotZeke(comm, baudrate, timeout)
@@ -29,10 +29,13 @@ class DexController:
         return self._robot.getState()
         
     def grip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
-        return self._robot.grip(tra_speed)
+        self._robot.grip(tra_speed)
     
     def unGrip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
-        return self._robot.unGrip(tra_speed)
+        self._robot.unGrip(tra_speed)
+        
+    def plot(self):
+        self._robot.plot()
     
 origin = pose(DexConstants.ORIGIN, rotation.identity(), frame = DexConstants.WORLD_FRAME)
 raised = pose((0, 0, 0.15), rotation.identity(), frame = DexConstants.WORLD_FRAME)

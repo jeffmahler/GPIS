@@ -26,13 +26,15 @@ class _ZekeSerial(Process):
         }
 
     def run(self):
-        #Main run function that constantly sends the current state to the robot
-        self.ser = Serial(self._comm,self._baudrate)
-        self.ser.setTimeout(self._timeout)
-        self._stop_robot()
-        sleep(DexConstants.INIT_DELAY)
+        self._current_state = [3.49, 0.01, 0.01, 0.53, 0, 0]
         
-        self._current_state = self._getStateSerial()
+        #Main run function that constantly sends the current state to the robot
+        if not DexConstants.DEBUG:
+            self.ser = Serial(self._comm,self._baudrate)
+            self.ser.setTimeout(self._timeout)
+            self._stop_robot()
+            sleep(DexConstants.INIT_DELAY)
+            self._current_state = self._getStateSerial()
         
         self._states_q.put(self._current_state)
         while True:
@@ -70,14 +72,18 @@ class _ZekeSerial(Process):
                 return False
         return True                   
 
-    def _sendSingleStateRequest(self, requests):
-        if not self._isValidState(requests):
+    def _sendSingleStateRequest(self, state):
+        if DexConstants.DEBUG:
+            self._current_state = state
+            return
+            
+        if not self._isValidState(state):
             raise Exception("State is invalid or out of bounds for safety reasons")
         self.ser.flushInput()
         self.ser.flushOutput()
         self.ser.write("a")
-        for thing in requests:
-            val = int(thing*10000000)
+        for x in state:
+            val = int(x*10000000)
             self.ser.write(chr((val>>24) & 0xff))
             self.ser.write(chr((val>>16) & 0xff))
             self.ser.write(chr((val>>8) & 0xff))
@@ -103,9 +109,15 @@ class _ZekeSerial(Process):
         self._sendControls(requests)
         
     def _stop_robot(self):
+        if DexConstants.DEBUG:
+            return
+            
         self._control([0,0,0,0,0,0])
         
     def _getStateSerial(self):
+        if DexConstants.DEBUG:
+            return self._current_state
+
         self.ser.flushInput()
         self.ser.write("b")
         sensorVals = []
@@ -124,6 +136,8 @@ class ZekeSerialInterface:
         self._baudrate = baudrate
         self._timeout = timeout
         self._reset()
+        self._target_state = None
+        self.state_hist = []
         
     def _reset(self):
         self._flags_q = Queue()
@@ -162,10 +176,18 @@ class ZekeSerialInterface:
         speeds_ids = (1, 0, 0, 1, 0, 1)
         speeds = (tra_speed, rot_speed)
         
+        if self._target_state is None:
+            self._target_state = self.getState()
+        
         if rot_speed > DexConstants.MAX_ROT_SPEED or tra_speed > DexConstants.MAX_TRA_SPEED:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
         
-        states = DexInterpolater.interpolate(self.getState(), target_state[::], speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
+        states = DexInterpolater.interpolate(self._target_state, target_state[::], speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
         for state in states:
             self._queueState(state)
+            self.state_hist.append(state)
+            
+        self._target_state = target_state[::]
+        
+        

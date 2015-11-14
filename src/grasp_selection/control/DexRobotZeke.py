@@ -3,8 +3,11 @@ from tfx import pose, transform, vector, rotation
 from DexConstants import DexConstants
 from ZekeSerial import ZekeSerialInterface
 from math import sqrt
-from numpy import pi, arctan
+from numpy import pi, arctan, cos, sin
 from time import sleep
+
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 class DexRobotZeke:
     '''
@@ -16,12 +19,13 @@ class DexRobotZeke:
     NUM_STATES = 6
     #For the two offsets below, actual angle = desired angle + OFFSET
     PHI = 0.35 #zeke arm rotation angle offset to make calculations easier.
-    THETA = 0.53 #zeke wrist rotation 0 degree offset.
+    THETA = 0.57 #zeke wrist rotation 0 degree offset.
     
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     MIN_STATES = [0 , 0.008, 0.008, 0.1831, 0.001, 0]
     MAX_STATES = [2*pi, 0.3, 0.3, 2*pi, 0.05, 2*pi]
-    RESET_STATE = [pi + PHI, 0.01, 0.01, THETA, 0, 0]
+    RESET_STATES = [[pi + PHI, 0.1, 0.01, THETA, 0, 0],
+                                [pi + PHI, 0.01, 0.01, THETA, 0, 0]]
     
     ZEKE_LOCAL_T = transform(
                                             vector(0.22, 0, 0), 
@@ -29,26 +33,28 @@ class DexRobotZeke:
                                             parent=DexConstants.WORLD_FRAME,
                                             frame="ZEKE_LOCAL")
     
-    def __init__(self, comm, baudrate, time):
-        self._zeke= ZekeSerialInterface(comm, baudrate, time)      
+    def __init__(self, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
+        self._zeke= ZekeSerialInterface(comm, baudrate, timeout)      
         self._zeke.start()
+        self._target_state = self.getState()
     
     def reset(self, rot_speed, tra_speed):
-        self._zeke.gotoState(DexRobotZeke.RESET_STATE, rot_speed, tra_speed)
+        self._zeke.gotoState(DexRobotZeke.RESET_STATES[0], rot_speed, tra_speed)
+        self._zeke.gotoState(DexRobotZeke.RESET_STATES[1], rot_speed, tra_speed)
             
     def stop(self):
         self._zeke.stop()
         
     def getState(self):
         return self._zeke.getState()       
-    
+        
     def grip(self, tra_speed):
-        state = self._zeke.getState()
+        state = self._target_state[::]
         state[4] = DexRobotZeke.MIN_STATES[4]
         self._zeke.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
         
     def unGrip(self, tra_speed):
-        state = self._zeke.getState()
+        state = self._target_state[::]
         state[4] = DexRobotZeke.MAX_STATES[4]
         self._zeke.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
     
@@ -114,7 +120,43 @@ class DexRobotZeke:
 
         if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
-
+    
         joint_settings = self._pose_IK(target_pose)
         target_state = self._settings_to_state(joint_settings)
         self._zeke.gotoState(target_state, rot_speed, tra_speed)
+        
+        self._target_state = target_state
+        
+    def _state_FK(self, state):
+        # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
+        arm_angle = state[0] - DexRobotZeke.PHI
+        z = state[1]
+        r = state[2]
+        x = r * cos(arm_angle)
+        y = r * sin(arm_angle)
+        
+        return (x, y, z)
+        
+    def plot(self):
+        hist = self._zeke.state_hist
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        x = []
+        y = []
+        z = []
+
+        for state in hist:
+            pos = self._state_FK(state)
+            x.append(pos[0])
+            y.append(pos[1])
+            z.append(pos[2])
+        
+        ax.plot(x, y, z, c='r', marker='o')
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+
+        plt.show()
