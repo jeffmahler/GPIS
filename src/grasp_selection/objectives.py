@@ -102,10 +102,10 @@ class NonDeterministicObjective(Objective):
 
     def evaluate(self, x):
         """ Sample the input space, then evaluate """
-        if not hasattr(x, "sample_success"):
+        if not hasattr(x, "sample"):
             raise ValueError("Data points must have a sampling function returning a 0 or 1")
 
-        x_val = x.sample_success()
+        x_val = x.sample()
         return self.det_objective_.evaluate(x_val)
 
 class ZeroOneObjective(Objective):
@@ -122,6 +122,17 @@ class ZeroOneObjective(Objective):
         self.check_valid_input(x)
         return x >= self.b_
 
+class IdentityObjective(Objective):
+    """ Zero One Loss based on thresholding """
+    def check_valid_input(self, x):
+        """ Check whether or not input is valid for the objective """
+        if not isinstance(x, numbers.Number):
+            raise ValueError("Zero-One objective can only be evaluated on numbers")
+
+    def evaluate(self, x):
+        self.check_valid_input(x)
+        return x
+
 class RandomBinaryObjective(NonDeterministicObjective):
     """
     Returns a 0 or 1 based on some underlying random probability of success for the data points
@@ -134,6 +145,19 @@ class RandomBinaryObjective(NonDeterministicObjective):
         """ Check whether or not input is valid for the objective """
         if not isinstance(x, numbers.Number):
             raise ValueError("Random binary objective can only be evaluated on numbers")
+
+class RandomContinuousObjective(NonDeterministicObjective):
+    """
+    Returns a continuous value based on some underlying random probability of success for the data points
+    Evaluated data points must have a sample method
+    """
+    def __init__(self):
+        NonDeterministicObjective.__init__(self, IdentityObjective())
+
+    def check_valid_input(self, x):
+        """ Check whether or not input is valid for the objective """
+        if not isinstance(x, numbers.Number):
+            raise ValueError("Random continuous objective can only be evaluated on numbers")
 
 class LeastSquaresObjective(DifferentiableObjective):
     """ Classic least-squares loss 0.5 * |Ax - b|**2 """

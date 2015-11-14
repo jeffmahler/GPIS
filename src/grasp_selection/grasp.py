@@ -25,7 +25,6 @@ PR2_GRASP_OFFSET = np.array([-0.05, 0, 0])
 
 class Grasp:
     __metaclass__ = ABCMeta
-
     samples_per_grid = 2 # global resolution for line of action
 
     @abstractmethod
@@ -110,6 +109,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
     @property
     def frame(self):
         return self.frame_
+    @property
+    def grasp_id(self):
+        return self.grasp_id_
 
     def endpoints(self):
         return self.center_ - (self.grasp_width_ / 2.0) * self.axis_, self.center_ + (self.grasp_width_ / 2.0) * self.axis_,

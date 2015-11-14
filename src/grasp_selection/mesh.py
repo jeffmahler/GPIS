@@ -14,7 +14,7 @@ import tfx
 import camera_params as cp
 import obj_file
 
-# import mayavi.mlab as mv
+import mayavi.mlab as mv
 import pyhull.convex_hull as cvh
 
 class Mesh3D(object):
@@ -57,6 +57,10 @@ class Mesh3D(object):
         if self.normals_:
             return self.normals_
         return None #"Mesh does not have a list of normals."
+
+    def centroid(self):
+        self._compute_centroid()
+        return self.vertex_mean_
 
     def metadata(self):
         if self.metadata_:
@@ -122,7 +126,7 @@ class Mesh3D(object):
         vertex_array = np.array(self.vertices_)
         min_vertices = np.min(vertex_array, axis=0)
         max_vertices = np.max(vertex_array, axis=0)
-        self.bb_center_ = (max_vertices + min_vertices) / 2 
+        self.bb_center_ = (max_vertices + min_vertices) / 2.0
 
     def _signed_volume_of_tri(self, tri, vertex_array):
         """ Get the bounding box center of the mesh  """
@@ -236,6 +240,7 @@ class Mesh3D(object):
         for f in self.triangles_:
             new_triangles.append([reffed_v_new_ind[f[0]], reffed_v_new_ind[f[1]], reffed_v_new_ind[f[2]]] )
         self.triangles_ = new_triangles
+        self._compute_centroid()
         return True
 
     def image_to_3d_coords(self):
@@ -338,6 +343,7 @@ class Mesh3D(object):
         scale_factor = min_scale / vertex_extent[min_dim] 
         vertex_array = scale_factor * vertex_array
         self.vertices_ = vertex_array.tolist()
+        self._compute_centroid()
 
     def convex_hull(self):
         """ Returns the convex hull of a mesh as a new mesh """
@@ -364,7 +370,7 @@ class Mesh3D(object):
         total_volume = 0
         vertex_array = np.array(self.vertices_)
         for tri in self.triangles_:
-            volume, center = self._signed_volume_of_tri(tri, vertex_array)
+            volume, center = self._signed_volume_of_tri(tri, vertex_array)            
             total_volume = total_volume + volume
 
         # can get negative volume when tris are flipped, so auto correct assuming that mass should have been postive
@@ -378,6 +384,13 @@ class Mesh3D(object):
             'mass': self.mass,
             'category': self.category
         }
+
+    def to_hdf5(self, h):
+        """ Add mesh to hdf5 group """
+        h.create_dataset('triangles', data=np.array(self.triangles_))
+        h.create_dataset('vertices', data=np.array(self.vertices_))
+        if self.normals_:
+            h.create_dataset('normals', data=np.array(self.normals_))
 
     """
     def num_connected_components(self):

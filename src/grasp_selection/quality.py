@@ -26,7 +26,7 @@ class PointGraspMetrics3D:
             raise ValueError('Illegal point grasp metric specified')
 
         # get point grasp contacts
-        contacts_found, contacts = grasp.close_fingers(obj, vis=False)
+        contacts_found, contacts = grasp.close_fingers(obj, vis=vis)
         if not contacts_found:
             logging.debug('Contacts not found')
             return 0#-np.inf
@@ -157,7 +157,7 @@ class PointGraspMetrics3D:
 
     @staticmethod
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
-        """ The Ferrari-Canny L-infinity metric """
+        """ The Ferrari-Canny L-1 metric """
         eps = 1e-2
         if params is not None:
             eps = params['eps']
@@ -165,9 +165,9 @@ class PointGraspMetrics3D:
         # create grasp matrix
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         s = time.clock()
-        hull = cvh.ConvexHull(G.T, joggle=not soft_fingers)
+        hull = cvh.ConvexHull(G.T, joggle=True)
         e = time.clock()
-        logging.info('Convex hull took %f sec' %(e-s))
+        logging.debug('Convex hull took %f sec' %(e-s))
 
         if len(hull.vertices) == 0:
             logging.warning('Convex hull could not be computed')
@@ -183,11 +183,11 @@ class PointGraspMetrics3D:
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
         for v in hull.vertices:
-            facet = G[:, v]
-            dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
-            if dist < min_dist:
-                min_dist = dist
-
+            if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
+                facet = G[:, v]
+                dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
+                if dist < min_dist:
+                    min_dist = dist
         return min_dist
 
     @staticmethod
