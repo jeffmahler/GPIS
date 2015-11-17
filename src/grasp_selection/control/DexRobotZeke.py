@@ -2,10 +2,10 @@ from operator import add
 from tfx import pose, transform, vector, rotation
 from DexConstants import DexConstants
 from ZekeSerial import ZekeSerialInterface
+from ZekeState import ZekeState
 from math import sqrt
 from numpy import pi, arctan, cos, sin
 from time import sleep
-
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
@@ -21,11 +21,8 @@ class DexRobotZeke:
     PHI = 0.35 #zeke arm rotation angle offset to make calculations easier.
     THETA = 0.57 #zeke wrist rotation 0 degree offset.
     
-    # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-    MIN_STATES = [0 , 0.008, 0.008, 0.1831, 0.001, 0]
-    MAX_STATES = [2*pi, 0.3, 0.3, 2*pi, 0.05, 2*pi]
-    RESET_STATES = [[pi + PHI, 0.1, 0.01, THETA, 0, 0],
-                                [pi + PHI, 0.01, 0.01, THETA, 0, 0]]
+    RESET_STATES = [ZekeState([pi + PHI, 0.1, 0.01, THETA, 0, 0]),
+                                ZekeState([pi + PHI, 0.01, 0.01, THETA, 0, 0])]
     
     ZEKE_LOCAL_T = transform(
                                             vector(0.22, 0, 0), 
@@ -39,8 +36,8 @@ class DexRobotZeke:
         self._target_state = self.getState()
     
     def reset(self, rot_speed, tra_speed):
-        self._zeke.gotoState(DexRobotZeke.RESET_STATES[0], rot_speed, tra_speed)
-        self._zeke.gotoState(DexRobotZeke.RESET_STATES[1], rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES[0], rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES[1], rot_speed, tra_speed)
             
     def stop(self):
         self._zeke.stop()
@@ -49,16 +46,17 @@ class DexRobotZeke:
         return self._zeke.getState()       
         
     def grip(self, tra_speed):
-        state = self._target_state[::]
-        state[4] = DexRobotZeke.MIN_STATES[4]
-        self._zeke.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
+        state = self._target_state.copy()
+        state.set_gripper_grip(DexConstants.MIN_STATE.gripper_grip)
+        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
         
     def unGrip(self, tra_speed):
-        state = self._target_state[::]
-        state[4] = DexRobotZeke.MAX_STATES[4]
-        self._zeke.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
+        state = self._target_state.copy()
+        state.set_gripper_grip(DexConstants.MAX_STATE.gripper_grip)
+        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
     
-    def _pose_IK(self, pose):
+    @staticmethod
+    def _pose_IK(pose):
         '''
         Takes in a pose w/ respect to zeke and returns the following list of joint settings:
         Elevation
@@ -99,39 +97,48 @@ class DexRobotZeke:
         
         return settings
         
-    def _settings_to_state(self, settings):
+    @staticmethod
+    def _settings_to_state(settings, prev_state):
         '''
         Takes in a list of joint settings and concats them into one single 
         final target state. Basically forward kinematics
         '''
         # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-        state = [0] * 6
-        state[0] = settings["rot_z"] + DexRobotZeke.PHI
-        state[1] = settings["elevation"]
-        state[2] = settings["extension"]
-        state[3] = settings["rot_y"] + DexRobotZeke.THETA
-        state[4] = DexRobotZeke.MIN_STATES[4] #TODO: verify this is open gripper
-        state[5] = DexRobotZeke.MIN_STATES[5]
+        state_vals = [0] * 6
+        state_vals[0] = settings["rot_z"] + DexRobotZeke.PHI
+        state_vals[1] = settings["elevation"]
+        state_vals[2] = settings["extension"]
+        state_vals[3] = settings["rot_y"] + DexRobotZeke.THETA
+        state_vals[4] = prev_state.gripper_grip
+        state_vals[5] = prev_state.table_rot
 
-        return state
+        return ZekeState(state_vals)
         
+    @staticmethod
+    def pose_to_state(target_pose, prev_state):
+        joint_settings = DexRobotZeke._pose_IK(target_pose)
+        target_state = DexRobotZeke._settings_to_state(joint_settings, prev_state)
+        return target_state
+        
+    def gotoState(self, target_state, rot_speed, tra_speed):
+        self._zeke.gotoState(target_state, rot_speed, tra_speed)
+        self._target_state = target_state.copy()
+
     def transform(self, target_pose, rot_speed, tra_speed):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
 
         if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
-    
-        joint_settings = self._pose_IK(target_pose)
-        target_state = self._settings_to_state(joint_settings)
-        self._zeke.gotoState(target_state, rot_speed, tra_speed)
+            
+        target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
         
-        self._target_state = target_state
+        self.gotoState(target_state, rot_speed, tra_speed)
         
     def _state_FK(self, state):
         # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-        arm_angle = state[0] - DexRobotZeke.PHI
-        z = state[1]
-        r = state[2]
+        arm_angle = state.arm_rot - DexRobotZeke.PHI
+        z = state.arm_elev
+        r = state.arm_ext
         x = r * cos(arm_angle)
         y = r * sin(arm_angle)
         

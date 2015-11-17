@@ -11,6 +11,6 @@ Steps:
 
 0. Connect usb from the Zeke robot to your computer. Also Connect Xbox Controller to computer.
 1. Figure out which Comm port corresponds to the specific USB port, and modify ZekeScript accordingly.
-2. Run ZekeScript.py in interactive mode
+2. Run RunScript.py in interactive mode
 3. Call kinematicControl() 
 4. Now you can directly control Zeke with the xbox controls. 

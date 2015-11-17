@@ -1,6 +1,7 @@
 from serial import Serial
 from multiprocessing import Process, Queue
 from time import sleep, time
+from ZekeState import ZekeState
 from DexConstants import DexConstants
 from DexInterpolater import DexInterpolater
 
@@ -26,7 +27,7 @@ class _ZekeSerial(Process):
         }
 
     def run(self):
-        self._current_state = [3.49, 0.01, 0.01, 0.53, 0, 0]
+        self._current_state = DexConstants.DEBUG_INIT_STATE
         
         #Main run function that constantly sends the current state to the robot
         if not DexConstants.DEBUG:
@@ -61,14 +62,13 @@ class _ZekeSerial(Process):
                 self._current_state = self._states_q.get()
 
     def _isValidState(self, state):
-        is_rot = lambda x : x in (0, 3, 5)
         for i in range(_ZekeSerial.NUM_STATES):
-            if is_rot(i):
+            if ZekeState.is_rot(i):
                 bound = DexConstants.INTERP_MAX_RAD
             else:
                 bound = DexConstants.INTERP_MAX_M
                 
-            if abs(state[i] - self._current_state[i]) >= bound:
+            if abs(state.state[i] - self._current_state.state[i]) >= bound:
                 return False
         return True                   
 
@@ -82,7 +82,7 @@ class _ZekeSerial(Process):
         self.ser.flushInput()
         self.ser.flushOutput()
         self.ser.write("a")
-        for x in state:
+        for x in state.state:
             val = int(x*10000000)
             self.ser.write(chr((val>>24) & 0xff))
             self.ser.write(chr((val>>16) & 0xff))
@@ -127,7 +127,7 @@ class _ZekeSerial(Process):
             except:
                 return 'Comm Failure'
             
-        return sensorVals
+        return ZekeState(sensorVals)
         
 class ZekeSerialInterface:
     
@@ -170,7 +170,7 @@ class ZekeSerialInterface:
         return self._state_read_q.get()
         
     def _queueState(self, state):
-        self._states_q.put(state[::])
+        self._states_q.put(state.copy())
         
     def gotoState(self, target_state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         speeds_ids = (1, 0, 0, 1, 0, 1)
@@ -183,11 +183,10 @@ class ZekeSerialInterface:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
         
-        states = DexInterpolater.interpolate(self._target_state, target_state[::], speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
-        for state in states:
+        states_vals = DexInterpolater.interpolate(self._target_state.state, target_state.copy().state, speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
+        for state_vals in states_vals:
+            state = ZekeState(state_vals)
             self._queueState(state)
             self.state_hist.append(state)
             
-        self._target_state = target_state[::]
-        
-        
+        self._target_state = target_state.copy()

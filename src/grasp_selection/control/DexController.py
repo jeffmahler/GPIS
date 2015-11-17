@@ -19,6 +19,9 @@ class DexController:
             raise Exception("Given target_pose is not in WORLD frame")
         self._robot.transform(target_pose, rot_speed, tra_speed)
         
+    def gotoState(self, state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
+        self._robot.gotoState(state, rot_speed, tra_speed)
+        
     def reset(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._robot.reset(rot_speed, tra_speed)
         

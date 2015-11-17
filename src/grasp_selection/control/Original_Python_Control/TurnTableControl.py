@@ -1,55 +1,43 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Oct 30 15:28:48 2015
 
-from PID import *
+@author: David
+"""
+
 import time
 import serial
 import numpy as np
 import math as m
 
 
-class PyControl:
-    def __init__(self, comm = "COM6",baudrate=115200,timeout=.04, offsets=[.505, .2601, .234-.0043, 0.0164,-.2996], gripperParams=[.12, 0, -.08]):
+class TurnTableControl:
+    def __init__(self, comm = "COM7",baudrate=115200,timeout=.04, offset = .5):
         # initialize Serial Connection
         self.ser = serial.Serial(comm,baudrate)
         self.ser.setTimeout(timeout)
         time.sleep(1)
         
-        self.offsets = offsets;
-        self.gripperParams = gripperParams
-        
+        self.offset = offset;
 
-    def xyz(self):
-        try:
-            state = self.getState()
-            r = self.offsets[0]
-            thetaAOffset = self.offsets[1]
-            aOffset = self.offsets[2]
-            zOffset = self.offsets[3]
-            thetaGOffset = self.offsets[4]
-            gX = self.gripperParams[0]
-            gY = self.gripperParams[1]
-            gZ = self.gripperParams[2]
-            
-            thetaA = state[0]+thetaAOffset
-            z = state[1] + zOffset
-            a = state[2]+aOffset
-            thetaG = state[3]+thetaGOffset
-        except:
-            return "Comm Failure"
-
-        X = (m.cos(thetaA)*gX - m.sin(thetaA)*m.cos(thetaG)*gY + 
-            m.sin(thetaA)*m.sin(thetaG)*gZ + r+a*m.cos(thetaA))
-        Y = (m.sin(thetaA)*gX + m.cos(thetaA)*m.cos(thetaG)*gY 
-            - m.cos(thetaA)*m.sin(thetaG)*gZ + a*m.sin(thetaA))
-        Z = m.sin(thetaG)*gY+m.cos(thetaG)*gZ + z;
-        
-        
-        return [X,Y,Z]
         
     def stop(self):
         self.ser.flushOutput()
         self.ser.flushInput()
         self.ser.write("s")
-        self.sendControls([0,0,0,0,0,0])
+        self.sendControls([0])
+        return
+    
+    def calibrate(self):
+        self.ser.flushOutput()
+        self.ser.flushInput()
+        self.ser.write("c")
+        return
+        
+    def reset(self):
+        self.ser.flushOutput()
+        self.ser.flushInput()
+        self.ser.write("r")
         return
         
     def sendStateRequest(self,requests):
@@ -100,57 +88,25 @@ class PyControl:
         self.ser.flushInput()
         self.ser.write("b")
         sensorVals = []
-        for i in range(0,6):
+        for i in range(0,1):
             try:
                 sensorVals.append(float(self.ser.readline()))
             except:
-                time.sleep(.5)
+                time.sleep(.05)
                 return 'Comm Failure'
                 
    
         return sensorVals
         
-        
     def getPots(self):
         self.ser.flushInput()
-        self.ser.write("p")
+        self.ser.write("q")
         sensorVals = []
-        for i in range(0,6):
+        for i in range(0,1):
             try:
-                sensorVals.append(int(self.ser.readline()))
+                sensorVals.append(float(self.ser.readline()))
             except:
                 return 'Comm Failure'  
                 
         return sensorVals
-        
-    def getCurrents(self):
-        self.ser.flushInput()
-        self.ser.write("c")
-        sensorVals = []
-        for i in range(0,4):
-            try:
-                sensorVals.append(int(self.ser.readline()))
-            except:
-                return 'Comm Failure'   
-        return sensorVals
-        
-    def getEncoders(self):
-        self.ser.flushInput()
-        self.ser.write("e")
-        sensorVals = []
-        for i in range(0,3):
-            try:
-                sensorVals.append(int(self.ser.readline()))
-            except:
-                return 'Comm Failure'   
-        return sensorVals
-    
-        
-        
-    
-        
-    
-    
-
-    
         

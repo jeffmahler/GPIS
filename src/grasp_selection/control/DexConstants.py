@@ -1,8 +1,10 @@
 from tfx import point, rotation
 from numpy import pi
+from ZekeState import ZekeState
+
 class DexConstants:
 
-    DEBUG = False
+    DEBUG = True
 
     COMM = "COM3"
     BAUDRATE = 115200
@@ -28,3 +30,8 @@ class DexConstants:
     DEFAULT_TRA_SPEED = 0.04 #4cm per second (roughly 5 secs for 1 ft)
     
     MAX_ELEVATION = 0.3
+    
+    MIN_STATE = ZekeState([0 , 0.008, 0.008, 0.1831, 0.001, 0])
+    MAX_STATE = ZekeState([2*pi, 0.3, 0.3, 2*pi, 0.05, 2*pi])
+    
+    DEBUG_INIT_STATE = ZekeState([3.49, 0.01, 0.01, 0.53, 0, 0])
