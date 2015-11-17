@@ -230,7 +230,7 @@ class PointGraspMetrics3D:
 
         sol = cvx.solvers.qp(P, q, G, h, A, b)
 
-        min_norm = sol['primal objective']
+        min_norm = np.sqrt(sol['primal objective'])
         return abs(min_norm)
 
 def test_gurobi_qp():

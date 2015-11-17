@@ -131,6 +131,10 @@ def label_grasps(obj, output_ds, config):
     grasp_metrics = {}
     graspable_rv = rvs.GraspableObjectPoseGaussianRV(obj, config)
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
+
+    pfc_tag = db.generate_metric_tag('pfc', config)
+    efc_tag = db.generate_metric_tag('efc_L1', config)
+
     for i, grasp in enumerate(grasps):
         logging.info('Evaluating quality for grasp %d' %(i))
         grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, config)
@@ -139,12 +143,12 @@ def label_grasps(obj, output_ds, config):
         # probability of force closure
         pfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
                                                          num_samples=config['pfc_num_samples'])
-        grasp_metrics[grasp.grasp_id]['pfc'] = pfc
+        grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
 
         # expected ferrari canny
         eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
                                                      num_samples=config['eq_num_samples'])
-        grasp_metrics[grasp.grasp_id]['efc_L1'] = eq
+        grasp_metrics[grasp.grasp_id][efc_tag] = eq
 
     # store grasp metrics
     output_ds.store_grasp_metrics(obj.key, grasp_metrics)

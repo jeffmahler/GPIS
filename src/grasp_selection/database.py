@@ -48,6 +48,11 @@ MASS_KEY = 'mass'
 CREATION_KEY = 'time_created'
 DATASETS_KEY = 'datasets'
 
+def generate_metric_tag(root, config):
+    tag = '%s_f_%f_tg_%f_rg_%f_to_%f_ro_%f' %(root, config['sigma_mu'], config['sigma_trans_grasp'], config['sigma_rot_grasp'],
+                                              config['sigma_trans_obj'], config['sigma_rot_obj'])
+    return tag
+
 class Database(object):
     """ Abstract class for databases. Main purpose is to wrap individual datasets """
     __metaclass__ = ABCMeta
