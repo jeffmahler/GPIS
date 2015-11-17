@@ -1,6 +1,7 @@
+from tfx import point, pose, rotation
+from numpy import pi
 from DexConstants import DexConstants
 from DexController import DexController
-from tfx import point, pose, rotation
 from ZekeState import ZekeState
 from DexRobotZeke import DexRobotZeke
 
@@ -35,19 +36,33 @@ class DexGripTester:
             self._ctrl.transform(pose_lo)
 
     def _moveArm(self, target_pose, n):
-        print "calling move arm"
+        target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
         state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState())
         state.set_arm_elev(DexConstants.MAX_ELEVATION * 0.5)
         
-        retract_state = state.copy().set_arm_ext(DexConstants.MIN_STATE.arm_ext)
+        retract_state = state.copy().set_arm_ext(DexConstants.MIN_STATE.arm_ext + 0.05)
         extend_state = state.copy().set_arm_ext(DexConstants.MAX_STATE.arm_ext * 0.5)
-        
-        print "retract state is ", retract_state
-        print "extend state is ", extend_state
         
         for _ in range(n):
             self._ctrl.gotoState(retract_state, self._rot_speed, self._tra_speed)
             self._ctrl.gotoState(extend_state, self._rot_speed, self._tra_speed)
+            
+        self._ctrl.gotoState(state)
+            
+    def _rotateArm(self, target_pose, n):
+        rot_angle = pi / 3
+        target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
+        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState())
+        state.set_arm_rot(max(state.arm_rot, rot_angle))
+        
+        ccw_state = state.copy().set_arm_rot(state.arm_rot + rot_angle)
+        cw_state = state.copy().set_arm_rot(state.arm_rot - rot_angle)
+        
+        for _ in range(n):
+            self._ctrl.gotoState(ccw_state, self._rot_speed, self._tra_speed)
+            self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)           
+            self._ctrl.gotoState(cw_state, self._rot_speed, self._tra_speed)            
+            self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)           
                    
     def plot(self):
         self._ctrl.plot()
@@ -58,10 +73,11 @@ class DexGripTester:
         self._ctrl.transform(target_pose)
         self._ctrl.grip()
         
-        #self._moveHeight(target_pose, n)
+        self._moveHeight(target_pose, n)
         self._moveArm(target_pose, n)
+        self._rotateArm(target_pose, n)
         '''
-        self._rotateArm(pose)
+        
         self._rotateWrist(pose)
         '''
         

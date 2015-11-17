@@ -1,16 +1,22 @@
 class ZekeState:
 
+    NUM_STATES = 6
+
     @staticmethod
     def is_rot(i):
         return i in (0, 3, 5)
 
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-    def __init__(self, vals):
+    def __init__(self, vals = [None] * NUM_STATES):
         self.state = vals[::]
 
     def __str__(self):
         return "Rot: {0}, Ele: {1}, Ext: {2}, Wrist: {3}, Grip: {4}, Table: {5}".format(
-            self.state[0], self.state[1], self.state[2], self.state[3], self.state[4], self.state[5])
+            self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip, self.table_rot)
+            
+    def __repr__(self):
+        return "ZekeState([{0}, {1}, {2}, {3}, {4}, {5}])".format(
+            self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip, self.table_rot)
         
     @property
     def arm_rot(self):

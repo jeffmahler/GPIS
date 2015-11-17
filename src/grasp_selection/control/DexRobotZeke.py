@@ -16,19 +16,18 @@ class DexRobotZeke:
     accepted poses, etc. 
     '''
 
-    NUM_STATES = 6
     #For the two offsets below, actual angle = desired angle + OFFSET
-    PHI = 0.35 #zeke arm rotation angle offset to make calculations easier.
-    THETA = 0.57 #zeke wrist rotation 0 degree offset.
+    PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
+    THETA = 3.0967 #zeke wrist rotation 0 degree offset.
     
-    RESET_STATES = [ZekeState([pi + PHI, 0.1, 0.01, THETA, 0, 0]),
-                                ZekeState([pi + PHI, 0.01, 0.01, THETA, 0, 0])]
+    RESET_STATES = [ZekeState([pi + PHI, 0.1, 0.01, THETA, 0.036, 0]),
+                                ZekeState([pi + PHI, 0.01, 0.01, THETA, 0.036, 0])]
     
     ZEKE_LOCAL_T = transform(
-                                            vector(0.22, 0, 0), 
+                                            vector(-0.22, 0, 0), 
                                             rotation.identity(), 
-                                            parent=DexConstants.WORLD_FRAME,
-                                            frame="ZEKE_LOCAL")
+                                            parent=DexConstants.ZEKE_LOCAL_FRAME,
+                                            frame=DexConstants.WORLD_FRAME)
     
     def __init__(self, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         self._zeke= ZekeSerialInterface(comm, baudrate, timeout)      
@@ -116,8 +115,9 @@ class DexRobotZeke:
         
     @staticmethod
     def pose_to_state(target_pose, prev_state):
+        if target_pose.frame is not DexConstants.ZEKE_LOCAL_FRAME:
+            raise Exception("Given target_pose is not in ZEKE LOCAL frame")
         joint_settings = DexRobotZeke._pose_IK(target_pose)
-        print "rot z is ", joint_settings["rot_z"];
         target_state = DexRobotZeke._settings_to_state(joint_settings, prev_state)
         return target_state
         
