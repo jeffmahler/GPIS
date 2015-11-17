@@ -117,6 +117,7 @@ class DexRobotZeke:
     @staticmethod
     def pose_to_state(target_pose, prev_state):
         joint_settings = DexRobotZeke._pose_IK(target_pose)
+        print "rot z is ", joint_settings["rot_z"];
         target_state = DexRobotZeke._settings_to_state(joint_settings, prev_state)
         return target_state
         

@@ -71,10 +71,12 @@ def directControl():
             break 
         elif select:
             zeke.control(controls)
+            t.control([controls[5]])
         else:
             izzy.control(controls)
+            t.control([controls[5]])
         time.sleep(.03)
-kinematicControl()
+directControl()
 
 zeke.stop()
 zeke.ser.close()

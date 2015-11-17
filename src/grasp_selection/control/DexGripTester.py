@@ -35,11 +35,15 @@ class DexGripTester:
             self._ctrl.transform(pose_lo)
 
     def _moveArm(self, target_pose, n):
+        print "calling move arm"
         state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState())
         state.set_arm_elev(DexConstants.MAX_ELEVATION * 0.5)
         
         retract_state = state.copy().set_arm_ext(DexConstants.MIN_STATE.arm_ext)
         extend_state = state.copy().set_arm_ext(DexConstants.MAX_STATE.arm_ext * 0.5)
+        
+        print "retract state is ", retract_state
+        print "extend state is ", extend_state
         
         for _ in range(n):
             self._ctrl.gotoState(retract_state, self._rot_speed, self._tra_speed)
@@ -53,6 +57,7 @@ class DexGripTester:
         self._ctrl.unGrip()
         self._ctrl.transform(target_pose)
         self._ctrl.grip()
+        
         #self._moveHeight(target_pose, n)
         self._moveArm(target_pose, n)
         '''
