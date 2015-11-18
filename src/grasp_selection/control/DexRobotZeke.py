@@ -20,8 +20,8 @@ class DexRobotZeke:
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
     THETA = 3.0967 #zeke wrist rotation 0 degree offset.
     
-    RESET_STATES = [ZekeState([pi + PHI, 0.1, 0.01, THETA, 0.036, 0]),
-                                ZekeState([pi + PHI, 0.01, 0.01, THETA, 0.036, 0])]
+    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.01, THETA, 0.036, 0]),
+                                "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.01, THETA, 0.036, 0])}
     
     ZEKE_LOCAL_T = transform(
                                             vector(-0.22, 0, 0), 
@@ -35,8 +35,8 @@ class DexRobotZeke:
         self._target_state = self.getState()
     
     def reset(self, rot_speed, tra_speed):
-        self.gotoState(DexRobotZeke.RESET_STATES[0], rot_speed, tra_speed)
-        self.gotoState(DexRobotZeke.RESET_STATES[1], rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed)
             
     def stop(self):
         self._zeke.stop()
@@ -161,7 +161,7 @@ class DexRobotZeke:
             y.append(pos[1])
             z.append(pos[2])
         
-        ax.plot(x, y, z, c='r', marker='o')
+        ax.plot(x, y, z, c="g", marker="o")
 
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
