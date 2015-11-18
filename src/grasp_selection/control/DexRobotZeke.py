@@ -20,8 +20,8 @@ class DexRobotZeke:
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
     THETA = 3.0967 #zeke wrist rotation 0 degree offset.
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.01, THETA, 0.036, 0]),
-                                "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.01, THETA, 0.036, 0])}
+    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.001, THETA, 0.036, 0]),
+                                "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.001, THETA, 0.036, 0])}
     
     ZEKE_LOCAL_T = transform(
                                             vector(-0.22, 0, 0), 
@@ -36,7 +36,7 @@ class DexRobotZeke:
     
     def reset(self, rot_speed, tra_speed):
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed)
-        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed)
+        #self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed)
             
     def stop(self):
         self._zeke.stop()
@@ -103,15 +103,15 @@ class DexRobotZeke:
         final target state. Basically forward kinematics
         '''
         # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-        state_vals = [0] * 6
-        state_vals[0] = settings["rot_z"] + DexRobotZeke.PHI
-        state_vals[1] = settings["elevation"]
-        state_vals[2] = settings["extension"]
-        state_vals[3] = settings["rot_y"] + DexRobotZeke.THETA
-        state_vals[4] = prev_state.gripper_grip
-        state_vals[5] = prev_state.table_rot
+        state = ZekeState()
+        state.set_arm_rot(settings["rot_z"] + DexRobotZeke.PHI)
+        state.set_arm_elev(settings["elevation"])
+        state.set_arm_ext(settings["extension"])
+        state.set_gripper_rot(settings["rot_y"] + DexRobotZeke.THETA)
+        state.set_gripper_grip(prev_state.gripper_grip)
+        state.set_table_rot(prev_state.table_rot)
 
-        return ZekeState(state_vals)
+        return state
         
     @staticmethod
     def pose_to_state(target_pose, prev_state):

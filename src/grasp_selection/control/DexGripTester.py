@@ -35,9 +35,8 @@ class DexGripTester:
             self._ctrl.transform(pose_hi)
             self._ctrl.transform(pose_lo)
 
-    def _moveArm(self, world_target_pose, n):
-        target_pose = DexRobotZeke.ZEKE_LOCAL_T * world_target_pose
-        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState())
+    def _moveArm(self, target_pose, n):
+        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState().set_gripper_grip(DexConstants.MIN_STATE.gripper_grip))
         state.set_arm_elev(DexConstants.MAX_ELEVATION * 0.5)
         
         retract_state = state.copy().set_arm_ext(DexConstants.MIN_STATE.arm_ext + 0.05)
@@ -47,10 +46,9 @@ class DexGripTester:
             self._ctrl.gotoState(retract_state, self._rot_speed, self._tra_speed)
             self._ctrl.gotoState(extend_state, self._rot_speed, self._tra_speed)
             
-    def _rotateArm(self, world_target_pose, n):
+    def _rotateArm(self, target_pose, n):
         rot_angle = pi / 6
-        target_pose = DexRobotZeke.ZEKE_LOCAL_T * world_target_pose
-        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState())
+        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState().set_gripper_grip(DexConstants.MIN_STATE.gripper_grip))
         state.set_arm_rot(max(state.arm_rot, rot_angle))
         
         ccw_state = state.copy().set_arm_rot(state.arm_rot + rot_angle)
@@ -62,16 +60,16 @@ class DexGripTester:
             self._ctrl.gotoState(cw_state, self._rot_speed, self._tra_speed)            
             self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)
             
-    def _rotateWrist(self, world_target_pose, n):
+    def _rotateWrist(self, target_pose, n):
         rot_angle = pi / 4
-        target_pose = DexRobotZeke.ZEKE_LOCAL_T * world_target_pose
-        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState())
+        state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState().set_gripper_grip(DexConstants.MIN_STATE.gripper_grip))
         state.set_arm_elev(min(state.arm_elev, DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"].arm_elev))
         state.set_gripper_rot(max(state.gripper_rot, DexConstants.MIN_STATE.gripper_rot + rot_angle))
         
         ccw_state = state.copy().set_gripper_rot(state.arm_rot + rot_angle)
         cw_state = state.copy().set_gripper_rot(state.arm_rot - rot_angle)
         
+        self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)
         for _ in range(n):
             self._ctrl.gotoState(ccw_state, self._rot_speed, self._tra_speed)
             self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)           
@@ -90,13 +88,15 @@ class DexGripTester:
         self._moveHeight(target_pose, n)
         self._ctrl.transform(target_pose)
         
-        self._moveArm(target_pose, n)
+        local_target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
+        
+        self._moveArm(local_target_pose, n)
         self._ctrl.transform(target_pose)
         
-        self._rotateArm(target_pose, n)
+        self._rotateArm(local_target_pose, n)
         self._ctrl.transform(target_pose)
         
-        self._rotateWrist(target_pose, n)
+        self._rotateWrist(local_target_pose, n)
         self._ctrl.transform(target_pose)
         
 raised = pose((0.1, 0, 0.15), rotation.identity(), frame = DexConstants.WORLD_FRAME)

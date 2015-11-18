@@ -186,6 +186,7 @@ class ZekeSerialInterface:
         states_vals = DexInterpolater.interpolate(self._target_state.state, target_state.copy().state, speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
         for state_vals in states_vals:
             state = ZekeState(state_vals)
+            print state
             self._queueState(state)
             self.state_hist.append(state)
             
