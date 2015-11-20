@@ -3,8 +3,8 @@ class DexInterpolater:
     #Helper interpolator class
 
     @staticmethod
-    def interpolate(origin, dest, speeds_ids, speeds, time_delta):
-        n = len(origin)
+    def interpolate(num_states, origin, dest, speeds_ids, speeds, time_delta):
+        n = num_states
         
         abs_deltas = [speeds[speeds_ids[i]] * time_delta for i in range(n)]        
         dirs = [sign(dest[i] - origin[i]) for i in range(n)]

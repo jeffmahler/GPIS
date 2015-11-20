@@ -183,10 +183,12 @@ class ZekeSerialInterface:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
         
-        states_vals = DexInterpolater.interpolate(self._target_state.state, target_state.copy().state, speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
+        #TODO: Fix this magical 5 when zeke no longer expects the 6th serial input for table rotation
+        states_vals = DexInterpolater.interpolate(5, self._target_state.state, target_state.copy().state, speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
         for state_vals in states_vals:
             state = ZekeState(state_vals)
-            print state
+            if DexConstants.PRINT_STATES:
+                print state
             self._queueState(state)
             self.state_hist.append(state)
             

@@ -5,6 +5,7 @@ from ZekeState import ZekeState
 class DexConstants:
 
     DEBUG = False
+    PRINT_STATES = False
 
     COMM = "COM3"
     BAUDRATE = 115200
