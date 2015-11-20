@@ -328,9 +328,6 @@ class GaussianModel(DiscreteModel):
             index: (int) the index of the variable that was evaluated
             value: (float) the value of the variable
         """
-        if not (0 <= value <= 1):
-            raise ValueError('Values must be between 0 and 1')
-
         old_mean = self.means_[index]
         old_var = self.vars_[index]
         noise = self.sigma_ ** 2

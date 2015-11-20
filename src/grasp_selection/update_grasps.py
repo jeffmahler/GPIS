@@ -30,11 +30,11 @@ import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
 def download_experiment_data(experiment_name, config):
-    experiment_data_dir = 'cache'
+    experiment_data_dir = 'gce_cache'
     if not os.path.exists(experiment_data_dir):
         os.mkdir(experiment_data_dir)
 
-    download_data_command = 'gsutil -m cp gs://dex-net-results/%s*.tar.gz %s' %(experiment_name, experiment_data_dir)
+    download_data_command = 'gsutil -m cp gs://%s/%s*.tar.gz %s' %(config['compute']['bucket'], experiment_name, experiment_data_dir)
     os.system(download_data_command)
 
     tar_commands = []
@@ -60,6 +60,7 @@ def download_experiment_data(experiment_name, config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
+    parser.add_argument('output_dest')
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
@@ -68,9 +69,11 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
+    logging.info('Database filename %s' %(database_filename))
 
     # download all experiment data
     result_dirs = download_experiment_data(config['job_root'], config)
+    logging.info('Job root %s' %(config['job_root']))
 
     # for each experiment result, load and write to the database
     for result_dir in result_dirs:
@@ -78,7 +81,7 @@ if __name__ == '__main__':
             for f in files:
                 if f.find(config['results_database_name']) != -1:
                     result_db_filename = os.path.join(root, config['results_database_name'])
-                    print result_db_filename
+                    logging.info('Result database filename %s' %(result_db_filename))
                     result_db = db.Hdf5Database(result_db_filename, config)
 
                     # write to dataset
@@ -88,4 +91,9 @@ if __name__ == '__main__':
                         for obj_key in result_dataset.object_keys:
                             grasps = result_dataset.grasps(obj_key)
                             dataset.store_grasps(obj_key, grasps)
-                        
+
+                            grasp_feature_dict = result_dataset.grasp_features(obj_key, grasps)
+                            dataset.store_grasp_features(obj_key, grasp_feature_dict)
+
+                            grasp_metric_dict = result_dataset.grasp_metrics(obj_key, grasps)
+                            dataset.store_grasp_metrics(obj_key, grasp_metric_dict) 

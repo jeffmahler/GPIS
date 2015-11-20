@@ -113,8 +113,8 @@ class DiscreteAdaptiveSampler(solvers.DiscreteSamplingSolver):
             self.model_.update(next_ind, next_ind_val)
 
             # check termination condiation
-            terminate = termination_condition(k, cur_val = next_ind_val, prev_val = prev_ind_val, model = self.model_)
             k = k + 1
+            terminate = termination_condition(k, cur_val = next_ind_val, prev_val = prev_ind_val, model = self.model_)
 
         # log final values
         checkpt = time.clock()
@@ -253,7 +253,7 @@ class RandomVariable:
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def sample_success(self):
+    def success(self):
         pass
 
     @abstractmethod
@@ -265,7 +265,7 @@ class BernoulliRV(RandomVariable):
     def __init__(self, p):
         self.p_ = p
 
-    def sample_success(self):
+    def success(self):
         return scipy.stats.bernoulli.rvs(self.p_)
 
     def p(self):

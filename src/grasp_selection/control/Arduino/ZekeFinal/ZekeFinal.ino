@@ -2,23 +2,24 @@
 
 boolean pidControl = false;
 
-double Target[6] = {0};
-float targetFilter = .3;
+double Target[6] = {2,2,2,2,2,2};
+float targetFilter[6] = {.3, .3, .3, .3, 0, .3}; // 1 is slow, 0 is no filter
 
-double encState[] = {2, 2, 2};
-double State[6] = {1, 1, 1, 1, 1, 1};
-double potState[6] = {};
-double Output[6] = {};
+double encState[] = {2,2,2};
+double State[6] = {2,2,2,2,2,2};
+double potState[6] = {2,2,2,2,2,2};
+double Output[6] = {2,2,2,2,2,2};
+int potVals[6] = {2,2,2,2,2,2};
+int currents[4] = {2,2,2,2};
 
-float potFilter = .75; // 1 is slow, 0 is no filter
-float compPotFilter = .65;
+float potFilter[6] = {.65, .65, .65, .75, .05, .65}; // 1 is slow, 0 is no filter
 float compFilter = .98; // favors encoder changes
 
-float positionCutoff[6] = {.02, .002, .002};
+float positionCutoff[3] = {.02, .002, .002};
 
 int sampleTime = 20;
 
-float positionState[6] = {};
+float positionState[6] = {2,2,2,2,2,2};
 
 int pidTunings[6][3] =
 
@@ -26,7 +27,7 @@ int pidTunings[6][3] =
   {20000, 20000, 0},
   {8000, 0, 300},
   {500, 0, 40},
-  {2000, 0, 200},
+  {4000, 0, 0},
   {700, 0, 20}
 };
 
@@ -36,13 +37,13 @@ int pidTunings[6][3] =
 // movements, the robot has the resolution of the encoders, and is not fixed to the resolution of the potentiometers
 
 
-int maxBounds[6] = {180, 200, 155, 155, 255, 120};
-int minBounds[6] = {180, 100, 155, 155, 255, 120};
+int maxBounds[6] = {180, 200, 155, 155, 80, 100};
+int minBounds[6] = {180, 100, 155, 155, 80, 100};
 
-double maxStates[6] = {6.58991792126, .3, 0.3, 6.61606370861, 0.0348490572685, 6.83086639225};
-double minStates[6] = {0, .02, .02, 0.183086039735, -.01, 0.197775641646};
+double maxStates[6] = {6.59, .3, 0.3, 6.6160, 0.0348, 6.830};
+double minStates[6] = {0, .02, .02, 0.1830, -.01, 0.1977};
 
-int valueOffsets[6] = {728, 0, 81, 106, 819, 23};
+int valueOffsets[6] = {728, 0, 81, 106, 861, 23};
 
 double pi = 3.14159;
 
@@ -57,9 +58,9 @@ double potCalibrations[6] = {(-2 * pi / (688 - 53)),
                              13.6875 / (347) / 39.3701,
                              ((13.6875 - .75) / (416 - 82)) / 39.3701,
                              (-2 * pi) / (135 - 890),
-                             (7.0 / 8 - 2.25) / (823 - 363) / 39.3701,
+                             -(.056 - .02) / (861 - 366),
                              (-2 * pi) / (77 - 903),
-                            };
+                             };
 
 
 PID rot(&State[0], &Output[0], &Target[0], pidTunings[0][0], pidTunings[0][1], pidTunings[0][2], DIRECT);
@@ -76,8 +77,8 @@ PID controllers[6] = {rot, elv, ext, wrist, grip, turntable};
 
 // Motor pins PWM
 // Rotation Elevation Extension Wrist Grip
-int motorPins[12] = { 7, 6,    13, 12,  4, 5,  9, 8,  11, 10, 44, 46};
-int PWM[12] = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+int motorPins[12] = { 7,6,    13, 12,  4, 5,  9, 8,  11, 10, 44, 46};
+int PWM[12] = {};
 // Motor Enable pins Digital IO
 // Rotation, Elevation, Extension, Wrist, Grip
 int enablePins[6] = {34, 36, 38, 42, 40, 48};
@@ -86,12 +87,11 @@ int enables[6] = {1, 1, 1, 1, 1, 1}; //set all to high
 // Potentiometer pins Analog IN
 // Rotation, Elevation, Extension, Wrist, Grip, Turntable
 int potPins[6] = {A3, A5, A4, A6, A7, A2};
-int pots[6] = {2, 2, 2, 2, 2, 2};
+int pots[6] = {};
 
 // Current Pins Analog IN
 // Rotation, Elevation, Extension, GRIP NOT WRIST
 int currentPins[4] = {A8, A9, A10, A11};
-int currents[4];
 
 //Declare Encoders With Interrupt Pins
 Encoder enc1(18, 20); // Extension
@@ -129,7 +129,7 @@ void setup() {
 
   // Analog In Current Values
   for (int i = 0; i < 4; i++) {
-    pinMode(currentPins[i], OUTPUT);
+    pinMode(currentPins[i], INPUT);
   }
 
   // Make all motors enabled all the time
@@ -146,12 +146,17 @@ void setup() {
     controllers[i].SetSampleTime(sampleTime);
   }
 
+  updateState();
+  for (int i = 0; i < 6; i++) {
+    Target[i] = State[i];
+  }
+
 
 }
 
 
 void loop() {
-  if ((millis() - startTime) > 60) {
+  if ((millis() - startTime) > 300) {
     for (int i = 0; i < 12; i++) {
       PWM[i] = 0;
       pidControl = false;
@@ -230,19 +235,31 @@ void serialEvent() {
           bigNum = (bigNum << 8) | nums[1];
           bigNum = (bigNum << 8) | nums[2];
           bigNum = (bigNum << 8) | nums[3];
-          Target[i] = smooth(bigNum / 10000000.0, targetFilter, Target[i]);
+          Target[i] = smooth(bigNum / 10000000.0, targetFilter[i], Target[i]);
         }
       }
     }
 
     else if (command == 'b') {
       for (int i = 0; i < 6; i++) {
-        Serial.println(State[i], 5);
+        Serial.println(State[i], 4);
       }
-      Serial.flush();
+      //Serial.flush();
     }
     else if (command == 'q') {
-      Serial.println(newEnc[0]);
+      for (int i = 0; i < 6; i++) {
+        Serial.println(analogRead(potPins[i]));
+      }
+    }
+    else if (command == 'p') {
+      for (int i = 0; i < 6; i++) {
+        Serial.println(potVals[i]);
+      }
+    }
+    else if (command == 'c') {
+      for (int i = 0; i < 4; i++) {
+        Serial.println(currents[i]);
+      }
     }
   }
 }
@@ -269,7 +286,8 @@ void updateState() {
 
   // Potentiometer State
   for (int i = 0; i < 6; i++) {
-    potState[i] = potCalibrations[i] * (analogRead(potPins[i]) - valueOffsets[i]);
+    potVals[i] = analogRead(potPins[i]);
+    potState[i] = potCalibrations[i] * (potVals[i] - valueOffsets[i]);
   }
   potState[2] = potState[2] - potState[1]; // coupled motion
 
@@ -278,7 +296,7 @@ void updateState() {
 
   // Complimentary filter for encoders
   for (int i = 0; i < 3; i++) {
-    float smoothedPot = smooth(potState[i], compPotFilter, State[i]);
+    float smoothedPot = smooth(potState[i], potFilter[i], State[i]);
     if (abs(State[i] - smoothedPot) < positionCutoff[i]) {
       State[i] = State[i] + encState[i];
     }
@@ -289,7 +307,7 @@ void updateState() {
 
   // Smoothing filter for single pots
   for (int i = 3; i < 6; i++) {
-    State[i] = smooth(potState[i], potFilter, State[i]);
+    State[i] = smooth(potState[i], potFilter[i], State[i]);
   }
 
   // Target follows State during direct control to avoid a discontinuity when control is switched over

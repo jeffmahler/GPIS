@@ -27,7 +27,54 @@ import models
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
+import random_variables as rvs
+import robust_grasp_quality as rgq
 import termination_conditions as tc
+
+def plot_window_2d(window, num_steps, title='', save=False):
+    """Plot a 2D image of a window."""
+    if num_steps % 2 == 1: # center window at contact
+        indices = np.array(range(-(num_steps // 2), (num_steps // 2) + 1))
+    else: # arbitrarily cut off upper bound to preserve window size
+        indices = np.array(range(-(num_steps // 2), (num_steps // 2)))
+    indices = np.array(range(num_steps)) # for easier debugging
+
+    fig = plt.figure()
+    plt.title(title)
+    imgplot = plt.imshow(window, extent=[indices[0], indices[-1], indices[-1], indices[0]],
+                         interpolation='none', cmap=plt.cm.binary)
+    plt.colorbar()
+    plt.clim(-0.004, 0.004) # fixing color range for visual comparisons
+
+    if save and title:
+        plt.tight_layout()
+        plt.savefig(title.replace(' ', '-'), bbox_inches='tight')
+        plt.close()
+
+def plot_disc(disc):
+    ax = plt.gca(projection = '3d')    
+    num_radial = disc.shape[0]
+    num_angles = disc.shape[1]
+    for i in range(num_angles):
+        for r in range(num_radial):
+            theta = 2.0 * np.pi * float(i) / num_angles
+            x = r * np.cos(theta) 
+            y = r * np.sin(theta) 
+            ax.scatter(x, y, disc[r,i], s=100) 
+
+def plot_window_and_disc(disc, proj_window):
+    num_radial = disc.shape[0]
+    num_angles = disc.shape[1]
+    plt.figure()
+    plt.imshow(proj_window, interpolation='none', cmap=plt.cm.binary)
+    for i in range(num_angles):
+        for r in range(num_radial):
+            theta = 2.0 * np.pi * float(i) / num_angles
+            x = r * np.cos(theta) + 6
+            y = r * np.sin(theta) + 6
+            plt.scatter(x, y, c=u'g') 
+
+    plt.show()
 
 def label_grasps(obj, output_ds, config):
     # sample grasps
@@ -66,7 +113,48 @@ def label_grasps(obj, output_ds, config):
     # store the grasps
     output_ds.store_grasps(obj.key, grasps)
 
+    # re-load to get ids
+    grasps = output_ds.grasps(obj.key)
+
+    # extract features
+    feature_extractor = ff.GraspableFeatureExtractor(obj, config)
+    all_features = feature_extractor.compute_all_features(grasps)
+    raw_feature_dict = {}
+    for g, f in zip(grasps, all_features):
+        raw_feature_dict[g.grasp_id] = f.features()
+
+    # store features
+    output_ds.store_grasp_features(obj.key, raw_feature_dict)
+    f = output_ds.grasp_features(obj.key, grasps)
+
+    # compute quality
+    grasp_metrics = {}
+    graspable_rv = rvs.GraspableObjectPoseGaussianRV(obj, config)
+    f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
+
+    pfc_tag = db.generate_metric_tag('pfc', config)
+    efc_tag = db.generate_metric_tag('efc_L1', config)
+
+    for i, grasp in enumerate(grasps):
+        logging.info('Evaluating quality for grasp %d' %(i))
+        grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, config)
+        grasp_metrics[grasp.grasp_id] = {}
+
+        # probability of force closure
+        pfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
+                                                         num_samples=config['pfc_num_samples'])
+        grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
+
+        # expected ferrari canny
+        eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
+                                                     num_samples=config['eq_num_samples'])
+        grasp_metrics[grasp.grasp_id][efc_tag] = eq
+
+    # store grasp metrics
+    output_ds.store_grasp_metrics(obj.key, grasp_metrics)
+
 if __name__ == '__main__':
+    np.random.seed(100)
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
     parser.add_argument('output_dest')
@@ -99,3 +187,5 @@ if __name__ == '__main__':
             output_ds.create_graspable(obj.key)
             label_grasps(obj, output_ds, config)
 
+    database.close()
+    output_db.close()

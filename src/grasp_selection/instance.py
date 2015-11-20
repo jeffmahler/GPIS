@@ -5,6 +5,7 @@ import IPython
 import itertools as it
 import logging
 import multiprocessing as mp
+import sys
 import time
 
 import httplib2
@@ -153,9 +154,10 @@ class GceInstanceAllocator(VMInstanceAllocator):
         cur_zone = zones[zone_index]
 
         # prompt
-        yesno = raw_input('Create %d instances? [Y/n] ' % len(param_list))
-        if yesno.lower() == 'n':
-            sys.exit(1)
+        if self.config['prompt']:
+            yesno = raw_input('Create %d instances? [Y/n] ' % len(param_list))
+            if yesno.lower() == 'n':
+                sys.exit(1)
 
         # loop through the params
         for instance_num, params in enumerate(param_list):
