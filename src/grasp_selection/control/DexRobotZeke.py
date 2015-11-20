@@ -18,7 +18,7 @@ class DexRobotZeke:
 
     #For the two offsets below, actual angle = desired angle + OFFSET
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
-    THETA = 3.0967 #zeke wrist rotation 0 degree offset.
+    THETA = 3.2 #zeke wrist rotation 0 degree offset.
     
     RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.001, THETA, 0.036, 0]),
                                 "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.001, THETA, 0.036, 0])}
@@ -36,7 +36,7 @@ class DexRobotZeke:
     
     def reset(self, rot_speed, tra_speed):
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed)
-        #self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed)
             
     def stop(self):
         self._zeke.stop()

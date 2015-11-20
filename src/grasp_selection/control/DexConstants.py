@@ -4,7 +4,7 @@ from ZekeState import ZekeState
 
 class DexConstants:
 
-    DEBUG = True
+    DEBUG = False
 
     COMM = "COM3"
     BAUDRATE = 115200
@@ -31,6 +31,7 @@ class DexConstants:
     
     MAX_ELEVATION = 0.3
     
+    # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     MIN_STATE = ZekeState([0 , 0.008, 0.008, 0.1831, 0.001, 0])
     MAX_STATE = ZekeState([2*pi, 0.3, 0.3, 2*pi, 0.036, 2*pi])
     

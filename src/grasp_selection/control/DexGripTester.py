@@ -64,10 +64,11 @@ class DexGripTester:
         rot_angle = pi / 4
         state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState().set_gripper_grip(DexConstants.MIN_STATE.gripper_grip))
         state.set_arm_elev(min(state.arm_elev, DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"].arm_elev))
-        state.set_gripper_rot(max(state.gripper_rot, DexConstants.MIN_STATE.gripper_rot + rot_angle))
+        #state.set_gripper_rot(max(state.gripper_rot, DexConstants.MIN_STATE.gripper_rot + rot_angle))
         
-        ccw_state = state.copy().set_gripper_rot(state.arm_rot + rot_angle)
-        cw_state = state.copy().set_gripper_rot(state.arm_rot - rot_angle)
+        original_angle = state.gripper_rot
+        ccw_state = state.copy().set_gripper_rot(original_angle + rot_angle)
+        cw_state = state.copy().set_gripper_rot(original_angle - rot_angle)
         
         self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)
         for _ in range(n):
