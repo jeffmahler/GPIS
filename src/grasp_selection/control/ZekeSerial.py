@@ -8,7 +8,7 @@ from DexInterpolater import DexInterpolater
 class _ZekeSerial(Process):    
     #Private class that abstracts continuous serial communication with Zeke
 
-    NUM_STATES = 6
+    NUM_STATES = 5
     
     def __init__(self, flags_q, states_q, state_read_q, comm, baudrate, timeout):
         Process.__init__(self)
@@ -88,6 +88,11 @@ class _ZekeSerial(Process):
             self.ser.write(chr((val>>16) & 0xff))
             self.ser.write(chr((val>>8) & 0xff))
             self.ser.write(chr(val & 0xff))
+        val = 0
+        self.ser.write(chr((val>>24) & 0xff))
+        self.ser.write(chr((val>>16) & 0xff))
+        self.ser.write(chr((val>>8) & 0xff))
+        self.ser.write(chr(val & 0xff))
 
     def _sendControls(self, requests):
         self.ser.flushOutput()
@@ -121,7 +126,7 @@ class _ZekeSerial(Process):
         self.ser.flushInput()
         self.ser.write("b")
         sensorVals = []
-        for i in range(0,6):
+        for i in range(6):
             try:
                 sensorVals.append(float(self.ser.readline()))
             except:
@@ -173,7 +178,7 @@ class ZekeSerialInterface:
         self._states_q.put(state.copy())
         
     def gotoState(self, target_state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
-        speeds_ids = (1, 0, 0, 1, 0, 1)
+        speeds_ids = (1, 0, 0, 1, 0)
         speeds = (tra_speed, rot_speed)
         
         if self._target_state is None:
@@ -183,10 +188,14 @@ class ZekeSerialInterface:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
         
-        #TODO: Fix this magical 5 when zeke no longer expects the 6th serial input for table rotation
-        states_vals = DexInterpolater.interpolate(5, self._target_state.state, target_state.copy().state, speeds_ids, speeds, DexConstants.INTERP_TIME_STEP)
-        for state_vals in states_vals:
-            state = ZekeState(state_vals)
+        states_vals = DexInterpolater.interpolate(_ZekeSerial.NUM_STATES, 
+                                                                    self._target_state.state, 
+                                                                    target_state.copy().state, 
+                                                                    speeds_ids, 
+                                                                    speeds, 
+                                                                    DexConstants.INTERP_TIME_STEP)
+        for state_val in states_vals:
+            state = ZekeState(state_val)
             if DexConstants.PRINT_STATES:
                 print state
             self._queueState(state)

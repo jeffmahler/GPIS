@@ -18,7 +18,7 @@ class DexRobotZeke:
 
     #For the two offsets below, actual angle = desired angle + OFFSET
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
-    THETA = 3.1 #zeke wrist rotation 0 degree offset.
+    THETA = 4.5 #zeke wrist rotation 0 degree offset.
     
     RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.001, THETA, 0.036, 0]),
                                 "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.001, THETA, 0.036, 0])}
@@ -102,21 +102,21 @@ class DexRobotZeke:
         Takes in a list of joint settings and concats them into one single 
         final target state. Basically forward kinematics
         '''
-        # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
+        # Rotation, Elevation, Extension, Wrist rotation, Grippers
         state = ZekeState()
         state.set_arm_rot(settings["rot_z"] + DexRobotZeke.PHI)
         state.set_arm_elev(settings["elevation"])
         state.set_arm_ext(settings["extension"])
         state.set_gripper_rot(settings["rot_y"] + DexRobotZeke.THETA)
         state.set_gripper_grip(prev_state.gripper_grip)
-        state.set_table_rot(prev_state.table_rot)
-
+        
         return state
         
     @staticmethod
     def pose_to_state(target_pose, prev_state):
         if target_pose.frame is not DexConstants.ZEKE_LOCAL_FRAME:
             raise Exception("Given target_pose is not in ZEKE LOCAL frame")
+            
         joint_settings = DexRobotZeke._pose_IK(target_pose)
         target_state = DexRobotZeke._settings_to_state(joint_settings, prev_state)
         return target_state
@@ -136,7 +136,6 @@ class DexRobotZeke:
         self.gotoState(target_state, rot_speed, tra_speed)
         
     def _state_FK(self, state):
-        # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
         arm_angle = state.arm_rot - DexRobotZeke.PHI
         z = state.arm_elev
         r = state.arm_ext

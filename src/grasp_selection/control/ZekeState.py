@@ -1,22 +1,22 @@
 class ZekeState:
 
-    NUM_STATES = 6
+    NUM_STATES = 5
 
     @staticmethod
     def is_rot(i):
-        return i in (0, 3, 5)
+        return i in (0, 3)
 
-    # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
+    # Rotation, Elevation, Extension, Wrist rotation, Grippers
     def __init__(self, vals = [None] * NUM_STATES):
         self.state = vals[::]
 
     def __str__(self):
-        return "Rot: {0}, Ele: {1}, Ext: {2}, Wrist: {3}, Grip: {4}, Table: {5}".format(
-            self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip, self.table_rot)
+        return "Rot: {0}, Ele: {1}, Ext: {2}, Wrist: {3}, Grip: {4}".format(
+            self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip)
             
     def __repr__(self):
-        return "ZekeState([{0}, {1}, {2}, {3}, {4}, {5}])".format(
-            self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip, self.table_rot)
+        return "ZekeState([{0}, {1}, {2}, {3}, {4}])".format(
+            self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip)
         
     @property
     def arm_rot(self):
@@ -56,14 +56,6 @@ class ZekeState:
         
     def set_gripper_grip(self, val):
         self.state[4] = val
-        return self
-        
-    @property
-    def table_rot(self):
-        return self.state[5]
-        
-    def set_table_rot(self, val):
-        self.state[5] = val
         return self
         
     def copy(self):
