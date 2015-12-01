@@ -275,7 +275,7 @@ class Hdf5ObjectFactory(object):
             if grasp_key in data.keys():
                 # parse all feature extractor objects
                 for feature in feature_list:
-                    if feature.name not in data[grasp_key].keys():
+                    if feature.name not in data[grasp_key][GRASP_FEATURES_KEY].keys():
                         data[grasp_key][GRASP_FEATURES_KEY].create_group(feature.name)
                         data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_TYPE_KEY, feature.typename)
                         data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_VECTOR_KEY, feature.descriptor) # save the feature vector, class should know how to back out the relevant variables
