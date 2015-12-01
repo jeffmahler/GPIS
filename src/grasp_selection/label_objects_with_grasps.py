@@ -124,8 +124,7 @@ def label_grasps(obj, output_ds, config):
         raw_feature_dict[g.grasp_id] = f.features()
 
     # store features
-    output_ds.store_grasp_features(obj.key, raw_feature_dict)
-    f = output_ds.grasp_features(obj.key, grasps)
+    output_ds.store_grasp_features(obj.key, raw_feature_dict, force_overwrite=True)
 
     # compute quality
     grasp_metrics = {}
@@ -144,14 +143,14 @@ def label_grasps(obj, output_ds, config):
         pfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
                                                          num_samples=config['pfc_num_samples'])
         grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
-
+        
         # expected ferrari canny
         eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
                                                      num_samples=config['eq_num_samples'])
         grasp_metrics[grasp.grasp_id][efc_tag] = eq
 
     # store grasp metrics
-    output_ds.store_grasp_metrics(obj.key, grasp_metrics)
+    output_ds.store_grasp_metrics(obj.key, grasp_metrics, force_overwrite=True)
 
 if __name__ == '__main__':
     np.random.seed(100)

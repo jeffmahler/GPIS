@@ -277,11 +277,14 @@ class Hdf5ObjectFactory(object):
                 for feature in feature_list:
                     if feature.name not in data[grasp_key].keys():
                         data[grasp_key][GRASP_FEATURES_KEY].create_group(feature.name)
-                    elif not force_overwrite:
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_TYPE_KEY, feature.typename)
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_VECTOR_KEY, feature.descriptor) # save the feature vector, class should know how to back out the relevant variables
+                    elif force_overwrite:
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs[GRASP_FEATURE_TYPE_KEY] = feature.typename
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs[GRASP_FEATURE_VECTOR_KEY] = feature.descriptor # save the feature vector, class should know how to back out the relevant variables
+                    else:
                         logging.warning('Feature %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(feature_tag, grasp_id))
                         return False
 
-                    data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_TYPE_KEY, feature.typename)
-                    data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_VECTOR_KEY, feature.descriptor) # save the feature vector, class should know how to back out the relevant variables
         return True
 
