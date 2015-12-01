@@ -103,7 +103,7 @@ class PointGraspMetrics3D:
     @staticmethod
     def force_closure(forces, torques, normals, soft_fingers=False, params=None):
         """ Force closure """
-        eps = 1e-2
+        eps = np.sqrt(1e-2)
         if params is not None:
             eps = params['eps']
 
@@ -158,7 +158,7 @@ class PointGraspMetrics3D:
     @staticmethod
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
         """ The Ferrari-Canny L-1 metric """
-        eps = 1e-2
+        eps = np.sqrt(1e-2)
         if params is not None:
             eps = params['eps']
 
@@ -178,7 +178,7 @@ class PointGraspMetrics3D:
 
         # if norm is greater than 0 then forces are outside of hull
         if min_norm_in_hull > eps:
-            return -min_norm_in_hull
+            return 0.0
 
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
