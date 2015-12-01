@@ -93,7 +93,7 @@ if __name__ == '__main__':
                             dataset.store_grasps(obj_key, grasps)
 
                             grasp_feature_dict = result_dataset.grasp_features(obj_key, grasps)
-                            dataset.store_grasp_features(obj_key, grasp_feature_dict)
+                            dataset.store_grasp_features(obj_key, grasp_feature_dict, force_overwrite=True)
 
                             grasp_metric_dict = result_dataset.grasp_metrics(obj_key, grasps)
-                            dataset.store_grasp_metrics(obj_key, grasp_metric_dict) 
+                            dataset.store_grasp_metrics(obj_key, grasp_metric_dict, force_overwrite=True) 

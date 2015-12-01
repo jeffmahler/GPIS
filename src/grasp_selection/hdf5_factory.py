@@ -14,6 +14,7 @@ import stable_pose_class as stpc
 import datetime as dt
 import h5py
 import IPython
+import logging
 import numpy as np
 import tfx
 
