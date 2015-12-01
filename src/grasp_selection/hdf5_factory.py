@@ -154,9 +154,9 @@ class Hdf5ObjectFactory(object):
         num_stable_poses = data.attrs[NUM_STP_KEY]
         stable_poses = []
         for i in range(num_stable_poses):
-            stp_key = POSE_KEY + '_' + str(i)            
-            p = data[stp_key][STABLE_POSE_PROB_KEY]
-            r = data[stp_key][STABLE_POSE_ROT_KEY]
+            stp_key = POSE_KEY + '_' + str(i) 
+            p = data[stp_key].attrs[STABLE_POSE_PROB_KEY]
+            r = data[stp_key].attrs[STABLE_POSE_ROT_KEY]
             stable_poses.append(stpc.StablePose(p, r))
         return stable_poses
 

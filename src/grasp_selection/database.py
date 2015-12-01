@@ -312,8 +312,8 @@ class Hdf5Dataset(Dataset):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
         obj_filename = os.path.join(self.cache_dir_, key + OBJ_EXT)
-        obj_file = obj_file.ObjFile(obj_filename)
-        obj_file.write(mesh)
+        of = obj_file.ObjFile(obj_filename)
+        of.write(mesh)
         return obj_filename
 
     # grasp data
