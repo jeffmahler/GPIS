@@ -20,23 +20,25 @@ class DexRobotZeke:
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
     THETA = 4.5 #zeke wrist rotation 0 degree offset.
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.001, THETA, 0.036, 0]),
-                                "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.001, THETA, 0.036, 0])}
+    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.02, THETA, 0.036, 0]),
+                                 "ZEKE_RESET_SHUTTER_FREE": ZekeState([pi + PHI, 0.01, 0.02, THETA, 0.036, 0]), 
+                                "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.01, THETA, 0.036, 0])}
     
     ZEKE_LOCAL_T = transform(
                                             vector(-0.22, 0, 0), 
                                             rotation.identity(), 
                                             parent=DexConstants.ZEKE_LOCAL_FRAME,
                                             frame=DexConstants.WORLD_FRAME)
-    
+
     def __init__(self, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         self._zeke= ZekeSerialInterface(comm, baudrate, timeout)      
         self._zeke.start()
         self._target_state = self.getState()
     
     def reset(self, rot_speed, tra_speed):
-        self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed)
-        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
+        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_SHUTTER_FREE"], rot_speed, tra_speed, "Reset Shutter Free")
+        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed, "Reset Complete")
             
     def stop(self):
         self._zeke.stop()
@@ -47,12 +49,12 @@ class DexRobotZeke:
     def grip(self, tra_speed):
         state = self._target_state.copy()
         state.set_gripper_grip(DexConstants.MIN_STATE.gripper_grip)
-        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
+        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
         
     def unGrip(self, tra_speed):
         state = self._target_state.copy()
         state.set_gripper_grip(DexConstants.MAX_STATE.gripper_grip)
-        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed)
+        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
     
     @staticmethod
     def _pose_IK(pose):
@@ -121,11 +123,11 @@ class DexRobotZeke:
         target_state = DexRobotZeke._settings_to_state(joint_settings, prev_state)
         return target_state
         
-    def gotoState(self, target_state, rot_speed, tra_speed):
-        self._zeke.gotoState(target_state, rot_speed, tra_speed)
+    def gotoState(self, target_state, rot_speed, tra_speed, name = None):
+        self._zeke.gotoState(target_state, rot_speed, tra_speed, name)
         self._target_state = target_state.copy()
 
-    def transform(self, target_pose, rot_speed, tra_speed):
+    def transform(self, target_pose, rot_speed, tra_speed, name = None):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
 
         if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
@@ -133,7 +135,7 @@ class DexRobotZeke:
             
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
         
-        self.gotoState(target_state, rot_speed, tra_speed)
+        self.gotoState(target_state, rot_speed, tra_speed, name)
         
     def _state_FK(self, state):
         arm_angle = state.arm_rot - DexRobotZeke.PHI

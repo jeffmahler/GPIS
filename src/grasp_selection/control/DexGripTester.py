@@ -4,13 +4,14 @@ from DexConstants import DexConstants
 from DexController import DexController
 from ZekeState import ZekeState
 from DexRobotZeke import DexRobotZeke
+from Logger import Logger
 
 class DexGripTester:
 
-    def __init__(self, tra_speed = 0.7, rot_speed = 0.7, robot = None, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
+    def __init__(self, tra_mult = 0.7, rot_mult = 0.7, robot = None, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         self._ctrl = DexController(robot, comm, baudrate, timeout)
-        self.set_tra_speed(tra_speed)
-        self.set_rot_speed(rot_speed)
+        self.set_tra_speed(tra_mult)
+        self.set_rot_speed(rot_mult)
         
     def set_tra_speed(self, val):
         val = min(abs(val), 1)
@@ -32,15 +33,15 @@ class DexGripTester:
         pose_lo = pose(lo, rotation.identity(), frame=DexConstants.WORLD_FRAME)
         
         for _ in range(n):
-            self._ctrl.transform(pose_hi)
-            self._ctrl.transform(pose_lo)
+            self._ctrl.transform(pose_hi, self._rot_speed, self._tra_speed)
+            self._ctrl.transform(pose_lo, self._rot_speed, self._tra_speed)
 
     def _moveArm(self, target_pose, n):
         state = DexRobotZeke.pose_to_state(target_pose, self._ctrl.getState().set_gripper_grip(DexConstants.MIN_STATE.gripper_grip))
         state.set_arm_elev(DexConstants.MAX_ELEVATION * 0.5)
         
         retract_state = state.copy().set_arm_ext(DexConstants.MIN_STATE.arm_ext + 0.05)
-        extend_state = state.copy().set_arm_ext(DexConstants.MAX_STATE.arm_ext * 0.5)
+        extend_state = state.copy().set_arm_ext(DexConstants.MAX_STATE.arm_ext * 0.8)
 
         self._ctrl.gotoState(state, self._rot_speed, self._tra_speed)
         for _ in range(n):
@@ -84,21 +85,31 @@ class DexGripTester:
             
     def testGrip(self, target_pose, n):
         self._ctrl.reset()
-        self._ctrl.unGrip()
-        self._ctrl.transform(target_pose)
-        self._ctrl.grip()
+        #self._ctrl.unGrip()
+        self._ctrl.transform(target_pose, self._rot_speed, self._tra_speed, "Target State")
+        #self._ctrl.grip()
         local_target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
-        
+        '''
         self._moveHeight(target_pose, n)
-        self._ctrl.transform(target_pose)
+        self._ctrl.transform(target_pose, self._rot_speed, self._tra_speed)
+        '''
         
-        self._moveArm(local_target_pose, n)
-        self._ctrl.transform(target_pose)
-        
+        #self._moveArm(local_target_pose, n)
+        #self._ctrl.transform(target_pose, self._rot_speed, self._tra_speed)
+        '''
         self._rotateArm(local_target_pose, n)
-        self._ctrl.transform(target_pose)
+        self._ctrl.transform(target_pose, self._rot_speed, self._tra_speed)
 
         self._rotateWrist(local_target_pose, n)
-        self._ctrl.transform(target_pose)        
+        self._ctrl.transform(target_pose, self._rot_speed, self._tra_speed)    
+        '''        
         
 raised = pose((0.1, 0, 0.04), rotation.identity(), frame = DexConstants.WORLD_FRAME)
+local_raised = DexRobotZeke.ZEKE_LOCAL_T * raised
+
+def test(s, n):
+    Logger.start()
+    t = DexGripTester(s, s)
+    t.testGrip(raised, n)
+    t.plot()
+    t._ctrl.stop()
