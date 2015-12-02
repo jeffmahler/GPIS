@@ -325,7 +325,7 @@ class Hdf5Dataset(Dataset):
             return []
         return hfact.Hdf5ObjectFactory.grasps(self.grasp_data(key, gripper))
 
-    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None):
+    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
         # create group for gripper if necessary
         if gripper not in self.grasp_data(key).keys():
@@ -333,7 +333,7 @@ class Hdf5Dataset(Dataset):
             self.grasp_data(key, gripper).attrs.create(NUM_GRASPS_KEY, 0)
 
         # store each grasp in the database
-        return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper))
+        return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper), force_overwrite)
 
     def grasp_metrics(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None):
         """ Returns a list of grasp metric dictionaries fot the list grasps provided to the database """
