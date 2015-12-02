@@ -207,7 +207,9 @@ class Hdf5ObjectFactory(object):
 
         # add each grasp
         for i, grasp in enumerate(grasps):
-            grasp_id = i+num_grasps
+            grasp_id = grasp.grasp_id
+            if grasp_id is None:
+                grasp_id = i+num_grasps
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
             data.create_group(grasp_key)
             data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)

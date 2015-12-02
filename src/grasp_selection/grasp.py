@@ -63,7 +63,7 @@ class PointGrasp(Grasp):
     #NOTE: implementation of close_fingers must return success, array of contacts (one per column)
 
 class ParallelJawPtGrasp3D(PointGrasp):
-    def __init__(self, configuration, frame='object', timestamp='', grasp_id=''):
+    def __init__(self, configuration, frame='object', timestamp=None, grasp_id=None):
         """
         Create a point grasp for parallel jaws with given center and width (relative to object)
         Params: (Note: all in meters!)
