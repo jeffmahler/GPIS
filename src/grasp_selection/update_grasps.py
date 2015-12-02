@@ -90,7 +90,7 @@ if __name__ == '__main__':
                         dataset = database.dataset(result_dataset.name)
                         for obj_key in result_dataset.object_keys:
                             grasps = result_dataset.grasps(obj_key)
-                            dataset.store_grasps(obj_key, grasps)
+                            dataset.store_grasps(obj_key, grasps, force_overwrite=True)
 
                             grasp_feature_dict = result_dataset.grasp_features(obj_key, grasps)
                             dataset.store_grasp_features(obj_key, grasp_feature_dict, force_overwrite=True)

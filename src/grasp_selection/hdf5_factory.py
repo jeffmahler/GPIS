@@ -196,7 +196,7 @@ class Hdf5ObjectFactory(object):
         return grasps
 
     @staticmethod
-    def write_grasps(grasps, data):
+    def write_grasps(grasps, data, force_overwrite=False):
         """ Writes shot features to HDF5 data provided in |data| """
         num_grasps = data.attrs[NUM_GRASPS_KEY]
         num_new_grasps = len(grasps)
@@ -211,14 +211,23 @@ class Hdf5ObjectFactory(object):
             if grasp_id is None:
                 grasp_id = i+num_grasps
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
-            data.create_group(grasp_key)
-            data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
-            data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
-            data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
-            data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
-            data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
-            data[grasp_key].create_group(GRASP_METRICS_KEY) 
-            data[grasp_key].create_group(GRASP_FEATURES_KEY) 
+
+            if grasp_key not in data.keys():
+                data.create_group(grasp_key)
+                data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
+                data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
+                data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
+                data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
+                data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
+                data[grasp_key].create_group(GRASP_METRICS_KEY) 
+                data[grasp_key].create_group(GRASP_FEATURES_KEY)
+            elif force_overwrite:
+                data[grasp_key].attrs[GRASP_ID_KEY] = grasp_id
+                data[grasp_key].attrs[GRASP_TYPE_KEY] = type(grasp).__name__
+                data[grasp_key].attrs[GRASP_CONFIGURATION_KEY] = grasp.configuration
+                data[grasp_key].attrs[GRASP_RF_KEY] = grasp.frame
+                data[grasp_key].attrs[GRASP_TIMESTAMP_KEY] = creation_stamp
+                
 
         data.attrs[NUM_GRASPS_KEY] = num_grasps + num_new_grasps
         return creation_stamp
