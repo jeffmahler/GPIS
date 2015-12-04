@@ -121,7 +121,8 @@ def label_grasps(obj, output_ds, config):
     all_features = feature_extractor.compute_all_features(grasps)
     raw_feature_dict = {}
     for g, f in zip(grasps, all_features):
-        raw_feature_dict[g.grasp_id] = f.features()
+        if f is not None:
+            raw_feature_dict[g.grasp_id] = f.features()
 
     # store features
     output_ds.store_grasp_features(obj.key, raw_feature_dict, force_overwrite=True)
@@ -184,7 +185,11 @@ if __name__ == '__main__':
         for obj in dataset:
             logging.info('Labelling object {} with grasps'.format(obj.key))
             output_ds.create_graspable(obj.key)
-            label_grasps(obj, output_ds, config)
+            try:
+                label_grasps(obj, output_ds, config)
+            except Exception as e:
+                logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                logging.warning(str(e))
 
     database.close()
     output_db.close()
