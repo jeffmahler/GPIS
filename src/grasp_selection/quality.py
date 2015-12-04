@@ -26,7 +26,7 @@ class PointGraspMetrics3D:
             raise ValueError('Illegal point grasp metric specified')
 
         # get point grasp contacts
-        contacts_found, contacts = grasp.close_fingers(obj, vis=False)
+        contacts_found, contacts = grasp.close_fingers(obj, vis=vis)
         if not contacts_found:
             logging.debug('Contacts not found')
             return 0#-np.inf
@@ -103,7 +103,7 @@ class PointGraspMetrics3D:
     @staticmethod
     def force_closure(forces, torques, normals, soft_fingers=False, params=None):
         """ Force closure """
-        eps = 1e-2
+        eps = np.sqrt(1e-2)
         if params is not None:
             eps = params['eps']
 
@@ -157,17 +157,17 @@ class PointGraspMetrics3D:
 
     @staticmethod
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
-        """ The Ferrari-Canny L-infinity metric """
-        eps = 1e-2
+        """ The Ferrari-Canny L-1 metric """
+        eps = np.sqrt(1e-2)
         if params is not None:
             eps = params['eps']
 
         # create grasp matrix
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         s = time.clock()
-        hull = cvh.ConvexHull(G.T, joggle=not soft_fingers)
+        hull = cvh.ConvexHull(G.T, joggle=True)
         e = time.clock()
-        logging.info('Convex hull took %f sec' %(e-s))
+        logging.debug('Convex hull took %f sec' %(e-s))
 
         if len(hull.vertices) == 0:
             logging.warning('Convex hull could not be computed')
@@ -178,16 +178,16 @@ class PointGraspMetrics3D:
 
         # if norm is greater than 0 then forces are outside of hull
         if min_norm_in_hull > eps:
-            return -min_norm_in_hull
+            return 0.0
 
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
         for v in hull.vertices:
-            facet = G[:, v]
-            dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
-            if dist < min_dist:
-                min_dist = dist
-
+            if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
+                facet = G[:, v]
+                dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
+                if dist < min_dist:
+                    min_dist = dist
         return min_dist
 
     @staticmethod
@@ -230,7 +230,7 @@ class PointGraspMetrics3D:
 
         sol = cvx.solvers.qp(P, q, G, h, A, b)
 
-        min_norm = sol['primal objective']
+        min_norm = np.sqrt(sol['primal objective'])
         return abs(min_norm)
 
 def test_gurobi_qp():

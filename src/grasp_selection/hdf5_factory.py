@@ -4,6 +4,7 @@ Author: Jeff Mahler
 """
 import database as db
 import features as f
+import feature_functions as ff
 import grasp
 import mesh
 import sdf
@@ -13,6 +14,7 @@ import stable_pose_class as stpc
 import datetime as dt
 import h5py
 import IPython
+import logging
 import numpy as np
 import tfx
 
@@ -53,6 +55,10 @@ GRASP_RF_KEY = 'frame'
 GRASP_TIMESTAMP_KEY = 'timestamp'
 GRASP_METRICS_KEY = 'metrics'
 GRASP_FEATURES_KEY = 'features'
+
+GRASP_FEATURE_NAME_KEY = 'name'
+GRASP_FEATURE_TYPE_KEY = 'type'
+GRASP_FEATURE_VECTOR_KEY = 'vector'
 
 class Hdf5ObjectFactory(object):
     """ Factory for spawning off new objects from HDF5 fields """
@@ -149,9 +155,9 @@ class Hdf5ObjectFactory(object):
         num_stable_poses = data.attrs[NUM_STP_KEY]
         stable_poses = []
         for i in range(num_stable_poses):
-            stp_key = POSE_KEY + '_' + str(i)            
-            p = data[stp_key][STABLE_POSE_PROB_KEY]
-            r = data[stp_key][STABLE_POSE_ROT_KEY]
+            stp_key = POSE_KEY + '_' + str(i) 
+            p = data[stp_key].attrs[STABLE_POSE_PROB_KEY]
+            r = data[stp_key].attrs[STABLE_POSE_ROT_KEY]
             stable_poses.append(stpc.StablePose(p, r))
         return stable_poses
 
@@ -190,7 +196,7 @@ class Hdf5ObjectFactory(object):
         return grasps
 
     @staticmethod
-    def write_grasps(grasps, data):
+    def write_grasps(grasps, data, force_overwrite=False):
         """ Writes shot features to HDF5 data provided in |data| """
         num_grasps = data.attrs[NUM_GRASPS_KEY]
         num_new_grasps = len(grasps)
@@ -201,33 +207,96 @@ class Hdf5ObjectFactory(object):
 
         # add each grasp
         for i, grasp in enumerate(grasps):
-            grasp_id = i+num_grasps
+            grasp_id = grasp.grasp_id
+            if grasp_id is None:
+                grasp_id = i+num_grasps
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
-            data.create_group(grasp_key)
-            data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
-            data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
-            data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
-            data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
-            data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
-            data[grasp_key].create_group(GRASP_METRICS_KEY) 
-            data[grasp_key].create_group(GRASP_FEATURES_KEY) 
+
+            if grasp_key not in data.keys():
+                data.create_group(grasp_key)
+                data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
+                data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
+                data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
+                data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
+                data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
+                data[grasp_key].create_group(GRASP_METRICS_KEY) 
+                data[grasp_key].create_group(GRASP_FEATURES_KEY)
+            elif force_overwrite:
+                data[grasp_key].attrs[GRASP_ID_KEY] = grasp_id
+                data[grasp_key].attrs[GRASP_TYPE_KEY] = type(grasp).__name__
+                data[grasp_key].attrs[GRASP_CONFIGURATION_KEY] = grasp.configuration
+                data[grasp_key].attrs[GRASP_RF_KEY] = grasp.frame
+                data[grasp_key].attrs[GRASP_TIMESTAMP_KEY] = creation_stamp
+                
 
         data.attrs[NUM_GRASPS_KEY] = num_grasps + num_new_grasps
         return creation_stamp
 
     @staticmethod
-    def write_grasp_metrics(grasps, metrics, metric_tag, data, force_overwrite=False):
-        for grasp, metric in zip(grasps, metrics):
+    def grasp_metrics(grasps, data):
+        """ Returns a dictionary of the metrics for the given grasps """
+        grasp_metrics = {}
+        for grasp in grasps:
             grasp_id = grasp.grasp_id
-            if grasp_id in data.keys():
-                if metric_tag not in data[grasp_id].attrs.keys():
-                    data[grasp_id].attrs.create(metric_tag, metric)
-                elif force_overwrite:
-                    data[grasp_id].attrs[metric_tag] = metric
-                else:
-                    logging.warning('Metric %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(metric_tag, grasp_id))
-                    return False
+            grasp_key = GRASP_KEY + '_' + str(grasp_id)
+            grasp_metrics[grasp_id] = {}
+            if grasp_key in data.keys():
+                grasp_metric_data = data[grasp_key][GRASP_METRICS_KEY]                
+                for metric_name in grasp_metric_data.attrs.keys():
+                    grasp_metrics[grasp_id][metric_name] = grasp_metric_data.attrs[metric_name]
+        return grasp_metrics
+
+    @staticmethod
+    def write_grasp_metrics(grasp_metric_dict, data, force_overwrite=False):
+        """ Write grasp metrics to database """
+        for grasp_id, metric_dict in grasp_metric_dict.iteritems():
+            grasp_key = GRASP_KEY + '_' + str(grasp_id)
+            if grasp_key in data.keys():
+                grasp_metric_data = data[grasp_key][GRASP_METRICS_KEY]
+
+                for metric_tag, metric in metric_dict.iteritems():
+                    if metric_tag not in grasp_metric_data.attrs.keys():
+                        grasp_metric_data.attrs.create(metric_tag, metric)
+                    elif force_overwrite:
+                        grasp_metric_data.attrs[metric_tag] = metric
+                    else:
+                        logging.warning('Metric %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(metric_tag, grasp_id))
+                        return False
         return True
-                    
-                    
-                
+
+    @staticmethod
+    def grasp_features(grasps, data):
+        """ Read grasp features from database into a dictionary """
+        features = {}
+        for grasp in grasps:
+            grasp_id = grasp.grasp_id
+            grasp_key = GRASP_KEY + '_' + str(grasp_id)
+            features[grasp_id] = []
+            if grasp_key in data.keys():
+                grasp_feature_data = data[grasp_key][GRASP_FEATURES_KEY] 
+                for feature_name in grasp_feature_data.keys():
+                    features[grasp_id].append(ff.GraspFeature(feature_name, grasp_feature_data[feature_name].attrs[GRASP_FEATURE_TYPE_KEY],
+                                                              grasp_feature_data[feature_name].attrs[GRASP_FEATURE_VECTOR_KEY]))
+        return features
+
+    @staticmethod
+    def write_grasp_features(grasp_feature_dict, data, force_overwrite=False):
+        """ Write grasp metrics to database """
+        for grasp_id, feature_list in grasp_feature_dict.iteritems():
+            grasp_key = GRASP_KEY + '_' + str(grasp_id)
+            if grasp_key in data.keys():
+                # parse all feature extractor objects
+                for feature in feature_list:
+                    if feature.name not in data[grasp_key][GRASP_FEATURES_KEY].keys():
+                        data[grasp_key][GRASP_FEATURES_KEY].create_group(feature.name)
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_TYPE_KEY, feature.typename)
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_VECTOR_KEY, feature.descriptor) # save the feature vector, class should know how to back out the relevant variables
+                    elif force_overwrite:
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs[GRASP_FEATURE_TYPE_KEY] = feature.typename
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs[GRASP_FEATURE_VECTOR_KEY] = feature.descriptor # save the feature vector, class should know how to back out the relevant variables
+                    else:
+                        logging.warning('Feature %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(feature_tag, grasp_id))
+                        return False
+
+        return True
+

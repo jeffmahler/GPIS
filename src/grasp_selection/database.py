@@ -48,6 +48,11 @@ MASS_KEY = 'mass'
 CREATION_KEY = 'time_created'
 DATASETS_KEY = 'datasets'
 
+def generate_metric_tag(root, config):
+    tag = '%s_f_%f_tg_%f_rg_%f_to_%f_ro_%f' %(root, config['sigma_mu'], config['sigma_trans_grasp'], config['sigma_rot_grasp'],
+                                              config['sigma_trans_obj'], config['sigma_rot_obj'])
+    return tag
+
 class Database(object):
     """ Abstract class for databases. Main purpose is to wrap individual datasets """
     __metaclass__ = ABCMeta
@@ -88,7 +93,9 @@ class Hdf5Database(Database):
     def _parse_config(self, config):
         """ Parse the configuation file """
         self.database_cache_dir_ = config['database_cache_dir']
-        self.dataset_names_ = config['datasets'].keys()
+        self.dataset_names_ = []
+        if config[DATASETS_KEY]:
+            self.dataset_names_ = config[DATASETS_KEY].keys()
 
     def _create_new_db(self):
         """ Creates a new database """
@@ -133,6 +140,10 @@ class Hdf5Database(Database):
         for dataset in self.datasets_:
             if dataset.name == dataset_name:
                 return dataset
+
+    def close(self):
+        """ Close the HDF5 file """
+        self.data_.close()
 
     def __getitem__(self, dataset_name):
         """ Dataset name indexing """
@@ -301,8 +312,8 @@ class Hdf5Dataset(Dataset):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
         obj_filename = os.path.join(self.cache_dir_, key + OBJ_EXT)
-        obj_file = obj_file.ObjFile(obj_filename)
-        obj_file.write(mesh)
+        of = obj_file.ObjFile(obj_filename)
+        of.write(mesh)
         return obj_filename
 
     # grasp data
@@ -314,7 +325,7 @@ class Hdf5Dataset(Dataset):
             return []
         return hfact.Hdf5ObjectFactory.grasps(self.grasp_data(key, gripper))
 
-    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None):
+    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
         # create group for gripper if necessary
         if gripper not in self.grasp_data(key).keys():
@@ -322,23 +333,29 @@ class Hdf5Dataset(Dataset):
             self.grasp_data(key, gripper).attrs.create(NUM_GRASPS_KEY, 0)
 
         # store each grasp in the database
-        return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper))
+        return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper), force_overwrite)
 
-    def store_grasp_metrics(self, key, grasps, metrics, metric_tag, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
+    def grasp_metrics(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None):
+        """ Returns a list of grasp metric dictionaries fot the list grasps provided to the database """
+        if gripper not in self.grasp_data(key).keys():
+            logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
+            return []
+        return hfact.Hdf5ObjectFactory.grasp_metrics(grasps, self.grasp_data(key, gripper))
+
+    def store_grasp_metrics(self, key, grasp_metric_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
-        if len(grasps) != len(metrics):
-            logging.error('Grasp and metric lists must be the same length. Aborting store request')
-            return False
+        return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasp_metric_dict, self.grasp_data(key, gripper), force_overwrite)
 
-        return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasps, metrics, metric_tag, self.grasp_data(key, gripper), force_overwrite)
+    def grasp_features(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None):
+        """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
+        if gripper not in self.grasp_data(key).keys():
+            logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
+            return []
+        return hfact.Hdf5ObjectFactory.grasp_features(grasps, self.grasp_data(key, gripper))        
 
-    def store_grasp_features(self, key, grasps, features, feature_tag, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
+    def store_grasp_features(self, key, grasp_feature_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
-        if len(grasps) != len(features):
-            logging.error('Grasp and metric lists must be the same length. Aborting store request')
-            return False
-
-        return hfact.Hdf5ObjectFactory.write_grasp_features(grasps, features, feature_tag, self.grasp_data(key, gripper), force_overwrite)
+        return hfact.Hdf5ObjectFactory.write_grasp_features(grasp_feature_dict, self.grasp_data(key, gripper), force_overwrite)
 
     # stable pose data
     def stable_poses(self, key):
