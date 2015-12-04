@@ -13,7 +13,7 @@ class DexController:
             robot = DexRobotZeke(comm, baudrate, timeout)
         self._robot = robot
 
-    def transform(self, target_pose, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED, name = None):
+    def transform(self, target_pose, name = None, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         #target_pose is a tfx.pose object
         if target_pose.frame is not DexConstants.WORLD_FRAME:
             raise Exception("Given target_pose is not in WORLD frame")
@@ -24,6 +24,9 @@ class DexController:
         
     def reset(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._robot.reset(rot_speed, tra_speed)
+        
+    def pause(self, s):
+        self._robot.maintainState(s)
         
     def stop(self):
         self._robot.stop()

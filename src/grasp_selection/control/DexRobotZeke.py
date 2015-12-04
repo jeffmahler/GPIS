@@ -146,6 +146,9 @@ class DexRobotZeke:
         
         return (x, y, z)
         
+    def maintainState(self, s):
+        self._zeke.maintainState(s)
+        
     def plot(self):
         hist = self._zeke.state_hist
         

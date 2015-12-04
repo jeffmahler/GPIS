@@ -106,8 +106,6 @@ class PyControl:
             except:
                 time.sleep(.5)
                 return 'Comm Failure'
-                
-   
         return sensorVals
         
         

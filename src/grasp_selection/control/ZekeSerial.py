@@ -62,10 +62,11 @@ class _ZekeSerial(Process):
             #only update current state if state queue is not empty and we're not pausing
             if not self._states_q.empty() and not self._flags["pausing"]:
                 item = self._states_q.get()
-                if item["Type"] == "Label":
-                    Logger.log("Going to state " + item["Data"])
-                elif item["Type"] == "State":
-                    self._current_state = item["Data"]
+                type, data = item["Type"], item["Data"]
+                if type == "Label" and data:
+                    Logger.log("Going to state " + data)
+                elif type == "State":
+                    self._current_state = data
 
     def _isValidState(self, state):
         for i in range(_ZekeSerial.NUM_STATES):
@@ -187,6 +188,14 @@ class ZekeSerialInterface:
         
     def _queueLabel(self, label):
         self._states_q.put({"Type" : "Label", "Data" : label})
+        
+    def maintainState(self, s):
+        num_pauses = s / DexConstants.INTERP_TIME_STEP
+        self._queueLabel("Maintaining State")
+        state = self._target_state.copy()
+        for _ in range(int(num_pauses)):
+            self._queueState(state)
+            self.state_hist.append(state) 
         
     def gotoState(self, target_state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED, name = None):
         speeds_ids = (1, 0, 0, 1, 0)

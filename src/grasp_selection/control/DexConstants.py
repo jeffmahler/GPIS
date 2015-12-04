@@ -13,6 +13,7 @@ class DexConstants:
     SER_TIMEOUT = 0.01
 
     INIT_DELAY = 3 #magic 3 seconds initial wait for serial connection to stablize
+    PAUSE_DELAY = 0.1
     
     ROBOT_OP_TIMEOUT = 2
 
@@ -21,8 +22,8 @@ class DexConstants:
     
     ORIGIN = point(0,0,0)
     
-    MAX_ROT_SPEED = pi/180*60 #60 degrees per second maximum rotation
-    MAX_TRA_SPEED = 0.15 #10cm per second maximum translation
+    MAX_ROT_SPEED = pi/180*150 #150 degrees per second maximum rotation
+    MAX_TRA_SPEED = 0.3 #30cm per second maximum translation
     
     INTERP_TIME_STEP = 0.03 #30ms interpolation time step
     INTERP_MAX_RAD = MAX_ROT_SPEED * INTERP_TIME_STEP 
