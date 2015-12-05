@@ -1,6 +1,6 @@
 from DexRobotZeke import DexRobotZeke
 from DexConstants import DexConstants
-from tfx import pose, rotation
+from tfx import pose, rotation, rotation_euler
 class DexController:
     '''Transformation Controller class. Currently robot defaults to Zeke
     Usage Pattern: To be instantiated once per robot
@@ -42,9 +42,16 @@ class DexController:
         
     def plot(self):
         self._robot.plot()
-    
+
 '''
-origin = pose(DexConstants.ORIGIN, rotation.identity(), frame = DexConstants.WORLD_FRAME)
-raised = pose((0, 0, 0.15), rotation.identity(), frame = DexConstants.WORLD_FRAME)
-test1 = pose((0.3, 0.3, 0.15), rotation.identity(), frame = DexConstants.WORLD_FRAME)
+origin = pose(DexConstants.ORIGIN, DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
+raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
+test1 = pose((0.3, 0.3, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
+
+
+def angle(ctrl, angle):
+    ctrl.gotoState(ctrl.getState().set_gripper_rot(angle))
+    
+def dAngle(ctrl, delta):
+    ctrl.gotoState(ctrl.getState().set_gripper_rot(ctrl.getState().gripper_rot + delta))
 '''

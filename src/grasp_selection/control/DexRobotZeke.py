@@ -18,11 +18,12 @@ class DexRobotZeke:
 
     #For the two offsets below, actual angle = desired angle + OFFSET
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
-    THETA = 4.5 #zeke wrist rotation 0 degree offset.
+    THETA = -0.16 #zeke wrist rotation 0 degree offset.
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.02, THETA, 0.036, 0]),
-                                 "ZEKE_RESET_SHUTTER_FREE": ZekeState([pi + PHI, 0.01, 0.02, THETA, 0.036, 0]), 
-                                "ZEKE_RESET": ZekeState([pi + PHI, 0.01, 0.01, THETA, 0.036, 0])}
+    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.02, None, 0.036, 0]),
+                                "GRIPPER_RESET": ZekeState([None, None, None, THETA + pi/2, None, None]),
+                                 "ZEKE_RESET_SHUTTER_FREE": ZekeState([None, 0.01, None, None, None, None]), 
+                                "ZEKE_RESET": ZekeState([None, None, 0.01, None, None, None])}
     
     ZEKE_LOCAL_T = transform(
                                             vector(-0.22, 0, 0), 
@@ -37,6 +38,7 @@ class DexRobotZeke:
     
     def reset(self, rot_speed, tra_speed):
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
+        self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_RESET"], rot_speed, tra_speed, "Gripper Reset")
         self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_SHUTTER_FREE"], rot_speed, tra_speed, "Reset Shutter Free")
         self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed, "Reset Complete")
             
@@ -124,6 +126,21 @@ class DexRobotZeke:
         return target_state
         
     def gotoState(self, target_state, rot_speed, tra_speed, name = None):
+
+        def _boundGripperRot(rot):
+            if rot is None:
+                return None
+            if abs(rot - DexConstants.MAX_STATE.gripper_rot) <= 0.01:
+                return DexConstants.MAX_STATE.gripper_rot
+            if abs(rot - DexConstants.MIN_STATE.gripper_rot) <= 0.01:
+                return DexConstants.MIN_STATE.gripper_rot
+            if rot > DexConstants.MAX_STATE.gripper_rot:
+                return DexConstants.MAX_STATE.gripper_rot
+            if rot < DexConstants.MIN_STATE.gripper_rot:
+                return DexConstants.MIN_STATE.gripper_rot
+            return rot
+        
+        target_state.set_gripper_rot(_boundGripperRot(target_state.gripper_rot))
         self._zeke.gotoState(target_state, rot_speed, tra_speed, name)
         self._target_state = target_state.copy()
 

@@ -75,9 +75,9 @@ class _ZekeSerial(Process):
             else:
                 bound = DexConstants.INTERP_MAX_M
                 
-            if abs(state.state[i] - self._current_state.state[i]) >= bound:
+            if abs(state.state[i] - self._current_state.state[i]) > bound:
                 return False
-        return True                   
+        return True          
 
     def _sendSingleStateRequest(self, state):
         Logger.log("Sent State", state)
@@ -208,6 +208,11 @@ class ZekeSerialInterface:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
         
+        
+        for i in range(len(target_state.state)):
+            if target_state.state[i] is None:
+                target_state.state[i] = self._target_state.state[i]
+                
         states_vals = DexInterpolater.interpolate(_ZekeSerial.NUM_STATES, 
                                                                     self._target_state.state, 
                                                                     target_state.copy().state, 

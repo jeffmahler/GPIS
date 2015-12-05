@@ -1,4 +1,4 @@
-from tfx import point, rotation
+from tfx import point, rotation, rotation_euler
 from numpy import pi
 from ZekeState import ZekeState
 
@@ -34,8 +34,10 @@ class DexConstants:
     
     MAX_ELEVATION = 0.3
     
+    DEFAULT_GRIPPER_EULER = rotation_euler(0, pi/2, 0, 'sxyz')
+    
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-    MIN_STATE = ZekeState([0 , 0.008, 0.008, 0.1831, 0.001, 0])
-    MAX_STATE = ZekeState([2*pi, 0.3, 0.3, 2*pi, 0.032, 2*pi])
+    MIN_STATE = ZekeState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
+    MAX_STATE = ZekeState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
     
     DEBUG_INIT_STATE = ZekeState([3.49, 0.01, 0.01, 0.53, 0, 0])
