@@ -29,3 +29,6 @@ oauth2.dat
 
 # common outputs
 profile.txt
+
+#log files
+.log
