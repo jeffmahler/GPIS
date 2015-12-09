@@ -1,6 +1,8 @@
 from DexRobotZeke import DexRobotZeke
+from DexRobotTurntable import DexRobotTurntable
 from DexConstants import DexConstants
 from tfx import pose, rotation, rotation_euler
+from numpy import pi
 class DexController:
     '''Transformation Controller class. Currently robot defaults to Zeke
     Usage Pattern: To be instantiated once per robot
@@ -43,12 +45,18 @@ class DexController:
     def plot(self):
         self._robot.plot()
 
-'''
 origin = pose(DexConstants.ORIGIN, DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
 raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
-test1 = pose((0.3, 0.3, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
 
+def test():
+    target = pose((0.05, 0.05, 0.1), rotation_euler(0, pi/2, pi, 'sxyz'), frame = DexConstants.WORLD_FRAME)
+    t = DexController(DexRobotTurntable())
+    t.reset()
+    t.transform(target)
+    t.plot()
+    t.stop()
 
+'''
 def angle(ctrl, angle):
     ctrl.gotoState(ctrl.getState().set_gripper_rot(angle))
     

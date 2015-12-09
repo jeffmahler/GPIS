@@ -100,11 +100,10 @@ class DexGripTester:
 
 raised = pose((0.1, 0, 0.13), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
 local_raised = DexRobotZeke.ZEKE_LOCAL_T * raised
-'''
+
 def test(s, n):
     Logger.start()
     t = DexGripTester(s, s)
     t.testGrip(raised, n)
     t.plot()
     t._ctrl.stop()
-s'''

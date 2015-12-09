@@ -1,7 +1,6 @@
-from operator import add
-from tfx import pose, transform, vector, rotation
+from tfx import transform, vector, rotation
 from DexConstants import DexConstants
-from ZekeSerial import ZekeSerialInterface
+from DexSerial import DexSerialInterface
 from ZekeState import ZekeState
 from math import sqrt
 from numpy import pi, arctan, cos, sin
@@ -26,13 +25,13 @@ class DexRobotZeke:
                                 "ZEKE_RESET": ZekeState([None, None, 0.01, None, None, None])}
     
     ZEKE_LOCAL_T = transform(
-                                            vector(-0.22, 0, 0), 
+                                            vector(-DexConstants.ZEKE_ARM_ORIGIN_OFFSET, 0, 0),
                                             rotation.identity(), 
                                             parent=DexConstants.ZEKE_LOCAL_FRAME,
                                             frame=DexConstants.WORLD_FRAME)
 
     def __init__(self, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
-        self._zeke= ZekeSerialInterface(comm, baudrate, timeout)      
+        self._zeke= DexSerialInterface(ZekeState, comm, baudrate, timeout)      
         self._zeke.start()
         self._target_state = self.getState()
     
@@ -59,7 +58,7 @@ class DexRobotZeke:
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
     
     @staticmethod
-    def _pose_IK(pose):
+    def _pose_IK(target_pose):
         '''
         Takes in a pose w/ respect to zeke and returns the following list of joint settings:
         Elevation
@@ -68,11 +67,11 @@ class DexRobotZeke:
         Rotation of gripper
         '''
         settings = {}
-        settings["elevation"] = pose.position.z
+        settings["elevation"] = target_pose.position.z
         
         #calculate rotation about z axis
-        x = pose.position.x
-        y = pose.position.y
+        x = target_pose.position.x
+        y = target_pose.position.y
         
         theta = 0
         if x == 0:
@@ -96,7 +95,7 @@ class DexRobotZeke:
                 
         settings["rot_z"] = theta
         settings["extension"] = sqrt(pow(x, 2) + pow(y, 2))
-        settings["rot_y"] = pose.rotation.euler['sxyz'][1]
+        settings["rot_y"] = target_pose.rotation.euler['sxyz'][1]
         
         return settings
         

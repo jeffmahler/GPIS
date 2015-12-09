@@ -1,11 +1,20 @@
 class ZekeState:
 
     NUM_STATES = 5
-
+    NAME = "Zeke"
+    
+    @staticmethod
+    def get_default_init_state():
+        return ZekeState([3.49, 0.01, 0.01, 0.53, 0, 0])
+    
     @staticmethod
     def is_rot(i):
         return i in (0, 3)
-
+        
+    @property
+    def speeds_ids(self):
+        return (1, 0, 0, 1, 0)
+        
     # Rotation, Elevation, Extension, Wrist rotation, Grippers
     def __init__(self, vals = [None] * NUM_STATES):
         self.state = vals[::]

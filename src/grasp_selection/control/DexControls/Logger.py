@@ -11,7 +11,7 @@ class Logger:
                 f.write('Logger time started at: ' + str(datetime.now()) + '\n')
 
     @staticmethod
-    def log(label, data = None, name = DEFAULT_NAME):
+    def log(label, data, name):
         if DexConstants.LOGGING:
             if data is None and label is None:
                 return

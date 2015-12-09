@@ -1,10 +1,11 @@
 from tfx import point, rotation, rotation_euler
 from numpy import pi
 from ZekeState import ZekeState
+from TurntableState import TurntableState
 
 class DexConstants:
 
-    DEBUG = False
+    DEBUG = True
     PRINT_STATES = False
     LOGGING = True
 
@@ -21,6 +22,8 @@ class DexConstants:
     WORLD_FRAME = "WORLD_FRAME"
     
     ORIGIN = point(0,0,0)
+
+    ZEKE_ARM_ORIGIN_OFFSET = 0.22
     
     MAX_ROT_SPEED = pi/180*150 #150 degrees per second maximum rotation
     MAX_TRA_SPEED = 0.3 #30cm per second maximum translation
@@ -40,4 +43,6 @@ class DexConstants:
     MIN_STATE = ZekeState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
     MAX_STATE = ZekeState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
     
-    DEBUG_INIT_STATE = ZekeState([3.49, 0.01, 0.01, 0.53, 0, 0])
+    TURNTABLE_MIN_STATE = TurntableState([0])
+    TURNTABLE_MAX_STATE = TurntableState([2 * pi])
+    

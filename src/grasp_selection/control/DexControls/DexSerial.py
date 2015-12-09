@@ -1,18 +1,17 @@
 from serial import Serial
 from multiprocessing import Process, Queue
 from time import sleep, time
-from ZekeState import ZekeState
 from DexConstants import DexConstants
 from DexInterpolater import DexInterpolater
 from Logger import Logger
 
-class _ZekeSerial(Process):    
-    #Private class that abstracts continuous serial communication with Zeke
-
-    NUM_STATES = 5
-    
-    def __init__(self, flags_q, states_q, state_read_q, comm, baudrate, timeout):
+class _DexSerial(Process):
+    #Private class that abstracts continuous serial communication with DexRobots    
+    def __init__(self, State, flags_q, states_q, state_read_q, comm, baudrate, timeout):
         Process.__init__(self)
+        
+        self._State = State
+        
         self._comm = comm
         self._baudrate = baudrate
         self._timeout = timeout
@@ -28,7 +27,7 @@ class _ZekeSerial(Process):
         }
 
     def run(self):
-        self._current_state = DexConstants.DEBUG_INIT_STATE
+        self._current_state = self._State.get_default_init_state()
         
         #Main run function that constantly sends the current state to the robot
         if not DexConstants.DEBUG:
@@ -64,13 +63,13 @@ class _ZekeSerial(Process):
                 item = self._states_q.get()
                 type, data = item["Type"], item["Data"]
                 if type == "Label" and data:
-                    Logger.log("Going to state " + data)
+                    Logger.log("Going to state ", data, self._State.NAME)
                 elif type == "State":
                     self._current_state = data
 
     def _isValidState(self, state):
-        for i in range(_ZekeSerial.NUM_STATES):
-            if ZekeState.is_rot(i):
+        for i in range(self._State.NUM_STATES):
+            if self._State.is_rot(i):
                 bound = DexConstants.INTERP_MAX_RAD
             else:
                 bound = DexConstants.INTERP_MAX_M
@@ -80,7 +79,7 @@ class _ZekeSerial(Process):
         return True          
 
     def _sendSingleStateRequest(self, state):
-        Logger.log("Sent State", state)
+        Logger.log("Sent State", state, self._State.NAME)
    
         if DexConstants.DEBUG:
             self._current_state = state
@@ -97,11 +96,13 @@ class _ZekeSerial(Process):
             self.ser.write(chr((val>>16) & 0xff))
             self.ser.write(chr((val>>8) & 0xff))
             self.ser.write(chr(val & 0xff))
-        val = 0
-        self.ser.write(chr((val>>24) & 0xff))
-        self.ser.write(chr((val>>16) & 0xff))
-        self.ser.write(chr((val>>8) & 0xff))
-        self.ser.write(chr(val & 0xff))
+        
+        if self._State.NAME == "Zeke":
+            val = 0
+            self.ser.write(chr((val>>24) & 0xff))
+            self.ser.write(chr((val>>16) & 0xff))
+            self.ser.write(chr((val>>8) & 0xff))
+            self.ser.write(chr(val & 0xff))
 
     def _sendControls(self, requests):
         self.ser.flushOutput()
@@ -141,14 +142,16 @@ class _ZekeSerial(Process):
             except:
                 return 'Comm Failure'
             
-        return ZekeState(sensorVals)
+        return self._State(sensorVals)
         
-class ZekeSerialInterface:
+class DexSerialInterface:
     
-    def __init__(self, comm = "COM3", baudrate=115200, timeout=.01):
+    def __init__(self, State, comm = "COM3", baudrate=115200, timeout=.01):
         self._comm = comm
         self._baudrate = baudrate
         self._timeout = timeout
+        self._State = State
+        
         self._reset()
         self._target_state = None
         self.state_hist = []
@@ -157,10 +160,10 @@ class ZekeSerialInterface:
         self._flags_q = Queue()
         self._states_q = Queue()
         self._state_read_q = Queue()
-        self._zeke_serial = _ZekeSerial(self._flags_q, self._states_q, self._state_read_q, self._comm, self._baudrate, self._timeout)
+        self._dex_serial = _DexSerial(self._State, self._flags_q, self._states_q, self._state_read_q, self._comm, self._baudrate, self._timeout)
         
     def start(self):
-        self._zeke_serial.start()
+        self._dex_serial.start()
         sleep(DexConstants.INIT_DELAY)
         
     def stop(self):
@@ -198,9 +201,9 @@ class ZekeSerialInterface:
             self.state_hist.append(state) 
         
     def gotoState(self, target_state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED, name = None):
-        speeds_ids = (1, 0, 0, 1, 0)
+        speeds_ids = target_state.speeds_ids
         speeds = (tra_speed, rot_speed)
-        
+                
         if self._target_state is None:
             self._target_state = self.getState()
         
@@ -213,7 +216,7 @@ class ZekeSerialInterface:
             if target_state.state[i] is None:
                 target_state.state[i] = self._target_state.state[i]
                 
-        states_vals = DexInterpolater.interpolate(_ZekeSerial.NUM_STATES, 
+        states_vals = DexInterpolater.interpolate(self._State.NUM_STATES, 
                                                                     self._target_state.state, 
                                                                     target_state.copy().state, 
                                                                     speeds_ids, 
@@ -222,9 +225,7 @@ class ZekeSerialInterface:
         
         self._queueLabel(name)
         for state_val in states_vals:
-            state = ZekeState(state_val)
-            if DexConstants.PRINT_STATES:
-                print state
+            state = self._State(state_val)
             self._queueState(state)
             self.state_hist.append(state)
             
