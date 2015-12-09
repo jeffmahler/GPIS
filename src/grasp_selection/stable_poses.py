@@ -9,8 +9,10 @@ import IPython
 import numpy as np
 # import similarity_tf as stf
 # import tfx
-
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 
 import mesh
 import obj_file
