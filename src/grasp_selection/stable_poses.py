@@ -3,6 +3,7 @@ Computes the statistical distribution of stable poses for a polyhedron
 Author: Nikhil Sharma
 """
 import cvxopt as cvx
+import logging
 import math
 import sys
 import IPython
