@@ -7,6 +7,7 @@ import logging
 import pickle as pkl
 import os
 import random
+import shutil
 import string
 import time
 
@@ -30,7 +31,7 @@ import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
 def download_experiment_data(experiment_name, config):
-    experiment_data_dir = 'gce_cache'
+    experiment_data_dir = os.path.join(config['database_dir'], 'gce_cache')
     if not os.path.exists(experiment_data_dir):
         os.mkdir(experiment_data_dir)
 
@@ -97,3 +98,5 @@ if __name__ == '__main__':
 
                             grasp_metric_dict = result_dataset.grasp_metrics(obj_key, grasps)
                             dataset.store_grasp_metrics(obj_key, grasp_metric_dict, force_overwrite=True) 
+        shutil.rmtree(result_dir)
+
