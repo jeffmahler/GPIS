@@ -30,11 +30,7 @@ import pfc
 import pr2_grasp_checker as pgc
 import termination_conditions as tc
 
-def download_experiment_data(experiment_name, config):
-    experiment_data_dir = os.path.join(config['database_dir'], 'gce_cache')
-    if not os.path.exists(experiment_data_dir):
-        os.mkdir(experiment_data_dir)
-
+def download_experiment_data(experiment_name, experiment_data_dir, config):
     download_data_command = 'gsutil -m cp gs://%s/%s*.tar.gz %s' %(config['compute']['bucket'], experiment_name, experiment_data_dir)
     os.system(download_data_command)
 
@@ -72,8 +68,13 @@ if __name__ == '__main__':
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
     logging.info('Database filename %s' %(database_filename))
 
+    # create output directory
+    experiment_data_dir = os.path.join(config['database_dir'], 'gce_cache')
+    if not os.path.exists(experiment_data_dir):
+        os.mkdir(experiment_data_dir)
+
     # download all experiment data
-    result_dirs = download_experiment_data(config['job_root'], config)
+    result_dirs = download_experiment_data(config['job_root'], experiment_data_dir, config)
     logging.info('Job root %s' %(config['job_root']))
 
     # for each experiment result, load and write to the database
@@ -98,5 +99,4 @@ if __name__ == '__main__':
 
                             grasp_metric_dict = result_dataset.grasp_metrics(obj_key, grasps)
                             dataset.store_grasp_metrics(obj_key, grasp_metric_dict, force_overwrite=True) 
-        shutil.rmtree(result_dir)
-
+    shutil.rmtree(experiment_data_dir)
