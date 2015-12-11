@@ -3,14 +3,17 @@ Computes the statistical distribution of stable poses for a polyhedron
 Author: Nikhil Sharma
 """
 import cvxopt as cvx
+import logging
 import math
 import sys
 import IPython
 import numpy as np
 # import similarity_tf as stf
 # import tfx
-
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 
 import mesh
 import obj_file
