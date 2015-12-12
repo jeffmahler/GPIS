@@ -10,6 +10,7 @@ class DexConstants:
     LOGGING = True
 
     COMM = "COM3"
+    TABLE_COMM = "COM4"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01
 

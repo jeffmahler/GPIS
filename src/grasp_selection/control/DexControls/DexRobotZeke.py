@@ -1,6 +1,7 @@
 from tfx import transform, vector, rotation
 from DexConstants import DexConstants
 from DexSerial import DexSerialInterface
+from DexNumericSolvers import DexNumericSolvers
 from ZekeState import ZekeState
 from math import sqrt
 from numpy import pi, arctan, cos, sin
@@ -19,10 +20,11 @@ class DexRobotZeke:
     PHI = 0.3 #zeke arm rotation angle offset to make calculations easier.
     THETA = -0.16 #zeke wrist rotation 0 degree offset.
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET": ZekeState([pi + PHI, 0.1, 0.02, None, 0.036, 0]),
-                                "GRIPPER_RESET": ZekeState([None, None, None, THETA + pi/2, None, None]),
-                                 "ZEKE_RESET_SHUTTER_FREE": ZekeState([None, 0.01, None, None, None, None]), 
-                                "ZEKE_RESET": ZekeState([None, None, 0.01, None, None, None])}
+    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([pi + PHI, 0.1, 0.02, None, 0.036, 0]),
+                                "GRIPPER_RESET" : ZekeState([None, None, None, THETA + pi/2, None, None]),
+                                 "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None, None]), 
+                                "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None, None]),
+                                "ZEKE_RESET_CLEAR_TABLE" : ZekeState([1.5 * pi + PHI, None, None, None, None, None])}
     
     ZEKE_LOCAL_T = transform(
                                             vector(-DexConstants.ZEKE_ARM_ORIGIN_OFFSET, 0, 0),
@@ -35,11 +37,15 @@ class DexRobotZeke:
         self._zeke.start()
         self._target_state = self.getState()
     
-    def reset(self, rot_speed, tra_speed):
+    def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_RESET"], rot_speed, tra_speed, "Gripper Reset")
         self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_SHUTTER_FREE"], rot_speed, tra_speed, "Reset Shutter Free")
         self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET"], rot_speed, tra_speed, "Reset Complete")
+            
+    def reset_clear_table(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+        self.reset(rot_speed, tra_speed)
+        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_CLEAR_TABLE"], rot_speed, tra_speed, "Reset Clear Table")
             
     def stop(self):
         self._zeke.stop()
@@ -47,12 +53,12 @@ class DexRobotZeke:
     def getState(self):
         return self._zeke.getState()       
         
-    def grip(self, tra_speed):
+    def grip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
         state.set_gripper_grip(DexConstants.MIN_STATE.gripper_grip)
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
         
-    def unGrip(self, tra_speed):
+    def unGrip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
         state.set_gripper_grip(DexConstants.MAX_STATE.gripper_grip)
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
@@ -73,25 +79,7 @@ class DexRobotZeke:
         x = target_pose.position.x
         y = target_pose.position.y
         
-        theta = 0
-        if x == 0:
-            if y >= 0:
-                theta = pi / 2
-            else: 
-                theta = - pi / 2
-        else:
-            theta_ref = abs(arctan(y/x))
-            if theta_ref > pi/2:
-                theta_ref = pi - theta_ref
-
-            if x >= 0 and y >= 0:
-                theta = theta_ref
-            elif y >= 0 and x < 0:
-                theta = pi - theta_ref
-            elif y < 0 and x < 0:
-                theta = pi + theta_ref
-            else:
-                theta = 2*pi - theta_ref
+        theta = DexNumericSolvers.get_cartesian_angle(x, y)
                 
         settings["rot_z"] = theta
         settings["extension"] = sqrt(pow(x, 2) + pow(y, 2))
@@ -164,6 +152,9 @@ class DexRobotZeke:
         
     def maintainState(self, s):
         self._zeke.maintainState(s)
+        
+    def is_action_complete(self):
+        return self._zeke.is_action_complete()
         
     def plot(self):
         hist = self._zeke.state_hist

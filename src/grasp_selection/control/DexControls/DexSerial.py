@@ -199,7 +199,10 @@ class DexSerialInterface:
         for _ in range(int(num_pauses)):
             self._queueState(state)
             self.state_hist.append(state) 
-        
+    
+    def is_action_complete(self):
+        return self._states_q.empty()
+    
     def gotoState(self, target_state, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED, name = None):
         speeds_ids = target_state.speeds_ids
         speeds = (tra_speed, rot_speed)

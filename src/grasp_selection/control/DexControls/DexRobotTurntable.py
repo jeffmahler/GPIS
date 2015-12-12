@@ -1,7 +1,6 @@
 from DexConstants import DexConstants
 from DexSerial import DexSerialInterface
 from TurntableState import TurntableState
-from DexTurntableSolver import DexTurntableSolver
 from numpy import pi, cos, sin
 from numpy.linalg import norm
 from time import sleep
@@ -20,12 +19,12 @@ class DexRobotTurntable:
     
     RESET_STATE = TurntableState([THETA])
 
-    def __init__(self, comm = DexConstants.COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
+    def __init__(self, comm = DexConstants.TABLE_COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         self._turntable= DexSerialInterface(TurntableState, comm, baudrate, timeout)      
         self._turntable.start()
         self._target_state = self.getState()
     
-    def reset(self, rot_speed, tra_speed):
+    def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotTurntable.RESET_STATE, rot_speed, tra_speed, "Reset Turntable")
             
     def stop(self):
@@ -54,13 +53,7 @@ class DexRobotTurntable:
 
     @staticmethod
     def pose_to_state(target_pose):
-        pos = [target_pose.position.x, target_pose.position.y]
-        r = norm(pos)
-        phi = target_pose.rotation.euler['sxyz'][2]
-        d = DexConstants.ZEKE_ARM_ORIGIN_OFFSET        
-        
-        theta = DexTurntableSolver.solve(r, d, phi)
-        return TurntableState().set_table_rot(theta)
+        return TurntableState().set_table_rot(target_pose.rotation.euler['sxyz'][2])
         
     def _state_FK(self, state):
         return (DexRobotTurntable._RADIUS * cos(state.table_rot), DexRobotTurntable._RADIUS * sin(state.table_rot), 0)
@@ -72,6 +65,9 @@ class DexRobotTurntable:
         
     def maintainState(self, s):
         self._turntable.maintainState(s)
+        
+    def is_action_complete(self):
+        return self._turntable.is_action_complete()
         
     def plot(self):
         hist = self._turntable.state_hist
