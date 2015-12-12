@@ -27,7 +27,7 @@ class _DexSerial(Process):
         }
 
     def run(self):
-        self._current_state = self._State.get_default_init_state()
+        self._current_state = self._State.INIT_STATE()
         
         #Main run function that constantly sends the current state to the robot
         if not DexConstants.DEBUG:
@@ -136,7 +136,13 @@ class _DexSerial(Process):
         self.ser.flushInput()
         self.ser.write("b")
         sensorVals = []
-        for i in range(6):
+        
+        num_vals = self._State.NUM_STATES
+        
+        if self._State.NAME == "Zeke":
+            num_vals = 6
+        
+        for i in range(num_vals):
             try:
                 sensorVals.append(float(self.ser.readline()))
             except:

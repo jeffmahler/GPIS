@@ -40,10 +40,3 @@ class DexConstants:
     
     DEFAULT_GRIPPER_EULER = rotation_euler(0, pi/2, 0, 'sxyz')
     
-    # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
-    MIN_STATE = ZekeState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
-    MAX_STATE = ZekeState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
-    
-    TURNTABLE_MIN_STATE = TurntableState([0])
-    TURNTABLE_MAX_STATE = TurntableState([2 * pi])
-    

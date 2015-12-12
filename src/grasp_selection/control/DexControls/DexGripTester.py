@@ -22,8 +22,8 @@ class DexGripTester:
         self._rot_speed = val * DexConstants.MAX_ROT_SPEED
 
     def _moveArm(self, state, n):        
-        retract_state = state.copy().set_arm_ext(DexConstants.MIN_STATE.arm_ext + 0.05)
-        extend_state = state.copy().set_arm_ext(DexConstants.MAX_STATE.arm_ext * 0.8)
+        retract_state = state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext + 0.05)
+        extend_state = state.copy().set_arm_ext(ZekeState.MAX_STATE().arm_ext * 0.8)
 
         for _ in range(n):
             self._ctrl.gotoState(retract_state, self._rot_speed, self._tra_speed)
@@ -76,7 +76,7 @@ class DexGripTester:
         self._ctrl.pause(DexConstants.PAUSE_DELAY)
         
         local_target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
-        neutral_state = DexRobotZeke.pose_to_state(local_target_pose, self._ctrl.getState().set_gripper_grip(DexConstants.MIN_STATE.gripper_grip))
+        neutral_state = DexRobotZeke.pose_to_state(local_target_pose, self._ctrl.getState().set_gripper_grip(ZekeState.MIN_STATE().gripper_grip))
         neutral_state.set_arm_elev(DexConstants.MAX_ELEVATION * 0.5)
         
         self._ctrl.gotoState(neutral_state)

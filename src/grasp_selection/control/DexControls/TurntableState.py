@@ -1,11 +1,20 @@
+from numpy import pi
 class TurntableState:
 
     NUM_STATES = 1
     NAME = "Tuntable"
                 
     @staticmethod
-    def get_default_init_state():
+    def INIT_STATE():
         return TurntableState([0])
+
+    @staticmethod
+    def MIN_STATE():
+        return TurntableState([0])
+        
+    @staticmethod
+    def MAX_STATE():
+        return TurntableState([2 * pi])
         
     @staticmethod
     def is_rot(i):
@@ -22,7 +31,7 @@ class TurntableState:
         return "Table Rot: {0}".format(self.table_rot)
             
     def __repr__(self):
-        return "TurntableState[{0}])".format(self.table_rot)
+        return "TurntableState([{0}])".format(self.table_rot)
         
     @property
     def table_rot(self):

@@ -37,14 +37,14 @@ class DexRobotTurntable:
         def _boundTurntableRot(rot):
             if rot is None:
                 return None
-            if abs(rot - DexConstants.TURNTABLE_MAX_STATE.table_rot) <= 0.01:
-                return DexConstants.TURNTABLE_MAX_STATE.table_rot
-            if abs(rot - DexConstants.TURNTABLE_MIN_STATE.table_rot) <= 0.01:
-                return DexConstants.TURNTABLE_MIN_STATE.table_rot
-            if rot > DexConstants.TURNTABLE_MAX_STATE.table_rot:
-                return DexConstants.TURNTABLE_MAX_STATE.table_rot
-            if rot < DexConstants.TURNTABLE_MIN_STATE.table_rot:
-                return DexConstants.TURNTABLE_MIN_STATE.table_rot
+            if abs(rot - TurntableState.MAX_STATE().table_rot) <= 0.01:
+                return TurntableState.MAX_STATE().table_rot
+            if abs(rot - TurntableState.MIN_STATE().table_rot) <= 0.01:
+                return TurntableState.MIN_STATE().table_rot
+            if rot > TurntableState.MAX_STATE().table_rot:
+                return TurntableState.MAX_STATE().table_rot
+            if rot < TurntableState.MIN_STATE().table_rot:
+                return TurntableState.MIN_STATE().table_rot
             return rot
                 
         target_state.set_table_rot(_boundTurntableRot(target_state.table_rot))

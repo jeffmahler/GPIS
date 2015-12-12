@@ -1,11 +1,22 @@
+from numpy import pi
 class ZekeState:
 
     NUM_STATES = 5
     NAME = "Zeke"
+        
+    # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     
     @staticmethod
-    def get_default_init_state():
+    def INIT_STATE():
         return ZekeState([3.49, 0.01, 0.01, 0.53, 0, 0])
+        
+    @staticmethod
+    def MIN_STATE():
+        return ZekeState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
+        
+    @staticmethod
+    def MAX_STATE():
+        return ZekeState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
     
     @staticmethod
     def is_rot(i):

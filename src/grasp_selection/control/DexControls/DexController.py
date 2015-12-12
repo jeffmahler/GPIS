@@ -8,6 +8,7 @@ from numpy import pi, array, cos, sin
 from numpy.linalg import norm
 from time import sleep, time
 import matplotlib.pyplot as plt
+
 class DexController:
     '''Transformation Controller class. Controls both Zeke and Turntable
     '''
@@ -26,6 +27,8 @@ class DexController:
         if target_pose.frame is not DexConstants.WORLD_FRAME:
             raise Exception("Given target_pose is not in WORLD frame")
         
+        self._latest_pose_unprocessed = target_pose.copy()
+        
         #change target pose to appropriate approach pose
         self._set_approach_pose(target_pose)
         
@@ -43,7 +46,7 @@ class DexController:
             sleep(0.01)
         
         #transform target_pose to zeke 
-        self._zeke.transform(target_pose, rot_speed, tra_speed, name)
+        self._zeke.transform_aim_extend_grip(target_pose, rot_speed, tra_speed, name)
 
     def _set_approach_pose(self, target_pose):
         pos = [target_pose.position.x, target_pose.position.y]
@@ -67,7 +70,7 @@ class DexController:
         return self._zeke.getState(), self._table.getState()
         
     def plot(self):
-        plt.figure()
+        fig = plt.figure()
         
         axis = plt.gca()
         axis.set_xlim([-0.2,0.2])
@@ -75,9 +78,20 @@ class DexController:
         
         x = self._latest_pose.position.x
         y = self._latest_pose.position.y
-        r = norm([x**2, y**2])
-        phi = self._latest_pose.rotation.euler['sxyz'][2]
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
+        
+        r = norm([x, y])
+        phi = self._latest_pose.rotation.euler['sxyz'][2]
+        
+        x_o = self._latest_pose_unprocessed.position.x
+        y_o = self._latest_pose_unprocessed.position.y
+        theta_o =DexNumericSolvers.get_cartesian_angle(x_o, y_o)
+        
+        #vector to original obj pos
+        v_obj_o = array([0, 0, x_o, y_o])
+        
+        #original vector of object in direction of grasp
+        v_grasp_o = array([x_o, y_o, r * cos(phi + theta_o) * 10, r * sin(phi + theta_o) * 10])
         
         #vector to obj pos
         v_obj = array([0, 0, x, y])
@@ -88,28 +102,21 @@ class DexController:
         #vector of of arm to position of object
         v_arm = array([0.2, 0, x - 0.2, y])
                
-        soa =array([v_arm, v_obj, v_grasp]) 
+        soa =array([v_arm, v_obj, v_grasp, v_obj_o, v_grasp_o]) 
         X,Y,U,V = zip(*soa)
         axis.quiver(X,Y,U,V,angles='xy',scale_units='xy',scale=1)
         
         plt.draw()
         plt.show()
-
+        
 origin = pose(DexConstants.ORIGIN, DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
 raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
 
 def test(phi):
-    target = pose((0.05, 0.05, 0.1), rotation_tb(phi, 0, 0), frame = DexConstants.WORLD_FRAME)
+    target = pose((0.05, 0.05, 0.1), rotation_tb(phi, pi / 2, 0), frame = DexConstants.WORLD_FRAME)
     t = DexController()
     t.reset()
     t.do_grasp(target)
     t.plot()
+    t._zeke.plot()
     t.stop()
-
-'''
-def angle(ctrl, angle):
-    ctrl.gotoState(ctrl.getState().set_gripper_rot(angle))
-    
-def dAngle(ctrl, delta):
-    ctrl.gotoState(ctrl.getState().set_gripper_rot(ctrl.getState().gripper_rot + delta))
-'''

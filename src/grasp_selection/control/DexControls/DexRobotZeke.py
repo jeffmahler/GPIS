@@ -55,12 +55,12 @@ class DexRobotZeke:
         
     def grip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
-        state.set_gripper_grip(DexConstants.MIN_STATE.gripper_grip)
+        state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
         
     def unGrip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
-        state.set_gripper_grip(DexConstants.MAX_STATE.gripper_grip)
+        state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
     
     @staticmethod
@@ -117,14 +117,14 @@ class DexRobotZeke:
         def _boundGripperRot(rot):
             if rot is None:
                 return None
-            if abs(rot - DexConstants.MAX_STATE.gripper_rot) <= 0.01:
-                return DexConstants.MAX_STATE.gripper_rot
-            if abs(rot - DexConstants.MIN_STATE.gripper_rot) <= 0.01:
-                return DexConstants.MIN_STATE.gripper_rot
-            if rot > DexConstants.MAX_STATE.gripper_rot:
-                return DexConstants.MAX_STATE.gripper_rot
-            if rot < DexConstants.MIN_STATE.gripper_rot:
-                return DexConstants.MIN_STATE.gripper_rot
+            if abs(rot - ZekeState.MAX_STATE().gripper_rot) <= 0.01:
+                return ZekeState.MAX_STATE().gripper_rot
+            if abs(rot - ZekeState.MIN_STATE().gripper_rot) <= 0.01:
+                return ZekeState.MIN_STATE().gripper_rot
+            if rot > ZekeState.MAX_STATE().gripper_rot:
+                return ZekeState.MAX_STATE().gripper_rot
+            if rot < ZekeState.MIN_STATE().gripper_rot:
+                return ZekeState.MIN_STATE().gripper_rot
             return rot
         
         target_state.set_gripper_rot(_boundGripperRot(target_state.gripper_rot))
@@ -140,6 +140,26 @@ class DexRobotZeke:
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
         
         self.gotoState(target_state, rot_speed, tra_speed, name)
+        
+    def transform_aim_extend_grip(self, target_pose, rot_speed, tra_speed, name = None):
+        target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
+
+        if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
+            raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
+            
+        target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
+        
+        aim_state = target_state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext)
+        
+        self.unGrip()
+                
+        self.gotoState(aim_state, rot_speed, tra_speed, name + "_aim")
+        self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
+
+        while not self.is_action_complete():
+            sleep(0.01)
+            
+        self.grip()
         
     def _state_FK(self, state):
         arm_angle = state.arm_rot - DexRobotZeke.PHI
