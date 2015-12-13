@@ -1,6 +1,7 @@
 from DexConstants import DexConstants
 from DexSerial import DexSerialInterface
 from TurntableState import TurntableState
+from Logger import Logger
 from numpy import pi, cos, sin
 from numpy.linalg import norm
 from time import sleep
@@ -23,6 +24,7 @@ class DexRobotTurntable:
         self._turntable= DexSerialInterface(TurntableState, comm, baudrate, timeout)      
         self._turntable.start()
         self._target_state = self.getState()
+        Logger.clear(TurntableState.NAME)
     
     def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotTurntable.RESET_STATE, rot_speed, tra_speed, "Reset Turntable")
@@ -53,12 +55,12 @@ class DexRobotTurntable:
 
     @staticmethod
     def pose_to_state(target_pose):
-        return TurntableState().set_table_rot(target_pose.rotation.euler['sxyz'][2] + DexRobotTurntable.THETA)
+        return TurntableState().set_table_rot(target_pose.rotation.tb_angles.yaw_rad + DexRobotTurntable.THETA)
         
     def _state_FK(self, state):
         return (DexRobotTurntable._RADIUS * cos(state.table_rot), DexRobotTurntable._RADIUS * sin(state.table_rot), 0)
         
-    def transform(self, target_pose, rot_speed, tra_speed, name = None):
+    def transform(self, target_pose, name, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         target_state = DexRobotTurntable.pose_to_state(target_pose)
         
         self.gotoState(target_state, rot_speed, tra_speed, name)

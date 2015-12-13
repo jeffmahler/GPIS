@@ -15,7 +15,7 @@ class DexConstants:
     SER_TIMEOUT = 0.01
 
     INIT_DELAY = 3 #magic 3 seconds initial wait for serial connection to stablize
-    PAUSE_DELAY = 0.1
+    PAUSE_DELAY = 0.01
     
     ROBOT_OP_TIMEOUT = 2
 

@@ -26,7 +26,7 @@ class DexController:
         #target_pose is a tfx.pose object
         if target_pose.frame is not DexConstants.WORLD_FRAME:
             raise Exception("Given target_pose is not in WORLD frame")
-        
+                
         self._latest_pose_unprocessed = target_pose.copy()
         
         #change target pose to appropriate approach pose
@@ -39,19 +39,21 @@ class DexController:
         self._latest_pose = target_pose.copy()
         
         #transform target_pose to table
-        self._table.transform(target_pose, rot_speed, tra_speed, name + "_table") 
+        self._table.transform(target_pose, name + "_table", rot_speed, tra_speed) 
         
         #wait til completed
         while not self._table.is_action_complete():
             sleep(0.01)
         
         #transform target_pose to zeke 
-        self._zeke.transform_aim_extend_grip(target_pose, rot_speed, tra_speed, name)
+        self._zeke.transform_aim_extend_grip(target_pose, name, rot_speed, tra_speed)
+        
+        return target_pose.copy()
 
     def _set_approach_pose(self, target_pose):
         pos = [target_pose.position.x, target_pose.position.y]
         r = norm(pos)
-        phi = target_pose.rotation.euler['sxyz'][2]
+        phi = target_pose.rotation.tb_angles.yaw_rad
         d = DexConstants.ZEKE_ARM_ORIGIN_OFFSET
         theta = DexTurntableSolver.solve(r, d, phi)
         
@@ -69,7 +71,11 @@ class DexController:
     def getState(self):
         return self._zeke.getState(), self._table.getState()
         
-    def plot(self):
+    def pause(self, period):
+        self._table.maintainState(period)
+        self._zeke.maintainState(period)
+        
+    def plot_approach_angle(self):
         fig = plt.figure()
         
         axis = plt.gca()
@@ -81,7 +87,7 @@ class DexController:
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
         
         r = norm([x**2, y**2])
-        phi = self._latest_pose.rotation.euler['sxyz'][2]
+        phi = self._latest_pose.rotation.tb_angles.yaw_rad
         
         x_o = self._latest_pose_unprocessed.position.x
         y_o = self._latest_pose_unprocessed.position.y
@@ -121,12 +127,11 @@ def test(phi):
     raised = target.copy()
     raised.position.z = 0.25
     sleep(0.1)
-    t._zeke.transform(raised, DexConstants.DEFAULT_ROT_SPEED, DexConstants.DEFAULT_TRA_SPEED)
-    t.plot()
+    t._zeke.transform(raised, "Raised")
+    t.plot_approach_angle()
     t._zeke.plot()
     t.stop()
-
-    
+  
 def tg():
     target = pose((0.05, 0.05, 0.05), rotation_tb(0, 90, 0), frame = DexConstants.WORLD_FRAME)
     print "send angle"

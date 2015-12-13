@@ -3,8 +3,10 @@ from DexConstants import DexConstants
 from DexSerial import DexSerialInterface
 from DexNumericSolvers import DexNumericSolvers
 from ZekeState import ZekeState
+from Logger import Logger
 from math import sqrt
 from numpy import pi, arctan, cos, sin
+from numpy.linalg import norm
 from time import sleep
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -36,6 +38,7 @@ class DexRobotZeke:
         self._zeke= DexSerialInterface(ZekeState, comm, baudrate, timeout)      
         self._zeke.start()
         self._target_state = self.getState()
+        Logger.clear(ZekeState.NAME)
     
     def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
@@ -62,62 +65,30 @@ class DexRobotZeke:
         state = self._target_state.copy()
         state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
-    
+                    
     @staticmethod
-    def _pose_IK(target_pose):
+    def pose_to_state(target_pose, prev_state):
         '''
-        Takes in a pose w/ respect to zeke and returns the following list of joint settings:
-        Elevation
-        Rotation about Z axis
-        Extension of Arm
-        Rotation of gripper
+        Takes in a pose w/ respect to zeke and returns the state using IK
         '''
-        settings = {}
-        settings["elevation"] = target_pose.position.z
-        
+        if target_pose.frame is not DexConstants.ZEKE_LOCAL_FRAME:
+            raise Exception("Given target_pose is not in ZEKE LOCAL frame")
+                
         #calculate rotation about z axis
         x = target_pose.position.x
         y = target_pose.position.y
-        
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
-                
-        settings["rot_z"] = theta
-        settings["extension"] = sqrt(pow(x, 2) + pow(y, 2))
-        settings["rot_y"] = target_pose.rotation.euler['sxyz'][1]
-        print "pre offset angle"
-        print settings["rot_y"]
         
-        return settings
-        
-    @staticmethod
-    def _settings_to_state(settings, prev_state):
-        '''
-        Takes in a list of joint settings and concats them into one single 
-        final target state. Basically forward kinematics
-        '''
-        # Rotation, Elevation, Extension, Wrist rotation, Grippers
         state = ZekeState()
-        state.set_arm_rot(settings["rot_z"] + DexRobotZeke.PHI)
-        state.set_arm_elev(settings["elevation"])
-        state.set_arm_ext(settings["extension"])
-        state.set_gripper_rot(settings["rot_y"] + DexRobotZeke.THETA)
+        state.set_arm_rot(theta + DexRobotZeke.PHI)
+        state.set_arm_elev(target_pose.position.z)
+        state.set_arm_ext(norm([x, y]))
+        state.set_gripper_rot(target_pose.rotation.tb_angles.pitch_rad + DexRobotZeke.THETA)
         state.set_gripper_grip(prev_state.gripper_grip)
-        
-        print "post offset angle"
-        print state.gripper_rot
         
         return state
         
-    @staticmethod
-    def pose_to_state(target_pose, prev_state):
-        if target_pose.frame is not DexConstants.ZEKE_LOCAL_FRAME:
-            raise Exception("Given target_pose is not in ZEKE LOCAL frame")
-            
-        joint_settings = DexRobotZeke._pose_IK(target_pose)
-        target_state = DexRobotZeke._settings_to_state(joint_settings, prev_state)
-        return target_state
-        
-    def gotoState(self, target_state, rot_speed, tra_speed, name = None):
+    def gotoState(self, target_state, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, name = None):
 
         def _boundGripperRot(rot):
             if rot is None:
@@ -131,33 +102,27 @@ class DexRobotZeke:
             if rot < ZekeState.MIN_STATE().gripper_rot:
                 return ZekeState.MIN_STATE().gripper_rot
             return rot
-        
-        if target_state.gripper_rot is not None:
-            print "pre bound %f" % target_state.gripper_rot;
-        
+                
         target_state.set_gripper_rot(_boundGripperRot(target_state.gripper_rot))
-        #target_state.set_gripper_rot(pi / 2 + DexRobotZeke.THETA)
         self._zeke.gotoState(target_state, rot_speed, tra_speed, name)
-        
-        print "post bound %f" % target_state.gripper_rot;
-        
+                
         self._target_state = target_state.copy()
 
-    def transform(self, target_pose, rot_speed, tra_speed, name = None):
+    def transform(self, target_pose, name, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
 
-        if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
+        if abs(target_pose.rotation.tb_angles.roll_rad) >= 0.0001:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
             
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
         
         self.gotoState(target_state, rot_speed, tra_speed, name)
         
-    def transform_aim_extend_grip(self, target_pose, rot_speed, tra_speed, name = None):
+    def transform_aim_extend_grip(self, target_pose, name, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
-
-        if abs(target_pose.rotation.euler['sxyz'][0]) >= 0.0001:
-            raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
+        
+        if abs(target_pose.rotation.tb_angles.roll_rad) >= 0.0001:
+            raise Exception("Can't perform rotation about x-axis on Zeke's gripper: "  + str(target_pose.rotation.euler))
             
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
         aim_state = target_state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext)
