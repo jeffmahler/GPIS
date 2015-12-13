@@ -31,7 +31,7 @@ class DexGripTester:
             self._ctrl._zeke.gotoState(extend_state, self._rot_speed, self._tra_speed)
         
     def _rotateArm(self, state, n):
-        rot_angle = pi / 6
+        rot_angle = pi * 25 / 180
         state.set_arm_rot(max(state.arm_rot, rot_angle))
         
         ccw_state = state.copy().set_arm_rot(state.arm_rot + rot_angle)
