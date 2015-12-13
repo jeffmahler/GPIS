@@ -6,19 +6,19 @@ class TurntableState:
                 
     @staticmethod
     def INIT_STATE():
-        return TurntableState([0])
+        return TurntableState([0.4819])
 
     @staticmethod
     def MIN_STATE():
-        return TurntableState([0])
+        return TurntableState([0.4819])
         
     @staticmethod
     def MAX_STATE():
-        return TurntableState([2 * pi])
+        return TurntableState([0.4819 + 2 * pi])
         
     @staticmethod
     def is_rot(i):
-        return i in (0)
+        return i in (0,)
         
     @property
     def speeds_ids(self):

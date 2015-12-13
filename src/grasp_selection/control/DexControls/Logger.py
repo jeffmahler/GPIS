@@ -1,17 +1,24 @@
 from datetime import datetime
 from DexConstants import DexConstants
+
 class Logger:
 
-    DEFAULT_NAME = "Zeke.log"
+    @staticmethod
+    def _ensure_suffix(name):
+        if not name.endswith(".log"):
+            name += ".log"
+        return name
 
     @staticmethod
-    def start(name = DEFAULT_NAME):
+    def clear(name):
+        name = Logger._ensure_suffix(name)
         if DexConstants.LOGGING:
             with open(name, 'w') as f:
                 f.write('Logger time started at: ' + str(datetime.now()) + '\n')
 
     @staticmethod
     def log(label, data, name):
+        name = Logger._ensure_suffix(name)
         if DexConstants.LOGGING:
             if data is None and label is None:
                 return

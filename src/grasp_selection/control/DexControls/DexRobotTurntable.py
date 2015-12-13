@@ -14,7 +14,7 @@ class DexRobotTurntable:
     '''
 
     #actual angle = desired angle + OFFSET
-    THETA = 0 #turntable rotation 0 degree offset.
+    THETA = 0.4819 #turntable rotation 0 degree offset.
     _RADIUS = 5
     
     RESET_STATE = TurntableState([THETA])
@@ -53,7 +53,7 @@ class DexRobotTurntable:
 
     @staticmethod
     def pose_to_state(target_pose):
-        return TurntableState().set_table_rot(target_pose.rotation.euler['sxyz'][2])
+        return TurntableState().set_table_rot(target_pose.rotation.euler['sxyz'][2] + DexRobotTurntable.THETA)
         
     def _state_FK(self, state):
         return (DexRobotTurntable._RADIUS * cos(state.table_rot), DexRobotTurntable._RADIUS * sin(state.table_rot), 0)

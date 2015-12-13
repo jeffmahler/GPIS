@@ -80,7 +80,7 @@ class DexController:
         y = self._latest_pose.position.y
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
         
-        r = norm([x, y])
+        r = norm([x**2, y**2])
         phi = self._latest_pose.rotation.euler['sxyz'][2]
         
         x_o = self._latest_pose_unprocessed.position.x
@@ -113,10 +113,27 @@ origin = pose(DexConstants.ORIGIN, DexConstants.DEFAULT_GRIPPER_EULER, frame = D
 raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
 
 def test(phi):
-    target = pose((0.05, 0.05, 0.1), rotation_tb(phi, pi / 2, 0), frame = DexConstants.WORLD_FRAME)
+    target = pose((0.05, 0.05, 0.05), rotation_tb(phi, 90, 0), frame = DexConstants.WORLD_FRAME)
+    print target.rotation.euler
     t = DexController()
-    t.reset()
+    t._table.reset()
     t.do_grasp(target)
+    raised = target.copy()
+    raised.position.z = 0.25
+    sleep(0.1)
+    t._zeke.transform(raised, DexConstants.DEFAULT_ROT_SPEED, DexConstants.DEFAULT_TRA_SPEED)
     t.plot()
     t._zeke.plot()
+    t.stop()
+
+    
+def tg():
+    target = pose((0.05, 0.05, 0.05), rotation_tb(0, 90, 0), frame = DexConstants.WORLD_FRAME)
+    print "send angle"
+    print target.rotation.euler
+    t = DexController()
+    t._table.reset()
+    t.do_grasp(target)
+    print "last state"
+    print t._zeke.getState()
     t.stop()

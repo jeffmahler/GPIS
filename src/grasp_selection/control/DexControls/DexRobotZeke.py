@@ -45,7 +45,7 @@ class DexRobotZeke:
             
     def reset_clear_table(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.reset(rot_speed, tra_speed)
-        self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_CLEAR_TABLE"], rot_speed, tra_speed, "Reset Clear Table")
+        #self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_CLEAR_TABLE"], rot_speed, tra_speed, "Reset Clear Table")
             
     def stop(self):
         self._zeke.stop()
@@ -84,6 +84,8 @@ class DexRobotZeke:
         settings["rot_z"] = theta
         settings["extension"] = sqrt(pow(x, 2) + pow(y, 2))
         settings["rot_y"] = target_pose.rotation.euler['sxyz'][1]
+        print "pre offset angle"
+        print settings["rot_y"]
         
         return settings
         
@@ -100,6 +102,9 @@ class DexRobotZeke:
         state.set_arm_ext(settings["extension"])
         state.set_gripper_rot(settings["rot_y"] + DexRobotZeke.THETA)
         state.set_gripper_grip(prev_state.gripper_grip)
+        
+        print "post offset angle"
+        print state.gripper_rot
         
         return state
         
@@ -127,8 +132,15 @@ class DexRobotZeke:
                 return ZekeState.MIN_STATE().gripper_rot
             return rot
         
+        if target_state.gripper_rot is not None:
+            print "pre bound %f" % target_state.gripper_rot;
+        
         target_state.set_gripper_rot(_boundGripperRot(target_state.gripper_rot))
+        #target_state.set_gripper_rot(pi / 2 + DexRobotZeke.THETA)
         self._zeke.gotoState(target_state, rot_speed, tra_speed, name)
+        
+        print "post bound %f" % target_state.gripper_rot;
+        
         self._target_state = target_state.copy()
 
     def transform(self, target_pose, rot_speed, tra_speed, name = None):
@@ -148,7 +160,6 @@ class DexRobotZeke:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
             
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
-        
         aim_state = target_state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext)
         
         self.unGrip()
