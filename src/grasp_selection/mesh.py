@@ -143,6 +143,13 @@ class Mesh3D(object):
         self._compute_mass()
         self._compute_inertia()
 
+    def bounding_box(self):
+        """ Get the mesh bounding box """
+        vertex_array = np.array(self.vertices_)
+        min_vertices = np.min(vertex_array, axis=0)
+        max_vertices = np.max(vertex_array, axis=0)
+        return min_vertices, max_vertices
+
     def _compute_bb_center(self):
         """ Get the bounding box center of the mesh  """
         vertex_array = np.array(self.vertices_)
@@ -199,6 +206,35 @@ class Mesh3D(object):
         """ Computes the mesh inertia. NOTE: Only works for watertight meshes """
         C = self.get_covariance() 
         self.inertia_ = self.density_ * (np.trace(C) * np.eye(3) - C)
+
+    def compute_normals(self):
+        """ Get normals from triangles cause fuck it"""
+        vertex_array = np.array(self.vertices_)
+        tri_array = np.array(self.triangles_)
+        self.normals_ = []
+        for i in range(len(self.vertices_)):
+            inds = np.where(tri_array == i)
+            first_tri = tri_array[inds[0][0],:]
+            t = vertex_array[first_tri, :]
+            v0 = t[1,:] - t[0,:] 
+            v1 = t[2,:] - t[0,:] 
+            v0 = v0 / np.linalg.norm(v0)
+            v1 = v1 / np.linalg.norm(v1)
+            n = np.cross(v0, v1)
+            n = n / np.linalg.norm(n)
+            self.normals_.append(n.tolist())
+
+        # reverse normal based on alignment with convex hull
+        hull = ss.ConvexHull(self.vertices_)
+        hull_tris = hull.simplices.tolist()
+        hull_vertex_ind = hull_tris[0][0]
+        hull_vertex = self.vertices_[hull_vertex_ind]
+        hull_vertex_normal = self.normals_[hull_vertex_ind]
+        v = np.array(hull_vertex).reshape([1,3])
+        n = np.array(hull_vertex_normal)
+        ip = (vertex_array - np.tile(hull_vertex, [vertex_array.shape[0], 1])).dot(n)
+        if ip[0] > 0:
+            self.normals_ = [[-n[0], -n[1], -n[2]] for n in self.normals_]
 
     def get_total_volume(self):
         total_volume = 0
@@ -426,8 +462,7 @@ class Mesh3D(object):
     def visualize(self):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
-        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe')
-        mv.axes()
+        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface', color=(0.5,0.5,0.5))
 
     def create_json_metadata(self):
         return {
