@@ -71,9 +71,9 @@ class DexController:
     def getState(self):
         return self._zeke.getState(), self._table.getState()
         
-    def pause(self, period):
-        self._table.maintainState(period)
-        self._zeke.maintainState(period)
+    def pause(self, s):
+        self._table.maintainState(s)
+        self._zeke.maintainState(s)
         
     def plot_approach_angle(self):
         fig = plt.figure()
@@ -130,15 +130,4 @@ def test(phi):
     t._zeke.transform(raised, "Raised")
     t.plot_approach_angle()
     t._zeke.plot()
-    t.stop()
-  
-def tg():
-    target = pose((0.05, 0.05, 0.05), rotation_tb(0, 90, 0), frame = DexConstants.WORLD_FRAME)
-    print "send angle"
-    print target.rotation.euler
-    t = DexController()
-    t._table.reset()
-    t.do_grasp(target)
-    print "last state"
-    print t._zeke.getState()
     t.stop()

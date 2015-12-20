@@ -2,7 +2,7 @@ from serial import Serial
 from multiprocessing import Process, Queue
 from time import sleep, time
 from DexConstants import DexConstants
-from DexInterpolater import DexInterpolater
+from DexNumericSolvers import DexNumericSolvers
 from Logger import Logger
 
 class _DexSerial(Process):
@@ -225,7 +225,7 @@ class DexSerialInterface:
             if target_state.state[i] is None:
                 target_state.state[i] = self._target_state.state[i]
                 
-        states_vals = DexInterpolater.interpolate(self._State.NUM_STATES, 
+        states_vals = DexNumericSolvers.interpolate(self._State.NUM_STATES, 
                                                                     self._target_state.state, 
                                                                     target_state.copy().state, 
                                                                     speeds_ids, 

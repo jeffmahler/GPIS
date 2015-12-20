@@ -2,7 +2,7 @@ from numpy import pi
 class TurntableState:
 
     NUM_STATES = 1
-    NAME = "Tuntable"
+    NAME = "Turntable"
                 
     @staticmethod
     def INIT_STATE():

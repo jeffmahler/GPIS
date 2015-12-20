@@ -36,10 +36,12 @@ class DexStateViewer:
             
         return self._State(sensorVals)
         
-def viewZeke(period = 10, comm = "COM3"):
-    viewer = DexStateViewer(ZekeState, comm)
-    viewer.monitor(period)
-    
-def viewTable(period = 10, comm = "COM4"):
-    viewer = DexStateViewer(TurntableState, comm)
-    viewer.monitor(period)
+    @staticmethod
+    def viewZeke(period = 10, comm = "COM3"):
+        viewer = DexStateViewer(ZekeState, comm)
+        viewer.monitor(period)
+        
+    @staticmethod
+    def viewTable(period = 10, comm = "COM4"):
+        viewer = DexStateViewer(TurntableState, comm)
+        viewer.monitor(period)

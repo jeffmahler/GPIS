@@ -22,8 +22,6 @@ class DexConstants:
     ZEKE_LOCAL_FRAME = "ZEKE_LOCAL_FRAME"
     WORLD_FRAME = "WORLD_FRAME"
     
-    ORIGIN = point(0,0,0)
-
     ZEKE_ARM_ORIGIN_OFFSET = 0.22
     
     MAX_ROT_SPEED = pi/180*150 #150 degrees per second maximum rotation
