@@ -390,6 +390,7 @@ if __name__ == '__main__':
     poses = []
     stpss = []
     camera_pose_arrs = []
+    table_normals = [] 
     for i, d in enumerate(os.listdir(template_dir)):
         subdir = os.path.join(template_dir, d)
         stp = stps[2]
@@ -404,7 +405,7 @@ if __name__ == '__main__':
             z = [0,0,np.linalg.norm(camera_xyz_w[:3])]
 
             theta = camera_rot_w[0] * np.pi / 180.0# + np.pi / 2
-            phi = camera_rot_w[2] * np.pi / 180.0# + np.pi
+            phi = -camera_rot_w[2] * np.pi / 180.0 + np.pi / 2.0
 
             camera_rot_obj_p_z = np.array([[np.cos(phi), -np.sin(phi), 0],
                                            [np.sin(phi), np.cos(phi), 0],
@@ -416,6 +417,7 @@ if __name__ == '__main__':
 
             #camera_rot_obj_p_x = np.eye(3)
             #camera_rot_obj_p_z = np.eye(3)
+
             camera_md = np.array([[0, 1, 0],[1, 0, 0],[0,0,-1]])
             #camera_md = np.eye(3)
             camera_rot_obj_p = camera_md.dot(camera_rot_obj_p_z.dot(camera_rot_obj_p_x))
@@ -444,13 +446,31 @@ if __name__ == '__main__':
 
             T_obj_obj_p = tfx.pose(stp.r).matrix
             T_obj_p_camera = tfx.pose(camera_rot_obj_p, z).matrix#, camera_rot_obj_p.dot(camera_xyz_obj_p)).matrix
+            #T_obj_p_camera = tfx.pose(camera_rot_obj_p).matrix
+            T_obj_camera = T_obj_p_camera.dot(T_obj_obj_p)
+
+            # rotate to match table normal for 2D search
+            stp_table_basis = np.array(T_obj_camera[:3,:3].dot(stp.r.T))
+            table_tan_x = np.array([-n[1], n[0], 0])
+            table_tan_x = table_tan_x / np.linalg.norm(table_tan_x)
+            table_tan_y = np.cross(n, table_tan_x)
+            t0 = stp_table_basis[:,0].dot(table_tan_x)
+            t1 = stp_table_basis[:,0].dot(table_tan_y)
+            xp = t0*table_tan_x + t1*table_tan_y
+            xp = xp / np.linalg.norm(xp)
+            yp = np.cross(n, xp)
+            Ap = np.c_[xp, yp, n]
+            Rp = Ap.dot(stp_table_basis.T)
+            T_obj_p_camera = tfx.pose(Rp.dot(camera_rot_obj_p), z).matrix#, camera_rot_obj_p.dot(camera_xyz_obj_p)).matrix
+            T_obj_camera = T_obj_p_camera.dot(T_obj_obj_p)
+            stp_table_basis = np.array(T_obj_camera[:3,:3].dot(stp.r.T))
 
             stpss.append(stp)
             rots.append(camera_rot_obj_p)
             ts.append(camera_xyz_obj_p)
             poses.append(T_obj_p_camera)
+            table_normals.append(stp_table_basis)
 
-            T_obj_camera = T_obj_p_camera.dot(T_obj_obj_p)
             thetas.append(theta)
             phis.append(phi)
             camera_pose_arrs.append(camera_pose_arr[j,:])
@@ -500,9 +520,11 @@ if __name__ == '__main__':
         t = ts[index]
         p = poses[index]
         s = stpss[index]
+        stp_n = table_normals[index]
 
         print 'Theta', theta * 180 / np.pi
         print 'Phi', phi * 180 / np.pi
+        print 'N', stp_n
         print index
         print template_filenames[index]
 
@@ -510,11 +532,11 @@ if __name__ == '__main__':
         m_tf.compute_normals()
         m_normals = np.array(m_tf.normals())
 
-        #plt.figure()
-        #plt.imshow(template_images[index], cmap=plt.cm.Greys_r, interpolation='none')
-        #plt.show()
-        
         """
+        plt.figure()
+        plt.imshow(template_images[index], cmap=plt.cm.Greys_r, interpolation='none')
+        plt.show()
+        
         mlab.figure()
         vertex_array = np.array(m_tf.vertices())
         #mlab.points3d(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], scale_factor=0.005, color=(0,1,0))
@@ -523,12 +545,19 @@ if __name__ == '__main__':
 
         canon_axes = 0.1*np.eye(3)
         axes_tf = best_tf.rotation.dot(canon_axes)
-        mlab.points3d(canon_axes[:,0], canon_axes[:,1], canon_axes[:,2], scale_factor=0.02, color=(1,0,0))
         mlab.points3d(0,0,0,scale_factor=0.01,color=(1,0,0))
         mlab.points3d(axes_tf[0,2], axes_tf[1,2], axes_tf[2,2], scale_factor=0.02, color=(0,1,0))
         mlab.points3d(axes_tf[0,1], axes_tf[1,1], axes_tf[2,1], scale_factor=0.02, color=(0,0,1))
         mlab.points3d(axes_tf[0,0], axes_tf[1,0], axes_tf[2,0], scale_factor=0.02, color=(0,1,1))
+        mlab.points3d(0.1*n[0], 0.1*n[1], 0.1*n[2], scale_factor=0.02, color=(1,1,0))
+        stp_n = stp_n[:,2]
+        mlab.points3d(0.1*stp_n[0], 0.1*stp_n[1], 0.1*stp_n[2], scale_factor=0.02, color=(1,1,1))
 
+        mlab.points3d(canon_axes[:,0], canon_axes[:,1], canon_axes[:,2], scale_factor=0.02, color=(1,0,0))
+        canon_axes = 1.1 * canon_axes
+        mlab.text3d(canon_axes[0,0], canon_axes[0,1], canon_axes[0,2], 'X', scale=0.01)
+        mlab.text3d(canon_axes[1,0], canon_axes[1,1], canon_axes[1,2], 'Y', scale=0.01)
+        mlab.text3d(canon_axes[2,0], canon_axes[2,1], canon_axes[2,2], 'Z', scale=0.01)
         #mlab.axes()
         mlab.show()
         """

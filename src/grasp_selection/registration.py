@@ -30,7 +30,7 @@ def get_closest(source_points, target_points):
     match_indices = np.argmin(dists, axis=1)
     return match_indices
 
-def get_closest_plane(source_points, target_points, source_normals, target_normals, dist_thresh=0.05, norm_thresh=0.5):
+def get_closest_plane(source_points, target_points, source_normals, target_normals, dist_thresh=0.05, norm_thresh=0.75):
     dists = ssd.cdist(source_points, target_points, 'euclidean')
     ip = source_normals.dot(target_normals.T) # abs because we don't have correct orientations
     source_ip = source_points.dot(target_normals.T)
@@ -78,9 +78,9 @@ def vis_corrs(source_points, target_points, matches, source_normals=None, target
 
     if target_normals is not None:
         t = 1e-2
-        num_target = 200#target_points.shape[0]
+        subsample_inds = np.random.choice(target_points.shape[0], size=200).tolist()
         pair = np.zeros([2,3])
-        for i in range(num_target):
+        for i in subsample_inds:
             pair[0,:] = target_points[i,:]
             pair[1,:] = target_points[i,:] + t * target_normals[i,:]
             mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
@@ -124,19 +124,14 @@ def icp_mesh_point_cloud(mesh, point_cloud, num_iterations):
 
         
     vis_corrs(source_points, target_points, match_indices)
-    IPython.embed()
 
-def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_cloud_normals, num_iterations, alpha=0.98, mu=1e-2):
+def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_cloud_normals, num_iterations, alpha=0.98, mu=1e-2, sample_size=1000, gamma=100.0):
     # setup the problem
     orig_source_points = np.array(mesh.vertices())
     target_points = point_cloud.T
     orig_source_normals = mesh_normals
     target_normals = point_cloud_normals.T
 
-    subsample_inds = np.random.choice(orig_source_points.shape[0], size=400)
-    orig_source_points = orig_source_points[subsample_inds,:]
-    orig_source_normals = orig_source_normals[subsample_inds,:]
-    
     normal_norms = np.linalg.norm(target_normals, axis=1)
     valid_inds = np.nonzero(normal_norms)
     target_points = target_points[valid_inds[0],:]
@@ -147,26 +142,32 @@ def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_clou
     orig_source_points = orig_source_points[valid_inds[0],:]
     orig_source_normals = orig_source_normals[valid_inds[0],:]
 
-    #vis_corrs(orig_source_points, target_points, None, source_normals=orig_source_normals, target_normals=target_normals, plot_lines=False)
+    #vis_corrs(source_points, target_points, None, source_normals=source_normals, target_normals=target_normals, plot_lines=False)
 
     # alloc buffers
+    source_mean_point = np.mean(orig_source_points, axis=0)
+    target_mean_point = np.mean(target_points, axis=0)
     R_sol = np.eye(3)
-    t_sol = np.zeros([3, 1])
-    A = np.zeros([6,6])
-    b = np.zeros([6,1])
-    G = np.zeros([3,6])
+    t_sol = np.zeros([3, 1]) #init with diff between means
+    t_sol[:,0] = target_mean_point - source_mean_point
 
     # iterate
     for i in range(num_iterations):
         logging.info('Point to plane ICP iteration %d' %(i))
 
+        # subsample points
+        subsample_inds = np.random.choice(orig_source_points.shape[0], size=sample_size)
+        source_points = orig_source_points[subsample_inds,:]
+        source_normals = orig_source_normals[subsample_inds,:]
+
         # transform source points
-        source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
-        source_normals = (R_sol.dot(orig_source_normals.T)).T
+        source_points = (R_sol.dot(source_points.T) + np.tile(t_sol, [1, source_points.shape[0]])).T
+        source_normals = (R_sol.dot(source_normals.T)).T
         
         # closest points
         match_indices = get_closest_plane(source_points, target_points, source_normals, target_normals)
 
+        #vis_corrs(source_points, target_points, match_indices, source_normals=source_normals, target_normals=target_normals, plot_lines=True)
         #vis_corrs(source_points, target_points, match_indices, plot_lines=True)
         
         # solve optimal rotation + translation
@@ -180,7 +181,14 @@ def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_clou
             break
 
         # point to plane
+        A = np.zeros([6,6])
+        b = np.zeros([6,1])
+        G = np.zeros([3,6])
         G[:,3:] = np.eye(3)
+
+        Ap = np.zeros([6,6])
+        bp = np.zeros([6,1])
+
         for i in range(num_corrs):
             s = source_corr_points[i:i+1,:].T
             t = target_corr_points[i:i+1,:].T
@@ -189,15 +197,54 @@ def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_clou
             A += G.T.dot(n).dot(n.T).dot(G)
             b += G.T.dot(n).dot(n.T).dot(t - s)
 
-        v = np.linalg.solve(A+mu*np.eye(6), b)
+            Ap += G.T.dot(G)
+            bp += G.T.dot(t - s)
+
+        v = np.linalg.solve(A+gamma*Ap+mu*np.eye(6), b+gamma*bp)
 
         R = np.eye(3)
         R = R + skew(v[:3])
         U, S, V = np.linalg.svd(R)
         R = U.dot(V)
         t = v[3:]
+
+        R_sol = R.dot(R_sol)
+        t_sol = R.dot(t_sol) + t
+
+        # point to plane
+        """
+        A = np.zeros([3,3])
+        b = np.zeros([3,1])
+        G = np.zeros([3,3])
+        G[:2,1:] = np.eye(2)
+
+        Ap = np.zeros([3,3])
+        bp = np.zeros([3,1])
+
+        for i in range(num_corrs):
+            s = source_corr_points[i:i+1,:].T
+            t = target_corr_points[i:i+1,:].T
+            n = target_corr_normals[i:i+1,:].T
+            G[:,0] = skew(s).T[:,0]
+            A += G.T.dot(n).dot(n.T).dot(G)
+            b += G.T.dot(n).dot(n.T).dot(t - s)
+
+            Ap += G.T.dot(G)
+            bp += G.T.dot(t - s)
+
+        v = np.linalg.solve(A+gamma*Ap+mu*np.eye(3), b+gamma*bp)
+
+        R = np.eye(3)
+        R[0,1] = -v[0]
+        R[1,0] = v[0]
+        U, S, V = np.linalg.svd(R)
+        R_sol = U.dot(V)
+        t_sol[0,0] = v[1]
+        t_sol[1,0] = v[2]
+        """
         
         # point dist
+        """
         source_centroid = np.mean(source_corr_points, axis=0).reshape(1,3)
         target_centroid = np.mean(target_corr_points, axis=0).reshape(1,3)
 
@@ -220,6 +267,7 @@ def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_clou
 
         R_sol = R.dot(R_sol)
         t_sol = R.dot(t_sol) + t
+        """
 
     # get final cost
     source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
@@ -237,7 +285,7 @@ def point_plane_icp_mesh_point_cloud(mesh, point_cloud, mesh_normals, point_clou
     source_target_alignment = np.diag((source_corr_points - target_corr_points).dot(target_corr_normals.T))
     point_plane_cost = (1.0 / num_corrs) * np.sum(source_target_alignment * source_target_alignment)
     point_dist_cost = (1.0 / num_corrs) * np.sum(np.linalg.norm(source_corr_points - target_corr_points, axis=1)**2)
-    total_cost = alpha * point_plane_cost + (1 - alpha) * point_dist_cost
+    total_cost = point_plane_cost + gamma * point_dist_cost
     
     vis_corrs(source_points, target_points, match_indices, plot_lines=False)
     #print R_sol, t_sol
