@@ -4,6 +4,7 @@ import features as f
 import numpy as np
 import IPython
 from scipy import spatial
+import scipy.spatial.distance as ssd
 
 class Correspondences:
     def __init__(self, index_map, source_points, target_points):
@@ -38,6 +39,30 @@ class Correspondences:
         else:
             return self.source_points_[self.iter_count,:], self.target_points_[self.iter_count,:]
 
+class NormalCorrespondences(Correspondences):
+    def __init__(self, index_map, source_points, target_points, source_normals, target_normals):
+        self.source_normals_ = source_normals
+        self.target_normals_ = target_normals
+        Correspondences.__init__(self, index_map, source_points, target_points)
+
+    @property
+    def source_normals(self):
+        return self.source_normals_
+
+    @property
+    def target_normals(self):
+        return self.target_normals_
+
+    # Functions to iterate through matches like "for source_corr, target_corr in correspondences"
+    def __iter__(self):
+        self.iter_count_ = 0
+
+    def next(self):
+        if self.iter_count_ >= len(self.num_matches_):
+            raise StopIteration
+        else:
+            return self.source_points_[self.iter_count,:], self.target_points_[self.iter_count,:], self.source_normals_[self.iter_count,:], self.target_normals_[self.iter_count,:]
+
 class FeatureMatcher:
     """
     Generic feature matching between local features on a source and target object using nearest neighbors
@@ -58,7 +83,7 @@ class FeatureMatcher:
     @abstractmethod
     def match(self, source_obj, target_obj):
         """
-        Matches features between two graspable objects
+        Matches features between a source and target object
         """
         pass
 
@@ -104,4 +129,44 @@ class RawDistanceFeatureMatcher(FeatureMatcher):
                 match_indices.append(-1)
 
         return Correspondences(match_indices, source_matched_points, target_matched_points)
+
+class PointToPlaneFeatureMatcher(FeatureMatcher):
+    def __init__(self, dist_thresh=0.05, norm_thresh=0.75):
+        self.dist_thresh_ = dist_thresh
+        self.norm_thresh_ = norm_thresh
+        FeatureMatcher.__init__(self)
+
+    def match(self, source_points, target_points, source_normals, target_normals):
+        """
+        Matches points between two point-normal sets. Uses the closest ip to choose matches, with distance for thresholding only.
+        Params:
+           source_points: (Nx3 array) source object points
+           target_points: (Nx3 array) target object points
+           source_normals: (Nx3 array) source object outward-pointing normals
+           target_normals: (Nx3 array) target object outward-pointing normals
+        Returns:
+            corrs: (Correspondences) the correspondences between source and target 
+        """
+        # compute the distances and inner products between the point sets 
+        dists = ssd.cdist(source_points, target_points, 'euclidean')
+        ip = source_normals.dot(target_normals.T) # abs because we don't have correct orientations
+        source_ip = source_points.dot(target_normals.T)
+        target_ip = target_points.dot(target_normals.T)
+        target_ip = np.diag(target_ip)
+        target_ip = np.tile(target_ip, [source_points.shape[0], 1])
+        abs_diff = np.abs(source_ip - target_ip) # difference in inner products
+
+        # mark invalid correspondences
+        invalid_dists = np.where(dists > self.dist_thresh_)
+        abs_diff[invalid_dists[0], invalid_dists[1]] = np.inf
+        invalid_norms = np.where(ip < self.norm_thresh_)
+        abs_diff[invalid_norms[0], invalid_norms[1]] = np.inf
+
+        # choose the closest matches
+        match_indices = np.argmin(abs_diff, axis=1)
+        match_vals = np.min(abs_diff, axis=1)
+        invalid_matches = np.where(match_vals == np.inf)
+        match_indices[invalid_matches[0]] = -1
+
+        return NormalCorrespondences(match_indices, source_points, target_points, source_normals, target_normals)
 
