@@ -189,7 +189,7 @@ class PointGraspMetrics3D:
 
     @staticmethod
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
-        """ The Ferrari-Canny L-1 metric """
+        """ The Ferrari-Canny L1 metric """
         eps = np.sqrt(1e-2)
         if params is not None:
             eps = params['eps']
