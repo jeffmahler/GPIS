@@ -14,22 +14,33 @@ import matplotlib.pyplot as plt
 
 import IPython
 
+FRICTION_COEF = 0.5
+
 class PointGraspMetrics3D:
 
     @staticmethod
-    def grasp_quality(grasp, obj, method = 'force_closure', soft_fingers = False, friction_coef = 0.5, num_cone_faces = 8, params = None, vis=False):
+    def grasp_quality(grasp, obj, method = 'force_closure', soft_fingers = False,
+                      friction_coef = FRICTION_COEF, num_cone_faces = 8,
+                      params = None, vis = False):
         if not isinstance(grasp, g.PointGrasp):
             raise ValueError('Must provide a point grasp object')
         if not isinstance(obj, go.GraspableObject3D):
             raise ValueError('Must provide a 3D graspable object')
-        if not hasattr(PointGraspMetrics3D, method):
-            raise ValueError('Illegal point grasp metric specified')
 
         # get point grasp contacts
         contacts_found, contacts = grasp.close_fingers(obj, vis=vis)
         if not contacts_found:
             logging.debug('Contacts not found')
             return 0#-np.inf
+
+        if method == 'force_closure':
+            # Use fast force closure test (Nguyen 1988) if possible.
+            if len(contacts) == 2:
+                c1, c2 = contacts
+                return PointGraspMetrics3D.force_closure(c1, c2, friction_coef)
+
+            # Default to QP force closure test.
+            method = 'force_closure_qp'
 
         # add the forces, torques, etc at each contact point
         num_contacts = len(contacts)
@@ -73,6 +84,8 @@ class PointGraspMetrics3D:
             plt.show()
 
         # evaluate the desired quality metric
+        if not hasattr(PointGraspMetrics3D, method):
+            raise ValueError('Illegal point grasp metric specified')
         Q_func = getattr(PointGraspMetrics3D, method)
         quality = Q_func(forces, torques, normals, soft_fingers, params)
         return quality
@@ -101,7 +114,26 @@ class PointGraspMetrics3D:
         return G
 
     @staticmethod
-    def force_closure(forces, torques, normals, soft_fingers=False, params=None):
+    def force_closure(c1, c2, friction_coef):
+        p1, p2 = c1.point, c2.point
+        n1, n2 = -c1.normal, -c2.normal # inward facing normals
+
+        if (p1 == p2).all(): # same point
+            return 0
+
+        for normal, contact, other_contact in [(n1, p1, p2), (n2, p2, p1)]:
+            diff = other_contact - contact
+            normal_proj = normal.dot(diff) / np.linalg.norm(normal)
+
+            if normal_proj < 0:
+                return 0 # wrong side
+            alpha = np.arccos(normal_proj / np.linalg.norm(diff))
+            if alpha > np.arctan(friction_coef):
+                return 0 # outside of friction cone
+        return 1
+
+    @staticmethod
+    def force_closure_qp(forces, torques, normals, soft_fingers=False, params=None):
         """ Force closure """
         eps = np.sqrt(1e-2)
         if params is not None:
@@ -118,7 +150,7 @@ class PointGraspMetrics3D:
         if params is None:
             return 0
         force_limit = params['force_limits']
-        target_wrench = params['target_wrench']        
+        target_wrench = params['target_wrench']
 
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         return PointGraspMetrics.wrench_in_span(G, target_wrench, force_limit)
@@ -199,21 +231,21 @@ class PointGraspMetrics3D:
         # quadratic and linear costs
         P = W.T.dot(W)
         q = -2 * target_wrench
-        
-        # inequalities 
+
+        # inequalities
         lam_geq_zero = -1 * np.eye(num_wrenches)
         force_constraint = np.ones(num_wrenches)
         G = np.c_[lam_geq_zero, force_constraint]
         h = zeros(num_wrenches+1)
         h[num_wrenches] = f
 
-        sol = cvx.solvers.qp(P, q, G, h)        
+        sol = cvx.solvers.qp(P, q, G, h)
         min_dist = sol['primal objective']
         return min_dist < eps
 
     @staticmethod
     def min_norm_vector_in_facet(facet):
-        eps = 1e-2
+        eps = 1e-10
         dim = facet.shape[1] # num vertices in facet
 
         # create alpha weights for vertices of facet
@@ -318,10 +350,12 @@ def test_quality_metrics(vis=True):
         grasp_center = np.array([0, 0, z_vals[i]])
         grasp_axis = np.array([0, 1, 0])
         grasp_width = 0.1
-        grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+        grasp_params = g.ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, grasp_width)
+        grasp = g.ParallelJawPtGrasp3D(grasp_params)
 
         qualities = []
-        metrics = ['force_closure', 'min_singular', 'wrench_volume', 'grasp_isotropy', 'ferrari_canny_L1']
+        metrics = ['force_closure', 'force_closure_qp', 'min_singular',
+                   'wrench_volume', 'grasp_isotropy', 'ferrari_canny_L1']
         for metric in metrics:
             q = PointGraspMetrics3D.grasp_quality(grasp, graspable, metric, soft_fingers=True)
             qualities.append(q)
