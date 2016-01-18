@@ -79,7 +79,7 @@ class MeshProcessor:
 
         try:
             self.mesh_.set_vertices(vertex_array[reffed_v_old_ind, :].tolist())
-            if self.mesh_.normals():
+            if self.mesh_.normals() is not None:
                 normals_array = np.array(self.mesh_.normals())
                 self.mesh_.set_normals(normals_array[reffed_v_old_ind, :].tolist())
         except IndexError:
@@ -127,8 +127,8 @@ class MeshProcessor:
         self.mesh_.set_vertices(vertex_array_rot.tolist())
         self.mesh_.center_vertices_bb()
 
-        if self.mesh_.normals():
-            normals_array = np.array(self.normals_)
+        if self.mesh_.normals() is not None:
+            normals_array = np.array(self.mesh_.normals_)
             normals_array_rot = R.dot(normals_array.T)
             self.mesh_.set_normals(normals_array_rot.tolist())
 

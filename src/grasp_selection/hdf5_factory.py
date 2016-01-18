@@ -122,7 +122,7 @@ class Hdf5ObjectFactory(object):
         """ Writes mesh object to HDF5 data provided in |data| """
         data.create_dataset(MESH_VERTICES_KEY, data=np.array(mesh.vertices()))
         data.create_dataset(MESH_TRIANGLES_KEY, data=np.array(mesh.triangles()))
-        if mesh.normals():
+        if mesh.normals() is not None:
             data.create_dataset(MESH_NORMALS_KEY, data=np.array(mesh.normals()))
 
     @staticmethod

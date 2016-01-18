@@ -40,6 +40,10 @@ class Mesh3D(object):
     def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0, category='', component=0):
         self.vertices_ = vertices
         self.triangles_ = triangles
+        if normals is not None:
+            normals = np.array(normals)
+            if normals.shape[0] == 3:
+                normals = normals.T
         self.normals_ = normals
         self.metadata_ = metadata
         self.pose_ = pose
@@ -63,7 +67,7 @@ class Mesh3D(object):
         return self.triangles_
 
     def normals(self):
-        if self.normals_:
+        if self.normals_ is not None:
             return self.normals_
         return None #"Mesh does not have a list of normals."
 
@@ -327,7 +331,7 @@ class Mesh3D(object):
 
         try:
             self.vertices_ = vertex_array[reffed_v_old_ind, :].tolist()
-            if self.normals_:
+            if self.normals_ is not None:
                 normals_array = np.array(self.normals_)
                 self.normals_ = normals_array[reffed_v_old_ind, :].tolist()
         except IndexError:
