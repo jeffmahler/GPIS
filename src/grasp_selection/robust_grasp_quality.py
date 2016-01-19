@@ -222,7 +222,7 @@ class RobustGraspQuality:
 
     @staticmethod
     def probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric="force_closure", params_rv=None, features=None,
-                            num_samples = 100):
+                            num_samples = 100, compute_variance=False):
         """
         Get the probability of success for a binary quality metric
         """
@@ -241,7 +241,10 @@ class RobustGraspQuality:
         # convert to estimated prob success
         final_model = ua_result.models[-1]
         estimated_ps = models.BetaBernoulliModel.beta_mean(final_model.alphas, final_model.betas)
-        return estimated_ps[0]
+        if not compute_variance:
+            return estimated_ps[0]
+        estimated_var_ps = models.BetaBernoulliModel.sample_variance(final_model.alphas, final_model.betas)
+        return estimated_ps[0], estimated_var_ps[0]
 
     @staticmethod
     def probability_success_sigma_pts(graspable_rv, grasp_rv, f_rv, config, quality_metric="force_closure", params_rv=None, scale=7.5):
@@ -264,7 +267,7 @@ class RobustGraspQuality:
 
     @staticmethod
     def expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric="ferrari_canny_L1", params_rv=None, features=None,
-                         num_samples = 100):
+                         num_samples = 100, compute_variance=False):
         """
         Get the probability of success for a binary quality metric
         """
@@ -282,6 +285,9 @@ class RobustGraspQuality:
 
         # convert to estimated prob success
         final_model = ua_result.models[-1]
-        expected_q = final_model.means
-        return expected_q[0]
+        mn_q = final_model.means
+        if not compute_variance:
+            return mn_q[0]
+        var_q = models.BetaBernoulliModel.sample_variance(final_model.alphas, final_model.betas)
+        return mn_q, var_q
         

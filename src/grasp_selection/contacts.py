@@ -327,7 +327,7 @@ class Contact3D(Contact):
 
     def surface_window_projection(self, width=1e-2, num_steps=21,
         max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma_mult=0.07, direction=None, vis=False):
+        sigma_mult=0.07, direction=None, compute_pca=False, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             width - float width of the window in obj frame
@@ -352,6 +352,9 @@ class Contact3D(Contact):
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=False, compute_weighted_covariance=True)
+
+        if not compute_pca:
+            return window
         
         # compute principal axis
         pca = PCA()
@@ -440,7 +443,7 @@ class Contact3D(Contact):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def plot_friction_cone(self, color='r'):
+    def plot_friction_cone(self, color='r', scale=1.0):
         success, cone, in_normal = self.friction_cone()
 
         if not success:
@@ -453,7 +456,11 @@ class Contact3D(Contact):
         nx, ny, nz = self.graspable.sdf.transform_pt_obj_to_grid(in_normal, direction=True)
         ax.scatter([x], [y], [z], c=color, s=60) # contact
         ax.scatter([x - nx], [y - ny], [z - nz], c=color, s=60) # normal
-        ax.scatter(x + cone[0], y + cone[1], z + cone[2], c=color, s=40) # cone
+        ax.scatter(x + scale*cone[0], y + scale*cone[1], z + scale*cone[2], c=color, s=40) # cone
+
+        ax.set_xlim3d(0, self.graspable.sdf.dims_[0])
+        ax.set_ylim3d(0, self.graspable.sdf.dims_[1])
+        ax.set_zlim3d(0, self.graspable.sdf.dims_[2])
 
         return plt.Rectangle((0, 0), 1, 1, fc=color) # return a proxy for legend
 

@@ -465,8 +465,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_width = data['grasp_width']
         jaw_width = data['jaw_width']
         grasp_angle = data['grasp_angle']
-        grasp = ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width,
-                                     jaw_width, grasp_angle)
+        grasp = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, grasp_width,
+                                                                                    grasp_angle, jaw_width))
 
         # load other attributes
         grasp.quality = data['quality']

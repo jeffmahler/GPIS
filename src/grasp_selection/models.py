@@ -213,6 +213,13 @@ class BetaBernoulliModel(DiscreteModel):
         """ Mean of the beta distribution with params alpha and beta """
         return (alpha * beta) / ( (alpha + beta)**2 * (alpha + beta + 1))
 
+    @staticmethod
+    def sample_variance(alpha, beta):
+        """ Mean of the beta distribution with params alpha and beta """
+        mean = BetaBernoulliModel.beta_mean(alpha, beta)
+        sample_variance = (1.0 / (alpha + beta)) * (alpha * (1 - mean)**2 + beta * mean**2)
+        return sample_variance
+
     @property
     def posterior_alphas(self):
         return self.posterior_alphas_
@@ -294,6 +301,7 @@ class GaussianModel(DiscreteModel):
     def _init_model_params(self):
         self.means_ = self.mean_prior_ * np.ones(self.num_vars_)
         self.vars_ = np.ones(self.num_vars_)
+        self.sample_vars_ = np.ones(self.num_vars_)
         self.num_observations_ = np.zeros(self.num_vars_)
 
     @property
@@ -303,6 +311,10 @@ class GaussianModel(DiscreteModel):
     @property
     def variances(self):
         return self.vars_
+
+    @property
+    def samples_variances(self):
+        return self.sample_vars_
 
     def predict(self, index):
         """Predict the value of the index'th variable.

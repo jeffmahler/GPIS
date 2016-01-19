@@ -1,6 +1,7 @@
 import cvxopt as cvx
 import numpy as np
 import pyhull.convex_hull as cvh
+import scipy.spatial as ss
 import sys
 import time
 
@@ -11,6 +12,7 @@ import sdf_file
 
 import logging
 import matplotlib.pyplot as plt
+import mayavi.mlab as mv
 
 import IPython
 
@@ -203,7 +205,7 @@ class PointGraspMetrics3D:
 
         if len(hull.vertices) == 0:
             logging.warning('Convex hull could not be computed')
-            return -sys.float_info.max
+            return 0.0
 
         # determine whether or not zero is in the convex hull
         min_norm_in_hull = PointGraspMetrics3D.min_norm_vector_in_facet(G)
@@ -362,9 +364,14 @@ def test_quality_metrics(vis=True):
             print 'Grasp quality according to %s: %f' %(metric, q)
 
         if vis:
-            grasp.visualize(graspable)
-            graspable.visualize()
-            mv.show()
+            cf, contacts = grasp.close_fingers(graspable, vis=True)
+            contacts[0].plot_friction_cone(color='y', scale=-2.0)
+            contacts[1].plot_friction_cone(color='y', scale=-2.0)
+            plt.show()
+            IPython.embed()
+            #grasp.visualize(graspable)
+            #graspable.visualize()
+            #mv.show()
 
 
 # TODO: find a way to log output?
@@ -373,6 +380,7 @@ cvx.solvers.options['show_progress'] = False
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.ERROR)
     # test_gurobi_qp()
-    test_cvxopt_qp()
+    
+    # test_cvxopt_qp()
     # test_ferrari_canny_L1_synthetic()
-    # test_quality_metrics(vis=False)
+    test_quality_metrics(vis=True)
