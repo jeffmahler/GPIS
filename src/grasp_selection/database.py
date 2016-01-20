@@ -236,6 +236,9 @@ class Hdf5Dataset(Dataset):
     def category(self, key):
         return self.objects[key].attrs[CATEGORY_KEY]
 
+    def rendered_image_data(self, key):
+        return self.objects[key][RENDERED_IMAGES_KEY]
+
     # iterators
     def __getitem__(self, index):
         """ Index a particular object in the dataset """
@@ -362,6 +365,14 @@ class Hdf5Dataset(Dataset):
         """ Stable poses for object key """
         return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
 
+    def store_rendered_images(self, key, images, positions, orientations, points_of_interest=None, stable_pose_id=None, image_type="depth"):
+        """ Store rendered images of the object for a given stable pose """
+        if image_type not in self.rendered_image_data(key).keys():
+            self.rendered_image_data(key).create_group(image_type)
+        if stable_pose_id not in self.rendered_image_data(key, image_type).keys():
+            self.rendered_image_data(key, image_type).create_group(stable_pose_id)                
+        return hfact.Hdf5ObjectFactory.write_rendered_images(self.rendered_image_data(key, image_type, stable_pose_id), images, positions, orientations, points_of_interest)
+
 """ Deprecated dataset for use with filesystems """
 class FilesystemDataset(object):
     def __init__(self, dataset_name, config):
@@ -468,7 +479,7 @@ class FilesystemDataset(object):
         """
         if grasp_dir is None:
             grasp_dir = self.dataset_root_dir_
-        path = os.path.join(grasp_dir, Dataset.json_filename(key))
+        path = os.path.join(grasp_dir, FilesystemDataset.json_filename(key))
         try:
             with open(path) as f:
                 grasps = jsons.load(f)
@@ -659,8 +670,8 @@ class FilesystemChunk(FilesystemDataset):
     def _parse_config(self, config):
         super(FilesystemChunk, self)._parse_config(config)
         self.dataset_name_ = config['dataset']
-        self.start = config['chunk_start']
-        self.end = config['chunk_end']
+        self.start = config['start_index']
+        self.end = config['end_index']
 
 def test_dataset():
     logging.getLogger().setLevel(logging.INFO)
