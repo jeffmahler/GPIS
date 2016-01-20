@@ -126,12 +126,6 @@ def label_grasps(obj, dataset, output_ds, config):
         logging.info('Skipping %s' %(obj.key))
         return
 
-    # prune grasps in collision with stable poses
-    #stp = dataset.stable_poses(obj.key)
-    #grasps = prune_grasps_intersecting_table(grasps, obj, stp[0])
-    #IPython.embed()
-    #exit(0)
-
     # store the grasps
     output_ds.store_grasps(obj.key, grasps)
 
@@ -171,6 +165,7 @@ def label_grasps(obj, dataset, output_ds, config):
     # compute quality
     grasp_metrics = {}
     uncertainty_configs = [low_u_config, med_u_config, high_u_config]
+    quality_start_time = time.time()
     for j, config in enumerate(uncertainty_configs):
         graspable_rv = rvs.GraspableObjectPoseGaussianRV(obj, config)
         f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
@@ -186,15 +181,22 @@ def label_grasps(obj, dataset, output_ds, config):
                 grasp_metrics[grasp.grasp_id] = {}
 
             # probability of force closure
+            logging.info('Computing probability of force closure')
             pfc, vfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
                                                                   num_samples=config['pfc_num_samples'], compute_variance=True)
             grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
             grasp_metrics[grasp.grasp_id][vfc_tag] = vfc
 
             # expected ferrari canny
+            """
+            logging.info('Computing ferrari canny')
             eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
                                                          num_samples=config['eq_num_samples'])
             grasp_metrics[grasp.grasp_id][efcny_tag] = eq
+            """
+            
+    quality_stop_time = time.time()
+    logging.info('Quality computation for %d grasps took %f sec.' %(len(grasps), quality_stop_time - quality_start_time))
 
     # store grasp metrics
     output_ds.store_grasp_metrics(obj.key, grasp_metrics, force_overwrite=True)
