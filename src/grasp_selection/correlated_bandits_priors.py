@@ -666,7 +666,7 @@ if __name__ == '__main__':
 
     # read config file
     config = ec.ExperimentConfig(args.config)
-    chunk = db.Chunk(config)
+    chunk = db.FilesystemChunk(config)
 
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
