@@ -223,7 +223,7 @@ class GraspAxisFeatureExtractor(FeatureExtractor):
 class PatchOrientationFeatureExtractor(FeatureExtractor):
     name = 'patch_orientation'
 
-    """Class for extracting grasp center and direction."""
+    """Class for extracting grasp direction."""
     def __init__(self, patch_orientation, feature_weight=1.0):
         self.patch_orientation_ = patch_orientation
         self.feature_weight_ = feature_weight
@@ -554,7 +554,6 @@ class GraspableFeatureExtractor:
             #GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
             CenterOfMassFeatureExtractor(self.graspable_.mesh.center_of_mass, self.grasp_axis_weight_),
             PatchOrientationFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
-            PatchOrientationFeatureExtractor(-grasp.axis, self.grasp_axis_weight_),
             # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight_),
             # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight_)
         ]
