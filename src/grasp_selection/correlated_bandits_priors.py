@@ -676,7 +676,7 @@ if __name__ == '__main__':
         pass
 
     if 'priors_dataset' in config:
-        priors_dataset = db.Dataset(config['priors_dataset'], config)
+        priors_dataset = db.FilesystemDataset(config['priors_dataset'], config)
     else:
         priors_dataset = None
 

@@ -670,8 +670,8 @@ class FilesystemChunk(FilesystemDataset):
     def _parse_config(self, config):
         super(FilesystemChunk, self)._parse_config(config)
         self.dataset_name_ = config['dataset']
-        self.start = config['start_index']
-        self.end = config['end_index']
+        self.start = config['datasets'][self.dataset_name_]['start_index']
+        self.end = config['datasets'][self.dataset_name_]['end_index']
 
 def test_dataset():
     logging.getLogger().setLevel(logging.INFO)
