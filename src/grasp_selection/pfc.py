@@ -58,7 +58,7 @@ class GraspableObjectGaussianPose:
             self.prealloc_samples_.append(self.sample())
 
     @property
-    def obj(self):
+   def obj(self):
         return self.obj_
 
     def sample(self, size=1):
@@ -246,7 +246,7 @@ class PartialClosureRV:
         else:
             return self.features_.phi
 
-    def sample_success(self):
+    def sample(self):
         # sample grasp
         cur_time = time.clock()
         grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
@@ -312,7 +312,7 @@ class ForceClosureRV:
         else:
             return self.features_
 
-    def sample_success(self):
+    def sample(self):
         # sample grasp
         cur_time = time.clock()
         grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
