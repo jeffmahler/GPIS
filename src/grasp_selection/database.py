@@ -342,7 +342,7 @@ class Hdf5Dataset(Dataset):
         """ Returns a list of grasp metric dictionaries fot the list grasps provided to the database """
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
-            return []
+            return {}
         return hfact.Hdf5ObjectFactory.grasp_metrics(grasps, self.grasp_data(key, gripper))
 
     def store_grasp_metrics(self, key, grasp_metric_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
@@ -353,7 +353,7 @@ class Hdf5Dataset(Dataset):
         """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
-            return []
+            return {}
         return hfact.Hdf5ObjectFactory.grasp_features(grasps, self.grasp_data(key, gripper))        
 
     def store_grasp_features(self, key, grasp_feature_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):

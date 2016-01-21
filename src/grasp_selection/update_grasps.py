@@ -91,12 +91,16 @@ if __name__ == '__main__':
                     for result_dataset in result_datasets:
                         dataset = database.dataset(result_dataset.name)
                         for obj_key in result_dataset.object_keys:
-                            grasps = result_dataset.grasps(obj_key)
-                            dataset.store_grasps(obj_key, grasps, force_overwrite=True)
+                            try:
+                                grasps = result_dataset.grasps(obj_key)
+                                dataset.store_grasps(obj_key, grasps, force_overwrite=True)
 
-                            grasp_feature_dict = result_dataset.grasp_features(obj_key, grasps)
-                            dataset.store_grasp_features(obj_key, grasp_feature_dict, force_overwrite=True)
+                                grasp_feature_dict = result_dataset.grasp_features(obj_key, grasps)
+                                dataset.store_grasp_features(obj_key, grasp_feature_dict, force_overwrite=True)
 
-                            grasp_metric_dict = result_dataset.grasp_metrics(obj_key, grasps)
-                            dataset.store_grasp_metrics(obj_key, grasp_metric_dict, force_overwrite=True) 
+                                grasp_metric_dict = result_dataset.grasp_metrics(obj_key, grasps)
+                                dataset.store_grasp_metrics(obj_key, grasp_metric_dict, force_overwrite=True) 
+                            except Exception as e:
+                                logging.warning('Failed to update grasps for object %s' %(obj_key))
     shutil.rmtree(experiment_data_dir)
+    database.close()
