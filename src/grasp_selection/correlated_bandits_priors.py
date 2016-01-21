@@ -511,6 +511,8 @@ def label_correlated(obj, chunk, config, plot=False,
 
     return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_gi_rewards, avg_ts_corr_rewards, avg_bucb_corr_rewards,
                                                  all_avg_ts_corr_prior_rewards, all_avg_bucb_corr_prior_rewards,
+                                                 std_ua_rewards, std_ts_rewards, std_gi_rewards, std_ts_corr_rewards, std_bucb_corr_rewards,
+                                                 all_std_ts_corr_prior_rewards, all_std_bucb_corr_prior_rewards,                                             
                                                  true_pfc, ua_result.iters, kernel_matrix,
                                                  [], [], [],
                                                  ce_vals, ccbp_vals, we_vals, len(candidates), total_weights,
