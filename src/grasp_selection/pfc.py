@@ -58,7 +58,7 @@ class GraspableObjectGaussianPose:
             self.prealloc_samples_.append(self.sample())
 
     @property
-   def obj(self):
+    def obj(self):
         return self.obj_
 
     def sample(self, size=1):
