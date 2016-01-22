@@ -44,11 +44,12 @@ class Contact3D(Contact):
     def normal(self):
         return self.normal_
 
+    @normal.setter
+    def normal(self, normal):
+        self.normal_ = normal
+
     def _compute_normal(self):
-        """ Compute inward facing normal at contact, according to in_direction """
-        if self.in_direction_ is not None:
-            self.normal_ = -self.in_direction_
-            return
+        """Compute outward facing normal at contact, according to in_direction """
         # tf to grid
         as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
         on_surface, _ = self.graspable.sdf.on_surface(as_grid)
