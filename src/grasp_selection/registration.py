@@ -12,7 +12,10 @@ import mesh
 import obj_file as of
 import similarity_tf as stf
 
-import mayavi.mlab as mlab
+try:
+    import mayavi.mlab as mlab
+except:
+    logging.warning('Failed to import mayavi')
 import scipy.spatial.distance as ssd
 
 class RegistrationResult(object):
@@ -419,7 +422,8 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         point_plane_cost = (1.0 / num_corrs) * np.sum(source_target_alignment * source_target_alignment)
         point_dist_cost = (1.0 / num_corrs) * np.sum(np.linalg.norm(source_corr_points - target_corr_points, axis=1)**2)
         total_cost = point_plane_cost + self.gamma_ * point_dist_cost
-        
+
+        vis_corrs(source_points, target_points, corrs.index_map, plot_lines=False)        
         return RegistrationResult(R_sol, t_sol, total_cost)
 
 class RegistrationFunc:

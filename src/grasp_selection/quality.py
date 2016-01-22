@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 try:
     import mayavi.mlab as mv
 except:
-    logging.warning('Failed to import Mayavi')
+    logging.warning('Failed to import mayavi')
 import IPython
 
 FRICTION_COEF = 0.5
