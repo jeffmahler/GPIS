@@ -685,6 +685,8 @@ if __name__ == '__main__':
     # loop through objects, labelling each
     results = []
     for obj in chunk:
+        IPython.embed()
+        
         if obj.key in skip_keys:
             continue
 
