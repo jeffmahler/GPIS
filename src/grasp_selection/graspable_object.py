@@ -140,6 +140,34 @@ class GraspableObject3D(GraspableObject):
             mv.points3d(self.center_of_mass_[0], self.center_of_mass_[1], self.center_of_mass_[2],
                         scale_factor=com_scale)
 
+    def plot_sdf_vs_mesh(self):
+        def plot_surface(points, color):
+            x, y, z = points[:, 0], points[:, 1], points[:, 2]
+            ax.scatter(x, y, z, c=color)
+        def plot_plane(normal, point):
+            d = -point.dot(normal)
+            # print('{}x + {}y + {}z + {} = 0'.format(normal[0], normal[1], normal[2], d))
+            xx, yy = np.meshgrid(range(dim), range(dim))
+            z = (-normal[0] * xx - normal[1] * yy - d) * 1. / normal[2]
+            ax.plot_surface(xx, yy, z)
+
+        sdf_surface_points, _ = self.sdf.surface_points()
+        mesh_surface_points = np.array([graspable.sdf.transform_pt_obj_to_grid(np.array(v))
+                                        for v in self.mesh.vertices()])
+        dim = max(self.sdf.dimensions)
+
+        ax = plt.gca(projection = '3d')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_xlim3d(0, dim)
+        ax.set_ylim3d(0, dim)
+        ax.set_zlim3d(0, dim)
+
+        plot_surface(sdf_surface_points, 'b')
+        plot_surface(mesh_surface_points, 'r')
+        plt.show(block=False)
+
     def moment_arm(self, x):
         """ Computes the moment arm to point x """
         return x - self.center_of_mass_
