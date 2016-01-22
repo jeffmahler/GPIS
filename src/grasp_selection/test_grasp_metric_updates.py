@@ -47,7 +47,7 @@ if __name__ == '__main__':
     database = db.Hdf5Database(database_filename, config)
 
     # read the grasp metrics and features
-    ds = database.datset(args.dataset)
+    ds = database.dataset(args.dataset)
     o = ds.object_keys
     grasps = ds.grasps(o[0])
     grasp_features = ds.grasp_features(o[0], grasps)
