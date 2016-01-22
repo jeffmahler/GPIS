@@ -45,7 +45,7 @@ def load_vertex_contacts(graspable, vis=False):
 
     vertex_contacts = []
     on_surface_count = 0
-    for i, vertex in graspable.mesh.vertices():
+    for i, vertex in enumerate(graspable.mesh.vertices()):
         if graspable.mesh.normals() is None:
             contact = contacts.Contact3D(graspable, np.array(vertex))
         else:
@@ -342,7 +342,7 @@ def vis_stable(graspable, antipodal_pairs, antipodal_grasps,
               table_vertices=table_vertices, table_tris=table_tris, **kwargs)
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.ERROR)
+    logging.getLogger().setLevel(logging.INFO)
     config = {
         'database_dir': '/home/jmahler/brian/uniform_meshes/test_db',
         'database_name': 'google_test_db.hdf5',
@@ -374,5 +374,6 @@ if __name__ == '__main__':
     # ray visualization
     most_stable_pose = stable_poses[-1]
     logging.info('About to plot rays with most stable pose.')
-    vis_stable(graspable, antipodal_pairs, antipodal_grasps, all_contacts,
+    vis_stable(graspable, antipodal_pairs, antipodal_grasps,
+               all_contacts, quality_matrix,
                most_stable_pose, vis_transform=False, max_rays=500)
