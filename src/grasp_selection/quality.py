@@ -119,7 +119,7 @@ class PointGraspMetrics3D:
 
     @staticmethod
     def force_closure(c1, c2, friction_coef):
-        if c1.point is None or c2.point is None or c1.normals is None or c2.normal is None:
+        if c1.point is None or c2.point is None or c1.normal is None or c2.normal is None:
             return 0
         p1, p2 = c1.point, c2.point
         n1, n2 = -c1.normal, -c2.normal # inward facing normals
