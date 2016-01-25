@@ -430,6 +430,7 @@ def label_correlated(obj, chunk, config, plot=False,
             bucb_corr_runtimes.append(bucb_corr_prior_result.total_time)
             all_bucb_corr_prior_ind.append(bucb_corr_prior_result.best_pred_ind)
 
+
         # compile results
         ua_normalized_reward = reward_vs_iters(ua_result, true_pfc)
         ts_normalized_reward = reward_vs_iters(ts_result, true_pfc)
@@ -459,19 +460,15 @@ def label_correlated(obj, chunk, config, plot=False,
     all_ts_corr_rewards = np.array(ts_corr_rewards)
     all_bucb_corr_rewards = np.array(bucb_corr_rewards)
 
-    all_ts_corr_prior_rewards = []
     all_avg_ts_corr_prior_rewards = []
     all_std_ts_corr_prior_rewards = []
     for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
-        all_ts_corr_prior_rewards.append(np.array(ts_corr_prior_rewards))
         all_avg_ts_corr_prior_rewards.append(np.mean(np.array(ts_corr_prior_rewards), axis=0))
         all_std_ts_corr_prior_rewards.append(np.std(np.array(ts_corr_prior_rewards), axis=0))
 
-    all_bucb_corr_prior_rewards = []
     all_avg_bucb_corr_prior_rewards = []
     all_std_bucb_corr_prior_rewards = []
     for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
-        all_bucb_corr_prior_rewards.append(np.array(bucb_corr_prior_rewards))
         all_avg_bucb_corr_prior_rewards.append(np.mean(np.array(bucb_corr_prior_rewards), axis=0))
         all_std_bucb_corr_prior_rewards.append(np.std(np.array(bucb_corr_prior_rewards), axis=0))
 
