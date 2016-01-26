@@ -11,7 +11,10 @@ import sdf_file
 
 import logging
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 
 import IPython
 
