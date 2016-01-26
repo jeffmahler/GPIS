@@ -439,8 +439,6 @@ def launch_experiment(args, sleep_time):
             logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
             break
 
-        break
-
     # clear global q
     global instance_launch_queue
     while not instance_launch_queue.empty():

@@ -149,6 +149,7 @@ class BanditCorrelatedPriorExperimentResult:
             num_grasps[i] = r.num_grasps
             total_weights[i] = r.total_weights
 
+
             ua_runtime[i] = r.ua_runtime
             ts_runtime[i] = r.ts_runtime
             ts_corr_runtime[i] = r.ts_corr_runtime
@@ -172,6 +173,7 @@ class BanditCorrelatedPriorExperimentResult:
         return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, gi_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_rewards, bucb_corr_prior_rewards,
                                                      true_avg_rewards, iters, kernel_matrices, neighbor_kernels, neighbor_pfc_diffs,
                                                      neighbor_keys, ce_vals, se_vals, we_vals, num_grasps, total_weights,
+                                                     [], [], [], [], [], [],
                                                      ua_runtime, ts_runtime, ts_corr_runtime, bucb_corr_runtime, ts_corr_prior_runtime, bucb_corr_prior_runtime,
                                                      prior_comp_time,
                                                      obj_keys, neighbor_keys, len(result_list))
