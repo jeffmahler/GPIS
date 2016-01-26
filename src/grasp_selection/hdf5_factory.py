@@ -45,6 +45,7 @@ NUM_STP_KEY = 'num_stable_poses'
 POSE_KEY = 'pose'
 STABLE_POSE_PROB_KEY = 'p'
 STABLE_POSE_ROT_KEY = 'r'
+STABLE_POSE_PT_KEY = 'x0'
 
 NUM_GRASPS_KEY = 'num_grasps'
 GRASP_KEY = 'grasp'
@@ -158,7 +159,8 @@ class Hdf5ObjectFactory(object):
             stp_key = POSE_KEY + '_' + str(i) 
             p = data[stp_key].attrs[STABLE_POSE_PROB_KEY]
             r = data[stp_key].attrs[STABLE_POSE_ROT_KEY]
-            stable_poses.append(stpc.StablePose(p, r))
+            x0 = data[stp_key].attrs[STABLE_POSE_PT_KEY]
+            stable_poses.append(stpc.StablePose(p, r, x0))
         return stable_poses
 
     @staticmethod
@@ -171,6 +173,8 @@ class Hdf5ObjectFactory(object):
             data.create_group(stp_key)
             data[stp_key].attrs.create(STABLE_POSE_PROB_KEY, stable_pose.p)
             data[stp_key].attrs.create(STABLE_POSE_ROT_KEY, stable_pose.r)
+            data[stp_key].attrs.create(STABLE_POSE_PT_KEY, stable_pose.x0)
+            data[stp_key].create_group(db.RENDERED_IMAGES_KEY)
 
     @staticmethod
     def grasps(data):
@@ -227,7 +231,9 @@ class Hdf5ObjectFactory(object):
                 data[grasp_key].attrs[GRASP_CONFIGURATION_KEY] = grasp.configuration
                 data[grasp_key].attrs[GRASP_RF_KEY] = grasp.frame
                 data[grasp_key].attrs[GRASP_TIMESTAMP_KEY] = creation_stamp
-                
+            else:
+                logging.warning('Grasp %d already exists and overwrite was not requested. Aborting write request' %(grasp_id))
+                return None
 
         data.attrs[NUM_GRASPS_KEY] = num_grasps + num_new_grasps
         return creation_stamp
