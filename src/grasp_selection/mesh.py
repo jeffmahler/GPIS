@@ -466,10 +466,12 @@ class Mesh3D(object):
         oof = obj_file.ObjFile(filename)
         oof.write(self)
 
-    def visualize(self):
+    def visualize(self, color=(0.5, 0.5, 0.5)):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
-        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface', color=(0.5,0.5,0.5))
+        surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface',
+                                     color=color)
+        return surface
 
     def create_json_metadata(self):
         return {
