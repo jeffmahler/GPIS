@@ -167,7 +167,10 @@ class Hdf5ObjectFactory(object):
             stp_key = POSE_KEY + '_' + str(i) 
             p = data[stp_key].attrs[STABLE_POSE_PROB_KEY]
             r = data[stp_key].attrs[STABLE_POSE_ROT_KEY]
-            x0 = data[stp_key].attrs[STABLE_POSE_PT_KEY]
+            try:
+                x0 = data[stp_key].attrs[STABLE_POSE_PT_KEY]
+            except:
+                x0 = np.zeros(3)
             stable_poses.append(stpc.StablePose(p, r, x0))
         return stable_poses
 

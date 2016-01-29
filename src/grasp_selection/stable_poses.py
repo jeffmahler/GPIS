@@ -2,8 +2,12 @@
 Computes the statistical distribution of stable poses for a polyhedron
 Author: Nikhil Sharma
 """
-import cvxopt as cvx
 import logging
+try:
+    import cvxopt as cvx
+    cvx.solvers.options['show_progress'] = False
+except:
+    logging.warning('Failed to import cvx')
 import math
 import sys
 import IPython
@@ -21,7 +25,7 @@ import obj_file
 # from mpl_toolkits.mplot3d import Axes3D
 
 # TODO: find a way to log output?
-cvx.solvers.options['show_progress'] = False
+
 
 def compute_basis(vertices, m):
     """

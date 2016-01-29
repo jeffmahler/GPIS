@@ -1,6 +1,13 @@
-import cvxopt as cvx
+import logging
 import numpy as np
-import pyhull.convex_hull as cvh
+try:
+    import pyhull.convex_hull as cvh
+except:
+    logging.warning('Failed to import pyhull')
+try:
+    import cvxopt as cvx
+except:
+    logging.warning('Failed to import cvx')
 import scipy.spatial as ss
 import sys
 import time
@@ -10,7 +17,6 @@ import graspable_object as go
 import obj_file
 import sdf_file
 
-import logging
 import matplotlib.pyplot as plt
 try:
     import mayavi.mlab as mv

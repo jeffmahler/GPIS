@@ -17,7 +17,10 @@ try:
     import mayavi.mlab as mv
 except:
     logging.warning('Failed to import mayavi')
-import pyhull.convex_hull as cvh
+try:
+    import pyhull.convex_hull as cvh
+except:
+    logging.warning('Failed to import pyhull')
 import scipy.spatial as ss
 
 C_canonical = np.array([[1.0 / 60.0, 1.0 / 120.0, 1.0 / 120.0],
