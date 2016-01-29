@@ -48,15 +48,21 @@ class DatasetConfig:
 # Global array of all datasets and params
 DATASETS = [
     DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
+    DatasetConfig(name='aselab', extension='.obj', scale=0.8246, synthetic=False),
     DatasetConfig(name='autodesk', extension='.off', synthetic=True),
 #    DatasetConfig(name='Archive3D', extension='.3DS'),
     DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
     DatasetConfig(name='Cat50_ModelDatabase', extension='.obj', cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/Cat50_ModelDatabase')),
+    DatasetConfig(name='google', extension='.obj', synthetic=True),
+    DatasetConfig(name='inventor_small', extension='.wrl', synthetic=True),
     DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False),
+    DatasetConfig(name='MeshSegBenchmark', extension='.off', synthetic=True),
     DatasetConfig(name='ModelNet40', extension='.off', cat_db=mdb.ModelNet40ObjectDatabase('/mnt/terastation/shape_data/MASTER_DB_v2/ModelNet40/index.db')),
     DatasetConfig(name='NTU3D', extension='.obj'),
     DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
     DatasetConfig(name='SHREC14LSGTB', extension='.off', cat_db=mdb.SHRECObjectDatabase('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla')),
+    DatasetConfig(name='siemens', extension='.stl', synthetic=True),
+    DatasetConfig(name='surgical', extension='.obj'),
     DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase())
 ]
 
@@ -111,7 +117,7 @@ if __name__ == '__main__':
     # open up the database
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
-    
+
     # loop through datasets and cleanup
     for j in range(dataset_start, len(dataset_inds)):
         # clear filenames list
@@ -145,7 +151,7 @@ if __name__ == '__main__':
                 fullpath_file_root = os.path.join(root, file_root)
 
                 # grab the models with a given format and filtered by the given filter (fresh clean for each file)
-                if file_ext == dataset.extension and filename.find(dataset.name_filter) > -1 and filename.find('clean') == -1:
+                if file_ext == dataset.extension and filename.find(dataset.name_filter) > -1 and filename.find('clean') == -1 and filename.find('dec') == -1:
                     # optionally rename by category
                     if dataset.fix_names:
                         category = dataset.category(root)
@@ -157,23 +163,25 @@ if __name__ == '__main__':
                     else:
                         target_filename = os.path.join(target_dir, file_root)
 
-                    try:
+                    if True:#try:
                         # convert to obj
                         obj_filename = '%s.obj' %(fullpath_file_root)
-                        decimation_script = os.path.join(config['root_dir'], 'scripts/decimation2.mlx')
+                        decimation_script = os.path.join(config['root_dir'], 'scripts/decimation.mlx')
                         mesh = MeshFile.extract_mesh(filename, obj_filename, decimation_script)
+                        mesh.set_density(4000.0)
 
                         # clean up mesh triangles
                         mesh_processor = mp.MeshProcessor(mesh, obj_filename)
+                        print 'Cleaning mesh'
                         mesh_processor.clean()
                     
                         # scale mesh to meters
+                        print 'Rescaling mesh'
                         mesh_processor.rescale_vertices(dataset.scale, rescaling_type=MeshCleaner.RescalingTypeAbsolute)
 
                         # rescale synthetic meshes to fit within the gripper
                         if dataset.synthetic:
                             mesh_processor.rescale_vertices(gripper_size, rescaling_type=MeshCleaner.RescalingTypeDiag)
-
                         # get convex pieces (NOT WORKING WELL...)                        
                         #convex_pieces = mesh_processor.convex_pieces(config['cvx_decomp'])
 
@@ -184,11 +192,15 @@ if __name__ == '__main__':
                             mass = config['default_mass']
 
                         # get the extra info
+                        print 'Converting to SDF'
                         sdf = mesh_processor.convert_sdf(dim, padding)
+                        print 'Computing stable poses'
                         stable_poses = mesh_processor.stable_poses(min_prob)
+                        print 'Extracting shot features'
                         shot_features = mesh_processor.extract_shot()
 
                         # write to database
+                        print 'Creating graspable'
                         if dataset.fix_names:
                             key = category
                         else:
@@ -200,8 +212,8 @@ if __name__ == '__main__':
                         #g.sdf.scatter()
                         #plt.show()
 
-                    except Exception as e:
-                        exceptions.append('Dataset: %s,  Model: %s, Exception: %s' % (dataset.name, filename, str(e))) 
+                    #except Exception as e:
+                    #    exceptions.append('Dataset: %s,  Model: %s, Exception: %s' % (dataset.name, filename, str(e))) 
                 
     # print all exceptions
     exceptions_filename = os.path.join(dest_root_folder, 'exceptions.txt')
@@ -210,4 +222,5 @@ if __name__ == '__main__':
         out_exceptions.write('%s\n' %(exception))
     out_exceptions.close()
 
-    IPython.embed()
+    # close the database
+    database.close()

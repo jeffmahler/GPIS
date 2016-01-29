@@ -12,6 +12,7 @@ import os
 import sys
 import IPython
 import math
+import mesh
 import numpy as np
 import stable_poses as st
 import obj_file
@@ -39,7 +40,8 @@ class StablePoseFile:
                 p = float(data[i][1])
                 r = [[data[i+1][1], data[i+1][2], data[i+1][3]], [data[i+2][0], data[i+2][1], data[i+2][2]], [data[i+3][0], data[i+3][1], data[i+3][2]]]
                 r = np.array(r).astype(np.float64)
-                stable_poses.append(spc.StablePose(p, r))
+                x0 = np.array([data[i+4][1], data[i+4][2], data[i+4][3]]).astype(np.float64)
+                stable_poses.append(spc.StablePose(p, r, x0))
         return stable_poses
 
     def write(self):
@@ -65,16 +67,18 @@ class StablePoseFile:
             for face, p in prob_mapping.items():
                 if p >= min_prob:
                     vertices = [cv_hull.vertices()[i] for i in face]
-                    basis = st.compute_basis(vertices)
+                    basis = st.compute_basis(vertices, cv_hull)
                     R_list.append([p, basis])
             self.write_mesh_stable_poses(mesh, filename, min_prob)
     
     def write_mesh_stable_poses(self, mesh, filename, min_prob=0, vis=False):
         prob_mapping, cv_hull = st.compute_stable_poses(mesh), mesh.convex_hull()
+
         R_list = []
         for face, p in prob_mapping.items():
             if p >= min_prob:
-                R_list.append([p, st.compute_basis([cv_hull.vertices()[i] for i in face])])
+                x0 = np.array(cv_hull.vertices()[face[0]])
+                R_list.append([p, st.compute_basis([cv_hull.vertices()[i] for i in face], cv_hull), x0])
 
         if vis:
             print 'P', R_list[0][0]
@@ -111,11 +115,17 @@ class StablePoseFile:
             f.write("r %f %f %f\n" %(R_list[i][1][0][0], R_list[i][1][0][1], R_list[i][1][0][2]))
             f.write("  %f %f %f\n" %(R_list[i][1][1][0], R_list[i][1][1][1], R_list[i][1][1][2]))
             f.write("  %f %f %f\n" %(R_list[i][1][2][0], R_list[i][1][2][1], R_list[i][1][2][2]))
+            f.write("x0 %f %f %f\n" %(R_list[i][2][0], R_list[i][2][1], R_list[i][2][2]))
         f.write("\n\n")
 
 
 if __name__ == '__main__':
+    mesh_filename = sys.argv[1]
+    of = obj_file.ObjFile(mesh_filename)
+    m = of.read()
     stp = StablePoseFile()
+    stp.write_mesh_stable_poses(m, mesh_filename)
+
     stp.write()
     for filename in os.listdir("."):
         if filename[-4:] == ".stp":

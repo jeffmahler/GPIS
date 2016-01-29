@@ -4,6 +4,7 @@ Author: Jeff Mahler
 """
 from abc import ABCMeta, abstractmethod
 import copy
+import itertools as it
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
@@ -36,6 +37,13 @@ def skew(xi):
                   [xi[2], 0, -xi[0]],
                   [-xi[1], xi[0], 0]])
     return S
+
+def deskew(S):
+    x = np.zeros(3)
+    x[0] = S[2,1]
+    x[1] = S[0,2]
+    x[2] = S[1,0]
+    return x
 
 class RandomVariable(object):
     __metaclass__ = ABCMeta
@@ -89,6 +97,73 @@ class GraspableObjectPoseGaussianRV(RandomVariable):
     def obj(self):
         return self.obj_
 
+    def sigma_pts(self, L, alpha=1e-3, kappa=0, scale=7.5, use_cov=True):
+        """ Returns a set of sigma points with corresponding weights """
+        lambda_o = alpha**2 * (L + kappa) - L
+
+        mu_s = self.obj_.tf.scale
+        mu_t = self.obj_.tf.translation
+        mu_r = self.obj_.tf.rotation
+        sigma_pts = [self.obj_]
+        sigma_weights = [self.s_rv_.pdf(mu_s) * self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(np.zeros(3))]#[lambda_o / (L + lambda_o)]
+
+        std = 1.0
+        if use_cov:
+            std = self.s_rv_.std()
+        s_i = mu_s + np.sqrt(scale) * std
+        tf_i = stf.SimilarityTransform3D(tfx.transform(mu_r, mu_t), s_i)
+        obj_i = self.obj_.transform(tf_i)
+        w_i = self.s_rv_.pdf(s_i) * self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(np.zeros(3))
+        sigma_pts.append(obj_i)
+        sigma_weights.append(w_i)
+
+        s_i = mu_s - np.sqrt(scale) * std
+        tf_i = stf.SimilarityTransform3D(tfx.transform(mu_r, mu_t), s_i)
+        obj_i = self.obj_.transform(tf_i)
+        w_i = self.s_rv_.pdf(s_i) * self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(np.zeros(3))
+        sigma_pts.append(obj_i)
+        sigma_weights.append(w_i)
+
+        S_t = np.eye(3)
+        if use_cov:
+            S_t = self.t_rv_.cov
+        for i in range(3):
+            t_i = mu_t + np.sqrt(scale) * np.sqrt(S_t[:,i])
+            tf_i = stf.SimilarityTransform3D(tfx.transform(mu_r, t_i), mu_s)
+            obj_i = self.obj_.transform(tf_i)
+            w_i = self.s_rv_.pdf(mu_s) * self.t_rv_.pdf(t_i) * self.r_xi_rv_.pdf(np.zeros(3))
+            sigma_pts.append(obj_i)
+            sigma_weights.append(w_i)
+
+            t_i = mu_t - np.sqrt(scale) * np.sqrt(S_t[:,i])
+            tf_i = stf.SimilarityTransform3D(tfx.transform(mu_r, t_i), mu_s)
+            obj_i = self.obj_.transform(tf_i)
+            w_i = self.s_rv_.pdf(mu_s) * self.t_rv_.pdf(t_i) * self.r_xi_rv_.pdf(np.zeros(3))
+            sigma_pts.append(obj_i)
+            sigma_weights.append(w_i)
+
+        S_r = np.eye(3)
+        if use_cov:
+            S_r = self.r_xi_rv_.cov
+        for i in range(3):
+            r_i = np.sqrt(scale) * np.sqrt(S_r[:,i])
+            w_i = self.s_rv_.pdf(mu_s) * self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(r_i)
+            r_i = scipy.linalg.expm(skew(r_i)).dot(mu_r)
+            tf_i = stf.SimilarityTransform3D(tfx.transform(r_i, mu_t), mu_s)
+            obj_i = self.obj_.transform(tf_i)
+            sigma_pts.append(obj_i)
+            sigma_weights.append(w_i)
+
+            r_i = - np.sqrt(scale) * np.sqrt(S_r[:,i])
+            w_i = self.s_rv_.pdf(mu_s) * self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(r_i)
+            r_i = scipy.linalg.expm(skew(r_i)).dot(mu_r)
+            tf_i = stf.SimilarityTransform3D(tfx.transform(r_i, mu_t), mu_s)
+            obj_i = self.obj_.transform(tf_i)
+            sigma_pts.append(obj_i)
+            sigma_weights.append(w_i)
+
+        return sigma_pts, sigma_weights
+
     def sample(self, size=1):
         """ Sample |size| random variables from the model """
         samples = []
@@ -128,6 +203,52 @@ class ParallelJawGraspPoseGaussianRV(RandomVariable):
     @property
     def grasp(self):
         return self.grasp_
+
+    def sigma_pts(self, L, alpha=1e-3, kappa=0, scale=7.5, use_cov=True):
+        """ Return a list of sigma pts where L specifies the RV dimension. Assumes this RV is not correlated with the others. """
+        lambda_g = alpha**2 * (L + kappa) - L
+
+        mu_t = self.grasp_.center
+        mu_v = self.grasp_.axis
+        mu_g = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(mu_t, mu_v, self.grasp_.grasp_width))
+        sigma_pts = [mu_g]
+        sigma_weights = [self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(np.zeros(3))]
+        
+        S_t = np.eye(3)
+        if use_cov:
+            S_t = self.t_rv_.cov
+        for i in range(3):
+            t_i = mu_t + np.sqrt(scale) * np.sqrt(S_t[:,i])
+            g_i = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(t_i, mu_v, self.grasp_.grasp_width))
+            w_i = self.t_rv_.pdf(t_i) * self.r_xi_rv_.pdf(np.zeros(3))
+            sigma_pts.append(g_i)
+            sigma_weights.append(w_i)
+
+            t_i = mu_t - np.sqrt(scale) * np.sqrt(S_t[:,i])
+            g_i = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(t_i, mu_v, self.grasp_.grasp_width))
+            w_i = self.t_rv_.pdf(t_i) * self.r_xi_rv_.pdf(np.zeros(3))
+            sigma_pts.append(g_i)
+            sigma_weights.append(w_i)
+
+        S_v = np.eye(3)
+        if use_cov:
+            S_v = self.r_xi_rv_.cov
+        for i in range(3):
+            v_i = np.sqrt(scale) * np.sqrt(S_v[:,i])
+            w_i = self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(v_i)
+            v_i = scipy.linalg.expm(skew(v_i)).dot(mu_v)
+            g_i = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(mu_t, v_i, self.grasp_.grasp_width))
+            sigma_pts.append(g_i)
+            sigma_weights.append(w_i)
+
+            v_i = - np.sqrt(scale) * np.sqrt(S_v[:,i])
+            w_i = self.t_rv_.pdf(mu_t) * self.r_xi_rv_.pdf(v_i)
+            v_i = scipy.linalg.expm(skew(v_i)).dot(mu_v)
+            g_i = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(mu_t, v_i, self.grasp_.grasp_width))
+            sigma_pts.append(g_i)
+            sigma_weights.append(w_i)
+
+        return sigma_pts, sigma_weights        
 
     def sample(self, size=1):
         samples = []
@@ -185,6 +306,47 @@ class WrenchGaussianRV(RandomVariable):
             wrench_sample = np.vstack((force, torque))
             params_dict_sample = {'force_limits':force_limits,'target_wrench':wrench_sample}
             samples.append(params_dict_sample)
+
+        if size == 1:
+            return samples[0]
+        return samples
+
+class FrictionGaussianRV(RandomVariable):
+    def __init__(self, mu, sigma, config):
+        self.friction_rv_ = scipy.stats.norm(mu, sigma)
+        RandomVariable.__init__(self, config['num_prealloc_obj_samples'])
+
+    def mean(self):
+        return self.friction_rv_.mean()
+
+    def sigma_pts(self, L, alpha=1e-3, kappa=0, scale=7.5, use_cov=True):
+        lambda_f = alpha**2 * (L + kappa) - L
+
+        mu_f = self.friction_rv_.mean()
+        sigma_pts = [mu_f]
+        sigma_weights = [self.friction_rv_.pdf(mu_f)]
+        
+        std = 1
+        if use_cov:
+            self.friction_rv_.std()
+        f_i = mu_f + np.sqrt(scale) * std 
+        w_i = self.friction_rv_.pdf(f_i)
+        sigma_pts.append(f_i)
+        sigma_weights.append(w_i)
+
+        f_i = mu_f - np.sqrt(scale) * std
+        w_i = self.friction_rv_.pdf(f_i)
+        sigma_pts.append(f_i)
+        sigma_weights.append(w_i)
+
+        return sigma_pts, sigma_weights
+        
+    def sample(self, size=1):
+        samples = []
+        for i in range(size):
+            # sample random force, torque, etc
+            friction_sample = self.friction_rv_.rvs(size=1)
+            samples.append(friction_sample)
 
         if size == 1:
             return samples[0]

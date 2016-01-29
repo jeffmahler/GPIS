@@ -230,11 +230,22 @@ class Hdf5Dataset(Dataset):
     def shot_feature_data(self, key):
         return self.local_feature_data(key)[SHOT_FEATURES_KEY]
 
-    def stable_pose_data(self, key):
+    def stable_pose_data(self, key, stable_pose_id=None):
+        if stable_pose_id is not None:
+            self.objects[key][STP_KEY][stable_pose_id]
         return self.objects[key][STP_KEY]
 
     def category(self, key):
         return self.objects[key].attrs[CATEGORY_KEY]
+
+    def rendered_image_data(self, key, image_type=None, stable_pose_id=None):
+        if stable_pose_id is not None and image_type is not None:
+            return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY][image_type]
+        elif stable_pose_id is not None:
+            return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY]
+        elif image_type is not None:
+            return self.objects(key)[RENDERED_IMAGES_KEY][image_type]
+        return self.objects(key)[RENDERED_IMAGES_KEY]
 
     # iterators
     def __getitem__(self, index):
@@ -325,7 +336,7 @@ class Hdf5Dataset(Dataset):
             return []
         return hfact.Hdf5ObjectFactory.grasps(self.grasp_data(key, gripper))
 
-    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None):
+    def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
         # create group for gripper if necessary
         if gripper not in self.grasp_data(key).keys():
@@ -333,13 +344,13 @@ class Hdf5Dataset(Dataset):
             self.grasp_data(key, gripper).attrs.create(NUM_GRASPS_KEY, 0)
 
         # store each grasp in the database
-        return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper))
+        return hfact.Hdf5ObjectFactory.write_grasps(grasps, self.grasp_data(key, gripper), force_overwrite)
 
     def grasp_metrics(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None):
         """ Returns a list of grasp metric dictionaries fot the list grasps provided to the database """
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
-            return []
+            return {}
         return hfact.Hdf5ObjectFactory.grasp_metrics(grasps, self.grasp_data(key, gripper))
 
     def store_grasp_metrics(self, key, grasp_metric_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
@@ -350,7 +361,7 @@ class Hdf5Dataset(Dataset):
         """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
-            return []
+            return {}
         return hfact.Hdf5ObjectFactory.grasp_features(grasps, self.grasp_data(key, gripper))        
 
     def store_grasp_features(self, key, grasp_feature_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
@@ -361,6 +372,22 @@ class Hdf5Dataset(Dataset):
     def stable_poses(self, key):
         """ Stable poses for object key """
         return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
+
+    def store_rendered_images(self, key, rendered_images, stable_pose_id=None, image_type="depth", force_overwrite=False):
+        """ Store rendered images of the object for a given stable pose """
+        if stable_pose_id not in self.stable_pose_data(key).keys():
+            raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
+        if stable_pose_id is not None and RENDERED_IMAGES_KEY not in self.stable_pose_data(key)[stable_pose_id].keys():
+            self.stable_pose_data(key)[stable_pose_id].create_group(RENDERED_IMAGES_KEY)
+        if stable_pose_id is not None and image_type not in self.rendered_image_data(key, stable_pose_id).keys():
+            self.rendered_image_data(key, stable_pose_id).create_group(image_type)
+        if stable_pose_id is None and RENDERED_IMAGES_KEY not in self.object(key).keys():
+            self.object(key).create_group(RENDERED_IMAGES_KEY)
+        if stable_pose_id is None and image_type not in self.rendered_image_data(key).keys():
+            self.rendered_image_data(key).create_group(image_type)
+
+        return hfact.Hdf5ObjectFactory.write_rendered_images(rendered_images, self.rendered_image_data(key, image_type, stable_pose_id),
+                                                             force_overwrite)
 
 """ Deprecated dataset for use with filesystems """
 class FilesystemDataset(object):
@@ -468,7 +495,7 @@ class FilesystemDataset(object):
         """
         if grasp_dir is None:
             grasp_dir = self.dataset_root_dir_
-        path = os.path.join(grasp_dir, Dataset.json_filename(key))
+        path = os.path.join(grasp_dir, FilesystemDataset.json_filename(key))
         try:
             with open(path) as f:
                 grasps = jsons.load(f)
@@ -659,8 +686,8 @@ class FilesystemChunk(FilesystemDataset):
     def _parse_config(self, config):
         super(FilesystemChunk, self)._parse_config(config)
         self.dataset_name_ = config['dataset']
-        self.start = config['chunk_start']
-        self.end = config['chunk_end']
+        self.start = config['datasets'][self.dataset_name_]['start_index']
+        self.end = config['datasets'][self.dataset_name_]['end_index']
 
 def test_dataset():
     logging.getLogger().setLevel(logging.INFO)

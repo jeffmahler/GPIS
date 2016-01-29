@@ -220,6 +220,25 @@ class GraspAxisFeatureExtractor(FeatureExtractor):
     def phi(self):
         return self.feature_weight_ * self.axis_
 
+class PatchOrientationFeatureExtractor(FeatureExtractor):
+    name = 'patch_orientation'
+
+    """Class for extracting grasp direction."""
+    def __init__(self, patch_orientation, feature_weight=1.0):
+        self.patch_orientation_ = patch_orientation
+        self.feature_weight_ = feature_weight
+
+    def to_json(self, dest):
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return self.patch_orientation_
+
+    @property
+    def phi(self):
+        return self.feature_weight_ * self.patch_orientation_
+
 class GraspAxisAngleFeatureExtractor(FeatureExtractor):
     name = 'normal'
 
@@ -243,6 +262,25 @@ class GraspAxisAngleFeatureExtractor(FeatureExtractor):
     @property
     def phi(self):
         return self.feature_weight_ * np.array([self.angle_])
+
+class CenterOfMassFeatureExtractor(FeatureExtractor):
+    name = 'com'
+
+    """Class for extracting grasp center and direction."""
+    def __init__(self, center_of_mass, feature_weight=1.0):
+        self.com_ = center_of_mass
+        self.feature_weight_ = feature_weight
+
+    def to_json(self, dest):
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return self.com_
+
+    @property
+    def phi(self):
+        return self.feature_weight_ * self.com_
 
 class WindowFeatureExtractor(FeatureExtractor):
     """Abstract class for extracting features from a grasp surface."""
@@ -513,7 +551,9 @@ class GraspableFeatureExtractor:
         # compute grasp features
         grasp_pose_features = [
             GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight_),
-            GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
+            #GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
+            CenterOfMassFeatureExtractor(self.graspable_.mesh.center_of_mass, self.grasp_axis_weight_),
+            PatchOrientationFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
             # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight_),
             # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight_)
         ]
@@ -521,10 +561,10 @@ class GraspableFeatureExtractor:
         # compute gravity features
         gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
         gravity_features = [
-#            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
-            MomentArmMagnitudeFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
-            GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
-            MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
+            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            #MomentArmMagnitudeFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            #GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
+            #MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
         ]
 
         # compute additional features

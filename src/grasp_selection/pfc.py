@@ -196,7 +196,7 @@ class ParallelJawGraspGaussian:
 
             # transform object by pose
             #grasp_sample = copy.copy(self.grasp_)
-            grasp_sample = gr.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(t, v, self.grasp_.grasp_width))
+            grasp_sample = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(t, v, self.grasp_.grasp_width))
 
             samples.append(grasp_sample)
 
@@ -246,7 +246,7 @@ class PartialClosureRV:
         else:
             return self.features_.phi
 
-    def sample_success(self):
+    def sample(self):
         # sample grasp
         cur_time = time.clock()
         grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
@@ -312,7 +312,7 @@ class ForceClosureRV:
         else:
             return self.features_
 
-    def sample_success(self):
+    def sample(self):
         # sample grasp
         cur_time = time.clock()
         grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
@@ -444,7 +444,7 @@ def test_antipodal_grasp_thompson():
     f_rv = scipy.stats.norm(config['friction_coef'], config['sigma_mu'])
     candidates = []
     for grasp in grasps:
-        grasp_rv = ParallelJawGraspGaussian(grasp, config)
+        grasp_rv = gr.ParallelJawGraspGaussian(grasp, config)
         candidates.append(ForceClosureRV(grasp_rv, graspable_rv, f_rv, config))
 
     objective = objectives.RandomBinaryObjective()

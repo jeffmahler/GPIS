@@ -7,6 +7,7 @@ import features as f
 import feature_functions as ff
 import grasp
 import mesh
+import rendered_image as ri
 import sdf
 import similarity_tf as stf
 import stable_pose_class as stpc
@@ -14,6 +15,7 @@ import stable_pose_class as stpc
 import datetime as dt
 import h5py
 import IPython
+import logging
 import numpy as np
 import tfx
 
@@ -44,6 +46,7 @@ NUM_STP_KEY = 'num_stable_poses'
 POSE_KEY = 'pose'
 STABLE_POSE_PROB_KEY = 'p'
 STABLE_POSE_ROT_KEY = 'r'
+STABLE_POSE_PT_KEY = 'x0'
 
 NUM_GRASPS_KEY = 'num_grasps'
 GRASP_KEY = 'grasp'
@@ -58,6 +61,13 @@ GRASP_FEATURES_KEY = 'features'
 GRASP_FEATURE_NAME_KEY = 'name'
 GRASP_FEATURE_TYPE_KEY = 'type'
 GRASP_FEATURE_VECTOR_KEY = 'vector'
+
+NUM_IMAGES_KEY = 'num_images'
+IMAGE_KEY = 'image'
+IMAGE_DATA_KEY = 'image_data'
+CAM_POS_KEY = 'cam_pos'
+CAM_ROT_KEY = 'cam_rot'
+CAM_INT_PT_KEY = 'cam_int_pt'
 
 class Hdf5ObjectFactory(object):
     """ Factory for spawning off new objects from HDF5 fields """
@@ -121,7 +131,7 @@ class Hdf5ObjectFactory(object):
         """ Writes mesh object to HDF5 data provided in |data| """
         data.create_dataset(MESH_VERTICES_KEY, data=np.array(mesh.vertices()))
         data.create_dataset(MESH_TRIANGLES_KEY, data=np.array(mesh.triangles()))
-        if mesh.normals():
+        if mesh.normals() is not None:
             data.create_dataset(MESH_NORMALS_KEY, data=np.array(mesh.normals()))
 
     @staticmethod
@@ -157,7 +167,11 @@ class Hdf5ObjectFactory(object):
             stp_key = POSE_KEY + '_' + str(i) 
             p = data[stp_key].attrs[STABLE_POSE_PROB_KEY]
             r = data[stp_key].attrs[STABLE_POSE_ROT_KEY]
-            stable_poses.append(stpc.StablePose(p, r))
+            try:
+                x0 = data[stp_key].attrs[STABLE_POSE_PT_KEY]
+            except:
+                x0 = np.zeros(3)
+            stable_poses.append(stpc.StablePose(p, r, x0))
         return stable_poses
 
     @staticmethod
@@ -170,6 +184,8 @@ class Hdf5ObjectFactory(object):
             data.create_group(stp_key)
             data[stp_key].attrs.create(STABLE_POSE_PROB_KEY, stable_pose.p)
             data[stp_key].attrs.create(STABLE_POSE_ROT_KEY, stable_pose.r)
+            data[stp_key].attrs.create(STABLE_POSE_PT_KEY, stable_pose.x0)
+            data[stp_key].create_group(db.RENDERED_IMAGES_KEY)
 
     @staticmethod
     def grasps(data):
@@ -195,7 +211,7 @@ class Hdf5ObjectFactory(object):
         return grasps
 
     @staticmethod
-    def write_grasps(grasps, data):
+    def write_grasps(grasps, data, force_overwrite=False):
         """ Writes shot features to HDF5 data provided in |data| """
         num_grasps = data.attrs[NUM_GRASPS_KEY]
         num_new_grasps = len(grasps)
@@ -206,16 +222,29 @@ class Hdf5ObjectFactory(object):
 
         # add each grasp
         for i, grasp in enumerate(grasps):
-            grasp_id = i+num_grasps
+            grasp_id = grasp.grasp_id
+            if grasp_id is None:
+                grasp_id = i+num_grasps
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
-            data.create_group(grasp_key)
-            data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
-            data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
-            data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
-            data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
-            data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
-            data[grasp_key].create_group(GRASP_METRICS_KEY) 
-            data[grasp_key].create_group(GRASP_FEATURES_KEY) 
+
+            if grasp_key not in data.keys():
+                data.create_group(grasp_key)
+                data[grasp_key].attrs.create(GRASP_ID_KEY, grasp_id)
+                data[grasp_key].attrs.create(GRASP_TYPE_KEY, type(grasp).__name__)
+                data[grasp_key].attrs.create(GRASP_CONFIGURATION_KEY, grasp.configuration)
+                data[grasp_key].attrs.create(GRASP_RF_KEY, grasp.frame)
+                data[grasp_key].attrs.create(GRASP_TIMESTAMP_KEY, creation_stamp)
+                data[grasp_key].create_group(GRASP_METRICS_KEY) 
+                data[grasp_key].create_group(GRASP_FEATURES_KEY)
+            elif force_overwrite:
+                data[grasp_key].attrs[GRASP_ID_KEY] = grasp_id
+                data[grasp_key].attrs[GRASP_TYPE_KEY] = type(grasp).__name__
+                data[grasp_key].attrs[GRASP_CONFIGURATION_KEY] = grasp.configuration
+                data[grasp_key].attrs[GRASP_RF_KEY] = grasp.frame
+                data[grasp_key].attrs[GRASP_TIMESTAMP_KEY] = creation_stamp
+            else:
+                logging.warning('Grasp %d already exists and overwrite was not requested. Aborting write request' %(grasp_id))
+                return None
 
         data.attrs[NUM_GRASPS_KEY] = num_grasps + num_new_grasps
         return creation_stamp
@@ -275,13 +304,64 @@ class Hdf5ObjectFactory(object):
             if grasp_key in data.keys():
                 # parse all feature extractor objects
                 for feature in feature_list:
-                    if feature.name not in data[grasp_key].keys():
+                    if feature.name not in data[grasp_key][GRASP_FEATURES_KEY].keys():
                         data[grasp_key][GRASP_FEATURES_KEY].create_group(feature.name)
-                    elif not force_overwrite:
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_TYPE_KEY, feature.typename)
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_VECTOR_KEY, feature.descriptor) # save the feature vector, class should know how to back out the relevant variables
+                    elif force_overwrite:
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs[GRASP_FEATURE_TYPE_KEY] = feature.typename
+                        data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs[GRASP_FEATURE_VECTOR_KEY] = feature.descriptor # save the feature vector, class should know how to back out the relevant variables
+                    else:
                         logging.warning('Feature %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(feature_tag, grasp_id))
                         return False
-
-                    data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_TYPE_KEY, feature.typename)
-                    data[grasp_key][GRASP_FEATURES_KEY][feature.name].attrs.create(GRASP_FEATURE_VECTOR_KEY, feature.descriptor) # save the feature vector, class should know how to back out the relevant variables
         return True
 
+    @staticmethod
+    def rendered_images(data):
+        rendered_images = []
+        num_images = data.attrs[NUM_IMAGES_KEY]
+        
+        for i in range(num_images):
+            # get the image data y'all
+            image_key = IMAGE_KEY + '_' + str(i)
+            image_data = data[image_key]
+            image =           image_data[IMAGE_DATA_KEY]            
+            cam_pos =         image_data.attrs[CAM_POS_KEY]
+            cam_rot =         image_data.attrs[CAM_ROT_KEY]
+            cam_interest_pt = image_data.attrs[CAM_INT_PT_KEY]            
+
+            rendered_images.append(ri.RenderedImage(image, cam_pos, cam_rot, cam_interest_pt))            
+        return rendered_images
+
+    @staticmethod
+    def write_rendered_images(rendered_images, data, force_overwrite=False):
+        """ Write rendered images to database """
+        num_images = 0
+        if NUM_IMAGES_KEY in data.keys():
+            num_images = data.attrs[NUM_GRASPS_KEY]
+        num_new_images = len(images)        
+
+        for image_id, rendered_image in enumerate(rendered_images):
+            image_key = IMAGE_KEY + '_' + str(image_id)
+            if image_key not in data.keys():
+                data.create_group(image_key)
+                image_data = data[image_key]
+
+                image_data.create_dataset(IMAGE_DATA_KEY, data=rendered_image.image)
+                image_data.attrs.create(CAM_POS_KEY, rendered_image.cam_pos)
+                image_data.attrs.create(CAM_ROT_KEY, rendered_image.cam_rot)
+                image_data.attrs.create(CAM_INT_PT_KEY, rendered_image.cam_interest_pt)
+            elif force_overwrite:
+                image_data[IMAGE_DATA_KEY] = rendered_image.image
+                image_data.attrs[CAM_POS_KEY] = rendered_image.cam_pos
+                image_data.attrs[CAM_ROT_KEY] = rendered_image.cam_rot
+                image_data.attrs[CAM_INT_PT_KEY] = rendered_image.cam_interest_pt
+            else:
+                logging.warning('Image %d already exists and overwrite was not requested. Aborting write request' %(image_id))
+                return None
+
+        if NUM_IMAGES_KEY in data.keys():
+            data.attrs[NUM_IMAGES_KEY] = num_images + num_new_images
+        else:
+            data.attrs.create(NUM_IMAGES_KEY, num_images + num_new_images)
+            

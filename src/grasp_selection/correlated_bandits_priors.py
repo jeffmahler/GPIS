@@ -45,6 +45,7 @@ skip_keys = ['BigBIRD_nutrigrain_strawberry_greek_yogurt', 'ModelNet40_radio_112
 
 class BanditCorrelatedPriorExperimentResult:
     def __init__(self, ua_reward, ts_reward, gi_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_reward, bucb_corr_prior_reward,
+                 ua_std_reward, ts_std_reward, gi_std_reward, ts_corr_std_reward, bucb_corr_std_reward, ts_corr_prior_std_reward, bucb_corr_prior_std_reward,
                  true_avg_reward, iters, kernel_matrix,
                  neighbor_kernels, neighbor_pfc_diffs, neighbor_distances,
                  ce_vals, se_vals, we_vals, num_grasps, total_weights,
@@ -58,6 +59,15 @@ class BanditCorrelatedPriorExperimentResult:
         self.bucb_corr_reward = bucb_corr_reward
         self.ts_corr_prior_reward = ts_corr_prior_reward
         self.bucb_corr_prior_reward = bucb_corr_prior_reward
+
+        self.ua_std_reward = ua_std_reward
+        self.ts_std_reward = ts_std_reward
+        self.gi_std_reward = gi_std_reward
+        self.ts_corr_std_reward = ts_corr_std_reward
+        self.bucb_corr_std_reward = bucb_corr_std_reward
+        self.ts_corr_prior_std_reward = ts_corr_prior_std_reward
+        self.bucb_corr_prior_std_reward = bucb_corr_prior_std_reward
+
         self.true_avg_reward = true_avg_reward
 
         self.iters = iters
@@ -115,6 +125,18 @@ class BanditCorrelatedPriorExperimentResult:
         bucb_corr_prior_rewards = []
         for x in range(0, len(result_list[0].bucb_corr_prior_reward)):
             bucb_corr_prior_rewards.append(np.zeros([len(result_list), result_list[0].bucb_corr_reward.shape[0]]))
+
+        ua_std_reward = np.zeros([len(result_list), result_list[0].ua_std_reward.shape[0]])
+        ts_std_reward = np.zeros([len(result_list), result_list[0].ts_std_reward.shape[0]])
+        gi_std_reward = np.zeros([len(result_list), result_list[0].gi_std_reward.shape[0]])
+        ts_corr_std_reward = np.zeros([len(result_list), result_list[0].ts_corr_std_reward.shape[0]])
+        bucb_corr_std_reward = np.zeros([len(result_list), result_list[0].bucb_corr_std_reward.shape[0]])
+        ts_corr_prior_std_rewards = []
+        for x in range(0, len(result_list[0].ts_corr_prior_std_reward)):
+            ts_corr_prior_std_rewards.append(np.zeros([len(result_list), result_list[0].ts_corr_std_reward.shape[0]]))
+        bucb_corr_prior_std_rewards = []
+        for x in range(0, len(result_list[0].bucb_corr_prior_std_reward)):
+            bucb_corr_prior_std_rewards.append(np.zeros([len(result_list), result_list[0].bucb_corr_std_reward.shape[0]]))
             
         ce_vals = np.zeros([len(result_list), result_list[0].ce_vals.shape[0]])
         se_vals = np.zeros([len(result_list), result_list[0].se_vals.shape[0]])
@@ -143,6 +165,16 @@ class BanditCorrelatedPriorExperimentResult:
             for n, bucb_corr_prior_reward in enumerate(bucb_corr_prior_rewards):
                 bucb_corr_prior_reward[i,:] = r.bucb_corr_prior_reward[n]
 
+            ua_std_reward[i,:] = r.ua_std_reward
+            ts_std_reward[i,:] = r.ts_std_reward
+            gi_std_reward[i,:] = r.gi_std_reward
+            ts_corr_std_reward[i,:] = r.ts_corr_std_reward
+            bucb_corr_std_reward[i,:] = r.bucb_corr_std_reward
+            for n, ts_corr_prior_std_reward in enumerate(ts_corr_prior_std_rewards):
+                ts_corr_prior_std_reward[i,:] = r.ts_corr_prior_std_reward[n]
+            for n, bucb_corr_prior_std_reward in enumerate(bucb_corr_prior_std_rewards):
+                bucb_corr_prior_std_reward[i,:] = r.bucb_corr_prior_std_reward[n]
+
             ce_vals[i,:] = r.ce_vals
             se_vals[i,:] = r.se_vals
             we_vals[i,:] = r.we_vals
@@ -170,8 +202,10 @@ class BanditCorrelatedPriorExperimentResult:
         neighbor_keys = [r.neighbor_keys for r in result_list]
 
         return BanditCorrelatedPriorExperimentResult(ua_reward, ts_reward, gi_reward, ts_corr_reward, bucb_corr_reward, ts_corr_prior_rewards, bucb_corr_prior_rewards,
+                                                     ua_std_reward, ts_std_reward, gi_std_reward, ts_corr_std_reward, bucb_corr_std_reward, ts_corr_prior_std_rewards, bucb_corr_prior_std_rewards,
                                                      true_avg_rewards, iters, kernel_matrices, neighbor_kernels, neighbor_pfc_diffs,
                                                      neighbor_keys, ce_vals, se_vals, we_vals, num_grasps, total_weights,
+                                                     [], [], [], [], [], [],
                                                      ua_runtime, ts_runtime, ts_corr_runtime, bucb_corr_runtime, ts_corr_prior_runtime, bucb_corr_prior_runtime,
                                                      prior_comp_time,
                                                      obj_keys, neighbor_keys, len(result_list))
@@ -396,6 +430,7 @@ def label_correlated(obj, chunk, config, plot=False,
             bucb_corr_runtimes.append(bucb_corr_prior_result.total_time)
             all_bucb_corr_prior_ind.append(bucb_corr_prior_result.best_pred_ind)
 
+
         # compile results
         ua_normalized_reward = reward_vs_iters(ua_result, true_pfc)
         ts_normalized_reward = reward_vs_iters(ts_result, true_pfc)
@@ -426,13 +461,16 @@ def label_correlated(obj, chunk, config, plot=False,
     all_bucb_corr_rewards = np.array(bucb_corr_rewards)
 
     all_avg_ts_corr_prior_rewards = []
+    all_std_ts_corr_prior_rewards = []
     for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
         all_avg_ts_corr_prior_rewards.append(np.mean(np.array(ts_corr_prior_rewards), axis=0))
+        all_std_ts_corr_prior_rewards.append(np.std(np.array(ts_corr_prior_rewards), axis=0))
 
     all_avg_bucb_corr_prior_rewards = []
+    all_std_bucb_corr_prior_rewards = []
     for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
         all_avg_bucb_corr_prior_rewards.append(np.mean(np.array(bucb_corr_prior_rewards), axis=0))
-        #all_avg_bucb_corr_prior_rewards.append([])
+        all_std_bucb_corr_prior_rewards.append(np.std(np.array(bucb_corr_prior_rewards), axis=0))
 
     # get bandit indices
     ua_ind = ua_result.best_pred_ind
@@ -446,7 +484,12 @@ def label_correlated(obj, chunk, config, plot=False,
     avg_gi_rewards = np.mean(all_gi_rewards, axis=0)
     avg_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
     avg_bucb_corr_rewards = np.mean(all_bucb_corr_rewards, axis=0)
-    #avg_bucb_corr_rewards = all_bucb_corr_rewards
+
+    std_ua_rewards = np.mean(all_ua_rewards, axis=0)
+    std_ts_rewards = np.mean(all_ts_rewards, axis=0)
+    std_gi_rewards = np.mean(all_gi_rewards, axis=0)
+    std_ts_corr_rewards = np.mean(all_ts_corr_rewards, axis=0)
+    std_bucb_corr_rewards = np.mean(all_bucb_corr_rewards, axis=0)
 
     # compute avg runtimes
     avg_ua_runtimes = np.mean(np.array(ua_runtimes), axis=0)
@@ -465,6 +508,8 @@ def label_correlated(obj, chunk, config, plot=False,
 
     return BanditCorrelatedPriorExperimentResult(avg_ua_rewards, avg_ts_rewards, avg_gi_rewards, avg_ts_corr_rewards, avg_bucb_corr_rewards,
                                                  all_avg_ts_corr_prior_rewards, all_avg_bucb_corr_prior_rewards,
+                                                 std_ua_rewards, std_ts_rewards, std_gi_rewards, std_ts_corr_rewards, std_bucb_corr_rewards,
+                                                 all_std_ts_corr_prior_rewards, all_std_bucb_corr_prior_rewards,                                             
                                                  true_pfc, ua_result.iters, kernel_matrix,
                                                  [], [], [],
                                                  ce_vals, ccbp_vals, we_vals, len(candidates), total_weights,
@@ -620,7 +665,7 @@ if __name__ == '__main__':
 
     # read config file
     config = ec.ExperimentConfig(args.config)
-    chunk = db.Chunk(config)
+    chunk = db.FilesystemChunk(config)
 
     # make output directory
     dest = os.path.join(args.output_dest, chunk.name)
@@ -630,7 +675,7 @@ if __name__ == '__main__':
         pass
 
     if 'priors_dataset' in config:
-        priors_dataset = db.Dataset(config['priors_dataset'], config)
+        priors_dataset = db.FilesystemDataset(config['priors_dataset'], config)
     else:
         priors_dataset = None
 

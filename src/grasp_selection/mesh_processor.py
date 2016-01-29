@@ -15,6 +15,8 @@ import obj_file
 import stp_file
 import sdf_file
 
+import xml.etree.cElementTree as et
+
 OBJ_EXT = '.obj'
 SDF_EXT = '.sdf'
 STP_EXT = '.stp'
@@ -79,7 +81,7 @@ class MeshProcessor:
 
         try:
             self.mesh_.set_vertices(vertex_array[reffed_v_old_ind, :].tolist())
-            if self.mesh_.normals():
+            if self.mesh_.normals() is not None:
                 normals_array = np.array(self.mesh_.normals())
                 self.mesh_.set_normals(normals_array[reffed_v_old_ind, :].tolist())
         except IndexError:
@@ -127,8 +129,8 @@ class MeshProcessor:
         self.mesh_.set_vertices(vertex_array_rot.tolist())
         self.mesh_.center_vertices_bb()
 
-        if self.mesh_.normals():
-            normals_array = np.array(self.normals_)
+        if self.mesh_.normals() is not None:
+            normals_array = np.array(self.mesh_.normals_)
             normals_array_rot = R.dot(normals_array.T)
             self.mesh_.set_normals(normals_array_rot.tolist())
 
@@ -161,13 +163,16 @@ class MeshProcessor:
             relative_scale = 1.0
         elif rescaling_type == MeshProcessor.RescalingTypeDiag:
             diag = np.linalg.norm(vertex_extent)
-            relative_scale = diag
+            relative_scale = diag / 3.0 # make the gripper size exactly one third of the diagonal
 
         # compute scale factor and rescale vertices
         scale_factor = scale / relative_scale 
         vertex_array = scale_factor * vertex_array
         self.mesh_.vertices_ = vertex_array.tolist()
-
+        self.mesh_._compute_bb_center()
+        self.mesh_._compute_centroid()
+        self.mesh_.set_center_of_mass(self.mesh_.bb_center_)
+        
     def convert_sdf(self, dim, padding):
         """ Converts mesh to an sdf object """
         # first create the SDF using binary tools
@@ -223,6 +228,9 @@ class MeshProcessor:
         of_out = obj_file.ObjFile(obj_filename)
         of_out.write(self.mesh_)
         
+        # get volume
+        orig_volume = self.mesh_.get_total_volume()
+        
         # convert to off
         meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(obj_filename, off_filename) 
         os.system(meshlabserver_cmd)
@@ -242,21 +250,80 @@ class MeshProcessor:
                                                            config['connected_components_dist'],
                                                            config['target_num_triangles'])
         print 'CV Decomp Command:', cvx_decomp_command
-        os.system(cvx_decomp_command)
-        
+        os.system(cvx_decomp_command)        
 
         # convert each wrl to an obj
-        convex_piece_files = glob.glob('%s_dec_hacd*.wrl' %(self.filename_))
+        convex_piece_files = glob.glob('%s_dec_hacd_*.wrl' %(self.filename_))
         convex_piece_meshes = []
+        total_volume = 0.0
 
         for convex_piece_file in convex_piece_files:
             file_root, file_ext = os.path.splitext(convex_piece_file)
             obj_filename = file_root + '.obj'
+            stl_filename = file_root + '.stl'
             meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(convex_piece_file, obj_filename) 
+            os.system(meshlabserver_cmd)
+            meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(convex_piece_file, stl_filename) 
             os.system(meshlabserver_cmd)
 
             of = obj_file.ObjFile(obj_filename)
+            convex_piece = of.read()
+            total_volume += convex_piece.get_total_volume()
             convex_piece_meshes.append(of.read())
+
+        root = et.Element('robot', name="test")
+
+        # get the masses and moments of inertia
+        effective_density = orig_volume / total_volume
+        prev_piece_name = None
+        for convex_piece, filename in zip(convex_piece_meshes, convex_piece_files):
+            convex_piece.set_center_of_mass(np.zeros(3))
+            convex_piece.set_density(self.mesh_.density * effective_density)
+            
+            # write to xml
+            piece_name = 'link_%s'%(file_root)
+            file_path_wo_ext, file_ext = os.path.splitext(filename)
+            file_path, file_root = os.path.split(file_path_wo_ext)
+            I = convex_piece.inertia
+            link = et.SubElement(root, 'link', name=piece_name)
+
+            inertial = et.SubElement(link, 'inertial')
+            origin = et.SubElement(inertial, 'origin', xyz="0 0 0", rpy="0 0 0")
+            mass = et.SubElement(inertial, 'mass', value='%f'%convex_piece.mass)
+            inertia = et.SubElement(inertial, 'inertia', ixx='%f'%I[0,0], ixy='%f'%I[0,1], ixz='%f'%I[0,2],
+                                    iyy='%f'%I[1,1], iyz='%f'%I[1,2], izz='%f'%I[2,2])
+            
+            visual = et.SubElement(link, 'visual')
+            origin = et.SubElement(visual, 'origin', xyz="0 0 0", rpy="0 0 0")
+            geometry = et.SubElement(visual, 'geometry')
+            mesh = et.SubElement(geometry, 'mesh', filename=file_path_wo_ext+'.stl')
+            material = et.SubElement(visual, 'material', name='')
+            color = et.SubElement(material, 'color', rgba="0.75 0.75 0.75 1")
+
+            collision = et.SubElement(link, 'collision')
+            origin = et.SubElement(collision, 'origin', xyz="0 0 0", rpy="0 0 0")            
+            geometry = et.SubElement(collision, 'geometry')
+            mesh = et.SubElement(geometry, 'mesh', filename=file_path_wo_ext+'.stl')
+
+            if prev_piece_name is not None:
+                joint = et.SubElement(root, 'joint', name='%s_joint'%(piece_name), type='fixed')
+                origin = et.SubElement(joint, 'origin', xyz="0 0 0", rpy="0 0 0")
+                parent = et.SubElement(joint, 'parent', link=prev_piece_name)
+                child = et.SubElement(joint, 'child', link=piece_name)
+
+            prev_piece_name = piece_name
+
+            """
+            txt_filename = file_root + '.txt'
+            f = open(txt_filename, 'w')
+            f.write('mass: %f\n' %(convex_piece.mass))
+            f.write('inertia: ' + str(convex_piece.inertia) + '\n')
+            f.close()
+            """
+
+        tree = et.ElementTree(root)
+        tree.write('test.URDF')
+        exit(0)
 
         return convex_piece_meshes
 

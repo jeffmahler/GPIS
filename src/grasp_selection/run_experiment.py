@@ -101,7 +101,6 @@ instance_launch_queue = mp.Queue(MAX_QUEUE_SIZE)
 
 def launch_instance(instance):
     """ Launches an instance object """
-#    instance.start()
     try:
         if instance.start():
             instance_launch_queue.put(instance.instance_name, timeout=QUEUE_TIMEOUT)
@@ -348,7 +347,6 @@ def oauth_authorization(config, args):
     auth_http = credentials.authorize(http)
     return auth_http
 
-
 def launch_experiment(args, sleep_time):
     """
     Perform OAuth 2 authorization, then start, list, and stop instance(s).
@@ -438,8 +436,6 @@ def launch_experiment(args, sleep_time):
         if zone_index >= num_zones:
             logging.warning('Cannot create more instances! Capping experiment at %d instances.' %(num_instances))
             break
-
-        break
 
     # clear global q
     global instance_launch_queue

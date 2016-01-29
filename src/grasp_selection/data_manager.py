@@ -325,35 +325,29 @@ class GceDataManager(DataManager):
             backup_disk = '%s-backup-%s-%s-%s-%sh-%sm-%ss' %(disk, dt_now.month, dt_now.day, dt_now.year, dt_now.hour, dt_now.minute, dt_now.second) 
 
             # snapshot the updated data disks
-            snapshot_response = gce_helper.snapshot_disk(update_disk, compute_config['project'], zone)
+            snapshot_response = gce_helper.snapshot_disk(update_disk, compute_config['project'], zone, name=backup_disk)
 
             # delete previous disk and replace, if not in use
             disk_response = gce_helper.get_disk(disk, zone)
             if disk_response:
                 if USERS_KEY not in disk_response.keys() or (USERS_KEY in disk_response.keys() and len(disk_response[USERS_KEY]) == 0):
                     # create new disk from snapshot
-                    gce_helper.delete_disk(disk)
+                    gce_helper.delete_disk(disk, zone=zone)
                     gce_helper.create_disk(disk, zone=zone, size_gb=compute_config['disk_size_gb'],
                                            source_snapshot=snapshot_response['snapshot_name'])
 
                     # delete update disk (don't delete if push can't be done now, otherwise changes won't be overwritten)
-                    gce_helper.delete_disk(update_disk)
+                    gce_helper.delete_disk(update_disk, zone=zone)
 
                 elif USERS_KEY in disk_response.keys() and len(disk_response[USERS_KEY]) > 0:
                     # stage the push for a future time
-                    logging.info('Master disk in use. Staging backup disk for a future push')
+                    logging.info('Master disk %s in use. Staging backup disk for a future push' %(disk))
                     push_queue_filename = os.path.join(self.cache_dir_, PUSH_QUEUE_FILE)
                     f = open(push_queue_filename, 'a')
                     f.write(backup_disk + '\n')
             else:
                 logging.warning('Master disk was not found') 
 
-            # create backup disk from snapshot
-            gce_helper.create_disk(backup_disk, zone=zone, size_gb=compute_config['disk_size_gb'],
-                                   source_snapshot=snapshot_response['snapshot_name'])
-
-            # delete the snapshot
-            ss_del_response = gce_helper.delete_snapshot(snapshot_name=snapshot_response['snapshot_name'], project=compute_config['project'])
         return True
 
 def push_update_disk(config):
