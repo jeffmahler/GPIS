@@ -13,5 +13,3 @@ config = ec.ExperimentConfig(config_name)
 gce_job = job.GceJob(config)
 gce_job.job_name_root = job_name
 gce_job.store()
-
-# TODO: store

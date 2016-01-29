@@ -18,6 +18,8 @@ import correlated_bandits_priors as cb
 from correlated_bandits_priors import BanditCorrelatedPriorExperimentResult
 import experiment_config as ec
 
+ignore_keys = []#'BigBIRD_dove_go_fresh_burst', 'KIT_Shampoo_800_tex', 'KIT_Wafflerolls_800_tex', 'ModelNet40_radio_102'] # for data cleaning
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
@@ -48,14 +50,14 @@ if __name__ == '__main__':
                         except:
                             continue
 
-                        if p is not None:
+                        if p is not None and p.obj_key not in ignore_keys:
                             results.append(p)
 
     if len(results) == 0:
         exit(0)
 
     # plot params
-    line_width = config['line_width']
+    line_width = 1.0#config['line_width']
     font_size = config['font_size']
     dpi = config['dpi']
 
@@ -63,6 +65,7 @@ if __name__ == '__main__':
     colors = plotting.distinguishable_colors(num_colors)
 
     # per-object plots
+    """
     for result in results:
         # kernel plot
         pfc_arr = np.array([result.true_avg_reward]).T
@@ -110,6 +113,8 @@ if __name__ == '__main__':
         plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
         logging.info('Finished plotting %s', figname)
 
+    """
+
     # aggregate results
     all_results = BanditCorrelatedPriorExperimentResult.compile_results(results)
 
@@ -149,22 +154,72 @@ if __name__ == '__main__':
     logging.info('Finished plotting %s', figname)
 
     # plotting of average final results
-    ua_normalized_reward = np.mean(all_results.ua_reward, axis=0)
-    ts_normalized_reward = np.mean(all_results.ts_reward, axis=0)
-    gi_normalized_reward = np.mean(all_results.gi_reward, axis=0)
-    ts_corr_normalized_reward = np.mean(all_results.ts_corr_reward, axis=0)
-    bucb_corr_normalized_reward = np.mean(all_results.bucb_corr_reward, axis=0)
+    """
+    ua_normalized_reward = np.median(all_results.ua_reward, axis=0)
+    ts_normalized_reward = np.median(all_results.ts_reward, axis=0)
+    gi_normalized_reward = np.median(all_results.gi_reward, axis=0)
+    ts_corr_normalized_reward = np.median(all_results.ts_corr_reward, axis=0)
+    bucb_corr_normalized_reward = np.median(all_results.bucb_corr_reward, axis=0)
 
     all_ts_corr_prior_rewards = all_results.ts_corr_prior_reward
     ts_corr_prior_normalized_reward = []
     for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
-        ts_corr_prior_normalized_reward.append(np.mean(ts_corr_prior_rewards, axis=0))
+        ts_corr_prior_normalized_reward.append(np.median(ts_corr_prior_rewards, axis=0))
 
     all_bucb_corr_prior_rewards = all_results.bucb_corr_prior_reward
     bucb_corr_prior_normalized_reward = []
     for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
-        bucb_corr_prior_normalized_reward.append(np.mean(bucb_corr_prior_rewards, axis=0))
+        bucb_corr_prior_normalized_reward.append(np.median(bucb_corr_prior_rewards, axis=0))
+    """
 
+    # avg normalized reward
+    ua_normalized_reward = np.percentile(all_results.ua_reward, 50, axis=0)
+    ts_normalized_reward = np.percentile(all_results.ts_reward, 50, axis=0)
+    gi_normalized_reward = np.percentile(all_results.gi_reward, 50, axis=0)
+    ts_corr_normalized_reward = np.percentile(all_results.ts_corr_reward, 50, axis=0)
+    bucb_corr_normalized_reward = np.percentile(all_results.bucb_corr_reward, 50, axis=0)
+
+    all_ts_corr_prior_rewards = all_results.ts_corr_prior_reward
+    ts_corr_prior_normalized_reward = []
+    for ts_corr_prior_rewards in all_ts_corr_prior_rewards:
+        ts_corr_prior_normalized_reward.append(np.percentile(ts_corr_prior_rewards, 50, axis=0))
+
+    all_bucb_corr_prior_rewards = all_results.bucb_corr_prior_reward
+    bucb_corr_prior_normalized_reward = []
+    for bucb_corr_prior_rewards in all_bucb_corr_prior_rewards:
+        bucb_corr_prior_normalized_reward.append(np.percentile(bucb_corr_prior_rewards, 50, axis=0))
+
+    # get standard error on the mean
+    ua_normalized_std_reward = np.percentile(all_results.ua_std_reward, 50, axis=0)
+    ts_normalized_std_reward = np.percentile(all_results.ts_std_reward, 50, axis=0)
+    gi_normalized_std_reward = np.percentile(all_results.gi_std_reward, 50, axis=0)
+    ts_corr_normalized_std_reward = np.percentile(all_results.ts_corr_std_reward, 50, axis=0)
+    bucb_corr_normalized_std_reward = np.percentile(all_results.bucb_corr_std_reward, 50, axis=0)
+
+    all_ts_corr_prior_std_rewards = all_results.ts_corr_prior_std_reward
+    ts_corr_prior_normalized_std_reward = []
+    for ts_corr_prior_std_rewards in all_ts_corr_prior_std_rewards:
+        ts_corr_prior_normalized_std_reward.append(np.percentile(ts_corr_prior_std_rewards, 50, axis=0))
+
+    all_bucb_corr_prior_std_rewards = all_results.bucb_corr_prior_std_reward
+    bucb_corr_prior_normalized_std_reward = []
+    for bucb_corr_prior_std_rewards in all_bucb_corr_prior_std_rewards:
+        bucb_corr_prior_normalized_std_reward.append(np.percentile(bucb_corr_prior_std_rewards, 50, axis=0))
+
+    num_objects = ua_normalized_reward.shape[0]
+    num_trials = config['num_trials']
+    n = num_objects * num_trials
+    z = 1.0 / np.sqrt(n)
+
+    ua_normalized_std_reward = z * ua_normalized_std_reward
+    ts_normalized_std_reward = z * ts_normalized_std_reward
+    gi_normalized_std_reward = z * gi_normalized_std_reward
+    ts_corr_normalized_std_reward = z * ts_corr_normalized_std_reward
+    bucb_corr_normalized_std_reward = z * bucb_corr_normalized_std_reward
+    ts_corr_prior_normalized_std_reward = [z * t for t in ts_corr_prior_normalized_std_reward]
+    bucb_corr_prior_normalized_std_reward = [z * t for t in bucb_corr_prior_normalized_std_reward]
+
+    # plot normalized rewards
     plt.figure()
     plt.plot(all_results.iters[0], ua_normalized_reward, c=colors[0], linewidth=line_width, label='Uniform')
     plt.plot(all_results.iters[0], ts_normalized_reward, c=colors[1], linewidth=line_width, label='TS (Uncorrelated)')
@@ -192,5 +247,39 @@ if __name__ == '__main__':
     plt.legend(handles, labels, loc='lower right')
 
     figname = 'avg_reward.pdf'
+    plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
+    logging.info('Finished plotting %s', figname)
+
+    # plot normalized rewards with error bars
+    num_skip = 10
+    plt.figure()
+    plt.errorbar(all_results.iters[0][::num_skip], ua_normalized_reward[::num_skip], yerr=ua_normalized_std_reward[::num_skip], c=colors[0], linewidth=line_width, label='Uniform')
+    plt.errorbar(all_results.iters[0][::num_skip], ts_normalized_reward[::num_skip], yerr=ts_normalized_std_reward[::num_skip], c=colors[1], linewidth=line_width, label='TS (Uncorrelated)')
+    plt.errorbar(all_results.iters[0][::num_skip], gi_normalized_reward[::num_skip], yerr=gi_normalized_std_reward[::num_skip], c=colors[2], linewidth=line_width, label='Gittins Indices')
+    plt.errorbar(all_results.iters[0][::num_skip], ts_corr_normalized_reward[::num_skip], yerr=ts_corr_normalized_std_reward[::num_skip], c=colors[3], linewidth=line_width, label='TS (Correlated)')
+    plt.errorbar(all_results.iters[0][::num_skip], bucb_corr_normalized_reward[::num_skip], yerr=bucb_corr_normalized_std_reward[::num_skip], c=colors[4], linewidth=line_width, label='BUCB (Correlated)')
+
+    for ts_corr_prior, ts_corr_prior_std, color, label in zip(ts_corr_prior_normalized_reward, ts_corr_prior_normalized_std_reward,
+                                                              colors[5:5+len(ts_corr_prior_normalized_reward)],
+                                                              config['priors_feature_names']):
+        plt.errorbar(all_results.iters[0][::num_skip], ts_corr_prior[::num_skip], yerr=ts_corr_prior_std[::num_skip],
+                     c=color, linewidth=line_width, label='TS (%s)' %(label.replace('nearest_features', 'Priors')))
+
+    for bucb_corr_prior, bucb_corr_prior_std, color, label in zip(bucb_corr_prior_normalized_reward, bucb_corr_prior_normalized_std_reward,
+                                                                  colors[5+len(ts_corr_prior_normalized_reward):],
+                                                                  config['priors_feature_names']):
+        plt.errorbar(all_results.iters[0][::num_skip], bucb_corr_prior[::num_skip], yerr=bucb_corr_prior_std[::num_skip],
+                     c=color, linewidth=line_width, label='BUCB (%s)' %(label.replace('nearest_features', 'Priors')))
+
+    plt.xlim(0, np.max(all_results.iters[0]))
+    plt.ylim(0.5, 1)
+    plt.xlabel('Iteration', fontsize=font_size)
+    plt.ylabel('Normalized Probability of Force Closure', fontsize=font_size)
+    plt.title('Avg Normalized PFC vs Iteration', fontsize=font_size)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    plt.legend(handles, labels, loc='lower right')
+
+    figname = 'avg_reward_with_std.pdf'
     plt.savefig(os.path.join(result_dir, figname), dpi=dpi)
     logging.info('Finished plotting %s', figname)
