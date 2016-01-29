@@ -13,7 +13,9 @@ from mayavi import mlab
 
 import os
 import logging
+import pickle as pkl
 import random
+import sys
 import time
 
 import similarity_tf as stf
@@ -21,6 +23,7 @@ import tfx
 
 import contacts
 import database as db
+import experiment_config as ec
 import grasp as g
 import graspable_object as go
 import obj_file
@@ -28,6 +31,7 @@ import quality as q
 import sdf_file
 
 import stp_file as stp
+import random
 
 FRICTION_COEF = 0.5
 MAX_WIDTH = 0.1
@@ -45,8 +49,9 @@ def load_vertex_contacts(graspable, vis=False):
 
     vertex_contacts = []
     on_surface_count = 0
-    for i, vertex in enumerate(graspable.mesh.vertices()):
-        if graspable.mesh.normals() is None:
+    vertices, vals = graspable.sdf.surface_points(grid_basis=False)
+    for i, vertex in enumerate(vertices):
+        if True:#graspable.mesh.normals() is None:
             contact = contacts.Contact3D(graspable, np.array(vertex))
         else:
             normal = graspable.mesh.normals()[i] # outward facing normal
@@ -55,23 +60,40 @@ def load_vertex_contacts(graspable, vis=False):
         contact.friction_cone() # friction cone is cached for later
         vertex_contacts.append(contact)
 
+    """
+    all_points = np.array([c.point for c in vertex_contacts])
+    ax = plt.gca(projection = '3d')
+    ax.scatter(all_points[:,0], all_points[:,1], all_points[:,2])
+    plt.show()
+    """
+
     # loading ~4100 contacts and computing their friction cones takes ~20 seconds
     logging.info('Loading contacts took %f seconds', time.time() - start_loading_contacts)
     return vertex_contacts
 
-def filter_slip_contacts(vertex_contacts, friction_coef=FRICTION_COEF):
+def filter_contacts(vertex_contacts, friction_coef=FRICTION_COEF, max_vertices=None):
     """Return the contacts that won't slip."""
     start_filtering_contacts = time.time()
-    no_slip_indices, no_slip_contacts = [], []
+    valid_indices = []
+    valid_contacts = []
     for i, contact in enumerate(vertex_contacts):
         success, _, _ = contact.friction_cone(friction_coef=friction_coef)
         if success:
-            no_slip_indices.append(i)
-            no_slip_contacts.append(contact)
+            valid_indices.append(i) # for indexing into vertices
+            valid_contacts.append(contact)
     logging.info('Filtering contacts took %f seconds', time.time() - start_filtering_contacts)
-    return no_slip_indices, no_slip_contacts
 
-def is_antipodal(c1, c2, friction_coef=FRICTION_COEF):
+    if max_vertices is not None and len(valid_contacts) > max_vertices:
+        indices_and_contacts = zip(valid_indices, valid_contacts)
+        random.shuffle(indices_and_contacts)
+        valid_indices = [c[0] for c in indices_and_contacts]
+        valid_contacts = [c[1] for c in indices_and_contacts]
+        valid_indices = valid_indices[:max_vertices]
+        valid_contacts = valid_contacts[:max_vertices]
+
+    return valid_indices, valid_contacts
+
+def in_force_closure(c1, c2, friction_coef=FRICTION_COEF):
     """Returns True if c1 and c2 are antipodal."""
     if np.linalg.norm(c1.point - c2.point) > MAX_WIDTH: # max width
         return False
@@ -87,36 +109,53 @@ def grasp_from_contacts(c1, c2, width=MAX_WIDTH):
         grasp_center, grasp_axis, width=width)
     return g.ParallelJawPtGrasp3D(grasp_configuration)
 
-def compute_antipodal_qualities(graspable, contacts, indices,
-                                metric='ferrari_canny_L1', friction_coef=FRICTION_COEF):
+def compute_qualities(graspable, indices, contacts,
+                      metric='ferrari_canny_L1', friction_coef=0.5):
     n = len(contacts)
-    quality_matrix = np.zeros((n, n))
+    grasps = []
+    index_pairs = []
+    qualities = []
+    valid_contacts = []
 
-    antipodal_pairs = []
-    antipodal_grasps = []
     start_quality = time.time()
-    for i, x in enumerate(indices):
-        c1 = contacts[x]
+    for i in range(n):
+        x = indices[i]
+        c1 = contacts[i]
         start_quality_iter = time.time()
-        logging.info('Computing qualities for index %d', x)
+        logging.info('Computing qualities for index %d', i)
 
-        for j, y in enumerate(indices[i+1:], i+1):
-            c2 = contacts[y]
+        for j in range(i, n):
+            y = indices[j]
+            c2 = contacts[j]
 
-            if is_antipodal(c1, c2):
-                antipodal_pairs.append((x, y))
-
+            grasp_valid = True
+            if not in_force_closure(c1, c2, friction_coef):
+                grasp_valid = False
+                
+            if grasp_valid:
                 grasp = grasp_from_contacts(c1, c2)
-                antipodal_grasps.append(grasp)
+                grasps.append(grasp)
+                index_pairs.append((x,y))
+                qualities.append(q.PointGraspMetrics3D.grasp_quality(grasp, graspable, metric, True, friction_coef))
 
-                quality_matrix[x, y] = quality_matrix[y, x] = \
-                    q.PointGraspMetrics3D.grasp_quality(grasp, graspable, metric, True, friction_coef)
+                if c1 not in valid_contacts:
+                    valid_contacts.append(c1)
+                if c2 not in valid_contacts:
+                    valid_contacts.append(c2)
 
         logging.info('Took %f seconds to compute qualities for index %d',
-                     time.time() - start_quality_iter, x)
+                     time.time() - start_quality_iter, i)
     logging.info('Took %f seconds to compute all qualities',
                  time.time() - start_quality)
-    return antipodal_pairs, antipodal_grasps, quality_matrix
+
+    """
+    all_points = np.array([c.point for c in valid_contacts])
+    ax = plt.gca(projection = '3d')
+    ax.scatter(all_points[:,0], all_points[:,1], all_points[:,2])
+    plt.show()
+    """
+
+    return grasps, index_pairs, qualities
 
 # Functions for plotting
 def plot_mesh_with_qualities(graspable, contacts, fixed_index, valid_contacts,
@@ -220,13 +259,14 @@ def plot_mesh_with_qualities(graspable, contacts, fixed_index, valid_contacts,
                 f.write('f {0}//{0} {1}//{1} {2}//{2}\n'.format(a+1, b+1, c+1))
     return qualities
 
-def plot_rays(graspable, grasp_pairs, qualities,
+def plot_rays(graspable, grasps, qualities,
               max_rays=1000, max_width=float('inf'),
               table_vertices=None, table_tris=None):
-    """Plots a mesh to visualize grasp quality by plotting colored grasp axes.
+    """
+    Visualizes grasp quality by plotting colored grasp axes.
 
     graspable -- GraspableObject3D
-    grasp_pairs -- list of pairs of Contact3D
+    grasps -- list of pairs of ParallelPtGrasp3D objects
     qualities -- list of grasp qualities
 
     max_rays -- maximum number of rays to plot
@@ -235,49 +275,44 @@ def plot_rays(graspable, grasp_pairs, qualities,
     If table_vertices and table_tris are specified, plots a table surface for a
     stable pose.
     """
-    obj_to_grid = graspable.sdf.transform_pt_obj_to_grid
-    mlab.figure(bgcolor=(1, 1, 1))
-    if table_vertices is not None and table_tris is not None:
-        table_vertices = np.array([obj_to_grid(np.array(v)) for v in table_vertices])
-        mlab.triangular_mesh(table_vertices[:,0], table_vertices[:,1], table_vertices[:,2],
-                             table_tris, representation='surface', color=(0,0,0), opacity=0.5)
-    points = np.array([obj_to_grid(np.array(v)) for v in graspable.mesh.vertices()])
-    x, y, z = points[:, 0], points[:, 1], points[:, 2]
-    surf = mlab.triangular_mesh(x, y, z, graspable.mesh.triangles(), color=(0.5, 0.5, 0.5))
+    if len(grasps) != len(qualities):
+        raise ValueError('Must supply grasp and quality lists of same length')
+    if len(qualities) == 0:
+        logging.warning('No valid lines to plot')
+        return
 
+    # construct line objects
     lines = []
     line_qualities = []
-    for quality, (c1, c2) in zip(qualities, grasp_pairs):
-        if quality != 0 and np.linalg.norm(c1.point - c2.point) <= max_width:
-            lines.append((obj_to_grid(c1.point), obj_to_grid(c2.point)))
+    for grasp, quality in zip(grasps, qualities):
+        g1, g2 = grasp.endpoints()
+        if quality != 0 and np.linalg.norm(g1 - g2) <= max_width:
+            lines.append((g1, g2))
             line_qualities.append(quality)
+    if len(lines) == 0:
+        logging.warning('No valid lines to plot')
+        return
+
     low, high = min(line_qualities), max(line_qualities)
     logging.info('Qualities are between %f and %f', low, high)
 
+    # subsample rays
     logging.info('%d grasps, will sample below %d', len(lines), max_rays)
     indices = np.random.permutation(len(lines))[:min(len(lines), max_rays)]
     lines = np.array(lines)[indices]
     line_qualities = np.array(line_qualities)[indices]
 
+    # plot rays
     f = lambda quality: 0.3 * (quality - low) / (high - low)
-    for quality, (start, end) in zip(line_qualities, lines):
-        direction = end - start
-        direction = 2 * (direction / np.linalg.norm(direction))
-        start = start - direction
-        end = end + direction
+    for quality, line in zip(line_qualities, lines):
+        points = np.c_[np.array(line[0]), np.array(line[1])].T
         if quality < 0:
             color = (1, 0, 0)
         else:
             # interpolate colors from red to green
             color = plt.get_cmap('hsv')(f(quality))[:-1]
-        tube_radius = 0.04
-        mlab.plot3d(*zip(start, end), color=color, tube_radius=tube_radius)
-        if quality < 0:
-            mlab.plot3d(*zip(start, start-direction), color=(0, 0, 1), tube_radius=tube_radius)
-            mlab.plot3d(*zip(end, end+direction), color=(0, 0, 1), tube_radius=tube_radius)
-
-    mlab.draw()
-    mlab.show()
+        tube_radius = 0.002
+        mlab.plot3d(points[:,0], points[:,1], points[:,2], color=color, tube_radius=tube_radius)
 
 # Convenient helpers for useful plots
 def vis_fixed(fixed_ind, **kwargs):
@@ -296,84 +331,96 @@ def vis_top(n=500, **kwargs):
             top_quals[i] = 0
     plot_rays(graspable, contacts, top_quals, **kwargs)
 
-def vis_stable(graspable, antipodal_pairs, antipodal_grasps,
-               all_contacts, qualities,
-               stp, vis_transform=True, **kwargs):
-    qualities = np.copy(qualities)
+def vis_stable(graspable, grasps, qualities,
+               stp, vis_transform=True, eps=0.1, **kwargs):
+    if len(grasps) != len(qualities):
+        raise ValueError('Must supply grasp and quality lists of same length')
+    n = len(grasps)
 
+    # extract stable pose info
     tf = stf.SimilarityTransform3D(pose=tfx.pose(stp.r))
     n = stp.r[2, :]
     x0 = stp.x0
+    tfinv = tf.inverse()
 
+    # render mesh in stable pose
+    logging.info('Transforming mesh')
     m = graspable.mesh.transform(tf)
     mn, mx = m.bounding_box()
-    d = max(mx[1] - mn[1], mx[0] - mn[0]) / 2
+    d = max(mx[1] - mn[1], mx[0] - mn[0]) / 2 + eps
     z = mn[2]
     table_vertices = np.array([[d, d, z],
                                [d, -d, z],
                                [-d, d, z],
                                [-d, -d, z]])
+    table_vertices = np.array([tfinv.apply(e) for e in table_vertices])
     table_tris = np.array([[0, 1, 2], [1, 2, 3]])
     if vis_transform:
         mlab.figure()
-        m.visualize()
+        graspable.mesh.visualize()
         mlab.triangular_mesh(table_vertices[:,0], table_vertices[:,1], table_vertices[:,2],
-                             table_tris, representation='surface', color=(0,0,0))
+                             table_tris, representation='surface', color=(0,0,0), opacity=0.5)
 
-    for pair, grasp in zip(antipodal_pairs, antipodal_grasps):
-        x, y = pair
+    # prune grasps in collision with the surface
+    logging.info('Pruning grasps')
+    valid_grasps = []
+    valid_qualities = []
+    for grasp, quality in zip(grasps, qualities):
         g1, g2 = grasp.endpoints()
         if n.dot(g2 - x0) > 0 and n.dot(g1 - x0) > 0:
-            continue
-        else:
-            qualities[x, y] = qualities[y, x] = 0
+            valid_grasps.append(grasp)
+            valid_qualities.append(quality)
 
-    contacts = []
-    stable_quals = []
-    for x in range(qualities.shape[0]):
-        for y in range(qualities.shape[1]):
-            if qualities[x, y] > 0:
-                contacts.append((all_contacts[x], all_contacts[y]))
-                stable_quals.append(qualities[x, y])
-
-    tfinv = tf.inverse()
-    table_vertices = np.array([tfinv.apply(e) for e in table_vertices])
-    plot_rays(graspable, contacts, stable_quals,
-              table_vertices=table_vertices, table_tris=table_tris, **kwargs)
+    # plot rays
+    logging.info('Plotting rays')
+    plot_rays(graspable, valid_grasps, valid_qualities, **kwargs)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    config = {
-        'database_dir': '/home/jmahler/brian/uniform_meshes/test_db',
-        'database_name': 'google_test_db.hdf5',
-        'database_cache_dir': '.',
-        'datasets': {
-            'google': {'start_index': 0, 'end_index': 1}
-        }
-    }
+    config_filename = sys.argv[1]
+    config = ec.ExperimentConfig(config_filename)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config)
-    dataset = database['google']
-    obj_name = 'actual-google-drill'
-    graspable = dataset[obj_name]
+    dataset = database[config['datasets'].keys()[0]]
 
-    stable_pose_fname = 'temp.stp'
-    stp.StablePoseFile().write_mesh_stable_poses(graspable.mesh, stable_pose_fname, min_prob=0.01)
-    stable_poses = stp.StablePoseFile().read(stable_pose_fname)
+    for graspable in dataset:
+        obj_name = graspable.key
 
-    all_contacts = load_vertex_contacts(graspable)
-    vertex_indices, vertex_contacts = filter_slip_contacts(all_contacts)  # for all grasps
-    antipodal_pairs, antipodal_grasps, quality_matrix = compute_antipodal_qualities(graspable, vertex_contacts, vertex_indices)
+        # stable poses
+        stable_pose_filename = os.path.join(config['out_dir'], '{}_stable_poses.stp'.format(obj_name))
+        stp.StablePoseFile().write_mesh_stable_poses(graspable.mesh, stable_pose_filename, min_prob=0.01)
+        stable_poses = stp.StablePoseFile().read(stable_pose_filename)
 
-    # Save expensive computation
-    with open('{}-antipodal.txt'.format(obj_name), 'w') as f:
-        f.write(str(antipodal_pairs))
-    np.save('{}-quality', quality_matrix)
-    # dataset.store_grasps(obj_name, antipodal_grasps)
+        # antipodal pairs
+        all_contacts = load_vertex_contacts(graspable)
+        valid_indices, valid_contacts = filter_contacts(all_contacts, max_vertices=2500)  # for all grasps
+        grasps, index_pairs, qualities = compute_qualities(graspable, valid_indices, valid_contacts)
 
-    # ray visualization
-    most_stable_pose = stable_poses[-1]
-    logging.info('About to plot rays with most stable pose.')
-    vis_stable(graspable, antipodal_pairs, antipodal_grasps,
-               all_contacts, quality_matrix,
-               most_stable_pose, vis_transform=False, max_rays=500)
+        # Save expensive computation
+        grasps_filename = os.path.join(config['out_dir'], '{}_grasps.pkl'.format(obj_name))
+        indices_filename = os.path.join(config['out_dir'], '{}_indices.npy'.format(obj_name))
+        quality_filename = os.path.join(config['out_dir'], '{}_qualities.npy'.format(obj_name))
+        f = open(grasps_filename, 'w')
+        pkl.dump(grasps, f)
+        np.save(indices_filename, np.array(index_pairs))
+        np.save(quality_filename, np.array(qualities))
+
+        """
+        # sort by quality
+        grasps_and_qualities = zip(grasps, qualities)
+        grasps_and_qualities.sort(key = lambda x: x[1], reverse = True)
+        grasps = [g[0] for g in grasps_and_qualities]
+        qualities = [g[1] for g in grasps_and_qualities]
+
+        # ray visualization
+        most_stable_pose = stable_poses[-1]
+        logging.info('About to plot rays with most stable pose.')
+        vis_stable(graspable, grasps[:100], qualities[:100],
+                   most_stable_pose, vis_transform=True, max_rays=500)
+        mlab.draw()
+        mlab.show()
+
+        IPython.embed()
+        exit(0)
+        """
+        
