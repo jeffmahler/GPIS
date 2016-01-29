@@ -122,7 +122,7 @@ class RgbdSensor(object):
         raw_buf = frame.get_buffer_as_uint16()
         buf_array = np.array([raw_buf[i] for i in range(self.width_ * self.height_)])
         depth_image = buf_array.reshape(self.height_, self.width_)
-        depth_image = depth_image * 0.001
+        depth_image = depth_image * 0.001 # convert to meters
         return np.fliplr(depth_image)
 
     def get_color_image(self):
@@ -176,7 +176,7 @@ def find_chessboard(raw_image, sx=6, sy=9):
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    load = False
+    load = True
     s = RgbdSensor()
 
     if load:
@@ -245,10 +245,14 @@ if __name__ == '__main__':
     depth_im[pixels_uninterest[:,1], pixels_uninterest[:,0]] = 0.0
 
     # crop
-    dim = 256
-    start_row = 100
-    start_col = 150
+    dim = 300
+    start_row = s.height_ / 2 - dim / 2
+    start_col = s.width_ / 2 - dim / 2
     depth_im_crop = depth_im[start_row:start_row+dim, start_col:start_col+dim]
+
+    plt.figure()
+    plt.imshow(depth_im_crop)
+    plt.show()
 
     # remove spurious points by finding the largest connected object
     binary_im = 1 * (depth_im_crop > 0.0)
@@ -288,7 +292,7 @@ if __name__ == '__main__':
     nonzero_px_tf = nonzero_px_tf.astype(np.uint16)
     depth_im_crop_tf = np.zeros(depth_im_crop.shape)
     depth_im_crop_tf[nonzero_px_tf[:,0], nonzero_px_tf[:,1]] = depth_im_crop[nonzero_px[:,0], nonzero_px[:,1]]
-    
+
     # reproject
     camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], 525.,
                                     cx=depth_im_crop.shape[0]/2.0, cy=depth_im_crop.shape[1]/2.0)
@@ -314,22 +318,6 @@ if __name__ == '__main__':
     normals = normals.reshape(depth_im_crop.shape[0]*depth_im_crop.shape[1], 3).T
     normals = normals[:, points_of_interest]
 
-    # extract shot features
-    """
-    partial_mesh_filename = 'partial_mesh.obj'
-    partial_shot_filename = 'partial_mesh.ftr'
-    partial_mesh = mesh.Mesh3D(points_3d.T.tolist(), [])
-    of = objf.ObjFile(partial_mesh_filename)
-    of.write(partial_mesh)
-    shot_os_call = 'bin/shot_extractor %s %s' %(partial_mesh_filename, partial_shot_filename)
-    print 'Calling', shot_os_call
-    os.system(shot_os_call)
-
-    # load shot features
-    partial_feat_file = ff.LocalFeatureFile(partial_shot_filename)
-    partial_features = partial_feat_file.read()
-    """
-
     # load spray bottle mesh
     mesh_filename = '/mnt/terastation/shape_data/aselab/spray_dec.obj'
     shot_filename = '/mnt/terastation/shape_data/aselab/spray_dec.ftr'
@@ -337,44 +325,6 @@ if __name__ == '__main__':
     m = of.read()
     vertices = np.array(m.vertices()).T
     
-    """
-    feat_file = ff.LocalFeatureFile(shot_filename)
-    target_features = feat_file.read()
-
-    # match
-    feat_matcher = fm.RawDistanceFeatureMatcher()
-    corrs = feat_matcher.match(partial_features, target_features)
-    """
-    """
-    points_3d = points_3d[:, np.arange(points_3d.shape[1], step=50)]
-    ax = plt.gca(projection = '3d')
-    ax.scatter(points_3d[0,:], points_3d[1,:], points_3d[2,:], c='b')
-    ax.scatter(vertices[0,:], vertices[1,:], vertices[2,:], c='g')
-
-    for i in range(corrs.source_points.shape[0]):
-        ax.scatter(corrs.source_points[i,0], corrs.source_points[i,1], corrs.source_points[i,2], s=120, c=u'r')
-        ax.scatter(corrs.target_points[i,0], corrs.target_points[i,1], corrs.target_points[i,2], s=120, c=u'm')
-    """
-
-    """
-    ax.set_xlim3d(-1.0, 1.0)
-    ax.set_ylim3d(-1.0, 1.0)
-    ax.set_zlim3d(0, 2.0)
-    """
-
-    """
-    num_plot = 10
-    for i in range(num_plot):
-        t = i * (1.0 / num_plot)
-        ax.scatter(t * n[0], t * n[1], t * n[2], c=u'g', s=150)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_xlim3d(-1.0, 1.0)
-    ax.set_ylim3d(-1.0, 1.0)
-    ax.set_zlim3d(0, 2.0)
-    """
-
     stp_filename = '/mnt/terastation/shape_data/aselab/spray.stp'
     sf = stp_file.StablePoseFile()
     stps = sf.read(stp_filename)
@@ -423,27 +373,6 @@ if __name__ == '__main__':
             camera_rot_obj_p = camera_md.dot(camera_rot_obj_p_z.dot(camera_rot_obj_p_x))
             camera_rot_obj_p = camera_rot_obj_p.T
 
-            """
-            canon_axes = np.eye(3)
-            axes_tf = camera_rot_obj_p.dot(canon_axes)
-
-            if subdir.find('2') != -1 and camera_pose_arr[j,-1].find('0_3_3') != -1:
-                print 'T', camera_rot_w[0]
-                print 'P', camera_rot_w[2]
-                mlab.figure()
-                mlab.points3d(canon_axes[:,0], canon_axes[:,1], canon_axes[:,2], scale_factor=0.2, color=(1,0,0))
-                mlab.points3d(axes_tf[0,2], axes_tf[1,2], axes_tf[2,2], scale_factor=0.2, color=(0,1,0))
-                mlab.points3d(axes_tf[0,1], axes_tf[1,1], axes_tf[2,1], scale_factor=0.2, color=(0,0,1))
-                mlab.points3d(axes_tf[0,0], axes_tf[1,0], axes_tf[2,0], scale_factor=0.2, color=(0,1,1))
-                mlab.points3d(0,0,0,scale_factor=0.1,color=(1,0,0))
-                mlab.axes()
-                mlab.show()
-            #camera_rot_obj_p = np.eye(3)
-            #a = np.eye(3)
-            #a[0,0] = -1
-            #a[2,2] = -1
-            """
-
             T_obj_obj_p = tfx.pose(stp.r).matrix
             T_obj_p_camera = tfx.pose(camera_rot_obj_p, z).matrix#, camera_rot_obj_p.dot(camera_xyz_obj_p)).matrix
             #T_obj_p_camera = tfx.pose(camera_rot_obj_p).matrix
@@ -483,8 +412,15 @@ if __name__ == '__main__':
     for f in template_filenames:
         template_images.append(np.array(Image.open(f)))
 
-    binary_im_crop_tf = 255 * (depth_im_crop_tf > 0)
+    cnn_dim = 256
+    depth_im_crop_tf_cnn = depth_im_crop_tf[dim/2 - cnn_dim/2:dim/2 + cnn_dim/2,
+                                            dim/2 - cnn_dim/2:dim/2 + cnn_dim/2]
+    binary_im_crop_tf = 255 * (depth_im_crop_tf_cnn > 0)
     binary_im_crop_tf = binary_im_crop_tf.astype(np.uint8)
+    plt.figure()
+    plt.imshow(binary_im_crop_tf)
+    plt.show()
+
     binary_im_filename = '/home/jmahler/jeff_working/GPIS/data/spray_binary.jpg'
     bict = Image.fromarray(binary_im_crop_tf)
     bict.save(binary_im_filename)
@@ -510,7 +446,7 @@ if __name__ == '__main__':
     min_cost = np.inf
     best_reg = None
     best_index = -1
-    for i in range(0,3):
+    for i in range(0,5):
         index = dists_and_indices[i][1]
         best_tf = object_poses[index]
         theta = thetas[index]
@@ -532,11 +468,11 @@ if __name__ == '__main__':
         m_tf.compute_normals()
         m_normals = np.array(m_tf.normals())
 
-        """
         plt.figure()
         plt.imshow(template_images[index], cmap=plt.cm.Greys_r, interpolation='none')
         plt.show()
         
+        """
         mlab.figure()
         vertex_array = np.array(m_tf.vertices())
         #mlab.points3d(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], scale_factor=0.005, color=(0,1,0))
@@ -562,7 +498,17 @@ if __name__ == '__main__':
         mlab.show()
         """
 
-        registration = reg.point_plane_icp_mesh_point_cloud(m_tf, points_3d, m_normals, normals, 10)
+        #registration = reg.point_plane_icp_mesh_point_cloud(m_tf, points_3d, m_normals, normals, 10)
+
+        # try out new solvers
+        ppis = reg.PointToPlaneICPSolver()
+        ppfm = fm.PointToPlaneFeatureMatcher(dist_thresh=0.05, norm_thresh=0.75) 
+        source_points = np.array(m_tf.vertices())
+        target_points = points_3d.T
+        source_normals = m_normals
+        target_normals = normals.T
+        registration = ppis.register(source_points, target_points, source_normals, target_normals, ppfm, num_iterations=10)
+
         logging.info('Cost %f' %(registration.cost))
         if registration.cost < min_cost:
             min_cost = registration.cost
