@@ -14,25 +14,9 @@ import time
 import IPython
 import matplotlib.pyplot as plt
 import numpy as np
-#import scipy.stats
 
-#import antipodal_grasp_sampler as ags
 import database as db
 import experiment_config as ec
-'''
-import discrete_adaptive_samplers as das
-import feature_functions as ff
-import grasp_sampler as gs
-import json_serialization as jsons
-import kernels
-import models
-import objectives
-import pfc
-import pr2_grasp_checker as pgc
-import random_variables as rvs
-import robust_grasp_quality as rgq
-import termination_conditions as tc
-'''
 
 if __name__ == '__main__':
     np.random.seed(100)
