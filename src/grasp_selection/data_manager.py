@@ -341,7 +341,7 @@ class GceDataManager(DataManager):
 
                 elif USERS_KEY in disk_response.keys() and len(disk_response[USERS_KEY]) > 0:
                     # stage the push for a future time
-                    logging.info('Master disk in use. Staging backup disk for a future push')
+                    logging.info('Master disk %s in use. Staging backup disk for a future push' %(disk))
                     push_queue_filename = os.path.join(self.cache_dir_, PUSH_QUEUE_FILE)
                     f = open(push_queue_filename, 'a')
                     f.write(backup_disk + '\n')

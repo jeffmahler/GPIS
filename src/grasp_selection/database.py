@@ -230,14 +230,22 @@ class Hdf5Dataset(Dataset):
     def shot_feature_data(self, key):
         return self.local_feature_data(key)[SHOT_FEATURES_KEY]
 
-    def stable_pose_data(self, key):
+    def stable_pose_data(self, key, stable_pose_id=None):
+        if stable_pose_id is not None:
+            self.objects[key][STP_KEY][stable_pose_id]
         return self.objects[key][STP_KEY]
 
     def category(self, key):
         return self.objects[key].attrs[CATEGORY_KEY]
 
-    def rendered_image_data(self, key):
-        return self.objects[key][RENDERED_IMAGES_KEY]
+    def rendered_image_data(self, key, image_type=None, stable_pose_id=None):
+        if stable_pose_id is not None and image_type is not None:
+            return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY][image_type]
+        elif stable_pose_id is not None:
+            return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY]
+        elif image_type is not None:
+            return self.objects(key)[RENDERED_IMAGES_KEY][image_type]
+        return self.objects(key)[RENDERED_IMAGES_KEY]
 
     # iterators
     def __getitem__(self, index):
@@ -365,13 +373,21 @@ class Hdf5Dataset(Dataset):
         """ Stable poses for object key """
         return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
 
-    def store_rendered_images(self, key, images, positions, orientations, points_of_interest=None, stable_pose_id=None, image_type="depth"):
+    def store_rendered_images(self, key, rendered_images, stable_pose_id=None, image_type="depth", force_overwrite=False):
         """ Store rendered images of the object for a given stable pose """
-        if image_type not in self.rendered_image_data(key).keys():
+        if stable_pose_id not in self.stable_pose_data(key).keys():
+            raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
+        if stable_pose_id is not None and RENDERED_IMAGES_KEY not in self.stable_pose_data(key)[stable_pose_id].keys():
+            self.stable_pose_data(key)[stable_pose_id].create_group(RENDERED_IMAGES_KEY)
+        if stable_pose_id is not None and image_type not in self.rendered_image_data(key, stable_pose_id).keys():
+            self.rendered_image_data(key, stable_pose_id).create_group(image_type)
+        if stable_pose_id is None and RENDERED_IMAGES_KEY not in self.object(key).keys():
+            self.object(key).create_group(RENDERED_IMAGES_KEY)
+        if stable_pose_id is None and image_type not in self.rendered_image_data(key).keys():
             self.rendered_image_data(key).create_group(image_type)
-        if stable_pose_id not in self.rendered_image_data(key, image_type).keys():
-            self.rendered_image_data(key, image_type).create_group(stable_pose_id)                
-        return hfact.Hdf5ObjectFactory.write_rendered_images(self.rendered_image_data(key, image_type, stable_pose_id), images, positions, orientations, points_of_interest)
+
+        return hfact.Hdf5ObjectFactory.write_rendered_images(rendered_images, self.rendered_image_data(key, image_type, stable_pose_id),
+                                                             force_overwrite)
 
 """ Deprecated dataset for use with filesystems """
 class FilesystemDataset(object):
