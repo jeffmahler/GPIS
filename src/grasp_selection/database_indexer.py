@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import cnn_feature_extractor as cfex
 import database as db
 import experiment_config as ec
+import graspable_object as go
 import kernels
 import numpy as np
 import rendered_image as ri
@@ -21,12 +22,9 @@ class Hdf5DatabaseIndexer:
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, dataset, matcher):
-        if not isinstance(dataset, db.Hdf5Dataset):
-            raise ValueError('Must provide an Hdf5 dataset object to index')
+    def __init__(self, matcher):
         if not isinstance(matcher, kernels.NearestNeighbor):
             raise ValueError('Must provide a nearest neighbor object for indexing')
-        self.dataset_ = dataset # handle to hdf5 data
         self.matcher_ = matcher # nearest neighbor object
         self._create_table()
 
@@ -61,16 +59,32 @@ class Hdf5DatabaseIndexer:
 
 class CNN_Hdf5DatabaseIndexer(Hdf5DatabaseIndexer):
     """ Indexes data using the distance between CNN representations of images """
-    def __init__(self, dataset, config):
+    def __init__(self, config):
         self.feature_extractor_ = cfex.CNNBatchFeatureExtractor(config)
         matcher = kernels.KDTree(phi = lambda x: x.descriptor)
         self._parse_config(config)
-        Hdf5DatabaseIndexer.__init__(self, dataset, matcher)
+        Hdf5DatabaseIndexer.__init__(self, matcher)
 
     def _parse_config(self, config):
         """ Parse the config to read in key parameters """
         self.use_stable_poses_ = config['use_stable_poses']
         self.image_type_ = config['image_type']
+
+    def _featurize(self, datapoints):
+        """ Converts an image x to a CNN feature vector """
+        images = [x.image for x in datapoints]
+        descriptors = self.feature_extractor_.extract(images)
+        for x, descriptor in zip(datapoints, descriptors):
+            x.descriptor = descriptor
+        return datapoints
+
+class CNN_Hdf5DatasetIndexer(CNN_Hdf5DatabaseIndexer):
+    """ Indexes data using the distance between CNN representations of images """
+    def __init__(self, dataset, config):
+        if not isinstance(dataset, db.Hdf5Dataset):
+            raise ValueError('Must provide an Hdf5 dataset object to index')
+        self.dataset_ = dataset # handle to hdf5 data
+        CNN_Hdf5DatabaseIndexer.__init__(self, config)
 
     def _retrieve_objects(self):
         """ Retrieves objects from the provided dataset. """
@@ -84,13 +98,27 @@ class CNN_Hdf5DatabaseIndexer(Hdf5DatabaseIndexer):
                 rendered_image_pool.extend(self.dataset_.rendered_images(obj_key, image_type=self.image_type_))
         return rendered_image_pool
 
-    def _featurize(self, datapoints):
-        """ Converts an image x to a CNN feature vector """
-        images = [x.image for x in datapoints]
-        descriptors = self.feature_extractor_.extract(images)
-        for x, descriptor in zip(datapoints, descriptors):
-            x.descriptor = descriptor
-        return datapoints
+class CNN_Hdf5ObjectIndexer(CNN_Hdf5DatabaseIndexer):
+    """ Indexes data using the distance between CNN representations of images """
+    def __init__(self, obj_key, dataset, config):
+        if not isinstance(dataset, db.Hdf5Dataset):
+            raise ValueError('Must provide an Hdf5 dataset object to index')
+        if obj_key not in dataset.object_keys:
+            raise ValueError('Object key %s not in datset' %(obj_key))            
+        self.obj_key_ = obj_key
+        self.dataset_ = dataset # handle to hdf5 data
+        CNN_Hdf5DatabaseIndexer.__init__(self, config)
+
+    def _retrieve_objects(self):
+        """ Retrieves objects from the provided dataset. """
+        rendered_image_pool = []
+        if self.use_stable_poses_:
+            stable_poses = self.dataset_.stable_poses(self.obj_key_)
+            for stable_pose in stable_poses:
+                rendered_image_pool = self.dataset_.rendered_images(self.obj_key_, stable_pose_id=stable_pose.id, image_type=self.image_type_)
+        else:
+            rendered_image_pool = self.dataset_.rendered_images(self.obj_key_, image_type=self.image_type_)
+        return rendered_image_pool
 
 # TODO: Implement below when needed
 class RawHdf5DatabaseIndexer(Hdf5DatabaseIndexer):
@@ -113,7 +141,7 @@ if __name__ == '__main__':
     database = db.Hdf5Database(database_name, config)
     dataset = database.dataset(config['datasets'].keys()[0])
 
-    cnn_indexer = CNN_Hdf5DatabaseIndexer(dataset, config)
+    cnn_indexer = CNN_Hdf5ObjectIndexer('spray', dataset, config)
     nearest_neighbors = cnn_indexer.k_nearest(test_image, k=5)
 
     nearest_images = nearest_neighbors[0]
