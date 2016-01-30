@@ -171,7 +171,7 @@ class Hdf5ObjectFactory(object):
                 x0 = data[stp_key].attrs[STABLE_POSE_PT_KEY]
             except:
                 x0 = np.zeros(3)
-            stable_poses.append(stpc.StablePose(p, r, x0))
+            stable_poses.append(stpc.StablePose(p, r, x0, stp_id=stp_key))
         return stable_poses
 
     @staticmethod
@@ -325,12 +325,12 @@ class Hdf5ObjectFactory(object):
             # get the image data y'all
             image_key = IMAGE_KEY + '_' + str(i)
             image_data = data[image_key]
-            image =           image_data[IMAGE_DATA_KEY]            
+            image =           np.array(image_data[IMAGE_DATA_KEY])       
             cam_pos =         image_data.attrs[CAM_POS_KEY]
             cam_rot =         image_data.attrs[CAM_ROT_KEY]
             cam_interest_pt = image_data.attrs[CAM_INT_PT_KEY]            
 
-            rendered_images.append(ri.RenderedImage(image, cam_pos, cam_rot, cam_interest_pt))            
+            rendered_images.append(ri.RenderedImage(image, cam_pos, cam_rot, cam_interest_pt, image_id=i))            
         return rendered_images
 
     @staticmethod
@@ -339,7 +339,7 @@ class Hdf5ObjectFactory(object):
         num_images = 0
         if NUM_IMAGES_KEY in data.keys():
             num_images = data.attrs[NUM_GRASPS_KEY]
-        num_new_images = len(images)        
+        num_new_images = len(rendered_images)        
 
         for image_id, rendered_image in enumerate(rendered_images):
             image_key = IMAGE_KEY + '_' + str(image_id)

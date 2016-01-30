@@ -238,7 +238,7 @@ class Hdf5Dataset(Dataset):
     def category(self, key):
         return self.objects[key].attrs[CATEGORY_KEY]
 
-    def rendered_image_data(self, key, image_type=None, stable_pose_id=None):
+    def rendered_image_data(self, key, stable_pose_id=None, image_type=None):
         if stable_pose_id is not None and image_type is not None:
             return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY][image_type]
         elif stable_pose_id is not None:
@@ -373,9 +373,28 @@ class Hdf5Dataset(Dataset):
         """ Stable poses for object key """
         return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
 
+    def rendered_images(self, key, stable_pose_id=None, image_type="depth"):
+        if stable_pose_id is not None and stable_pose_id not in self.stable_pose_data(key).keys():
+            logging.warning('Stable pose id %s unknown' %(stable_pose_id))
+            return[]
+        if stable_pose_id is not None and RENDERED_IMAGES_KEY not in self.stable_pose_data(key)[stable_pose_id].keys():
+            logging.warning('No rendered images for stable pose %s' %(stable_pose_id))
+            return []
+        if stable_pose_id is not None and image_type not in self.rendered_image_data(key, stable_pose_id).keys():
+            logging.warning('No rendered images of type %s for stable pose %s' %(image_type, stable_pose_id))
+            return []
+        if stable_pose_id is None and RENDERED_IMAGES_KEY not in self.object(key).keys():
+            logging.warning('No rendered images for object')
+            return []
+        if stable_pose_id is None and image_type not in self.rendered_image_data(key).keys():
+            logging.warning('No rendered images of type %s for object' %(image_type))
+            return []
+
+        return hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
+
     def store_rendered_images(self, key, rendered_images, stable_pose_id=None, image_type="depth", force_overwrite=False):
         """ Store rendered images of the object for a given stable pose """
-        if stable_pose_id not in self.stable_pose_data(key).keys():
+        if stable_pose_id is not None and stable_pose_id not in self.stable_pose_data(key).keys():
             raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
         if stable_pose_id is not None and RENDERED_IMAGES_KEY not in self.stable_pose_data(key)[stable_pose_id].keys():
             self.stable_pose_data(key)[stable_pose_id].create_group(RENDERED_IMAGES_KEY)
@@ -386,7 +405,7 @@ class Hdf5Dataset(Dataset):
         if stable_pose_id is None and image_type not in self.rendered_image_data(key).keys():
             self.rendered_image_data(key).create_group(image_type)
 
-        return hfact.Hdf5ObjectFactory.write_rendered_images(rendered_images, self.rendered_image_data(key, image_type, stable_pose_id),
+        return hfact.Hdf5ObjectFactory.write_rendered_images(rendered_images, self.rendered_image_data(key, stable_pose_id, image_type),
                                                              force_overwrite)
 
 """ Deprecated dataset for use with filesystems """
