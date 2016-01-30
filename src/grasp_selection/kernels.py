@@ -186,18 +186,18 @@ class NearestNeighbor:
             featurized.append(self.phi_(d))
             featurize_end = time.clock()
             #logging.info('Took %f sec' %(featurize_end - featurize_start))
-        return np.array(featurized)
+        return np.array(featurized).squeeze()
 
 class BinaryTree(NearestNeighbor):
     def train(self, data, tree_class=neighbors.KDTree):
         self.data_ = np.array(data)
         self.featurized_ = self.featurize(data)
 
-        logging.info('Constructing nearest neighbor data structure.')
+        logging.debug('Constructing nearest neighbor data structure.')
         train_start = time.clock()
         self.tree_ = tree_class(self.featurized_, metric=self.dist_metric_)
         train_end = time.clock()
-#        logging.info('Took %f sec' %(train_end - train_start))
+        logging.debug('Took %f sec' %(train_end - train_start))
 
     def within_distance(self, x, dist=0.2, return_indices=False):
         indices, distances = self.tree_.query_radius(self.phi_(x), dist,

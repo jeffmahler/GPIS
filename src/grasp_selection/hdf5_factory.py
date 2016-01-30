@@ -330,7 +330,7 @@ class Hdf5ObjectFactory(object):
             cam_rot =         image_data.attrs[CAM_ROT_KEY]
             cam_interest_pt = image_data.attrs[CAM_INT_PT_KEY]            
 
-            rendered_images.append(ri.RenderedImage(image, cam_pos, cam_rot, cam_interest_pt, image_id=i))            
+            rendered_images.append(ri.RenderedImage(image, cam_pos, cam_rot, cam_interest_pt, image_id=i))
         return rendered_images
 
     @staticmethod

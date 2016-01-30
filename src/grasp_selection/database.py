@@ -390,7 +390,10 @@ class Hdf5Dataset(Dataset):
             logging.warning('No rendered images of type %s for object' %(image_type))
             return []
 
-        return hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
+        rendered_images = hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
+        for rendered_image in rendered_images:
+            rendered_image.stable_pose_id = stable_pose_id
+        return rendered_images
 
     def store_rendered_images(self, key, rendered_images, stable_pose_id=None, image_type="depth", force_overwrite=False):
         """ Store rendered images of the object for a given stable pose """
