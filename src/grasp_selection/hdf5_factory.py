@@ -175,6 +175,17 @@ class Hdf5ObjectFactory(object):
         return stable_poses
 
     @staticmethod
+    def stable_pose(data, stable_pose_id):
+        """ Read out a stable pose object """
+        p = data[stable_pose_id].attrs[STABLE_POSE_PROB_KEY]
+        r = data[stable_pose_id].attrs[STABLE_POSE_ROT_KEY]
+        try:
+            x0 = data[stable_pose_id].attrs[STABLE_POSE_PT_KEY]
+        except:
+            x0 = np.zeros(3)
+        return stpc.StablePose(p, r, x0, stp_id=stable_pose_id)
+
+    @staticmethod
     def write_stable_poses(stable_poses, data):
         """ Writes shot features to HDF5 data provided in |data| """
         num_stable_poses = len(stable_poses)

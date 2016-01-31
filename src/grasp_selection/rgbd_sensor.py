@@ -2,6 +2,7 @@ from primesense import openni2
 import caffe
 import glob
 import logging
+import math
 import numpy as np
 import scipy.ndimage.filters as skf
 import scipy.ndimage.morphology as snm
@@ -18,11 +19,15 @@ import mayavi.mlab as mlab
 from PIL import Image
 
 import camera_params as cp
+import database as db
+import database_indexer as dbi
 import experiment_config as ec
 import feature_file as ff
 import feature_matcher as fm
+import image_processing as ip
 import mesh
 import obj_file as objf
+import rendered_image as ri
 import registration as reg
 import similarity_tf as stf
 import stp_file
@@ -176,9 +181,46 @@ def find_chessboard(raw_image, sx=6, sy=9):
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    load = True
-    s = RgbdSensor()
 
+    config_filename = sys.argv[1]
+    object_key = sys.argv[2]
+    logging.info('Registering to object %s' %(object_key))
+
+    # params
+    load = False
+    save = False
+    debug = False
+    vis = True
+    eps = 0.01
+    table_end_depth = 1.0
+    focal_length = 525.
+    cnn_dim = 256
+    depth_im_crop_dim = 300
+    num_avg_images = 1
+
+    depth_im_median_filter_dim = 9.0
+    depth_im_erosion_filter_dim = 3
+    num_nearest_neighbors = 5
+    num_registration_iters = 5
+
+    feature_matcher_dist_thresh = 0.05
+    feature_matcher_norm_thresh = 0.75
+    font_size = 15
+
+    cache_image_filename = 'data/cnn_grayscale_image.jpg'
+    
+    icp_sample_size = 100
+    icp_relative_point_plane_cost = 100.0
+    icp_regularizatiion_lambda = 1e-2
+
+    # open up the config and database
+    config = ec.ExperimentConfig(config_filename)
+    database_name = os.path.join(config['database_dir'], config['database_name'])
+    database = db.Hdf5Database(database_name, config)
+    dataset = database.dataset(config['datasets'].keys()[0])
+
+    # create sensor
+    s = RgbdSensor()
     if load:
         f = open('data/test/rgbd/depth_im.npy', 'r')
         depth_im = np.load(f)
@@ -188,393 +230,205 @@ if __name__ == '__main__':
         corner_px = np.load(f)
     else:
         # average a bunch of depth images together
-        num_images = 1
         depth_im = np.zeros([s.height_, s.width_])
         counts = np.zeros([s.height_, s.width_])
-        for i in range(num_images):
+        for i in range(num_avg_images):
             new_depth_im = s.get_depth_image()
 
             depth_im = depth_im + new_depth_im
             counts = counts + np.array(new_depth_im > 0.0)
 
+        # retrieve and store images
         depth_im[depth_im > 0] = depth_im[depth_im > 0] / counts[depth_im > 0]
-        #f = open('data/test/rgbd/depth_im.npy', 'w')
-        #np.save(f, depth_im)
+        if save:
+            f = open('data/test/rgbd/depth_im.npy', 'w')
+            np.save(f, depth_im)
 
         color_im = s.get_color_image()
-        #f = open('data/test/rgbd/color_im.npy', 'w')
-        #np.save(f, color_im)
+        if save:
+            f = open('data/test/rgbd/color_im.npy', 'w')
+            np.save(f, color_im)
 
         # find the chessboard
-        corner_px = find_chessboard(color_im)
-        #f = open('data/test/rgbd/corners.npy', 'w')
-        #np.save(f, corner_px)
+        corner_px = ip.ColorImageProcessing.find_chessboard(color_im)
+        if save:
+            f = open('data/test/rgbd/corners.npy', 'w')
+            np.save(f, corner_px)
 
-    depth_im[depth_im > 1.0] = 0.0
+    if vis:
+        plt.figure()
+        plt.subplot(1,2,1)
+        plt.imshow(color_im)
+        plt.axis('off')
+        plt.title('Original Color Image', fontsize=font_size)
+        plt.subplot(1,2,2)
+        plt.imshow(depth_im, cmap=plt.cm.Greys_r)
+        plt.axis('off')
+        plt.title('Original Depth Image', fontsize=font_size)
+        plt.show()
+
+    # remove points beyond table
+    depth_im = ip.DepthImageProcessing.threshold_depth(depth_im, table_end_depth)
 
     # project points into 3D
-    camera_params = cp.CameraParams(s.height_, s.width_, 525.)
-    points_3d = camera_params.deproject(depth_im)
+    camera_params = cp.CameraParams(s.height_, s.width_, focal_length)
+    point_cloud = camera_params.deproject(depth_im)
+    orig_point_cloud = ip.PointCloudProcessing.remove_zero_points(point_cloud)
 
     # get round chessboard ind
     corner_px_round = np.round(corner_px).astype(np.uint16)
     corner_ind = ij_to_linear(corner_px_round[:,0], corner_px_round[:,1], s.width_)
 
     # fit a plane to the chessboard corners
-    points_3d_plane = points_3d[:, corner_ind]
-    X = np.c_[points_3d_plane[:2,:].T, np.ones(points_3d_plane.shape[1])]
-    y = points_3d_plane[2,:].T
-    A = X.T.dot(X)
-    b = X.T.dot(y)
-    w = np.linalg.inv(A).dot(b)
-    n = np.array([w[0], w[1], -1])
-    n = n / np.linalg.norm(n)
-    mean_point_plane = np.mean(points_3d_plane, axis=1)
-    mean_point_plane = np.reshape(mean_point_plane, [3, 1])
+    point_cloud_plane = point_cloud[:, corner_ind]
+    n, mean_point_plane = ip.PointCloudProcessing.fit_plane(point_cloud_plane)
 
     # threshold to find objects on the table
-    eps = 0.01
     mean_point_plane = mean_point_plane + eps * n.reshape(3,1)
-
-    points_of_interest = (points_3d - np.tile(mean_point_plane, [1, points_3d.shape[1]])).T.dot(n) > 0
-    points_of_interest = (points_3d[2,:] > 0) & points_of_interest
-    points_of_interest = np.where(points_of_interest)[0]
-
-    points_uninterest = np.setdiff1d(np.arange(s.width_ * s.height_), points_of_interest)
+    _, points_uninterest = ip.PointCloudProcessing.prune_points_above_plane(point_cloud, n, mean_point_plane)
     pixels_uninterest = linear_to_ij(points_uninterest, s.width_)
     depth_im[pixels_uninterest[:,1], pixels_uninterest[:,0]] = 0.0
 
-    # crop
-    dim = 300
-    start_row = s.height_ / 2 - dim / 2
-    start_col = s.width_ / 2 - dim / 2
-    depth_im_crop = depth_im[start_row:start_row+dim, start_col:start_col+dim]
-
-    plt.figure()
-    plt.imshow(depth_im_crop)
-    plt.show()
+    # crop image at center
+    depth_im_crop = ip.DepthImageProcessing.crop_center(depth_im, depth_im_crop_dim, depth_im_crop_dim)
+    if debug:
+        plt.figure()
+        plt.imshow(depth_im_crop, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.title('Cropped raw depth image', fontsize=font_size)
+        plt.show()
 
     # remove spurious points by finding the largest connected object
-    binary_im = 1 * (depth_im_crop > 0.0)
-    binary_im = binary_im.astype(np.uint8)
-    contours = cv2.findContours(binary_im, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-
-    # prune tiny connected components
-    area_thresh = 200.0
-    num_contours = len(contours[0])
-    pruned_contours = []
-    for i in range(num_contours):
-        area = cv2.contourArea(contours[0][i])
-        if area > area_thresh:
-            pruned_contours.append(contours[0][i])
-
-    # mask out bad areas in the image
-    binary_im_ch = np.zeros([binary_im.shape[0], binary_im.shape[1], 3])
-    for contour in pruned_contours:
-        cv2.fillPoly(binary_im_ch, pts=[contour], color=(255,255,255))
-    ind = np.where(binary_im_ch == 0)
-    depth_im_crop[ind[0], ind[1]] = 0.0
+    binary_im = ip.DepthImageProcessing.depth_to_binary(depth_im_crop)
+    binary_im_ch = ip.BinaryImageProcessing.prune_contours(binary_im)
+    depth_im_crop = ip.DepthImageProcessing.mask_binary(depth_im_crop, binary_im)
 
     # filter
-    depth_im_crop = skf.median_filter(depth_im_crop, size=9.0)
-    binary_mask = snm.binary_erosion(depth_im_crop, structure=np.ones((3,3)))
-    ind = np.where(binary_mask == False)
-    depth_im_crop[ind[0], ind[1]] = 0.0
+    depth_im_crop = skf.median_filter(depth_im_crop, size=depth_im_median_filter_dim)
+    binary_mask = 1.0 * snm.binary_erosion(depth_im_crop, structure=np.ones((depth_im_erosion_filter_dim, depth_im_erosion_filter_dim)))
+    depth_im_crop = ip.DepthImageProcessing.mask_binary(depth_im_crop, binary_mask)
 
-    # center
-    nonzero_px = np.where(depth_im_crop!=0)
-    nonzero_px = np.c_[nonzero_px[0], nonzero_px[1]]
-    mean_px = np.mean(nonzero_px, axis=0)
-    center_px = np.array(depth_im_crop.shape) / 2.0
-    diff_px = center_px - mean_px
-    nonzero_px_tf = nonzero_px + diff_px
-    nonzero_px = nonzero_px.astype(np.uint16)
-    nonzero_px_tf = nonzero_px_tf.astype(np.uint16)
-    depth_im_crop_tf = np.zeros(depth_im_crop.shape)
-    depth_im_crop_tf[nonzero_px_tf[:,0], nonzero_px_tf[:,1]] = depth_im_crop[nonzero_px[:,0], nonzero_px[:,1]]
+    # center nonzero depth
+    depth_im_crop_tf, diff_px = ip.DepthImageProcessing.center_nonzero_depth(depth_im_crop)
+    if debug:
+        plt.figure()
+        plt.imshow(depth_im_crop_tf, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.title('Cropped, centered, and filtered depth image', fontsize=font_size)
+        plt.show()
 
-    # reproject
-    camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], 525.,
-                                    cx=depth_im_crop.shape[0]/2.0, cy=depth_im_crop.shape[1]/2.0)
-    points_3d = camera_params.deproject(depth_im_crop_tf)
-    points_3d_grid = points_3d.T.reshape(depth_im_crop.shape[0], depth_im_crop.shape[1], 3)
-    points_of_interest = np.where(points_3d[2,:] != 0.0)[0]
-    points_3d = points_3d[:, points_of_interest]
+    # compute normals for registration
+    camera_c_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], focal_length,
+                                      cx=depth_im_crop.shape[0]/2.0, cy=depth_im_crop.shape[1]/2.0)
 
-    # compute normals
-    normals = np.zeros([depth_im_crop.shape[0], depth_im_crop.shape[1], 3])
-    for i in range(depth_im_crop.shape[0]-1):
-        for j in range(depth_im_crop.shape[1]-1):
-            p = points_3d_grid[i,j,:]
-            p_r = points_3d_grid[i,j+1,:]
-            p_b = points_3d_grid[i+1,j,:]
-            if np.linalg.norm(p) > 0 and np.linalg.norm(p_r) > 0 and np.linalg.norm(p_b) > 0:
-                v_r = p_r - p
-                v_r = v_r / np.linalg.norm(v_r)
-                v_b = p_b - p
-                v_b = v_b / np.linalg.norm(v_b)
-                normals[i,j,:] = np.cross(v_b, v_r)
-                normals[i,j,:] = normals[i,j,:] / np.linalg.norm(normals[i,j,:])
-    normals = normals.reshape(depth_im_crop.shape[0]*depth_im_crop.shape[1], 3).T
-    normals = normals[:, points_of_interest]
+    query_object_normals, query_point_cloud = ip.DepthImageProcessing.compute_normals(depth_im_crop_tf, camera_c_params)
 
-    # load spray bottle mesh
-    mesh_filename = '/mnt/terastation/shape_data/aselab/spray_dec.obj'
-    shot_filename = '/mnt/terastation/shape_data/aselab/spray_dec.ftr'
-    of = objf.ObjFile(mesh_filename)
-    m = of.read()
-    vertices = np.array(m.vertices()).T
+    # create CNN-sized depth image for indexing
+    depth_im_crop_tf_cnn = ip.DepthImageProcessing.crop_center(depth_im_crop_tf, cnn_dim, cnn_dim)
+    binary_im_crop_tf_cnn = ip.DepthImageProcessing.depth_to_binary(depth_im_crop_tf_cnn)
+    grayscale_im_crop_tf_cnn = ip.BinaryImageProcessing.binary_to_grayscale(binary_im_crop_tf_cnn)
     
-    stp_filename = '/mnt/terastation/shape_data/aselab/spray.stp'
-    sf = stp_file.StablePoseFile()
-    stps = sf.read(stp_filename)
+    # yes, we actually need to save the image to get the JPEG compression artifacts... otherwise the nets suck 
+    grayscale_im_crop_tf_cnn = Image.fromarray(grayscale_im_crop_tf_cnn)
+    grayscale_im_crop_tf_cnn.save(cache_image_filename, 'JPEG')
+    grayscale_im_crop_tf_cnn = np.array(Image.open(cache_image_filename).convert('RGB'))
 
-    # load the templates
-    template_dir = '/home/jmahler/jeff_working/GPIS/data/spray_templates'
-    template_filenames = []
-    object_poses = []
-    thetas = []
-    phis = []
-    rots = []
-    ts = []
-    poses = []
-    stpss = []
-    camera_pose_arrs = []
-    table_normals = [] 
-    for i, d in enumerate(os.listdir(template_dir)):
-        subdir = os.path.join(template_dir, d)
-        stp = stps[2]
+    if debug:
+        plt.figure()
+        plt.imshow(grayscale_im_crop_tf_cnn, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.title('Grayscale image for CNN', fontsize=font_size)
+        plt.show()
+    query_image = ri.RenderedImage(grayscale_im_crop_tf_cnn, np.zeros(3), np.zeros(3), np.zeros(3))
 
-        camera_pose_arr = np.genfromtxt(os.path.join(subdir, 'camera_table.csv'), delimiter=',', dtype=np.dtype(str))
-        for j in range(camera_pose_arr.shape[0]):
-            camera_xyz_w = camera_pose_arr[j, :3].astype(np.float)
-            camera_rot_w = camera_pose_arr[j, 3:6].astype(np.float)
-            camera_int_pt_w = camera_pose_arr[j, 6:9].astype(np.float)
-            camera_xyz_obj_p = camera_xyz_w - camera_int_pt_w
-            camera_dist_xy = np.linalg.norm(camera_xyz_w[:2])
-            z = [0,0,np.linalg.norm(camera_xyz_w[:3])]
-
-            theta = camera_rot_w[0] * np.pi / 180.0# + np.pi / 2
-            phi = -camera_rot_w[2] * np.pi / 180.0 + np.pi / 2.0
-
-            camera_rot_obj_p_z = np.array([[np.cos(phi), -np.sin(phi), 0],
-                                           [np.sin(phi), np.cos(phi), 0],
-                                           [0, 0, 1]])
-
-            camera_rot_obj_p_x = np.array([[1, 0, 0],
-                                           [0, np.cos(theta), -np.sin(theta)],
-                                           [0, np.sin(theta), np.cos(theta)]])
-
-            #camera_rot_obj_p_x = np.eye(3)
-            #camera_rot_obj_p_z = np.eye(3)
-
-            camera_md = np.array([[0, 1, 0],[1, 0, 0],[0,0,-1]])
-            #camera_md = np.eye(3)
-            camera_rot_obj_p = camera_md.dot(camera_rot_obj_p_z.dot(camera_rot_obj_p_x))
-            camera_rot_obj_p = camera_rot_obj_p.T
-
-            T_obj_obj_p = tfx.pose(stp.r).matrix
-            T_obj_p_camera = tfx.pose(camera_rot_obj_p, z).matrix#, camera_rot_obj_p.dot(camera_xyz_obj_p)).matrix
-            #T_obj_p_camera = tfx.pose(camera_rot_obj_p).matrix
-            T_obj_camera = T_obj_p_camera.dot(T_obj_obj_p)
-
-            # rotate to match table normal for 2D search
-            stp_table_basis = np.array(T_obj_camera[:3,:3].dot(stp.r.T))
-            table_tan_x = np.array([-n[1], n[0], 0])
-            table_tan_x = table_tan_x / np.linalg.norm(table_tan_x)
-            table_tan_y = np.cross(n, table_tan_x)
-            t0 = stp_table_basis[:,0].dot(table_tan_x)
-            t1 = stp_table_basis[:,0].dot(table_tan_y)
-            xp = t0*table_tan_x + t1*table_tan_y
-            xp = xp / np.linalg.norm(xp)
-            yp = np.cross(n, xp)
-            Ap = np.c_[xp, yp, n]
-            Rp = Ap.dot(stp_table_basis.T)
-            T_obj_p_camera = tfx.pose(Rp.dot(camera_rot_obj_p), z).matrix#, camera_rot_obj_p.dot(camera_xyz_obj_p)).matrix
-            T_obj_camera = T_obj_p_camera.dot(T_obj_obj_p)
-            stp_table_basis = np.array(T_obj_camera[:3,:3].dot(stp.r.T))
-
-            stpss.append(stp)
-            rots.append(camera_rot_obj_p)
-            ts.append(camera_xyz_obj_p)
-            poses.append(T_obj_p_camera)
-            table_normals.append(stp_table_basis)
-
-            thetas.append(theta)
-            phis.append(phi)
-            camera_pose_arrs.append(camera_pose_arr[j,:])
-            object_poses.append(stf.SimilarityTransform3D(pose=tfx.pose(T_obj_camera)))
-            template_filenames.append(os.path.join(subdir,camera_pose_arr[j,-1])+'.jpg')
-
-        #template_filenames.extend(glob.glob('%s/*segmask*.jpg' %(subdir)))
-
-    template_images = []
-    for f in template_filenames:
-        template_images.append(np.array(Image.open(f)))
-
-    cnn_dim = 256
-    depth_im_crop_tf_cnn = depth_im_crop_tf[dim/2 - cnn_dim/2:dim/2 + cnn_dim/2,
-                                            dim/2 - cnn_dim/2:dim/2 + cnn_dim/2]
-    binary_im_crop_tf = 255 * (depth_im_crop_tf_cnn > 0)
-    binary_im_crop_tf = binary_im_crop_tf.astype(np.uint8)
-    plt.figure()
-    plt.imshow(binary_im_crop_tf)
-    plt.show()
-
-    binary_im_filename = '/home/jmahler/jeff_working/GPIS/data/spray_binary.jpg'
-    bict = Image.fromarray(binary_im_crop_tf)
-    bict.save(binary_im_filename)
-
-    dists = []
-    for im in template_images:
-        dists.append(np.linalg.norm((binary_im_crop_tf - im[:,:,0]).squeeze()))
+    # index the database for similar objects
+    cnn_indexer = dbi.CNN_Hdf5ObjectIndexer(object_key, dataset, config)
+    nearest_neighbors = cnn_indexer.k_nearest(query_image, k=num_nearest_neighbors)
+    nearest_images = nearest_neighbors[0]
+    nearest_distances = nearest_neighbors[1]
     
-    config = ec.ExperimentConfig('/home/jmahler/jeff_working/GPIS/cfg/test_registration.yaml')
-    mv = MVCNNBatchFeatureExtractor(config)
-    template_vecs = mv._forward_pass(template_filenames)
-    target_vec = mv._forward_pass([binary_im_filename])
+    # visualization for debugging
+    if vis:
+        plt.figure()
+        plt.subplot(2, num_nearest_neighbors, math.ceil(float(num_nearest_neighbors)/2))
+        plt.imshow(query_image.image, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.title('QUERY IMAGE', fontsize=font_size)
+        plt.axis('off')
 
-    template_vecs = template_vecs.reshape([template_vecs.shape[0], -1])
-    target_vec = target_vec.reshape([target_vec.shape[0], -1])
+        for j, (image, distance) in enumerate(zip(nearest_images, nearest_distances)):
+            plt.subplot(2, num_nearest_neighbors, j+num_nearest_neighbors+1)
+            plt.imshow(image.image, cmap=plt.cm.Greys_r, interpolation='none')
+            plt.title('NEIGHBOR %d, DISTANCE = %f' %(j, distance), fontsize=font_size)
+            plt.axis('off')
+        plt.show()
 
-    target_vecs = np.tile(target_vec, [template_vecs.shape[0], 1])
-    dists = np.linalg.norm(template_vecs - target_vecs, axis=1)
-    dists_and_indices = zip(dists, range(len(dists)))
-    dists_and_indices.sort(key=lambda x: x[0])
+    # load object mesh
+    obj = dataset.graspable(object_key)
+    object_mesh = obj.mesh
 
-    # plot everything
+    # register
     min_cost = np.inf
     best_reg = None
     best_index = -1
-    for i in range(0,5):
-        index = dists_and_indices[i][1]
-        best_tf = object_poses[index]
-        theta = thetas[index]
-        phi = phis[index]
-        camera_arr = camera_pose_arrs[index]
-        r = rots[index]
-        t = ts[index]
-        p = poses[index]
-        s = stpss[index]
-        stp_n = table_normals[index]
+    for i, neighbor_image in enumerate(nearest_images):
+        # get source object points
+        source_mesh_tf = neighbor_image.camera_to_object_transform()        
+        source_object_mesh = object_mesh.transform(source_mesh_tf)
+        source_object_mesh.compute_normals()
+        source_object_points = np.array(source_object_mesh.vertices())
+        source_object_normals = np.array(source_object_mesh.normals())
 
-        print 'Theta', theta * 180 / np.pi
-        print 'Phi', phi * 180 / np.pi
-        print 'N', stp_n
-        print index
-        print template_filenames[index]
+        target_object_points = ip.PointCloudProcessing.remove_zero_points(query_point_cloud).T
+        target_object_normals =ip.NormalCloudProcessing.remove_zero_normals(query_object_normals).T
 
-        m_tf = m.transform(best_tf)
-        m_tf.compute_normals()
-        m_normals = np.array(m_tf.normals())
+        if debug:
+            subsample_inds = np.arange(target_object_points.shape[0])[::20]
+            mlab.figure()
+            mlab.points3d(source_object_points[:,0], source_object_points[:,1], source_object_points[:,2], color=(1,0,0), scale_factor = 0.005)
+            mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
+            mlab.show()
 
-        plt.figure()
-        plt.imshow(template_images[index], cmap=plt.cm.Greys_r, interpolation='none')
-        plt.show()
-        
-        """
-        mlab.figure()
-        vertex_array = np.array(m_tf.vertices())
-        #mlab.points3d(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], scale_factor=0.005, color=(0,1,0))
-        mlab.points3d(points_3d[0,:], points_3d[1,:], points_3d[2,:], scale_factor=0.005, color=(1,0,0))
-        m_tf.visualize()
+        # point to plane ICP solver
+        ppis = reg.PointToPlaneICPSolver(sample_size=icp_sample_size, gamma=icp_relative_point_plane_cost, mu=icp_regularizatiion_lambda)
+        ppfm = fm.PointToPlaneFeatureMatcher(dist_thresh=feature_matcher_dist_thresh, norm_thresh=feature_matcher_norm_thresh) 
+        registration = ppis.register(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters, vis=debug)
 
-        canon_axes = 0.1*np.eye(3)
-        axes_tf = best_tf.rotation.dot(canon_axes)
-        mlab.points3d(0,0,0,scale_factor=0.01,color=(1,0,0))
-        mlab.points3d(axes_tf[0,2], axes_tf[1,2], axes_tf[2,2], scale_factor=0.02, color=(0,1,0))
-        mlab.points3d(axes_tf[0,1], axes_tf[1,1], axes_tf[2,1], scale_factor=0.02, color=(0,0,1))
-        mlab.points3d(axes_tf[0,0], axes_tf[1,0], axes_tf[2,0], scale_factor=0.02, color=(0,1,1))
-        mlab.points3d(0.1*n[0], 0.1*n[1], 0.1*n[2], scale_factor=0.02, color=(1,1,0))
-        stp_n = stp_n[:,2]
-        mlab.points3d(0.1*stp_n[0], 0.1*stp_n[1], 0.1*stp_n[2], scale_factor=0.02, color=(1,1,1))
-
-        mlab.points3d(canon_axes[:,0], canon_axes[:,1], canon_axes[:,2], scale_factor=0.02, color=(1,0,0))
-        canon_axes = 1.1 * canon_axes
-        mlab.text3d(canon_axes[0,0], canon_axes[0,1], canon_axes[0,2], 'X', scale=0.01)
-        mlab.text3d(canon_axes[1,0], canon_axes[1,1], canon_axes[1,2], 'Y', scale=0.01)
-        mlab.text3d(canon_axes[2,0], canon_axes[2,1], canon_axes[2,2], 'Z', scale=0.01)
-        #mlab.axes()
-        mlab.show()
-        """
-
-        #registration = reg.point_plane_icp_mesh_point_cloud(m_tf, points_3d, m_normals, normals, 10)
-
-        # try out new solvers
-        ppis = reg.PointToPlaneICPSolver()
-        ppfm = fm.PointToPlaneFeatureMatcher(dist_thresh=0.05, norm_thresh=0.75) 
-        source_points = np.array(m_tf.vertices())
-        target_points = points_3d.T
-        source_normals = m_normals
-        target_normals = normals.T
-        registration = ppis.register(source_points, target_points, source_normals, target_normals, ppfm, num_iterations=10)
-
-        logging.info('Cost %f' %(registration.cost))
+        logging.info('Neighbor %d registration cost %f' %(i, registration.cost))
         if registration.cost < min_cost:
             min_cost = registration.cost
             best_reg = registration
-            best_index = index
+            best_tf_camera_camera_c = stf.SimilarityTransform3D(pose=tfx.pose(best_reg.R, best_reg.t))
+            best_index = i
 
-    T_obj_camera = object_poses[best_index]
-    T_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_reg.R, best_reg.t))
-    M = T_obj_camera_p.pose.matrix.dot(T_obj_camera.pose.matrix)
-    T_obj_camera = stf.SimilarityTransform3D(pose=tfx.pose(M))
-
-    m_tf = m.transform(T_obj_camera)
-    mesh_points_3d = np.array(m_tf.vertices())
-
-    mesh_proj_pixels, mesh_valid = camera_params.project(mesh_points_3d.T)
-    mesh_valid_ind = np.where(mesh_valid)[0]
-    plt.figure()
-    plt.imshow(depth_im_crop_tf, cmap=plt.cm.Greys_r, interpolation='none')
-    plt.scatter(mesh_proj_pixels[0,mesh_valid_ind], mesh_proj_pixels[1,mesh_valid_ind], s=80, c='r')
-
-    # project pixels on the original image
-    camera_params2 = cp.CameraParams(480, 640, 525)
-    d_center = depth_im_crop_tf[center_px[0], center_px[1]]
-    center_orig_im = np.array([start_row + mean_px[0], start_col + mean_px[1]])
-    p_center = d_center * np.linalg.inv(camera_params2.K_).dot(np.array([center_orig_im[1], center_orig_im[0], 1]))
-    t_c_cp = p_center
-    t_c_cp[2] = 0
-    T_c_cp = tfx.pose(np.eye(3), t_c_cp)
-    T_obj_cp = T_c_cp.matrix.dot(T_obj_camera.pose.matrix)
-    T_obj_cp = stf.SimilarityTransform3D(pose=tfx.pose(T_obj_cp))
-
-    m_tf = m.transform(T_obj_cp)
-    mesh_points_3d = np.array(m_tf.vertices())
-
-    mesh_proj_pixels, mesh_valid = camera_params2.project(mesh_points_3d.T)
-    mesh_valid_ind = np.where(mesh_valid)[0]
-    plt.figure()
-    plt.imshow(depth_im, cmap=plt.cm.Greys_r, interpolation='none')
-    plt.scatter(mesh_proj_pixels[0,mesh_valid_ind], mesh_proj_pixels[1,mesh_valid_ind], s=80, c='r')
-    plt.show()                                       
-
-    IPython.embed()
-    exit(0)
-
-    mlab.figure()        
-    mlab.points3d(points_3d[0,:], points_3d[1,:], points_3d[2,:], scale_factor=0.005, color=(1,0,0))
-    mlab.points3d(mesh_points_3d[:,0], mesh_points_3d[:,1], mesh_points_3d[:,2], scale_factor=0.005, color=(0,1,0))
-    mlab.axes()
-    mlab.show()
-
-    IPython.embed()
-    exit(0)
-
-    # display images
-    for i in range(5):
-        plt.figure()
-        plt.imshow(template_images[dists_and_indices[i][1]])
-
-    plt.figure()
-    plt.imshow(depth_im_crop_tf, cmap=plt.cm.Greys_r, interpolation='none')
-
-    plt.figure()
-    plt.imshow(color_im)
-
-    plt.show()
-
-    IPython.embed()
-    exit(0)
+    # Great, now when you return... put the registration visualization code and test 
+    best_tf_obj_camera = nearest_images[best_index].camera_to_object_transform()
+    best_tf_obj_camera_c = best_tf_camera_camera_c.pose.matrix.dot(best_tf_obj_camera.pose.matrix)
+    best_tf_obj_camera_c = stf.SimilarityTransform3D(pose=tfx.pose(best_tf_obj_camera_c))
     
+    # project mesh at the transform into the image
+    object_mesh_tf = object_mesh.transform(best_tf_obj_camera_c)
+    object_point_cloud = np.array(object_mesh_tf.vertices()).T
+
+    object_mesh_proj_pixels, mesh_valid_ind = camera_c_params.project(object_point_cloud)
+    if debug:
+        plt.figure()
+        plt.imshow(depth_im_crop_tf, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.scatter(object_mesh_proj_pixels[0,mesh_valid_ind], object_mesh_proj_pixels[1,mesh_valid_ind], s=80, c='r')
+        plt.title('Projected object mesh pixels', fontsize=font_size)
+        plt.show()
+
+    # find transform relative to the original image
+    tf_camera_c_camera_p = ip.DepthImageProcessing.image_shift_to_transform(depth_im_crop_tf, depth_im_crop, camera_c_params, -diff_px)
+    tf_obj_camera_p = tf_camera_c_camera_p.pose.matrix.dot(best_tf_obj_camera_c.pose.matrix)
+    tf_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(tf_obj_camera_p))
+
+    if vis:
+        object_mesh_tf = object_mesh.transform(tf_obj_camera_p)
+        source_object_points = np.array(object_mesh_tf.vertices())
+        target_object_points = orig_point_cloud.T
+        subsample_inds = np.arange(target_object_points.shape[0])[::20]
+
+        mlab.figure()
+        mlab.points3d(source_object_points[:,0], source_object_points[:,1], source_object_points[:,2], color=(1,0,0), scale_factor = 0.005)
+        mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
+        mlab.title('Object Mesh (Red) Overlayed \n on Point Cloud (Green)', size=font_size)
+        mlab.show()
+
+    IPython.embed()

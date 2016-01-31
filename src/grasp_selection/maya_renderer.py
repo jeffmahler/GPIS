@@ -274,7 +274,7 @@ class MayaRenderer(object):
 				os.mkdir(render_dir)
 
 		# generate obj file and create scene
-		obj_file_name = dataset.obj_mesh_file(graspable.key)
+		obj_file_name = dataset.obj_mesh_filename(graspable.key)
 		import_success = self.create_scene_with_mesh(obj_file_name, rot)
 
 		# render the images

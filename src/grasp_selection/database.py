@@ -319,7 +319,7 @@ class Hdf5Dataset(Dataset):
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
 
-    def obj_mesh_file(self, key):
+    def obj_mesh_filename(self, key):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
         obj_filename = os.path.join(self.cache_dir_, key + OBJ_EXT)
@@ -373,6 +373,13 @@ class Hdf5Dataset(Dataset):
         """ Stable poses for object key """
         return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
 
+    def stable_pose(self, key, stable_pose_id):
+        """ Stable pose of stable pose id for object key """
+        if stable_pose_id not in self.stable_pose_data(key).keys():
+            raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
+        return hfact.Hdf5ObjectFactory.stable_pose(self.stable_pose_data(key), stable_pose_id)
+
+    # rendered image data
     def rendered_images(self, key, stable_pose_id=None, image_type="depth"):
         if stable_pose_id is not None and stable_pose_id not in self.stable_pose_data(key).keys():
             logging.warning('Stable pose id %s unknown' %(stable_pose_id))
@@ -391,8 +398,10 @@ class Hdf5Dataset(Dataset):
             return []
 
         rendered_images = hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
-        for rendered_image in rendered_images:
-            rendered_image.stable_pose_id = stable_pose_id
+        if stable_pose_id is not None:
+            stable_pose = self.stable_pose(key, stable_pose_id)
+            for rendered_image in rendered_images:
+                rendered_image.stable_pose = stable_pose
         return rendered_images
 
     def store_rendered_images(self, key, rendered_images, stable_pose_id=None, image_type="depth", force_overwrite=False):

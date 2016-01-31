@@ -311,7 +311,7 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         self.mu_ = mu
         IterativeRegistrationSolver.__init__(self)
     
-    def register(self, orig_source_points, target_points, orig_source_normals, target_normals, matcher, num_iterations=1):
+    def register(self, orig_source_points, target_points, orig_source_normals, target_normals, matcher, num_iterations=1, vis=False):
         """
         Iteratively register objects to one another using a modified version of point to plane ICP.
         The cost func is actually PointToPlane_COST + gamma * PointToPoint_COST
@@ -423,7 +423,8 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         point_dist_cost = (1.0 / num_corrs) * np.sum(np.linalg.norm(source_corr_points - target_corr_points, axis=1)**2)
         total_cost = point_plane_cost + self.gamma_ * point_dist_cost
 
-        vis_corrs(source_points, target_points, corrs.index_map, plot_lines=False)        
+        if vis:
+            vis_corrs(source_points, target_points, corrs.index_map, plot_lines=False)        
         return RegistrationResult(R_sol, t_sol, total_cost)
 
 class RegistrationFunc:

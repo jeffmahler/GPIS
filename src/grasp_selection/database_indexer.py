@@ -135,6 +135,7 @@ if __name__ == '__main__':
 
     test_image_filename = 'data/test/database_indexing/spray_binary.jpg'
     test_image = np.array(Image.open(test_image_filename).convert('RGB'))
+    IPython.embed()
     test_image = ri.RenderedImage(test_image, np.zeros(3), np.zeros(3), np.zeros(3))
 
     database_name = os.path.join(config['database_dir'], config['database_name'])
