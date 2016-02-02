@@ -114,11 +114,12 @@ class DexController:
         
         plt.draw()
         plt.show()
-        
-origin = pose(DexConstants.ORIGIN, DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
-raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
-
+       
 def test(phi):
+
+    origin = pose((0,0,0), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
+    raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
+
     target = pose((0.05, 0.05, 0.05), rotation_tb(phi, 90, 0), frame = DexConstants.WORLD_FRAME)
     print target.rotation.euler
     t = DexController()
