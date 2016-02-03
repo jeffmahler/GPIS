@@ -336,6 +336,22 @@ class Hdf5Dataset(Dataset):
             return []
         return hfact.Hdf5ObjectFactory.grasps(self.grasp_data(key, gripper))
 
+    def sorted_grasps(self, key, metric, gripper='pr2', stable_pose_id=None):
+        """ Returns the list of grasps for the given graspable sorted by decreasing quality according to the given metric """
+        grasps = self.grasps(key, gripper=gripper, stable_pose_id=stable_pose_id)
+        if len(grasps) == 0:
+            return []
+        
+        grasp_metrics = self.grasp_metrics(key, grasps, gripper=gripper, stable_pose_id=stable_pose_id)
+        if metric not in grasp_metrics[grasp_metrics.keys()[0]].keys():
+            raise ValueError('Metric %s not recognized' %(metric))
+
+        grasps_and_metrics = [(g, grasp_metrics[g.grasp_id][metric]) for g in grasps]
+        grasps_and_metrics.sort(key=lambda x: x[1], reverse=True)
+        sorted_grasps = [g[0] for g in grasps_and_metrics]
+        sorted_metrics = [g[1] for g in grasps_and_metrics]
+        return sorted_grasps, sorted_metrics
+
     def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
         # create group for gripper if necessary
@@ -398,6 +414,8 @@ class Hdf5Dataset(Dataset):
             return []
 
         rendered_images = hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
+        for rendered_image in rendered_images:
+            rendered_image.obj_key = key
         if stable_pose_id is not None:
             stable_pose = self.stable_pose(key, stable_pose_id)
             for rendered_image in rendered_images:

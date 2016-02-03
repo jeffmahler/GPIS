@@ -4,6 +4,7 @@ Author: Jeff Mahler
 """
 import cv2
 import logging
+import matplotlib.pyplot as plt
 import numpy as np
 import tfx
 
@@ -19,9 +20,10 @@ class DepthImageProcessing:
     """ A depth image is defined as a 2-D numpy float array """  
 
     @staticmethod
-    def threshold_depth(depth_im, threshold):
-        """ Sets all values greater than |threshold| to 0.0 """
-        depth_im[depth_im > threshold] = 0.0
+    def threshold_depth(depth_im, front_thresh=0.0, rear_thresh=100.0):
+        """ Sets all values less than |front_thresh| and greater than |rear_thresh| to 0.0 """
+        depth_im[depth_im < front_thresh] = 0.0
+        depth_im[depth_im > rear_thresh] = 0.0
         return depth_im
 
     @staticmethod
@@ -153,7 +155,7 @@ class ColorImageProcessing:
 
 class BinaryImageProcessing:
     @staticmethod
-    def prune_contours(binary_im, area_thresh=200.0):
+    def prune_contours(binary_im, area_thresh=1000.0):
         """ Prunes all binary image connected components with area less than |area_thresh| """
         # get all contours (connected components) from the binary image
         contours = cv2.findContours(binary_im, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)

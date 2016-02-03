@@ -6,13 +6,14 @@ import similarity_tf as stf
 class RenderedImage:
     """ Class to encapculate data from rendered images from maya """
 
-    def __init__(self, image, cam_pos, cam_rot, cam_interest_pt, image_id=-1, stable_pose=None):
+    def __init__(self, image, cam_pos, cam_rot, cam_interest_pt, image_id=-1, stable_pose=None, obj_key=None):
         self.image = image
         self.cam_pos = cam_pos
         self.cam_rot = cam_rot
         self.cam_interest_pt = cam_interest_pt
         self.id = image_id
         self.stable_pose = stable_pose
+        self.obj_key = obj_key
         self.descriptors = {}
 
     def camera_to_object_transform(self):
