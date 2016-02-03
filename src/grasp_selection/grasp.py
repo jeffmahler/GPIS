@@ -61,9 +61,12 @@ class PointGrasp(Grasp):
         """ Creates a line of action, or list of grid points, from a point g in world coordinates on an object """
         pass
 
-    #NOTE: implementation of close_fingers must return success, array of contacts (one per column)
-
+    #NOTE: implementation of close_fingers must return success, array of contacts (one per column)    
+    
 class ParallelJawPtGrasp3D(PointGrasp):
+
+    _GRIPPER_BOUNDING_BOX = {"half_height":0.019, "half_length":0.055, "half_width": 0.087}
+
     def __init__(self, configuration, frame='object', timestamp=None, grasp_id=None):
         """
         Create a point grasp for parallel jaws with given center and width (relative to object)
@@ -408,6 +411,36 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_obj = tfx.pose(tfx.point(self.center), tfx.rotation(grasp_axis_new), frame="OBJECT")
         
         return grasp_obj
+        
+    def collides_with_stable_pose(self, stable_pose):
+        plane_center = stable_pose.x0
+        plane_normal = stable_pose.r[2]
+        
+        grasp_axis_y = self.axis
+        grasp_axis_x = np.array([grasp_axis_y[1], -grasp_axis_y[0], 0])
+        grasp_axis_x = grasp_axis_x / norm(grasp_axis_x)
+        grasp_axis_z = np.cross(grasp_axis_x, grasp_axis_y)
+        
+        half_height = ParallelJawPtGrasp3D._GRIPPER_BOUNDING_BOX["half_height"]
+        half_width = ParallelJawPtGrasp3D._GRIPPER_BOUNDING_BOX["half_width"]
+        half_length = ParallelJawPtGrasp3D._GRIPPER_BOUNDING_BOX["half_length"]
+        
+        vertices = []
+        top_center_front = self.center + half_height * grasp_axis_z
+        bottom_center_front = self.center - half_height * grasp_axis_z
+        top_center_back = top_center_front - half_length * 2 * grasp_axis_x
+        bottom_center_back = bottom_center_front - half_length * 2 * grasp_axis_x
+        ref_vertices = [top_center_back, top_center_front, bottom_center_back, bottom_center_front]
+        
+        for ref_vertex in ref_vertices:
+            vertices.append(ref_vertex + half_width * grasp_axis_y)
+            vertices.append(ref_vertex - half_width * grasp_axis_y)
+            
+        for vertex in vertices:
+            if np.dot(plane_normal, vertex - plane_center) <= 0:
+                return True
+                
+        return False
         
     @staticmethod
     def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, grasp_angle=0, jaw_width_world=0,
