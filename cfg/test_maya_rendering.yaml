@@ -2,25 +2,30 @@
 # Core parameters ####################################################
 #!include partials/paths_rll4_jeff.yaml
 #!include partials/paths_gce.yaml
-root_dir:     /Users/jeff/Documents/Research/dex-net/GPISm
-database_dir: /Users/jeff/Documents/Research/dex-net/data/db
+root_dir:     /Users/jeff/Documents/Research/dex-net/GPIS
+#database_dir: /Users/jeff/Documents/Research/dex-net/data/db
 cache_dir:    /Users/jeff/Documents/Research/dex-net/GPIS/data
 
 dataset_counts: data/counts.txt
 datasets:
-  - autodesk
+  aselab:
+    start_index: 0
+    end_index: 9000
+
 max_chunk_size: 1
+
+#database_dir: &id_database_dir /Volumes/share/shape_data/MASTER_DB_v3
+database_dir: &id_database_dir /Users/jeff/Documents/Research/dex-net/data/db
+database_cache_dir: *id_database_dir
+database_name: aselab_db.hdf5
+results_database_name: results.hdf5
+
 num_trials: 0
 sleep_time: 10
 
 priors_dataset: keys_10000_train_and_val
 priors_feature_names:
   - nearest_features_1000_train_and_val
-
-# Will be overridden by startup script
-dataset:     autodesk
-chunk_start: 0
-chunk_end:   8980
 
 # Experiment parameters ##############################################
 !include partials/experiment_params.yaml
@@ -55,25 +60,37 @@ lb_alpha: 0.50
 maya:
   path_to_mayapy: '/Applications/Autodesk/maya2015/Maya.app/Contents/bin/mayapy'
 
-  dest_dir: '/Users/jeff/Documents/Research/dex-net/data/rendered_sets/autodesk_depth2'
-  mesh_dir: '/Users/jeff/Documents/Research/dex-net/data/db/autodesk'
+  dest_dir: '/Users/jeff/Documents/Research/dex-net/data/rendered_sets/aselab_test'
+  mesh_dir: '/Users/jeff/Documents/Research/dex-net/data/db/aselab'
+  save_images: 0
 
-  render_mode: 'normal' # or depth
+  render_mode: 'segmask' # or depth
   back_color:
     r: 0.0
     g: 0.0
     b: 0.0
-  num_radial: 2
-  num_lat: 5
-  num_long: 5
-  use_table: 1
+  num_radial: 3
+  num_lat: 4
+  num_long: 8
+  use_table: 0
+  hemisphere: 1
   normalize: 1
 
-  min_dist: 0
-  max_dist: 0
-  min_range: 0
+  min_dist: 0.55
+  max_dist: 0.75
+  min_range: 0.5
   max_range: 1.0
+  min_prob: 0.01
   file_type: '.jpg'
+
+  focal_length: 3.0
+  app_horiz: 0.144
+  app_vert: 0.108
+  image_width: 640
+  image_height: 480
+  image_format: 8
+  output_image_width: 256
+  output_image_height: 256
 
 # Params to run over
 param_values:

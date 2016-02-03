@@ -7,6 +7,7 @@ import features as f
 import feature_functions as ff
 import grasp
 import mesh
+import rendered_image as ri
 import sdf
 import similarity_tf as stf
 import stable_pose_class as stpc
@@ -60,6 +61,13 @@ GRASP_FEATURES_KEY = 'features'
 GRASP_FEATURE_NAME_KEY = 'name'
 GRASP_FEATURE_TYPE_KEY = 'type'
 GRASP_FEATURE_VECTOR_KEY = 'vector'
+
+NUM_IMAGES_KEY = 'num_images'
+IMAGE_KEY = 'image'
+IMAGE_DATA_KEY = 'image_data'
+CAM_POS_KEY = 'cam_pos'
+CAM_ROT_KEY = 'cam_rot'
+CAM_INT_PT_KEY = 'cam_int_pt'
 
 class Hdf5ObjectFactory(object):
     """ Factory for spawning off new objects from HDF5 fields """
@@ -163,8 +171,19 @@ class Hdf5ObjectFactory(object):
                 x0 = data[stp_key].attrs[STABLE_POSE_PT_KEY]
             except:
                 x0 = np.zeros(3)
-            stable_poses.append(stpc.StablePose(p, r, x0))
+            stable_poses.append(stpc.StablePose(p, r, x0, stp_id=stp_key))
         return stable_poses
+
+    @staticmethod
+    def stable_pose(data, stable_pose_id):
+        """ Read out a stable pose object """
+        p = data[stable_pose_id].attrs[STABLE_POSE_PROB_KEY]
+        r = data[stable_pose_id].attrs[STABLE_POSE_ROT_KEY]
+        try:
+            x0 = data[stable_pose_id].attrs[STABLE_POSE_PT_KEY]
+        except:
+            x0 = np.zeros(3)
+        return stpc.StablePose(p, r, x0, stp_id=stable_pose_id)
 
     @staticmethod
     def write_stable_poses(stable_poses, data):
@@ -306,6 +325,54 @@ class Hdf5ObjectFactory(object):
                     else:
                         logging.warning('Feature %s already exists for grasp %s and overwrite was not requested. Aborting write request' %(feature_tag, grasp_id))
                         return False
-
         return True
 
+    @staticmethod
+    def rendered_images(data):
+        rendered_images = []
+        num_images = data.attrs[NUM_IMAGES_KEY]
+        
+        for i in range(num_images):
+            # get the image data y'all
+            image_key = IMAGE_KEY + '_' + str(i)
+            image_data = data[image_key]
+            image =           np.array(image_data[IMAGE_DATA_KEY])       
+            cam_pos =         image_data.attrs[CAM_POS_KEY]
+            cam_rot =         image_data.attrs[CAM_ROT_KEY]
+            cam_interest_pt = image_data.attrs[CAM_INT_PT_KEY]            
+
+            rendered_images.append(ri.RenderedImage(image, cam_pos, cam_rot, cam_interest_pt, image_id=i))
+        return rendered_images
+
+    @staticmethod
+    def write_rendered_images(rendered_images, data, force_overwrite=False):
+        """ Write rendered images to database """
+        num_images = 0
+        if NUM_IMAGES_KEY in data.keys():
+            num_images = data.attrs[NUM_GRASPS_KEY]
+        num_new_images = len(rendered_images)        
+
+        for image_id, rendered_image in enumerate(rendered_images):
+            image_key = IMAGE_KEY + '_' + str(image_id)
+            if image_key not in data.keys():
+                data.create_group(image_key)
+                image_data = data[image_key]
+
+                image_data.create_dataset(IMAGE_DATA_KEY, data=rendered_image.image)
+                image_data.attrs.create(CAM_POS_KEY, rendered_image.cam_pos)
+                image_data.attrs.create(CAM_ROT_KEY, rendered_image.cam_rot)
+                image_data.attrs.create(CAM_INT_PT_KEY, rendered_image.cam_interest_pt)
+            elif force_overwrite:
+                image_data[IMAGE_DATA_KEY] = rendered_image.image
+                image_data.attrs[CAM_POS_KEY] = rendered_image.cam_pos
+                image_data.attrs[CAM_ROT_KEY] = rendered_image.cam_rot
+                image_data.attrs[CAM_INT_PT_KEY] = rendered_image.cam_interest_pt
+            else:
+                logging.warning('Image %d already exists and overwrite was not requested. Aborting write request' %(image_id))
+                return None
+
+        if NUM_IMAGES_KEY in data.keys():
+            data.attrs[NUM_IMAGES_KEY] = num_images + num_new_images
+        else:
+            data.attrs.create(NUM_IMAGES_KEY, num_images + num_new_images)
+            

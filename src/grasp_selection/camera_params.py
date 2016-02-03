@@ -83,7 +83,7 @@ class CameraParams:
                 # find valid indices
                 valid = (points_proj[0,:] >= 0) & (points_proj[1,:] >= 0) & (points_proj[0,:] < self.width_) & (points_proj[1,:] < self.height_)
 
-                return points_proj[:2,:].astype(np.int), valid
+                return points_proj[:2,:].astype(np.int), np.where(valid)[0]
 
         def deproject(self, depth_image):
                 '''

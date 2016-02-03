@@ -230,14 +230,22 @@ class Hdf5Dataset(Dataset):
     def shot_feature_data(self, key):
         return self.local_feature_data(key)[SHOT_FEATURES_KEY]
 
-    def stable_pose_data(self, key):
+    def stable_pose_data(self, key, stable_pose_id=None):
+        if stable_pose_id is not None:
+            self.objects[key][STP_KEY][stable_pose_id]
         return self.objects[key][STP_KEY]
 
     def category(self, key):
         return self.objects[key].attrs[CATEGORY_KEY]
 
-    def rendered_image_data(self, key):
-        return self.objects[key][RENDERED_IMAGES_KEY]
+    def rendered_image_data(self, key, stable_pose_id=None, image_type=None):
+        if stable_pose_id is not None and image_type is not None:
+            return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY][image_type]
+        elif stable_pose_id is not None:
+            return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY]
+        elif image_type is not None:
+            return self.objects(key)[RENDERED_IMAGES_KEY][image_type]
+        return self.objects(key)[RENDERED_IMAGES_KEY]
 
     # iterators
     def __getitem__(self, index):
@@ -311,7 +319,7 @@ class Hdf5Dataset(Dataset):
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
 
-    def obj_mesh_file(self, key):
+    def obj_mesh_filename(self, key):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
         obj_filename = os.path.join(self.cache_dir_, key + OBJ_EXT)
@@ -327,6 +335,22 @@ class Hdf5Dataset(Dataset):
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
             return []
         return hfact.Hdf5ObjectFactory.grasps(self.grasp_data(key, gripper))
+
+    def sorted_grasps(self, key, metric, gripper='pr2', stable_pose_id=None):
+        """ Returns the list of grasps for the given graspable sorted by decreasing quality according to the given metric """
+        grasps = self.grasps(key, gripper=gripper, stable_pose_id=stable_pose_id)
+        if len(grasps) == 0:
+            return []
+        
+        grasp_metrics = self.grasp_metrics(key, grasps, gripper=gripper, stable_pose_id=stable_pose_id)
+        if metric not in grasp_metrics[grasp_metrics.keys()[0]].keys():
+            raise ValueError('Metric %s not recognized' %(metric))
+
+        grasps_and_metrics = [(g, grasp_metrics[g.grasp_id][metric]) for g in grasps]
+        grasps_and_metrics.sort(key=lambda x: x[1], reverse=True)
+        sorted_grasps = [g[0] for g in grasps_and_metrics]
+        sorted_metrics = [g[1] for g in grasps_and_metrics]
+        return sorted_grasps, sorted_metrics
 
     def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
@@ -365,13 +389,54 @@ class Hdf5Dataset(Dataset):
         """ Stable poses for object key """
         return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
 
-    def store_rendered_images(self, key, images, positions, orientations, points_of_interest=None, stable_pose_id=None, image_type="depth"):
+    def stable_pose(self, key, stable_pose_id):
+        """ Stable pose of stable pose id for object key """
+        if stable_pose_id not in self.stable_pose_data(key).keys():
+            raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
+        return hfact.Hdf5ObjectFactory.stable_pose(self.stable_pose_data(key), stable_pose_id)
+
+    # rendered image data
+    def rendered_images(self, key, stable_pose_id=None, image_type="depth"):
+        if stable_pose_id is not None and stable_pose_id not in self.stable_pose_data(key).keys():
+            logging.warning('Stable pose id %s unknown' %(stable_pose_id))
+            return[]
+        if stable_pose_id is not None and RENDERED_IMAGES_KEY not in self.stable_pose_data(key)[stable_pose_id].keys():
+            logging.warning('No rendered images for stable pose %s' %(stable_pose_id))
+            return []
+        if stable_pose_id is not None and image_type not in self.rendered_image_data(key, stable_pose_id).keys():
+            logging.warning('No rendered images of type %s for stable pose %s' %(image_type, stable_pose_id))
+            return []
+        if stable_pose_id is None and RENDERED_IMAGES_KEY not in self.object(key).keys():
+            logging.warning('No rendered images for object')
+            return []
+        if stable_pose_id is None and image_type not in self.rendered_image_data(key).keys():
+            logging.warning('No rendered images of type %s for object' %(image_type))
+            return []
+
+        rendered_images = hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
+        for rendered_image in rendered_images:
+            rendered_image.obj_key = key
+        if stable_pose_id is not None:
+            stable_pose = self.stable_pose(key, stable_pose_id)
+            for rendered_image in rendered_images:
+                rendered_image.stable_pose = stable_pose
+        return rendered_images
+
+    def store_rendered_images(self, key, rendered_images, stable_pose_id=None, image_type="depth", force_overwrite=False):
         """ Store rendered images of the object for a given stable pose """
-        if image_type not in self.rendered_image_data(key).keys():
+        if stable_pose_id is not None and stable_pose_id not in self.stable_pose_data(key).keys():
+            raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
+        if stable_pose_id is not None and RENDERED_IMAGES_KEY not in self.stable_pose_data(key)[stable_pose_id].keys():
+            self.stable_pose_data(key)[stable_pose_id].create_group(RENDERED_IMAGES_KEY)
+        if stable_pose_id is not None and image_type not in self.rendered_image_data(key, stable_pose_id).keys():
+            self.rendered_image_data(key, stable_pose_id).create_group(image_type)
+        if stable_pose_id is None and RENDERED_IMAGES_KEY not in self.object(key).keys():
+            self.object(key).create_group(RENDERED_IMAGES_KEY)
+        if stable_pose_id is None and image_type not in self.rendered_image_data(key).keys():
             self.rendered_image_data(key).create_group(image_type)
-        if stable_pose_id not in self.rendered_image_data(key, image_type).keys():
-            self.rendered_image_data(key, image_type).create_group(stable_pose_id)                
-        return hfact.Hdf5ObjectFactory.write_rendered_images(self.rendered_image_data(key, image_type, stable_pose_id), images, positions, orientations, points_of_interest)
+
+        return hfact.Hdf5ObjectFactory.write_rendered_images(rendered_images, self.rendered_image_data(key, stable_pose_id, image_type),
+                                                             force_overwrite)
 
 """ Deprecated dataset for use with filesystems """
 class FilesystemDataset(object):

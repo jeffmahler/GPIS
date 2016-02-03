@@ -10,5 +10,5 @@ config_name = sys.argv[1]
 config = ec.ExperimentConfig(config_name)
 gce_job = job.GceJob(config)
 gce_job.run()
+#gce_job.store()
 
-# TODO: store

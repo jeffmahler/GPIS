@@ -152,6 +152,20 @@ class GceJob(Job):
         self._setup()
 
     def _setup(self):
+        # get job id
+        self.id = gen_job_id()
+        self.job_name_root = 'job-%s' %(self.id)
+        if self.config['update']:
+            self.job_name_root = 'job-updater-%s' %(self.id)            
+        self.config['job_root'] = self.job_name_root
+
+        # setup logging for job
+        gce_job_log = os.path.join(self.config['log_dir'], self.job_name_root +'.log')
+        hdlr = logging.FileHandler(gce_job_log)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        hdlr.setFormatter(formatter)
+        logging.getLogger().addHandler(hdlr) 
+
         # initialize helper classes for interacting with GCE, GCS
         self.auth_http = instance.oauth_authorization(self.config)
         self.gce_helper = gce.Gce(self.auth_http, self.config, project_id=self.config['compute']['project'])
@@ -161,13 +175,6 @@ class GceJob(Job):
         self.instances = []
         self.launched_instances = {}
         self.user_terminated = False
-
-        # get job id
-        self.id = gen_job_id()
-        self.job_name_root = 'job-%s' %(self.id)
-        if self.config['update']:
-            self.job_name_root = 'job-updater-%s' %(self.id)            
-        self.config['job_root'] = self.job_name_root
 
         # setup instance completion api call
         service_not_ready = True

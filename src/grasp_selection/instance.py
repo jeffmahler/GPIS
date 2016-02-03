@@ -5,6 +5,7 @@ import IPython
 import itertools as it
 import logging
 import multiprocessing as mp
+import Queue
 import sys
 import time
 
@@ -16,6 +17,12 @@ from oauth2client import tools
 
 import copy_reg
 import types
+
+INSERT_ERROR = 'Error inserting %(name)s.'
+DELETE_ERROR = """
+Error deleting %(name)s. %(name)s might still exist; You can use
+the console (http://cloud.google.com/console) to delete %(name)s.
+"""
 
 def oauth_authorization(config):
     """
@@ -230,11 +237,15 @@ class VMInstanceManager(object):
             pool.map(self._launch_instance, instances)
 
         # return dictionary of launched instances mapped by name (some may fail)
-        time.sleep(1) # wait for queue population, which sometimes fucks up
         launched_instances = {}
-        while not VMInstanceManager.instance_launch_queue.empty():
-            cur_instance = VMInstanceManager.instance_launch_queue.get() 
-            launched_instances[cur_instance.instance_name] = cur_instance
+        queue_empty = False
+        while not queue_empty:
+            try:
+                cur_instance = VMInstanceManager.instance_launch_queue.get(timeout=0.1) 
+                launched_instances[cur_instance.instance_name] = cur_instance
+            except Queue.Empty as e:
+                queue_empty = True
+                
         return launched_instances
 
     def stop_instances(self, instances, num_processes=1):
@@ -255,7 +266,7 @@ class VMInstanceManager(object):
             raise ValueError('Must provide an instance object to start')
         try:
             if instance.start():
-                VMInstanceManager.instance_launch_queue.put(instance, timeout=self.queue_timeout)
+                VMInstanceManager.instance_launch_queue.put(instance, block=True, timeout=self.queue_timeout)
         except:
             logging.info('Failed to launch %s' %(instance.instance_name))
 

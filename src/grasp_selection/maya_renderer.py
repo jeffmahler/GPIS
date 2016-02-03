@@ -13,6 +13,7 @@ import IPython
 
 import database as db
 import experiment_config as ec
+import rendered_image as ri
 
 from PIL import Image
 import numpy as np
@@ -27,9 +28,11 @@ INCHES_TO_MM = 25.4
 
 class MayaRenderer(object):
 	def __init__(self, config):
+		# initialize maya
 		maya.standalone.initialize(name='python')
 		mel.eval('source "renderLayerBuiltinPreset.mel"')
 
+		# parse config
 		self.config_ = config
 		self.maya_config_ = self.config_['maya']
 		self._parse_config()
@@ -42,12 +45,11 @@ class MayaRenderer(object):
 		self.plane_name_ = "PLANE"
 
 	def _parse_config(self):
+		""" Read in the parameters of a configuration file """
 		self.dest_dir_ = self.maya_config_['dest_dir']
 		self.mesh_dir_ = self.maya_config_['mesh_dir']
 		self.min_dist_ = self.maya_config_['min_dist']
 		self.max_dist_ = self.maya_config_['max_dist']
-		self.working_min_dist_ = self.min_dist_
-		self.working_max_dist_ = self.max_dist_
 		self.num_radial_ = self.maya_config_['num_radial']
 		self.num_lat_ = self.maya_config_['num_lat']
 		self.num_long_ = self.maya_config_['num_long']
@@ -55,12 +57,22 @@ class MayaRenderer(object):
 		self.max_range_ = self.maya_config_['max_range']
 		self.back_color_ = self.maya_config_['back_color']
 
-		self.render_mode_ = self.maya_config_['render_mode']
 		self.use_table_ = self.maya_config_['use_table']
+		self.hemisphere_ = self.maya_config_['hemisphere']
 		self.file_type_ = self.maya_config_['file_type']
 		self.normalize_ = self.maya_config_['normalize']
 
-	def add_depth_layer(self):
+		self.focal_length_ = self.maya_config_['focal_length']
+		self.app_horiz_ = self.maya_config_['app_horiz']
+		self.app_vert_ = self.maya_config_['app_vert']
+		self.image_width_ = self.maya_config_['image_width']
+		self.image_height_ = self.maya_config_['image_height']
+		self.image_format_ = self.maya_config_['image_format']
+		self.output_image_width_ = self.maya_config_['output_image_width']
+		self.output_image_height_ = self.maya_config_['output_image_height']
+
+	def setup_depth(self):
+		""" Sets up maya depth layers """
 		if self.use_table_:
 			cmd.select(self.obj_name_+":Mesh", self.plane_name_, r=True)
 		else:
@@ -70,15 +82,24 @@ class MayaRenderer(object):
 		cmd.disconnectAttr("samplerInfo1.cameraNearClipPlane", "setRange1.oldMinX")
 		cmd.disconnectAttr("samplerInfo1.cameraFarClipPlane", "setRange1.oldMaxX")
 		cmd.setAttr("setRange1.minX", 0)
-		cmd.setAttr("setRange1.maxX", 1)
-		cmd.setAttr("setRange1.oldMinX", self.min_range_ * self.working_min_dist_)
-		cmd.setAttr("setRange1.oldMaxX", self.max_range_ * self.working_max_dist_)
+		cmd.setAttr("setRange1.maxX", 1.0)
+		cmd.setAttr("setRange1.minY", 0)
+		cmd.setAttr("setRange1.maxY", 1.0)
+		cmd.setAttr("setRange1.minZ", 0)
+		cmd.setAttr("setRange1.maxZ", 1.0)
+		cmd.setAttr("setRange1.oldMinX", self.min_range_)
+		cmd.setAttr("setRange1.oldMaxX", self.max_range_)
 
-	def add_object_segmentation():
+	def setup_object_segmentation(self):
+		""" Sets up maya object segmentation masks """
 		self.create_mask_for_object_with_color(self.obj_name_+":Mesh", [1, 1, 1])
-		self.create_mask_for_object_with_color(self.plane_name_, [1, 0, 0])
+
+		if self.use_table_:
+			cmd.nurbsPlane(name=self.plane_name_, p=(0,0,0), ax=(0,0,1), w=10000, lr=1, d=3, u=1, v=1, ch=1)
+			self.create_mask_for_object_with_color(self.plane_name_, [1, 0, 0])
 
 	def create_scene_with_mesh(self, mesh_filename, rot=np.eye(3)):
+		""" Creates the maya scene with the specified mesh """
 		cmd.file(f=True, new=True)
 
 		if self.use_table_:
@@ -91,32 +112,37 @@ class MayaRenderer(object):
 			print e.message
 			return False
 
+		# convert the rotation to euler angles and rotate the mesh
 		axes = 'sxyz'
 		r = tfx.canonical.CanonicalRotation(rot)
 		euler = r.euler(axes)
 		euler = [(180. / np.pi) * a for a in euler] # convert to degrees
-
 		cmd.select(self.obj_name_+":Mesh", r=True)
 		cmd.rotate(euler[0], euler[1], euler[2])
 
+		# move the object on top of the table if specified
 		bounding_box = cmd.polyEvaluate(b=True)
 		object_height = bounding_box[2][1]
-		cmd.move(object_height, z=True)
-		self.center_of_interest_ = [0, 0, object_height]
+		if self.use_table_:
+			cmd.move(object_height, z=True)
+			self.center_of_interest_ = [0, 0, object_height]
 
+		# set the min and max distances
 		if self.min_dist_ == 0:
 			major_dist = math.sqrt(math.pow(bounding_box[0][0]-bounding_box[0][1], 2) + math.pow(bounding_box[1][0]-bounding_box[1][1], 2) + math.pow(bounding_box[2][0]-bounding_box[2][1], 2))
-			self.working_min_dist_ = major_dist*2
-			self.working_max_dist_ = major_dist*4
-			
-		cmd.setAttr("defaultRenderGlobals.imageFormat", 8) # 32)
-		cmd.setAttr("defaultResolution.width", 256)
-		cmd.setAttr("defaultResolution.height", 256)
+			self.min_dist_ = 1.0 * major_dist
+			self.max_dist_ = 2.0 * major_dist
+		
+		# set image attributes	
+		cmd.setAttr("defaultRenderGlobals.imageFormat", self.image_format_)
+		cmd.setAttr("defaultResolution.width", self.image_width_)
+		cmd.setAttr("defaultResolution.height", self.image_height_)
 		cmd.setAttr("defaultResolution.deviceAspectRatio", 1.0)
 
 		return True
 
 	def create_mask_for_object_with_color(self, obj_name, color):
+		""" Creates a segmentation mask for the specified object in the given color """
 		mask_name = obj_name+"_MASK"
 		group_name = obj_name+"_GROUP"
 
@@ -138,11 +164,11 @@ class MayaRenderer(object):
 		return im_arr
 
 	def median_filter(self, im_arr, size=3.0):
-		""" Median filter """
+		""" Median filter an image """
 		im_arr_filt = filters.median_filter(np.float64(im_arr), size=size)
 		return im_arr_filt
 
-	def differentiate_image(self, im_arr, normalize=False):
+	def differentiate_image(self, im_arr, normalize=False): 
 		""" Take x and y gradients of images """
 		im_grad_y, im_grad_x = np.gradient(np.float64(im_arr[:,:,0]))
 		
@@ -158,125 +184,136 @@ class MayaRenderer(object):
 
 		return im_grad_x_big, im_grad_y_big
 		
-	def save_image_with_camera_pos(self, csv_writer, mesh_filename, file_ext, dest_dir, camera_pos, camera_interest_pos, obj_key):
-		camera_name, camera_shape = cmd.camera(p=camera_pos, wci=camera_interest_pos)
+	def render_image(self, camera_pos, camera_interest_pos, obj_key=None, mesh_filename=None):
+		""" Creates a rendered image object for the mesh in |mesh_filename| """
+		# setup camera
+		camera_name, camera_shape = cmd.camera(p=camera_pos, wci=camera_interest_pos, wup=[0,0,1], fl=self.focal_length_, hfa=self.app_horiz_,
+			vfa=self.app_vert_, ar=self.app_horiz_ / self.app_vert_)
 		cmd.setAttr(camera_shape+'.backgroundColor', self.back_color_['r'], self.back_color_['g'], self.back_color_['b'], type="double3")
 		cmd.setAttr(camera_shape+".renderable", 1)
-		focal_length = cmd.camera(camera_shape, q=True, fl=True)
 
-		app_horiz = cmd.camera(camera_shape, q=True, hfa=True) * INCHES_TO_MM
-		app_vert = cmd.camera(camera_shape, q=True, vfa=True) * INCHES_TO_MM
+		camera_rot = cmd.camera(camera_shape, q=True, rotation=True)
 		pixel_width = cmd.getAttr("defaultResolution.width")
 		pixel_height = cmd.getAttr("defaultResolution.height")
 
-		focal_length_x_pixel = pixel_width * focal_length / app_horiz
-		focal_length_y_pixel = pixel_height * focal_length / app_vert
+		focal_length_x_pixel = pixel_width * self.focal_length_ / self.app_horiz_
+		focal_length_y_pixel = pixel_height * self.focal_length_ / self.app_vert_
 
+		# render the image
 		image_src = cmd.render(camera_shape)
-		image_file = mesh_filename+file_ext
-		image_dest = path.join(dest_dir, obj_key, image_file)
-		shutil.move(image_src, image_dest)
-		im = Image.open(image_dest)
+		im = Image.open(image_src)
 		im_arr = np.array(im)
 
-		# postprocess the image
-		im_arr = self.median_filter(im_arr)
-
-		if self.render_mode_ == 'normal':
-			im_grad_x_arr, im_grad_y_arr = self.differentiate_image(im_arr)
-			
-			if self.normalize_:
-				im_grad_x_arr = self.normalize_image(im_grad_x_arr)
-				im_grad_y_arr = self.normalize_image(im_grad_y_arr)
-
-			image_x_dest = path.join(dest_dir, obj_key, mesh_filename + '_grad_x' + file_ext)
-			image_y_dest = path.join(dest_dir, obj_key, mesh_filename + '_grad_y' + file_ext)
-			im_grad_x = Image.fromarray(np.uint8(im_grad_x_arr))
-			im_grad_y = Image.fromarray(np.uint8(im_grad_y_arr))
-			im_grad_x.save(image_x_dest)
-			im_grad_y.save(image_y_dest)
-
-		
-		# normalize the rendered image
+		# optionally normalize the rendered image
 		if self.normalize_:
 			im_arr = self.normalize_image(im_arr)
-		im = Image.fromarray(np.uint8(im_arr))
-		im.save(image_dest)
 
-		self.save_camera_data_to_writer(csv_writer, mesh_filename, camera_pos, camera_interest_pos, focal_length)
+		# crop the rendered images
+		center = np.array(im_arr.shape) / 2.0
+		start_i = center[0] - self.output_image_height_ / 2.0
+		end_i = center[0] + self.output_image_height_ / 2.0
+		start_j = center[1] - self.output_image_width_ / 2.0
+		end_j = center[1] + self.output_image_width_ / 2.0
+		im_arr = im_arr[start_i:end_i, start_j:end_j]
 
-	def save_camera_data_to_writer(self, csv_writer, image_file, camera_pos, camera_interest_pos, focal_length):
-		csv_writer.writerow(camera_pos + camera_interest_pos + [focal_length, image_file])
+		# optional save
+		if mesh_filename is not None:
+			image_filename = mesh_filename+self.file_type_
+			image_dest = path.join(self.dest_dir_, obj_key, image_filename)
+			im = Image.fromarray(np.uint8(im_arr))
+			im.save(image_dest)
 
-	def create_images_for_scene(self, csv_writer, obj_name, obj_key):
-		radius = self.working_min_dist_
-		radial_increment = 0 if self.num_radial_ == 1 else (self.working_max_dist_ - self.working_min_dist_) / (self.num_radial_ - 1)
+		# create rendered image
+		rendered_image = ri.RenderedImage(im_arr, camera_pos, camera_rot, camera_interest_pos)
+		return rendered_image
 
-		# TODO: view halo or view hemisphere when on table instead of view sphere
+	def render_images_for_object(self, obj_key, save_images=False, obj_name=None):
+		""" Renders images from cameras on view spheres of increasing radii """
+		# create radial increments
+		radius = self.min_dist_
+		radial_increment = 0 if self.num_radial_ == 1 else (self.max_dist_ - self.min_dist_) / (self.num_radial_ - 1)
+
+		# set factor to toggle rendering on a view hemisphere
 		mult = 1
-		if self.use_table_:
+		if self.use_table_ or self.hemisphere_:
 			mult = 2
 
+		# iterate through spherical coordinates, rendering an image from a virtual camera at each
+		rendered_images = []
 		for r in range(0, self.num_radial_):
 			phi_increment = math.pi / (mult * (self.num_lat_ + 1))
 			phi = phi_increment
+			index = 0
+
 			for lat in range(0, self.num_lat_):
 				theta = 0
 				theta_increment = 2 * math.pi / self.num_long_
 				for lon in range(0, self.num_long_):
 					camera_pos = [radius*math.sin(phi)*math.cos(theta), radius*math.sin(phi)*math.sin(theta), radius*math.cos(phi)]
-					mesh_name = obj_name+"_"+str(r)+"_"+str(lat)+"_"+str(lon)
-					self.save_image_with_camera_pos(csv_writer, mesh_name, self.file_type_, self.dest_dir_, camera_pos, self.center_of_interest_, obj_key)
+					if save_images and obj_name is not None:
+						mesh_name = obj_name+"_"+str(r)+"_"+str(lat)+"_"+str(lon)
+						rendered_image = self.render_image(camera_pos, self.center_of_interest_, obj_key, mesh_filename=mesh_name)
+					else:
+						rendered_image = self.render_image(camera_pos, self.center_of_interest_, obj_key)
+					rendered_image.id = index
+					rendered_images.append(rendered_image)
+
+					index += 1
 					theta += theta_increment
 				phi += phi_increment
 			radius += radial_increment
+		return rendered_images
 
-	def render(self, graspable, rot=np.eye(3)):
-		render_dir = os.path.join(self.dest_dir_, graspable.key)
-		if not os.path.exists(render_dir):
-			os.mkdir(render_dir)
+	def render(self, graspable, dataset, render_mode='color', rot=np.eye(3), save_images=False, extra_key=''):
+		""" Renders the graspable according to the class config """
+		# form key
+		key = graspable.key + extra_key
+		if save_images:
+			render_dir = os.path.join(self.dest_dir_, key)
+			if not os.path.exists(render_dir):
+				os.mkdir(render_dir)
 
-		import_success = self.create_scene_with_mesh(graspable.model_name, rot)
+		# generate obj file and create scene
+		obj_file_name = dataset.obj_mesh_filename(graspable.key)
+		import_success = self.create_scene_with_mesh(obj_file_name, rot)
 
+		# render the images
+		rendered_images = []
 		if import_success:
-			with open(path.join(self.dest_dir_, graspable.key, 'camera_table.csv'), 'w') as csvfile:
-				csv_writer = csv.writer(csvfile)
-				csv_writer.writerow(["camera_x", "camera_y", "camera_z", "interest_x", "interest_y", "interest_z", "focal_length", "mesh_name"])
-
-				if self.render_mode_ == 'color':
-					self.create_images_for_scene(csv_writer, graspable.key+"_color", graspable.key)
-
-				if self.render_mode_ == 'segmask':
-					self.add_object_segmentation()
-					self.create_images_for_scene(csv_writer, graspable.key+"_segmask", graspable.key)
-
-				if self.render_mode_ == 'depth':
-					self.add_depth_layer()
-					self.create_images_for_scene(csv_writer, graspable.key+"_depth", graspable.key)
-
-				if self.render_mode_ == 'normal':
-					self.add_depth_layer()
-					self.create_images_for_scene(csv_writer, graspable.key+"_normal", graspable.key)
-			return True
+			if render_mode == 'color':
+				rendered_images = self.render_images_for_object(key, save_images=save_images, obj_name=graspable.key+"_color")
+			elif render_mode == 'segmask':
+				self.setup_object_segmentation()
+				rendered_images = self.render_images_for_object(key, save_images=save_images, obj_name=graspable.key+"_segmask")
+			elif render_mode == 'depth':
+				self.setup_depth_layer()
+				rendered_images = self.render_images_for_object(key, save_images=save_images, obj_name=graspable.key+"_depth")
+			else:
+				logging.warning('Render mode %s is not valid' %(render_mode))
 		else:
 			os.rmdir(render_dir)
 			return False
 
+		return rendered_images
+
 if __name__ == '__main__':
 	config_filename = sys.argv[1]
 	config = ec.ExperimentConfig(config_filename)
+	render_mode = config['maya']['render_mode']
+	save_images = config['maya']['save_images']
 
 	renderer = MayaRenderer(config)
-	ds = db.Dataset(config['dataset'], config)
-	for obj in ds:
-		if obj.key == 'sissor_handtool':
-			stable_poses = ds.load_stable_poses(obj)
-			print stable_poses[0].r
-			renderer.render(obj, rot=stable_poses[0].r)
-			exit(0)
+	database_name = os.path.join(config['database_dir'], config['database_name'])
+	database = db.Hdf5Database(database_name, config, access_level=db.READ_WRITE_ACCESS)
 
-# def create_robot_pose_matrix(camera_pos, camera_interest_pos):
-# 	z_axis = numpy.subtract(camera_interest_pos, camera_pos)
-# 	z = numpy.linalg.norm(z_axis)
-# 	x = numpy.linalg.norm(numpy.cross([0,1,0], z))
-# 	y = numpy.linalg.norm(numpy.cross(z, x))
+	for dataset_name in config['datasets'].keys():
+		dataset = database.dataset(dataset_name)
+		for obj in dataset:
+			stable_poses = dataset.stable_poses(obj.key)
+			for i, stable_pose in enumerate(stable_poses):
+				if stable_pose.p > config['maya']['min_prob']:
+					rendered_images = renderer.render(obj, dataset, render_mode=render_mode, rot=stable_pose.r, extra_key='_stp_%d'%(i), save_images=save_images)
+					dataset.store_rendered_images(obj.key, rendered_images, stable_pose_id=stable_pose.id, image_type=render_mode)
+	
+	database.close()				
+					

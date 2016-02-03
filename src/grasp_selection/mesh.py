@@ -252,7 +252,7 @@ class Mesh3D(object):
 
         # can get negative volume when tris are flipped, so auto correct assuming that mass should have been postive
         if total_volume < 0:
-            logging.warning('Volume was negative. Flipping sign, but mesh may be degenerate')
+            logging.debug('Volume was negative. Flipping sign, but mesh may be degenerate')
             total_volume = -total_volume
         return total_volume
 
@@ -466,10 +466,12 @@ class Mesh3D(object):
         oof = obj_file.ObjFile(filename)
         oof.write(self)
 
-    def visualize(self):
+    def visualize(self, color=(0.5, 0.5, 0.5), style='surface'):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
-        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface', color=(0.5,0.5,0.5))
+        surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation=style,
+                                     color=color)
+        return surface
 
     def create_json_metadata(self):
         return {
