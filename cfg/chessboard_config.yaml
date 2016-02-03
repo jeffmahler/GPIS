@@ -1,0 +1,17 @@
+# Configuration yaml file for chessboard registration
+
+# Load previous data toggle
+load: False 
+
+# Chessboard dimensions
+sx: 6
+sy: 9
+
+# Rotation and translation save directory
+save_dir: 'data/camera_transformation/'
+
+# Number of depth images
+num_images: 1
+
+# Figure plotting
+scale_amt: 10.0
