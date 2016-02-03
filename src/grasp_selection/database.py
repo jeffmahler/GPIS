@@ -398,6 +398,8 @@ class Hdf5Dataset(Dataset):
             return []
 
         rendered_images = hfact.Hdf5ObjectFactory.rendered_images(self.rendered_image_data(key, stable_pose_id, image_type))
+        for rendered_image in rendered_images:
+            rendered_image.obj_key = key
         if stable_pose_id is not None:
             stable_pose = self.stable_pose(key, stable_pose_id)
             for rendered_image in rendered_images:
