@@ -211,12 +211,9 @@ if __name__ == '__main__':
         subsample_inds = np.arange(target_object_points.shape[0])[::20]
 
         # load grasps
-        grasps = dataset.grasps(object_key)
-        gm = dataset.grasp_metrics(object_key, grasps)
         metric = 'pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'
-        grasps_and_metrics = [(g, gm[g.grasp_id][metric]) for g in grasps]
-        grasps_and_metrics.sort(key=lambda x: x[1], reverse=True)
-        best_grasp = grasps_and_metrics[0][0]
+        sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_key, metric)
+        best_grasp = sorted_grasps[0]
         g1, g2 = best_grasp.endpoints()
         grasp_points = np.c_[np.array(g1), np.array(g2)]
         grasp_points_tf = tf_obj_camera_p.apply(grasp_points)
