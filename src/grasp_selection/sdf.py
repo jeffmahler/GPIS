@@ -209,7 +209,7 @@ class Sdf:
 
     def is_out_of_bounds(self, coords):
         """Returns True if coords is an out of bounds access."""
-        return (coords < 0).any() or (coords >= self.dims_).any()
+        return np.array(coords < 0).any() or np.array(coords >= self.dims_).any()
 
 class Sdf3D(Sdf):
     # static indexing vars
@@ -431,6 +431,7 @@ class Sdf3D(Sdf):
             (SDF): new sdf with grid warped by T
         """
         # map all surface points to their new location
+        tf = tf.inverse() # invert for correct lookups
         start_t = time.clock()
         num_pts = self.pts_.shape[0]
         pts_sdf = self.tf_grid_sdf_.apply(self.pts_.T)
