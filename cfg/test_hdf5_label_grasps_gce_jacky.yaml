@@ -1,11 +1,11 @@
 # Core parameters ####################################################
 # !include partials/paths_rll4_jeff.yaml
-root_dir:     F:\Dev\ws\GPIS
-cache_dir:    F:\Dev\ws\GPIS_Cache
+root_dir:     /home/jmahler/jacky_working/GPIS/
+cache_dir:    /home/jmahler/jacky_working/GPIS/data/gcs
 
 # DB generation params
-shape_data_dir: Z:\shape_data
-database_dir: &id_database_dir Z:\shape_data\MASTER_DB_v3
+shape_data_dir: /mnt/terastation/shape_data
+database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
 database_name: dexnet_db3_01_22_16.hdf5
 results_database_name: results.hdf5

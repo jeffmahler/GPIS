@@ -1,19 +1,18 @@
 # Core parameters ####################################################
-# !include partials/paths_rll4_jeff.yaml
-root_dir:     F:\Dev\ws\GPIS
-cache_dir:    F:\Dev\ws\GPIS_Cache
+!include partials/paths_rll4_jeff.yaml
+cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
 
 # DB generation params
-shape_data_dir: Z:\shape_data
-database_dir: &id_database_dir Z:\shape_data\MASTER_DB_v3
+shape_data_dir: /mnt/terastation/shape_data
+database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
-database_name: dexnet_db3_01_22_16.hdf5
+database_name: aselab_db.hdf5
 results_database_name: results.hdf5
 
 datasets:
-  YCB:
+  aselab:
     start_index: 0
-    end_index: 4
+    end_index: 2
 
 # Params
 min_dim: 0.09
@@ -23,6 +22,22 @@ density: 2000.0
 gripper_size: 0.1
 mass_thresh: 0.01
 default_mass: 1.0
+pfc_num_samples: 100
+pfc_compute_variance: true
+eq_num_samples: 100
+
+# Window weights
+!include partials/window_params.yaml
+inf:   &id_inf       100000000000000000000.0
+zero:  &id_zero      0.0
+weight_proj_win:     1.0
+weight_grad_x:       1.0
+weight_grad_y:       1.0
+weight_curvature:    1.0
+weight_grasp_center: 1.0
+weight_grasp_axis:   1.0
+weight_grasp_angle:  1.0
+weight_gravity:      1.0
 
 # Convex decomposition
 cvx_decomp:
@@ -42,6 +57,9 @@ sleep_time: 10
 priors_dataset: keys_10000_train_and_val
 priors_feature_names:
   - nearest_features_1000_train_and_val
+
+bandit_snapshot_rate: 100
+use_soft_fingers: 1
 
 !include partials/experiment_params.yaml
 
