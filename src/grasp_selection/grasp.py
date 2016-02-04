@@ -353,7 +353,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             theta = theta + theta_res
         return grasps_tf
 
-    def gripper_pose(self, R_gripper_center = np.eye(3), t_gripper_center = 0):
+    def gripper_pose(self, R_gripper_center = np.eye(3), t_gripper_center = np.zeros(3)):
         """
         Convert a grasp to a gripper pose in SE(3). Could optionally support PR2 gripper_l_tool_frame if proper params are passed in
         Params:
@@ -368,23 +368,40 @@ class ParallelJawPtGrasp3D(PointGrasp):
         pose_gripper_ref = pose_center_rot_ref.apply(pose_gripper_center_rot)
         return pose_gripper_ref
 
+    def gripper_pose_stf(self, R_gripper_center = np.eye(3), t_gripper_center = np.zeros(3)):
         """
-        R_center_grasp_rot = R_grasp_rot_grasp.dot(R_center_grasp)
-
-        # rotation and translation in same frame as grasp
-        R_gripper = R_gripper_center.dot(R_center_grasp_rot)
-        t_gripper = self.center_ + R_center_grasp_rot.dot(t_gripper_center)
-
-        # add new grasp with given pose in object basis
-        pose_gripper = tfx.transform(R_gripper, t_gripper) #TODO: add correct frame
-        return pose_gripper
+        Convert a grasp to a gripper pose in SE(3) using PR2 gripper_l_tool_frame as default
+        Params:
+           R_gripper_center: (numpy 3x3 array) rotation matrix from grasp basis to gripper basis
+           t_gripper_center: (numpy 3 array) translation from grasp basis to gripper basis
+        Returns:
+           pose_gripper: (tfx transform) pose of gripper in the grasp frame
         """
+        # convert gripper orientation to rotation matrix
+        grasp_axis_y = self.axis_
+        grasp_axis_x = np.array([grasp_axis_y[1], -grasp_axis_y[0], 0])
+        grasp_axis_x = grasp_axis_x / np.linalg.norm(grasp_axis_x)
+        grasp_axis_z = np.cross(grasp_axis_x, grasp_axis_y)
+
+        R_center_ref = np.c_[grasp_axis_x, np.c_[grasp_axis_y, grasp_axis_z]]
+
+
+        pose_center_ref = tfx.transform(R_center_ref, self.center_) # pose of grasp center in its reference frame
+
+        # rotate along grasp approach angle
+        R_center_rot_center = np.array([[ np.cos(self.approach_angle_), 0, np.sin(self.approach_angle_)],
+                                        [                            0, 1,                            0],
+                                        [-np.sin(self.approach_angle_), 0, np.cos(self.approach_angle_)]])
+        pose_center_rot_center = tfx.transform(R_center_rot_center, np.zeros(3))
+        pose_gripper_center_rot = tfx.transform(R_gripper_center, t_gripper_center)
+
+        pose_gripper_ref = pose_center_ref.apply(pose_center_rot_center).apply(pose_gripper_center_rot)
+        return stf.SimilarityTransform3D(pose=tfx.pose(pose_gripper_ref), scale=1.0, from_frame='obj', to_frame='grasp')
         
     def _angle_aligned_with_stable_pose(self, stable_pose):
         '''
         Returns the y-axis rotation angle that'd allow the current pose to align with stable pose
-        '''
-    
+        '''    
         def _argmin(f, a, b, n):
             #finds the argmax x of f(x) in the range [a, b) with n samples
             delta = (b - a) / n
@@ -453,6 +470,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         for ref_vertex in ref_vertices:
             vertices.append(ref_vertex + half_width * grasp_axis_y)
             vertices.append(ref_vertex - half_width * grasp_axis_y)
+
+        for vertex in vertices:
+            mlab.points3d(vertex[0], vertex[1], vertex[2], color=(1,0,0), s=0.1)
             
         for vertex in vertices:
             if np.dot(plane_normal, vertex - plane_center) <= 0:

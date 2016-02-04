@@ -6,11 +6,13 @@ import tfx
 import IPython
 
 class SimilarityTransform3D:
-    def __init__(self, pose, scale=1.0):
+    def __init__(self, pose, scale=1.0, from_frame='world', to_frame='my_frame'):
         if not isinstance(pose, tfx.canonical.CanonicalTransform):
             raise ValueError('Pose must be tfx canonical tf')
         self.pose_ = pose
         self.scale_ = scale
+        self.from_frame_ = from_frame
+        self.to_frame_ = to_frame
         
     def apply(self, x, direction = False):
         """ Applies a similarity transform to a point x"""
@@ -45,15 +47,15 @@ class SimilarityTransform3D:
         else:
             raise ValueError('Only numpy 3-arrays are supported')
 
-    def compose(self, other_tf):
-        pose_tf = other_tf.pose.apply(self.pose_)
-        scale_tf = other_tf.scale * self.scale_
-        return SimilarityTransform3D(pose_tf, scale_tf)
+    def dot(self, other_tf):
+        pose_tf = self.pose_.matrix.dot(other_tf.pose.matrix)
+        scale_tf = self.scale_ * other_tf.scale
+        return SimilarityTransform3D(pose=tfx.pose(pose_tf), scale=scale_tf, from_frame=other_tf.from_frame, to_frame=self.to_frame)
 
     def inverse(self):
         inv_pose = self.pose_.inverse()
         inv_pose.position = (1.0 / self.scale_) * inv_pose.position
-        return SimilarityTransform3D(inv_pose, 1.0 / self.scale_)
+        return SimilarityTransform3D(inv_pose, 1.0 / self.scale_, from_frame=self.to_frame, to_frame=self.from_frame)
 
     @property
     def translation(self):
@@ -66,6 +68,14 @@ class SimilarityTransform3D:
     @property
     def pose(self):
         return self.pose_
+
+    @property
+    def from_frame(self):
+        return self.from_frame_
+
+    @property
+    def to_frame(self):
+        return self.to_frame_
 
     @pose.setter
     def pose(self, pose):
