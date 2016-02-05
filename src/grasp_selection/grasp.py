@@ -134,8 +134,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
     def rotated_full_axis(self):
         if self.rotated_full_axis_ is None:
             R = ParallelJawPtGrasp3D._get_rotation_matrix_y(self.approach_angle)
-            self.rotated_full_axis_ = np.dot(R, self.unrotated_full_axis)
-        return self.rotated_full_axis
+            self.rotated_full_axis_ = np.dot(self.unrotated_full_axis_, R)
+        return self.rotated_full_axis_
         
     def set_approach_angle(self, angle):
         self.approach_angle_ = angle
@@ -148,7 +148,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
     def _get_rotation_matrix_y(theta):
         cos_t = np.cos(theta)
         sin_t = np.sin(theta)
-        return np.matrix([[cos_t, 0, -sin_t], [0, 1, 0], [sin_t, 0, cos_t]])      
+        R = np.c_[[cos_t, 0, sin_t], np.c_[[0, 1, 0], [-sin_t, 0, cos_t]]]
+        return R
         
     @staticmethod
     def configuration_from_params(center, axis, width, angle=0, jaw_width=0):
@@ -413,20 +414,18 @@ class ParallelJawPtGrasp3D(PointGrasp):
                 if y <= min_y:
                     min_y = y
                     min_x = x
-
             return min_x
     
         def _get_matrix_product_x_axis(grasp_axis, normal):
             def matrix_product(theta):
                 R = ParallelJawPtGrasp3D._get_rotation_matrix_y(theta)
                 grasp_axis_rotated = np.dot(R, grasp_axis)
-                grasp_axis_rotated_vector = np.array([grasp_axis_rotated[0, i] for i in range(3)])
-                return abs(np.dot(normal, grasp_axis_rotated_vector))
+                return abs(np.dot(normal, grasp_axis_rotated))
             return matrix_product
     
         stable_pose_normal = stable_pose.r[2]
         
-        theta = _argmin(_get_matrix_product_x_axis(np.array([1,0,0]), np.dot(inv(self.rotated_full_axis), stable_pose_normal)), 0, 2*np.pi, 1000)
+        theta = _argmin(_get_matrix_product_x_axis(np.array([1,0,0]), np.dot(inv(self.unrotated_full_axis), stable_pose_normal)), 0, 2*np.pi, 1000)
         
         return theta
         
@@ -470,12 +469,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
         for ref_vertex in ref_vertices:
             vertices.append(ref_vertex + half_width * grasp_axis_y)
             vertices.append(ref_vertex - half_width * grasp_axis_y)
-
+    
         for vertex in vertices:
-            mlab.points3d(vertex[0], vertex[1], vertex[2], color=(1,0,0), s=0.1)
-            
-        for vertex in vertices:
-            if np.dot(plane_normal, vertex - plane_center) <= 0:
+            if np.dot(plane_normal, np.ravel(vertex - plane_center)) <= 0:
                 return True
                 
         return False
