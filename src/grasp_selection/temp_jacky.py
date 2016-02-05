@@ -8,6 +8,10 @@ import mayavi.mlab as mv
 from random import choice
 import os
 import sys
+sys.path.append("src/grasp_selection/control/DexControls")
+import time
+
+from DexController import DexController
 
 import database as db
 import experiment_config as ec
@@ -50,7 +54,7 @@ def mv_plot_point_cloud(point_cloud, T_points_world, color=(0,1,0), scale=0.01):
         point_cloud_tf = T_points_world.apply(point_cloud).T
         mv.points3d(point_cloud_tf[:,0], point_cloud_tf[:,1], point_cloud_tf[:,2], color=color, scale_factor=scale)
 
-config_file = "../../cfg/test_hdf5_label_grasps_gce_jacky.yaml"
+config_file = "cfg/test_hdf5_label_grasps_gce_jacky.yaml"
 database_filename = "/mnt/terastation/shape_data/MASTER_DB_v3/aselab_db.hdf5"
 dataset_name = "aselab"
 item_name = "spray"
@@ -70,6 +74,10 @@ grasps = ds.grasps(item_name)
 grasp_features = ds.grasp_features(item_name, grasps)
 grasp_metrics = ds.grasp_metrics(item_name, grasps)
 stable_poses = ds.stable_poses(item_name)
+
+metric = 'pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'
+sorted_grasps, sorted_metrics = ds.sorted_grasps(item_name, metric)
+best_grasp = sorted_grasps[0]
 
 p = len(stable_poses)
 n = len(grasps)
@@ -123,6 +131,7 @@ def test_collide():
 	grasp_axes = grasp.rotated_full_axis
 	debug_output = []
 	does_collide = grasp.collides_with_stable_pose(stable_pose, debug_output)
+        collision_box_vertices = np.array(debug_output[0]).T
 	print "Collide? {0}".format(does_collide)
 
 	if does_collide:
@@ -163,6 +172,7 @@ def test_grasp_alignment(graspable, grasp, stable_pose):
         grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
 	debug_output = []
 	does_collide = grasp.collides_with_stable_pose(stable_pose, debug_output)
+        collision_box_vertices = np.array(debug_output[0]).T
 	print "Collide? {0}".format(does_collide)
 
         # transform the mesh
@@ -173,18 +183,32 @@ def test_grasp_alignment(graspable, grasp, stable_pose):
         z = mn[2]
 
         # define poses
-#        R_camera_table = 
-        T_camera_table = stf.SimilarityTransform3D(from_frame='table', to_frame='camera')
-
-        T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
+        T_world = stf.SimilarityTransform3D(from_frame='world', to_frame='world')
+        R_table_world = np.eye(3)#np.array([[0, 1, 0],
+                                 # [-1, 0, 0],
+                                 # [0, 0, 1]])
+        T_table_world = stf.SimilarityTransform3D(pose=tfx.pose(R_table_world, np.zeros(3)), from_frame='world', to_frame='table')
         
+        R_camera_table = np.load('data/calibration/rotation_camera_cb.npy')
+        t_camera_table = np.load('data/calibration/translation_camera_cb.npy')
+        cb_points_camera = np.load('data/calibration/corners_cb.npy')
+        T_camera_table = stf.SimilarityTransform3D(tfx.pose(R_camera_table, t_camera_table), from_frame='table', to_frame='camera')
+        T_camera_world = T_camera_table.dot(T_table_world)
+        T_world_camera = T_camera_world.inverse()
+
+        T_camera_obj = stf.SimilarityTransform3D()
+        T_camera_obj.load('data/calibration/spray_pose.stf')
+        T_camera_obj.from_frame = 'obj'
+        T_camera_obj.to_frame = 'camera'
+        T_obj_camera = T_camera_obj.inverse()
+
         R_stp_obj = stable_pose.r
         T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(R_stp_obj.T, np.zeros(3)), from_frame='stp', to_frame='obj')
         
         t_stp_table = np.array([0, 0, z])
         T_stp_table = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), t_stp_table), from_frame='table', to_frame='stp')
         
-        T_obj_world = T_obj_stp.dot(T_stp_table).dot(T_table_world)
+        T_obj_world = T_obj_camera.dot(T_camera_world)
         
         T_gripper_obj = grasp.gripper_transform(gripper='zeke')
         
@@ -192,13 +216,34 @@ def test_grasp_alignment(graspable, grasp, stable_pose):
         
         mv.figure()
         mv_plot_table(T_table_world, d=table_extent)
-        mv_plot_pose(T_table_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-        mv_plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+        mv_plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+        #mv_plot_pose(T_table_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+        #mv_plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
         mv_plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+        mv_plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
         mv_plot_mesh(object_mesh, T_obj_world)
-        mv_plot_point_cloud(collision_box_vertices, T_obj_world)
+        #mv_plot_point_cloud(collision_box_vertices, T_obj_world)
+        mv_plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
         mv.show()
 
-for i in range(1000):
-	print 'Iteration', i
-	test_collide()
+        ctrl = DexController()
+        #ctrl.reset()
+        #while not ctrl._zeke.is_action_complete():
+        #        time.sleep(0.01)
+        #exit(0)
+
+        ctrl.do_grasp(T_gripper_world.inverse())
+        ctrl.plot_approach_angle()
+        while not ctrl._zeke.is_action_complete():
+                time.sleep(0.01)
+        grasp_state, _ = ctrl.getState()
+        high_state = grasp_state.copy().set_arm_elev(0.3)
+        print grasp_state
+        print "Sending high low states..."
+        ctrl._zeke.gotoState(high_state)
+        while not ctrl._zeke.is_action_complete():
+                time.sleep(0.01)
+        ctrl._zeke.plot()
+
+
+test_grasp_alignment(graspable, best_grasp, stable_poses[2])

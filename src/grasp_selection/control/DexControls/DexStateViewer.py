@@ -6,7 +6,7 @@ from TurntableState import TurntableState
 
 class DexStateViewer:
 
-    def __init__(self, State, comm = "COM3", baudrate=115200, timeout=.01):
+    def __init__(self, State, comm = DexConstants.COMM, baudrate=115200, timeout=.01):
         self.ser = Serial(comm, baudrate)
         #self.ser.setTimeout(timeout)
         self._State = State
@@ -15,7 +15,7 @@ class DexStateViewer:
     def monitor(self, period = 10):
         start = time()
         while time() - start < period:
-             print self._getState()
+             print self._getState()             
              sleep(DexConstants.INTERP_TIME_STEP)
     
     def _getState(self):
@@ -37,11 +37,14 @@ class DexStateViewer:
         return self._State(sensorVals)
         
     @staticmethod
-    def viewZeke(period = 10, comm = "COM3"):
+    def viewZeke(period = 10, comm = DexConstants.COMM):
         viewer = DexStateViewer(ZekeState, comm)
         viewer.monitor(period)
         
     @staticmethod
-    def viewTable(period = 10, comm = "COM4"):
+    def viewTable(period = 10, comm = DexConstants.TABLE_COMM):
         viewer = DexStateViewer(TurntableState, comm)
         viewer.monitor(period)
+
+if __name__ == '__main__':
+    DexStateViewer.viewZeke()

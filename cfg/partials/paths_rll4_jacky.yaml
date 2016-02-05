@@ -1,0 +1,3 @@
+root_dir:     /home/jmahler/jacky_working/GPIS
+database_dir: /mnt/terastation/shape_data/MASTER_DB_v3
+cache_dir:    /home/jmahler/jacky_working/GPIS/data/gcs

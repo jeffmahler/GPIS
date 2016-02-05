@@ -4,7 +4,7 @@ from similarity_tf import SimilarityTransform3D
 from numpy import array, c_, sqrt
 from numpy.linalg import norm
 from time import sleep
-sys.path.append("control/DexControls")
+sys.path.append("src/grasp_selection/control/DexControls")
 from DexController import DexController
 
 def normalize(u):
@@ -43,5 +43,6 @@ def test_grasp(stf):
     #ctrl.plot_approach_angle()
     #ctrl._zeke.plot()
     return ctrl
-    
-    
+        
+c = test_grasp(test_stf)
+c._zeke.plot()

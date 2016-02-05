@@ -1,16 +1,16 @@
-from tfx import point, rotation, rotation_euler
+from tfx import point, rotation#, rotation_euler
 from numpy import pi
 from ZekeState import ZekeState
 from TurntableState import TurntableState
 
 class DexConstants:
 
-    DEBUG = True
+    DEBUG = False
     PRINT_STATES = False
     LOGGING = True
 
-    COMM = "COM3"
-    TABLE_COMM = "COM4"
+    COMM = "/dev/ttyACM1"
+    TABLE_COMM = "/dev/ttyACM0"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01
 
@@ -23,7 +23,7 @@ class DexConstants:
     WORLD_FRAME = "WORLD_FRAME"
     
     ZEKE_ARM_ORIGIN_OFFSET = 0.51
-    ZEKE_ARM_TO_GRIPPER_TIP_OFFSET = 0.41
+    ZEKE_ARM_TO_GRIPPER_TIP_OFFSET = 0.43
     
     MAX_ROT_SPEED = pi/180*150 #150 degrees per second maximum rotation
     MAX_TRA_SPEED = 0.3 #30cm per second maximum translation
@@ -36,6 +36,7 @@ class DexConstants:
     DEFAULT_TRA_SPEED = 0.04 #4cm per second (roughly 5 secs for 1 ft)
     
     MAX_ELEVATION = 0.3
-    
-    DEFAULT_GRIPPER_EULER = rotation_euler(0, pi/2, 0, 'sxyz')
+    ROLL_THRESH = 0.4
+
+    #DEFAULT_GRIPPER_EULER = rotation_euler(0, pi/2, 0, 'sxyz')
     

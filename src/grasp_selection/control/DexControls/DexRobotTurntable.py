@@ -1,6 +1,7 @@
 from DexConstants import DexConstants
 from DexSerial import DexSerialInterface
 from TurntableState import TurntableState
+from DexNumericSolvers import DexNumericSolvers
 from Logger import Logger
 from numpy import pi, cos, sin
 from numpy.linalg import norm
@@ -60,6 +61,8 @@ class DexRobotTurntable:
             phi = target_pose.rotation.tb_angles.yaw_rad
         else:
             phi = angles.yaw
+        phi = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
+        print 'Phi', phi
         return TurntableState().set_table_rot(phi + DexRobotTurntable.THETA)
         
     def _state_FK(self, state):
