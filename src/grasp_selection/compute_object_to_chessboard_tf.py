@@ -1,3 +1,4 @@
+import copy
 import logging
 import IPython
 import matplotlib.pyplot as plt
@@ -16,6 +17,7 @@ T_{a}_{b}
 pose of a frame wrt b frame
 """
 
+# TODO: move to a custom Dex-Net visualizer
 def plot_pose(T, alpha=1.0, line_width=2.0):
     """ Provide rotation R and translation t of frame wrt world """
     T_inv = T.inverse()
@@ -44,7 +46,7 @@ def plot_mesh(mesh, T, color='m', size=20):
 def plot_grasp(grasp, T, color='c', size=1, n=25):
     """ Plots a grasp object in pose T """
     ax = plt.gca(projection = '3d')
-    g1, g2 = best_grasp.endpoints()
+    g1, g2 = grasp.endpoints()
     grasp_points = np.c_[np.array(g1), np.array(g2)]
     grasp_points_tf = T.inverse().apply(grasp_points)
     grasp_points_tf = grasp_points_tf.T
@@ -67,19 +69,32 @@ def plot_grasp(grasp, T, color='c', size=1, n=25):
     approach_line_tf = approach_line_tf.T
     ax.plot(approach_line_tf[:,0], approach_line_tf[:,1], approach_line_tf[:,2], c='y', linewidth=10)
 
+
+"""
+TODO:
+  - save grasp to tabletop matrices for the spray bottle
+  - edit script to optionally load grasp matrices and update with transform from template tabletop frame to the chessboard frame
+         i) delta y
+        ii) rotation between frames
+  - add options for wrist to gripper frame offset
+"""
 if __name__ == '__main__':
     stp_filename = sys.argv[1]
     delta_y = float(sys.argv[2])
     delta_z = float(sys.argv[3])
+    output_dir = sys.argv[4]
 
     line_width = 6.0
     alpha = 0.05
     dim = 0.3
-    test = True
+    num_grasps = 1
+    save_initial = False
+    convert_to_np = True
 
     # read in stable pose rotation
     R_stp_obj = np.load(stp_filename)
 
+    # form transformation matrices
     R_stp_cb = np.eye(3)
     t_stp_cb = np.array([0.0, delta_y, delta_z])
     T_stp_cb = stf.SimilarityTransform3D(pose=tfx.pose(R_stp_cb, -t_stp_cb), from_frame='cb', to_frame='stp')
@@ -87,8 +102,12 @@ if __name__ == '__main__':
     T_obj_cb = T_obj_stp.dot(T_stp_cb)
     T_cb_obj = T_obj_cb.inverse()
 
-    # TEST (pretend theres a chessboard) 
-    if test:
+    R_cb_world = np.eye(3)
+    t_cb_world = np.zeros(3)
+    T_cb_world = stf.SimilarityTransform3D(pose=tfx.pose(R_cb_world, t_cb_world), to_frame='cb')
+
+    # save an initial grasp set that can be modded later
+    if save_initial:
         # load the object
         object_key = 'spray'
         config_filename = 'cfg/test_cnn_database_indexer.yaml'
@@ -98,30 +117,74 @@ if __name__ == '__main__':
         dataset = database.dataset(config['datasets'].keys()[0])
         obj = dataset.graspable(object_key)
         mesh = obj.mesh
+        n = R_stp_obj[2,:]
 
         # get the best grasp
         metric = 'pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'
         sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_key, metric)
-        best_grasp = sorted_grasps[0]
+        for i, grasp in enumerate(sorted_grasps):
+            if i >= num_grasps:
+                break
+            
+            # form the grasp set to attempt
+            grasp_parallel_table_1 = grasp.align_with_stable_pose(n)
+            grasp_parallel_table_2 = copy.copy(grasp_parallel_table_1)
+            grasp_parallel_table_2.approach_angle_ = grasp_parallel_table_1.approach_angle_ + np.pi
+            grasp_aligned_table = copy.copy(grasp_parallel_table_1)
+            grasp_aligned_table.approach_angle_ = grasp_parallel_table_1.approach_angle_ - np.pi / 2
+            grasp_lifted_table_1 = copy.copy(grasp_parallel_table_1)
+            grasp_lifted_table_1.approach_angle_ = grasp_parallel_table_1.approach_angle_ - np.pi / 4
+            grasp_lifted_table_2 = copy.copy(grasp_parallel_table_1)
+            grasp_lifted_table_2.approach_angle_ = grasp_parallel_table_2.approach_angle_ + np.pi / 4
+            grasps_to_save = [grasp_parallel_table_1, grasp_parallel_table_2, grasp_aligned_table, grasp_lifted_table_1, grasp_lifted_table_2]
 
-        # plot all of the poses
-        R_cb_world = np.eye(3)
-        t_cb_world = np.zeros(3)
-        T_cb_world = stf.SimilarityTransform3D(pose=tfx.pose(R_cb_world, t_cb_world), to_frame='cb')
-        
-        plot_pose(T_cb_world, alpha=alpha)
-        plot_pose(T_stp_cb, alpha=alpha)
-        plot_pose(T_obj_cb, alpha=alpha)
+            # save all grasps as matrices
+            for j, g in enumerate(grasps_to_save):
+                filename = 'grasp_%d_pose.stf' %(j)
+                T_grasp_cb = g.gripper_pose_stf().inverse().dot(T_obj_cb)
+                T_grasp_cb.save(os.path.join(output_dir, filename))
 
-        plot_mesh(mesh, T_obj_cb)
+            # plot all of the poses
+            plot_pose(T_cb_world, alpha=alpha)
+            plot_pose(T_stp_cb, alpha=alpha)
+            plot_pose(T_obj_cb, alpha=alpha)
+            
+            plot_mesh(mesh, T_obj_cb)
+            plot_grasp(grasp_parallel_table_1, T_obj_cb)
+            plot_pose(grasp_parallel_table_1.gripper_pose_stf().inverse().dot(T_obj_cb), alpha=alpha)
+            
+            ax = plt.gca(projection = '3d')
+            ax.set_xlim3d(-dim, dim)
+            ax.set_ylim3d(-dim, dim)
+            ax.set_zlim3d(-dim, dim)
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            ax.set_zlabel('Z')
+            plt.show()
 
-        plot_grasp(best_grasp.align_with_stable_pose(R_stp_obj[2,:]), T_obj_cb)
+    # convert saved pose matrices to numpy arrays given the new chessboard info
+    if convert_to_np:
+        file_candidates = os.listdir(output_dir)
+        for file_candidate in file_candidates:
+            root, ext = os.path.splitext(file_candidate)
+            if ext == '.stf':
+                T_grasp_stp = stf.SimilarityTransform3D()
+                T_grasp_stp.load(os.path.join(output_dir, file_candidate))
+                
+                print T_grasp_stp.pose.matrix
 
-        ax = plt.gca(projection = '3d')
-        ax.set_xlim3d(-dim, dim)
-        ax.set_ylim3d(-dim, dim)
-        ax.set_zlim3d(-dim, dim)
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        plt.show()
+                T_grasp_cb = T_grasp_stp.dot(T_stp_cb)
+                         
+                print 'Plotting grasp from', file_candidate
+                plot_pose(T_cb_world, alpha=alpha)
+                #plot_pose(T_stp_cb, alpha=alpha)
+                plot_pose(T_grasp_cb, alpha=alpha)
+
+                ax = plt.gca(projection = '3d')
+                ax.set_xlim3d(-dim, dim)
+                ax.set_ylim3d(-dim, dim)
+                ax.set_zlim3d(-dim, dim)
+                ax.set_xlabel('X')
+                ax.set_ylabel('Y')
+                ax.set_zlabel('Z')
+                plt.show()
