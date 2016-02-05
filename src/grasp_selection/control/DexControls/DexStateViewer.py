@@ -8,7 +8,7 @@ class DexStateViewer:
 
     def __init__(self, State, comm = "COM3", baudrate=115200, timeout=.01):
         self.ser = Serial(comm, baudrate)
-        self.ser.setTimeout(timeout)
+        #self.ser.setTimeout(timeout)
         self._State = State
         sleep(DexConstants.INIT_DELAY)
     
