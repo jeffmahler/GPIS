@@ -67,7 +67,7 @@ class DexRobotZeke:
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
                     
     @staticmethod
-    def pose_to_state(target_pose, prev_state):
+    def pose_to_state(target_pose, prev_state, angles = None):
         '''
         Takes in a pose w/ respect to zeke and returns the state using IK
         '''
@@ -78,12 +78,21 @@ class DexRobotZeke:
         x = target_pose.position.x
         y = target_pose.position.y
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
+        print "Zeke Frame target:"
+        print target_pose
+        print "Extension norm:"
+        print norm([x,y])
         
         state = ZekeState()
         state.set_arm_rot(theta + DexRobotZeke.PHI)
         state.set_arm_elev(target_pose.position.z)
         state.set_arm_ext(norm([x, y]))
-        state.set_gripper_rot(target_pose.rotation.tb_angles.pitch_rad + DexRobotZeke.THETA)
+        #ANGLES using pitch
+        if angles is None:
+            psi = target_pose.rotation.tb_angles.pitch_rad
+        else:
+            psi = angles.pitch
+        state.set_gripper_rot(psi + DexRobotZeke.THETA)
         state.set_gripper_grip(prev_state.gripper_grip)
         
         return state
@@ -108,27 +117,40 @@ class DexRobotZeke:
                 
         self._target_state = target_state.copy()
 
-    def transform(self, target_pose, name, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+    def transform(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
 
-        if abs(target_pose.rotation.tb_angles.roll_rad) >= 0.0001:
+        #ANGLES using roll
+        if angles is None:
+            gamma = target_pose.rotation.tb_angles.roll_rad
+        else:
+            gamma = angles.roll
+        if abs(gamma) >= 0.0001:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper")
             
-        target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
+        target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state, angles)
         
         self.gotoState(target_state, rot_speed, tra_speed, name)
         
-    def transform_aim_extend_grip(self, target_pose, name, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+    def transform_aim_extend_grip(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+        print "Original target pose"
+        print target_pose
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
-        
-        if abs(target_pose.rotation.tb_angles.roll_rad) >= 0.0001:
+
+        #ANGLES using roll
+        if angles is None:
+            gamma = target_pose.rotation.tb_angles.roll_rad
+        else:
+            gamma = angles.roll
+        if abs(gamma) >= 0.0001:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper: "  + str(target_pose.rotation.euler))
             
-        target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state)
+        target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state, angles)
         aim_state = target_state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext)
         
         self.unGrip()
-                
+        print aim_state
+        print target_state
         self.gotoState(aim_state, rot_speed, tra_speed, name + "_aim")
         self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
 

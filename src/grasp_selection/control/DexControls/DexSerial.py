@@ -32,7 +32,6 @@ class _DexSerial(Process):
         #Main run function that constantly sends the current state to the robot
         if not DexConstants.DEBUG:
             self.ser = Serial(self._comm,self._baudrate)
-            self.ser.setTimeout(self._timeout)
             self._stop_robot()
             sleep(DexConstants.INIT_DELAY)
             self._current_state = self._getStateSerial()

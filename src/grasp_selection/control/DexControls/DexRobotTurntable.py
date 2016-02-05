@@ -54,14 +54,19 @@ class DexRobotTurntable:
         self._target_state = target_state.copy()
 
     @staticmethod
-    def pose_to_state(target_pose):
-        return TurntableState().set_table_rot(target_pose.rotation.tb_angles.yaw_rad + DexRobotTurntable.THETA)
+    def pose_to_state(target_pose, angles = None):
+        #ANGLES using yaw
+        if angles is None:
+            phi = target_pose.rotation.tb_angles.yaw_rad
+        else:
+            phi = angles.yaw
+        return TurntableState().set_table_rot(phi + DexRobotTurntable.THETA)
         
     def _state_FK(self, state):
         return (DexRobotTurntable._RADIUS * cos(state.table_rot), DexRobotTurntable._RADIUS * sin(state.table_rot), 0)
         
-    def transform(self, target_pose, name, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
-        target_state = DexRobotTurntable.pose_to_state(target_pose)
+    def transform(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+        target_state = DexRobotTurntable.pose_to_state(target_pose, angles)
         
         self.gotoState(target_state, rot_speed, tra_speed, name)
         

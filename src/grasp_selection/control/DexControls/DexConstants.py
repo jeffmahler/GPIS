@@ -5,7 +5,7 @@ from TurntableState import TurntableState
 
 class DexConstants:
 
-    DEBUG = False
+    DEBUG = True
     PRINT_STATES = False
     LOGGING = True
 
@@ -22,7 +22,8 @@ class DexConstants:
     ZEKE_LOCAL_FRAME = "ZEKE_LOCAL_FRAME"
     WORLD_FRAME = "WORLD_FRAME"
     
-    ZEKE_ARM_ORIGIN_OFFSET = 0.22
+    ZEKE_ARM_ORIGIN_OFFSET = 0.51
+    ZEKE_ARM_TO_GRIPPER_TIP_OFFSET = 0.41
     
     MAX_ROT_SPEED = pi/180*150 #150 degrees per second maximum rotation
     MAX_TRA_SPEED = 0.3 #30cm per second maximum translation
