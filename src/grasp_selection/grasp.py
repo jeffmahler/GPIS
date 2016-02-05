@@ -134,8 +134,19 @@ class ParallelJawPtGrasp3D(PointGrasp):
     def rotated_full_axis(self):
         if self.rotated_full_axis_ is None:
             R = ParallelJawPtGrasp3D._get_rotation_matrix_y(self.approach_angle)
-            self.rotated_full_axis_ = np.dot(self.unrotated_full_axis_, R)
+            self.rotated_full_axis_ = self.unrotated_full_axis_.dot(R)
         return self.rotated_full_axis_
+
+    def gripper_transform(self, gripper='zeke'):
+        """ Returns the transformation from the object frame to the gripper frame as a similarity transform 3D object """
+        R = self.rotated_full_axis
+        if gripper == 'zeke':
+            R_zeke = np.array([[0, -1, 0],
+                               [1, 0, 0],
+                               [0, 0, 1]])
+            R = R.dot(R_zeke)
+        t = self.center
+        return stf.SimilarityTransform3D(pose=tfx.pose(R, t), from_frame='gripper', to_frame='obj').inverse()
         
     def set_approach_angle(self, angle):
         self.approach_angle_ = angle
@@ -439,14 +450,12 @@ class ParallelJawPtGrasp3D(PointGrasp):
         
         return new_grasp
         
-    def collides_with_stable_pose(self, stable_pose):
+    def collides_with_stable_pose(self, stable_pose, debug = []):
         '''
         Checks whether or not the current grasp would collide with the stable pose plane given 
         the physical dimensions of _GRIPPER_BOUNDING_BOX. 
         Collision check is done on a rotated grasp that aligns with the given stable pose
         '''
-        aligned_grasp = self.grasp_aligned_with_stable_pose(stable_pose)
-        
         plane_center = stable_pose.x0
         plane_normal = stable_pose.r[2]
         
@@ -454,18 +463,20 @@ class ParallelJawPtGrasp3D(PointGrasp):
         half_width = ParallelJawPtGrasp3D._GRIPPER_BOUNDING_BOX["half_width"]
         half_length = ParallelJawPtGrasp3D._GRIPPER_BOUNDING_BOX["half_length"]
         
-        grasp_axis_xyz = aligned_grasp.rotated_full_axis.T
-        grasp_axis_x = grasp_axis_xyz[0]
-        grasp_axis_y = grasp_axis_xyz[1]
-        grasp_axis_z = grasp_axis_xyz[2]
+        grasp_axis_xyz = self.rotated_full_axis.T
+        grasp_axis_x = grasp_axis_xyz[0,:]
+        grasp_axis_y = grasp_axis_xyz[1,:]
+        grasp_axis_z = grasp_axis_xyz[2,:]
         
         vertices = []
-        top_center_front = aligned_grasp.center + half_height * grasp_axis_z
-        bottom_center_front = aligned_grasp.center - half_height * grasp_axis_z
+        top_center_front = self.center + half_height * grasp_axis_z
+        bottom_center_front = self.center - half_height * grasp_axis_z
         top_center_back = top_center_front - half_length * 2 * grasp_axis_x
         bottom_center_back = bottom_center_front - half_length * 2 * grasp_axis_x
         ref_vertices = [top_center_back, top_center_front, bottom_center_back, bottom_center_front]
         
+        debug.append(vertices)
+
         for ref_vertex in ref_vertices:
             vertices.append(ref_vertex + half_width * grasp_axis_y)
             vertices.append(ref_vertex - half_width * grasp_axis_y)

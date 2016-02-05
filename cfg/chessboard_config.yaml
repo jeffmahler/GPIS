@@ -8,7 +8,7 @@ sx: 6
 sy: 9
 
 # Rotation and translation save directory
-save_dir: 'data/camera_transformation/'
+save_dir: 'data/calibration/'
 
 # Number of depth images
 num_images: 1

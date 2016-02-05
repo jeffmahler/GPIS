@@ -49,6 +49,8 @@ class SimilarityTransform3D:
 
     def dot(self, other_tf):
         """ Compose this transform with another """
+        if other_tf.to_frame != self.from_frame:
+            raise ValueError('Output reference frame of right hand side must match input reference frame of left hand side')
         pose_tf = self.pose_.matrix.dot(other_tf.pose.matrix)
         scale_tf = self.scale_ * other_tf.scale
         return SimilarityTransform3D(pose=tfx.pose(pose_tf), scale=scale_tf, from_frame=other_tf.from_frame, to_frame=self.to_frame)
