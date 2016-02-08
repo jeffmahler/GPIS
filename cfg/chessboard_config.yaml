@@ -7,8 +7,11 @@ load: False
 sx: 6
 sy: 9
 
+# Angle of the table to the world reference in degrees
+table_angle: 27.5
+
 # Rotation and translation save directory
-save_dir: 'data/camera_transformation/'
+save_dir: 'data/calibration/'
 
 # Number of depth images
 num_images: 1

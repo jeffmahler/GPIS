@@ -12,9 +12,9 @@ results_database_name: results.hdf5
 # Dataset info
 max_chunk_size: 1
 datasets:
-  amazon_picking_challenge:
+  aselab:
     start_index: 0
-    end_index: 26
+    end_index: 2
 
 # Params
 min_dim: 0.09
@@ -25,7 +25,21 @@ gripper_size: 0.1
 mass_thresh: 0.01
 default_mass: 1.0
 pfc_num_samples: 100
+pfc_compute_variance: true
 eq_num_samples: 100
+
+# Window weights
+!include partials/window_params.yaml
+inf:   &id_inf       100000000000000000000.0
+zero:  &id_zero      0.0
+weight_proj_win:     1.0
+weight_grad_x:       1.0
+weight_grad_y:       1.0
+weight_curvature:    1.0
+weight_grasp_center: 1.0
+weight_grasp_axis:   1.0
+weight_grasp_angle:  1.0
+weight_gravity:      1.0
 
 # Random params
 dataset_counts: data/counts.txt

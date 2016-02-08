@@ -1,3 +1,4 @@
+import IPython
 import logging
 import math
 import numpy as np
@@ -9,6 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 import camera_params as cp
 import experiment_config as ec
+import image_processing as ip
 import rgbd_sensor as rs
 
 if __name__ == '__main__':
@@ -25,7 +27,7 @@ if __name__ == '__main__':
     s = rs.RgbdSensor()
 
     #reading configuration file
-    os.chdir(os.getcwd() + '/../../')
+    #os.chdir(os.getcwd() + '/../../')
     config = ec.ExperimentConfig(sys.argv[1])
 
     load = config['load']
@@ -50,7 +52,7 @@ if __name__ == '__main__':
 
         depth_im[depth_im > 0] = depth_im[depth_im > 0] / counts[depth_im > 0]
         color_im = s.get_color_image()
-        corner_px = rs.find_chessboard(color_im)
+        corner_px = ip.ColorImageProcessing.find_chessboard(color_im, sx=config['sx'], sy=config['sy'])
 
     depth_im[depth_im > 1.0] = 0.0
 
@@ -64,7 +66,7 @@ if __name__ == '__main__':
 
     # get round chessboard ind
     corner_px_round = np.round(corner_px).astype(np.uint16)
-    corner_ind = rs.ij_to_linear(corner_px_round[:,0], corner_px_round[:,1], s.width_)
+    corner_ind = ip.ij_to_linear(corner_px_round[:,0], corner_px_round[:,1], s.width_)
 
     # fit a plane to the chessboard corners
     points_3d_plane = points_3d[:, corner_ind]
@@ -103,12 +105,22 @@ if __name__ == '__main__':
     print(translation)
 
     # save tranformation arrays
+    theta = config['table_angle'] * np.pi / 180.0
+    rotation_camera_cb = rotation
+    rotation_world_table = np.array([[np.cos(theta), -np.sin(theta), 0],
+                                     [np.sin(theta), np.cos(theta), 0],
+                                     [0, 0, 1]])
+    rotation_table_cb = np.array([[0, 1, 0],
+                                  [-1, 0, 0],
+                                  [0, 0, 1]])
+    rotation_camera_world = rotation_camera_cb.T.dot(rotation_world_table).dot(rotation_table_cb)
+
     f = open(config['save_dir']+'rotation_camera_cb.npy', 'w')
-    np.save(f, rotation)
+    np.save(f, rotation_camera_world)
     f = open(config['save_dir']+'translation_camera_cb.npy', 'w')
     np.save(f, translation)
-
-
+    f = open(config['save_dir']+'corners_cb.npy', 'w')
+    np.save(f, points_3d_plane)
 
     ###########################
     ##### Plotting things #####

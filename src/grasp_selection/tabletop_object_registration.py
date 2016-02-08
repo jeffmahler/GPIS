@@ -63,6 +63,7 @@ class TabletopRegistrationSolver:
         depth_im_median_filter_dim = config['depth_im_median_filter_dim'] # the dimension of the cropped depth image
         depth_im_erosion_filter_dim = config['depth_im_erosion_filter_dim'] # the dimension of the cropped depth image
         cache_im_filename = config['cache_im_filename']
+        calibration_dir = config['calibration_dir']
 
         # threshold the depths
         depth_im = ip.DepthImageProcessing.threshold_depth(depth_im, front_thresh=table_front_depth, rear_thresh=table_rear_depth)
@@ -74,6 +75,7 @@ class TabletopRegistrationSolver:
 
         # TODO: replace with table transform
         # detect chessboard
+        """
         corner_px = ip.ColorImageProcessing.find_chessboard(color_im, vis=debug)
         if corner_px is None:
             raise ValueError('Chessboard must be visible in color image')
@@ -83,6 +85,13 @@ class TabletopRegistrationSolver:
         # fit a plane to the chessboard corners
         point_cloud_plane = point_cloud[:, corner_ind]
         n, mean_point_plane = ip.PointCloudProcessing.fit_plane(point_cloud_plane)
+        """
+
+        # load the camera calibration matrices
+        R_camera_table = np.load(os.path.join(calibration_dir, 'rotation_camera_cb.npy'))
+        t_camera_table = np.load(os.path.join(calibration_dir, 'translation_camera_cb.npy'))
+        n = R_camera_table[:,2]
+        mean_point_plane = t_camera_table
 
         # threshold to find objects on the table
         mean_point_plane = mean_point_plane + table_surface_tol * n.reshape(3,1)

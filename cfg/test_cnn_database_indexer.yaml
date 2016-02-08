@@ -1,5 +1,9 @@
 # Core parameters ####################################################
+<<<<<<< HEAD
 !include partials/paths_rll4_jeff.yaml
+=======
+!include partials/paths_rll4_jacky.yaml
+>>>>>>> origin/dev_jacky
 #!include partials/paths_gce.yaml
 
 dataset_counts: data/counts.txt
@@ -28,7 +32,7 @@ image_type: segmask
 # Registration configuration
 registration:
   table_front_depth: 0.0
-  table_rear_depth:  1.0
+  table_rear_depth:  0.9
   table_surface_tol: 0.0025
 
   focal_length: 525
@@ -38,8 +42,9 @@ registration:
   depth_im_erosion_filter_dim: 3
   
   cache_im_filename: data/cnn_grayscale_image.jpg
-  
-  num_nearest_neighbors: 3
+  calibration_dir: data/calibration
+
+  num_nearest_neighbors: 1
   icp_sample_size: 100
   icp_relative_point_plane_cost: 100
   icp_regularization_lambda: 0.01
