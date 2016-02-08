@@ -11,6 +11,13 @@ import scipy.signal as ss
 from contacts import SurfaceWindow
 import graspable_object as go
 
+class GraspFeature(object):
+    """ Class to encapsulate grasp features, mainly for database storage / access """
+    def __init__(self, name, typename, descriptor):
+        self.name = name
+        self.typename = typename
+        self.descriptor = descriptor
+
 class Weight:
     # valid weights: numbers, CSV paths, gaussian_number_number, crop_number_number
     def __init__(self, value):
@@ -84,8 +91,23 @@ class FeatureExtractor:
     def feature_weight(self):
         return Weight(1.0) if self.use_unity_weights else self.feature_weight_
 
+    @abstractmethod
     def to_json(self, dest):
         return {}
+
+    @abstractmethod
+    def descriptor(self):
+        pass 
+
+    def dictionary(self):
+        return {self.name: self.descriptor}
+
+    def features(self):
+        return [GraspFeature(self.name, type(self).__name__, self.descriptor)]
+
+    @property
+    def extractors(self):
+        return None
 
     @property
     def phi(self):
@@ -109,6 +131,25 @@ class AggregatedFeatureExtractor(FeatureExtractor):
             subjson.update(e.to_json(subdest))
         return {self.name : subjson}
 
+    def dictionary(self):
+        feature_dict = {}
+        for e in self.extractors_:
+            e.update(e.dictionary())
+        return feature_dict
+
+    def features(self):
+        feature_list = []
+        for e in self.extractors_:
+            feature_list.extend(e.features())
+        if self.name is not None:
+            for f in feature_list:
+                f.name = self.name + '_' + f.name
+        return feature_list
+
+    @property
+    def extractors(self):
+        return self.extractors_
+
     def swap_windows(self):
         """Returns a copy of this extractor with surface information w1 and w2
         swapped."""
@@ -126,6 +167,14 @@ class AggregatedFeatureExtractor(FeatureExtractor):
         extractors = [new_w1, new_w2] + others
         return AggregatedFeatureExtractor(extractors, self.name)
 
+
+    @property
+    def descriptor(self):
+        descriptors = [e.descriptor for e in self.extractors_]
+        if len(descriptors) == 0:
+            return np.zeros(0)
+        return np.concatenate(descriptors)
+
     @property
     def phi(self):
         phis = [e.phi for e in self.extractors_]
@@ -142,7 +191,11 @@ class GraspCenterFeatureExtractor(FeatureExtractor):
         self.feature_weight_ = feature_weight
 
     def to_json(self, dest):
-        return {self.name: self.center_}
+        return self.dictionary
+
+    @property
+    def descriptor(self):
+        return self.center_
 
     @property
     def phi(self):
@@ -157,11 +210,34 @@ class GraspAxisFeatureExtractor(FeatureExtractor):
         self.feature_weight_ = feature_weight
 
     def to_json(self, dest):
-        return {self.name: self.axis_}
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return self.axis_
 
     @property
     def phi(self):
         return self.feature_weight_ * self.axis_
+
+class PatchOrientationFeatureExtractor(FeatureExtractor):
+    name = 'patch_orientation'
+
+    """Class for extracting grasp direction."""
+    def __init__(self, patch_orientation, feature_weight=1.0):
+        self.patch_orientation_ = patch_orientation
+        self.feature_weight_ = feature_weight
+
+    def to_json(self, dest):
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return self.patch_orientation_
+
+    @property
+    def phi(self):
+        return self.feature_weight_ * self.patch_orientation_
 
 class GraspAxisAngleFeatureExtractor(FeatureExtractor):
     name = 'normal'
@@ -172,7 +248,11 @@ class GraspAxisAngleFeatureExtractor(FeatureExtractor):
         self.feature_weight_ = feature_weight
 
     def to_json(self, dest):
-        return {self.name: self.axis_}
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return np.array([self.angle_])
 
     def angle(self, v1, v2):
         v1 = v1 / np.linalg.norm(v1)
@@ -182,6 +262,25 @@ class GraspAxisAngleFeatureExtractor(FeatureExtractor):
     @property
     def phi(self):
         return self.feature_weight_ * np.array([self.angle_])
+
+class CenterOfMassFeatureExtractor(FeatureExtractor):
+    name = 'com'
+
+    """Class for extracting grasp center and direction."""
+    def __init__(self, center_of_mass, feature_weight=1.0):
+        self.com_ = center_of_mass
+        self.feature_weight_ = feature_weight
+
+    def to_json(self, dest):
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return self.com_
+
+    @property
+    def phi(self):
+        return self.feature_weight_ * self.com_
 
 class WindowFeatureExtractor(FeatureExtractor):
     """Abstract class for extracting features from a grasp surface."""
@@ -202,12 +301,81 @@ class ProjectionWindowFeatureExtractor(WindowFeatureExtractor):
     name = 'projection_window'
 
     @property
+    def descriptor(self):
+        return self.surface_.proj_win
+
+    @property
     def phi(self):
         return self.feature_weight * self.surface_.proj_win
+
+class ProjectionDiscFeatureExtractor(WindowFeatureExtractor):
+    """Class for extracting window features."""
+    name = 'projection_disc'
+
+    def __init__(self, surface, feature_weight=1.0, num_angles=16):
+        self.num_angles_ = num_angles
+        WindowFeatureExtractor.__init__(self, surface, feature_weight) 
+        self._compute_surface_disc()
+
+    def _interpolate(self, x, y):
+        """ Interpolates the values in the window at real valued coordinates x and y """
+        d = int(np.sqrt(self.surface_.proj_win.shape[0]))
+        square_proj_win = self.surface_.proj_win.reshape(d, d)
+        
+        # snap to grid dimensions
+        x_snap = max(0, min(x, d-1))
+        y_snap = max(0, min(x, d-1))
+        p_snap = np.array([x_snap, y_snap])
+
+        # get min and max coords
+        x_min = np.floor(x_snap)
+        y_min = np.floor(y_snap)
+        x_max = min(x_min + 1, d-1)
+        y_max = min(y_min + 1, d-1)
+
+        points = np.zeros([4, 2])
+        points[0,:] = np.array([x_min, y_min])
+        points[1,:] = np.array([x_min, y_max])
+        points[2,:] = np.array([x_max, y_min])
+        points[3,:] = np.array([x_max, y_max])
+        
+        # compute the value using bilinear interpolation
+        val = 0.0
+        num_pts = 4
+        for i in range(num_pts):
+            p = points[i,:].astype(np.uint16)
+            u = square_proj_win[p[1], p[0]]
+            w = np.prod(-np.abs(p - p_snap) + 1)
+            val = val + w * u
+        return val
+
+    def _compute_surface_disc(self):
+        """ Compute a surface disc """
+        d = np.sqrt(self.surface_.proj_win.shape[0])
+        num_radial = int((d - 1.0) / 2.0) + 1
+        self.surface_disc_ = np.zeros([num_radial, self.num_angles_])
+        for i in range(self.num_angles_):
+            theta = 2.0 * np.pi * float(i) / self.num_angles_
+            for r in range(num_radial):
+                x = r * np.cos(theta) + num_radial - 1
+                y = r * np.sin(theta) + num_radial - 1
+                self.surface_disc_[r, i] = self._interpolate(x, y)
+
+    @property
+    def descriptor(self):
+        return self.surface_disc_
+
+    @property
+    def phi(self):
+        return self.feature_weight * self.surface_disc_.flatten()
 
 class GradXWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting gradient wrt x features."""
     name = 'gradx_window'
+
+    @property
+    def descriptor(self):
+        return self.surface_.grad_x
 
     @property
     def phi(self):
@@ -218,12 +386,20 @@ class GradYWindowFeatureExtractor(WindowFeatureExtractor):
     name = 'grady_window'
 
     @property
+    def descriptor(self):
+        return self.surface_.grad_y
+
+    @property
     def phi(self):
         return self.feature_weight * self.surface_.grad_y
 
 class CurvatureWindowFeatureExtractor(WindowFeatureExtractor):
     """Class for extracting curvature features."""
     name = 'curvature_window'
+
+    @property
+    def descriptor(self):
+        return self.surface_.curvature
 
     @property
     def phi(self):
@@ -254,11 +430,19 @@ class MomentArmFeatureExtractor(GravityFeatureExtractor):
     name = 'moment_arms'
 
     @property
+    def descriptor(self):
+        return np.r_[self.moment1_, self.moment2_]
+
+    @property
     def phi(self):
         return self.feature_weight * np.r_[self.moment1_, self.moment2_]
 
 class MomentArmMagnitudeFeatureExtractor(GravityFeatureExtractor):
     name = 'moment_arm_mag'
+
+    @property
+    def descriptor(self):
+        return np.r_[np.linalg.norm(self.moment1_), np.linalg.norm(self.moment2_)]
 
     @property
     def phi(self):
@@ -268,6 +452,12 @@ class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
     name = 'grasp_axis_gravity_angle'
 
     @property
+    def descriptor(self):
+        angle = self.angle(self.grasp_.axis, self.gravity_force_)
+        normalized_angle = np.pi - angle # flipped grasp axis should be same
+        return np.array([normalized_angle])
+
+    @property
     def phi(self):
         angle = self.angle(self.grasp_.axis, self.gravity_force_)
         normalized_angle = np.pi - angle # flipped grasp axis should be same
@@ -275,6 +465,10 @@ class GraspAxisGravityAngleFeatureExtractor(GravityFeatureExtractor):
 
 class MomentArmGravityAngleFeatureExtractor(GravityFeatureExtractor):
     name = 'moment_arms_gravity_angle'
+
+    @property
+    def descriptor(self):
+        return np.array([self.angle(m, self.gravity_force_) for m in (self.moment1_, self.moment2_)])
 
     @property
     def phi(self):
@@ -314,11 +508,13 @@ class GraspableFeatureExtractor:
         # for convenience
         self.weights_ = [
             self.proj_win_weight_, self.grad_x_weight_,
-            self.grad_y_weight_, self.curvature_weight_
+            self.grad_y_weight_, self.curvature_weight_,
+            self.proj_win_weight_
         ]
         self.classes_ = [
             ProjectionWindowFeatureExtractor, GradXWindowFeatureExtractor,
-            GradYWindowFeatureExtractor, CurvatureWindowFeatureExtractor
+            GradYWindowFeatureExtractor, CurvatureWindowFeatureExtractor,
+            ProjectionDiscFeatureExtractor
         ]
 
     def _compute_feature_rep(self, grasp, root_name=None):
@@ -355,7 +551,9 @@ class GraspableFeatureExtractor:
         # compute grasp features
         grasp_pose_features = [
             GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight_),
-            GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
+            #GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
+            CenterOfMassFeatureExtractor(self.graspable_.mesh.center_of_mass, self.grasp_axis_weight_),
+            PatchOrientationFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
             # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight_),
             # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight_)
         ]
@@ -363,15 +561,13 @@ class GraspableFeatureExtractor:
         # compute gravity features
         gravity_args = (self.graspable_, grasp, GRAVITY_FORCE)
         gravity_features = [
-#            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
-            MomentArmMagnitudeFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
-            GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
-            MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
+            MomentArmFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            #MomentArmMagnitudeFeatureExtractor(*gravity_args, feature_weight=self.gravity_weight_),
+            #GraspAxisGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
+            #MomentArmGravityAngleFeatureExtractor(*gravity_args, feature_weight=0.0),
         ]
 
         # compute additional features
-        if root_name is None:
-            root_name = self.graspable_.key
         features = AggregatedFeatureExtractor(
             surface_features + grasp_pose_features + gravity_features, root_name)
         self.features_[grasp] = features
@@ -385,8 +581,7 @@ class GraspableFeatureExtractor:
         for i, grasp in enumerate(grasps):
             logging.info('Computing features for grasp %d' %(i))
 
-            feature = self._compute_feature_rep(
-                grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
+            feature = self._compute_feature_rep(grasp)#, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
             features.append(feature)
         return features
 
@@ -456,8 +651,6 @@ class GraspableFeatureLoader:
         ]
 
         # compute additional features
-        if root_name is None:
-            root_name = self.graspable_.key
         features = AggregatedFeatureExtractor(
             surface_features + grasp_pose_features + gravity_features, root_name)
         return features
@@ -474,7 +667,7 @@ class GraspableFeatureLoader:
                 if i % out_rate == 0:
                     logging.info('Loading features for grasp %d' %(i))
                 feature = self._load_feature_rep(
-                    feature_json, grasp, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
+                    feature_json, grasp)#, '%s_%s' %(self.graspable_.key, str(i).zfill(num_digits)))
                 features.append(feature)
         except Exception as e:
             logging.warning('Exception in feature loading')

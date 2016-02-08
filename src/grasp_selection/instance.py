@@ -5,6 +5,8 @@ import IPython
 import itertools as it
 import logging
 import multiprocessing as mp
+import Queue
+import sys
 import time
 
 import httplib2
@@ -15,6 +17,12 @@ from oauth2client import tools
 
 import copy_reg
 import types
+
+INSERT_ERROR = 'Error inserting %(name)s.'
+DELETE_ERROR = """
+Error deleting %(name)s. %(name)s might still exist; You can use
+the console (http://cloud.google.com/console) to delete %(name)s.
+"""
 
 def oauth_authorization(config):
     """
@@ -54,12 +62,12 @@ class VMInstanceAllocator(object):
         datasets = config['datasets']
         max_chunk_size = config['max_chunk_size']
         chunks = []
-        for dataset in datasets:
+        for dataset in datasets.keys():
             assigned = 0
             while assigned < counts[dataset]:
                 chunk = dict(dataset=dataset,
-                             chunk_start=assigned,
-                             chunk_end=assigned+max_chunk_size)
+                             start_index=assigned,
+                             end_index=assigned+max_chunk_size)
                 chunks.append(chunk)
                 assigned += max_chunk_size
         return chunks
@@ -71,14 +79,16 @@ class VMInstanceAllocator(object):
         """
         params = []
         param_dict = config['param_values']
+        if param_dict is not None:
 
-        # take the product of the paraeter values in a list
-        for param_combination in it.product(*param_dict.values()):
-            p = {}
-            for param_name, param_val in zip(param_dict.keys(), param_combination):
-                p[param_name] = param_val
-            params.append(p)
-        return params
+            # take the product of the paraeter values in a list
+            for param_combination in it.product(*param_dict.values()):
+                p = {}
+                for param_name, param_val in zip(param_dict.keys(), param_combination):
+                    p[param_name] = param_val
+                params.append(p)
+            return params
+        return [{'params': 0}]
 
     @staticmethod
     def partition(config, param_fns = None):
@@ -150,6 +160,12 @@ class GceInstanceAllocator(VMInstanceAllocator):
         image = compute_config['image']
         cur_zone = zones[zone_index]
 
+        # prompt
+        if self.config['prompt']:
+            yesno = raw_input('Create %d instances? [Y/n] ' % len(param_list))
+            if yesno.lower() == 'n':
+                sys.exit(1)
+
         # loop through the params
         for instance_num, params in enumerate(param_list):
             # create instance-specific configuration
@@ -159,10 +175,11 @@ class GceInstanceAllocator(VMInstanceAllocator):
             # create instance metadata
             metadata=[
                 {'key': 'config', 'value': self.config.file_contents},
+                {'key': 'job_root', 'value': self.config['job_root']},
                 {'key': 'instance_name', 'value': cur_instance_name},
                 {'key': 'run_script', 'value': run_script},
                 {'key': 'project_name', 'value': compute_config['project']},
-                {'key': 'bucket_name', 'value': compute_config['bucket']},
+                {'key': 'bucket_name', 'value': compute_config['bucket']}
                 ]
             for param_key, param_val in params.items():
                 metadata.append({'key': param_key, 'value': param_val})
@@ -220,11 +237,15 @@ class VMInstanceManager(object):
             pool.map(self._launch_instance, instances)
 
         # return dictionary of launched instances mapped by name (some may fail)
-        time.sleep(1) # wait for queue population, which sometimes fucks up
         launched_instances = {}
-        while not VMInstanceManager.instance_launch_queue.empty():
-            cur_instance = VMInstanceManager.instance_launch_queue.get() 
-            launched_instances[cur_instance.instance_name] = cur_instance
+        queue_empty = False
+        while not queue_empty:
+            try:
+                cur_instance = VMInstanceManager.instance_launch_queue.get(timeout=0.1) 
+                launched_instances[cur_instance.instance_name] = cur_instance
+            except Queue.Empty as e:
+                queue_empty = True
+                
         return launched_instances
 
     def stop_instances(self, instances, num_processes=1):
@@ -245,7 +266,7 @@ class VMInstanceManager(object):
             raise ValueError('Must provide an instance object to start')
         try:
             if instance.start():
-                VMInstanceManager.instance_launch_queue.put(instance, timeout=self.queue_timeout)
+                VMInstanceManager.instance_launch_queue.put(instance, block=True, timeout=self.queue_timeout)
         except:
             logging.info('Failed to launch %s' %(instance.instance_name))
 

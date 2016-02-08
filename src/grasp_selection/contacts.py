@@ -44,8 +44,12 @@ class Contact3D(Contact):
     def normal(self):
         return self.normal_
 
+    @normal.setter
+    def normal(self, normal):
+        self.normal_ = normal
+
     def _compute_normal(self):
-        """ Compute inward facing normal at contact, according to in_direction """
+        """Compute outward facing normal at contact, according to in_direction """
         # tf to grid
         as_grid = self.graspable.sdf.transform_pt_obj_to_grid(self.point)
         on_surface, _ = self.graspable.sdf.on_surface(as_grid)
@@ -205,7 +209,7 @@ class Contact3D(Contact):
 
     def _compute_surface_window_projection(self, u1=None, u2=None, width=1e-2,
         num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, vis=False, compute_weighted_covariance=False):
+        sigma=1.5, direction=None, vis=False, compute_weighted_covariance=False, disc=False, num_radial_steps=5):
         """Compute the projection window onto the basis defined by u1 and u2.
         Params:
             u1, u2 - orthogonal numpy 3 arrays
@@ -235,8 +239,18 @@ class Contact3D(Contact):
         no_contact = NO_CONTACT_DIST
         back_up = back_up_units * self.graspable.sdf.resolution
         num_samples = int(samples_per_grid * (max_projection + back_up) / self.graspable.sdf.resolution)
-        scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
         window = np.zeros(num_steps**2)
+
+        scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
+        scales_it = it.product(scales, repeat=2)
+        if disc:
+            scales_it = []
+            for i in range(num_steps):
+                theta = 2.0 * np.pi / i
+                for j in range(num_radial_steps):
+                    r = (j+1) * width / num_radial_steps
+                    p = (r * np.cos(theta), r * np.sin(theta))
+                    scales_it.append(p)
 
         # start computing weighted covariance matrix
         if compute_weighted_covariance:
@@ -247,7 +261,7 @@ class Contact3D(Contact):
             ax = plt.gca(projection = '3d')
             self.graspable_.sdf.scatter()
 
-        for i, (c1, c2) in enumerate(it.product(scales, repeat=2)):
+        for i, (c1, c2) in enumerate(scales_it):
             curr_loc = self.point + c1 * t1 + c2 * t2
             curr_loc_grid = self.graspable.sdf.transform_pt_obj_to_grid(curr_loc)
             if self.graspable.sdf.is_out_of_bounds(curr_loc_grid):
@@ -277,15 +291,16 @@ class Contact3D(Contact):
 
             window[i] = projection
 
-        window = window.reshape((num_steps, num_steps))
+        if not disc:
+            window = window.reshape((num_steps, num_steps))
 
-        # apply gaussian filter to window (should be narrow bandwidth)
-        if sigma > 0.0:
-            window = spfilt.gaussian_filter(window, sigma)
-        if compute_weighted_covariance:
-            if cov_weight > 0:
-                return window, cov / cov_weight
-            return window, cov
+            # apply gaussian filter to window (should be narrow bandwidth)
+            if sigma > 0.0:
+                window = spfilt.gaussian_filter(window, sigma)
+            if compute_weighted_covariance:
+                if cov_weight > 0:
+                    return window, cov / cov_weight
+                return window, cov
         return window
 
     def surface_window_projection_unaligned(self, width=1e-2, num_steps=21,
@@ -313,7 +328,7 @@ class Contact3D(Contact):
 
     def surface_window_projection(self, width=1e-2, num_steps=21,
         max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma_mult=0.07, direction=None, vis=False):
+        sigma_mult=0.07, direction=None, compute_pca=False, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             width - float width of the window in obj frame
@@ -338,6 +353,9 @@ class Contact3D(Contact):
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=False, compute_weighted_covariance=True)
+
+        if not compute_pca:
+            return window
         
         # compute principal axis
         pca = PCA()
@@ -426,7 +444,7 @@ class Contact3D(Contact):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def plot_friction_cone(self, color='r'):
+    def plot_friction_cone(self, color='r', scale=1.0):
         success, cone, in_normal = self.friction_cone()
 
         if not success:
@@ -439,7 +457,11 @@ class Contact3D(Contact):
         nx, ny, nz = self.graspable.sdf.transform_pt_obj_to_grid(in_normal, direction=True)
         ax.scatter([x], [y], [z], c=color, s=60) # contact
         ax.scatter([x - nx], [y - ny], [z - nz], c=color, s=60) # normal
-        ax.scatter(x + cone[0], y + cone[1], z + cone[2], c=color, s=40) # cone
+        ax.scatter(x + scale*cone[0], y + scale*cone[1], z + scale*cone[2], c=color, s=40) # cone
+
+        ax.set_xlim3d(0, self.graspable.sdf.dims_[0])
+        ax.set_ylim3d(0, self.graspable.sdf.dims_[1])
+        ax.set_zlim3d(0, self.graspable.sdf.dims_[2])
 
         return plt.Rectangle((0, 0), 1, 1, fc=color) # return a proxy for legend
 
@@ -495,7 +517,7 @@ def test_plot_friction_cone():
     grasp_axis = np.array([0, 1, 0])
     grasp_width = 0.1
     grasp_center = np.array([0, 0, -0.025])
-    grasp = g.ParallelJawPtGrasp3D(grasp_center, grasp_axis, grasp_width)
+    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, 0, grasp_width, 0))
 
     _, (c1, c2) = grasp.close_fingers(graspable)
     plt.figure()

@@ -7,8 +7,8 @@ import json
 class MeshFile:
 	@staticmethod
 	def extract_mesh(filename, obj_filename, script_to_apply):
-		meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(filename, obj_filename)
-		# meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\" -s \"%s\"' %(filename, obj_filename, script_to_apply) 
+		#meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(filename, obj_filename)
+		meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\" -s \"%s\"' %(filename, obj_filename, script_to_apply) 
 		os.system(meshlabserver_cmd)
 		print 'MeshlabServer Command:', meshlabserver_cmd
 

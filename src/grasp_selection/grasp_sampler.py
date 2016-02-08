@@ -55,6 +55,10 @@ class ExactGraspSampler(GraspSampler):
         self.alpha_inc = config['alpha_inc']
         self.rho_inc = config['rho_inc']
         self.friction_inc = config['friction_inc']
+        if config['max_num_surface_points']:
+            self.max_num_surface_points_ = config['max_num_surface_points']
+        else:
+            self.max_num_surface_points_ = 100
 
     def generate_grasps(self, graspable,
                         target_num_grasps=None, grasp_gen_mult=3, max_iter=3,
@@ -130,7 +134,7 @@ class GaussianGraspSampler(ExactGraspSampler):
         # convert to grasp objects
         grasps = []
         for i in range(num_grasps):
-            grasp = ParallelJawPtGrasp3D(grasp_centers[i,:], grasp_dirs[i,:], self.grasp_width)
+            grasp = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_centers[i,:], grasp_dirs[i,:], self.grasp_width))
             contacts_found, contacts = grasp.close_fingers(graspable)
 
             # add grasp if it has valid contacts

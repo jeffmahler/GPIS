@@ -13,9 +13,19 @@ import tfx
 
 import camera_params as cp
 import obj_file
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
+try:
+    import pyhull.convex_hull as cvh
+except:
+    logging.warning('Failed to import pyhull')
+import scipy.spatial as ss
 
-# import mayavi.mlab as mv
-import pyhull.convex_hull as cvh
+C_canonical = np.array([[1.0 / 60.0, 1.0 / 120.0, 1.0 / 120.0],
+                        [1.0 / 120.0, 1.0 / 60.0, 1.0 / 120.0],
+                        [1.0 / 120.0, 1.0 / 120.0, 1.0 / 60.0]])
 
 class Mesh3D(object):
     """
@@ -33,6 +43,10 @@ class Mesh3D(object):
     def __init__(self, vertices, triangles, normals=None, metadata=None, pose=tfx.identity_tf(), scale = 1.0, density=1.0, category='', component=0):
         self.vertices_ = vertices
         self.triangles_ = triangles
+        if normals is not None:
+            normals = np.array(normals)
+            if normals.shape[0] == 3:
+                normals = normals.T
         self.normals_ = normals
         self.metadata_ = metadata
         self.pose_ = pose
@@ -44,8 +58,10 @@ class Mesh3D(object):
         # compute mesh properties
         self._compute_bb_center()
         self._compute_centroid()
-        self._compute_com_uniform()
+        #self._compute_com_uniform()
+        self.center_of_mass_ = self.bb_center_
         self._compute_mass()
+        self._compute_inertia()
 
     def vertices(self):
         return self.vertices_
@@ -54,9 +70,13 @@ class Mesh3D(object):
         return self.triangles_
 
     def normals(self):
-        if self.normals_:
+        if self.normals_ is not None:
             return self.normals_
         return None #"Mesh does not have a list of normals."
+
+    def centroid(self):
+        self._compute_centroid()
+        return self.vertex_mean_
 
     def metadata(self):
         if self.metadata_:
@@ -66,7 +86,7 @@ class Mesh3D(object):
     @property
     def center_of_mass(self):
         # TODO: utilize labelled center of mass if we have it
-        return self.bb_center_
+        return self.center_of_mass_
 
     @property
     def pose(self):
@@ -83,6 +103,10 @@ class Mesh3D(object):
     @property
     def mass(self):
         return self.mass_
+
+    @property
+    def inertia(self):
+        return self.inertia_
 
     @property
     def density(self):
@@ -117,12 +141,28 @@ class Mesh3D(object):
     def set_metadata(self, metadata):
         self.metadata_ = metadata
 
+    def set_center_of_mass(self, center_of_mass):
+        self.center_of_mass_ = center_of_mass
+        self._compute_inertia()
+
+    def set_density(self, density):
+        self.density_ = density
+        self._compute_mass()
+        self._compute_inertia()
+
+    def bounding_box(self):
+        """ Get the mesh bounding box """
+        vertex_array = np.array(self.vertices_)
+        min_vertices = np.min(vertex_array, axis=0)
+        max_vertices = np.max(vertex_array, axis=0)
+        return min_vertices, max_vertices
+
     def _compute_bb_center(self):
         """ Get the bounding box center of the mesh  """
         vertex_array = np.array(self.vertices_)
         min_vertices = np.min(vertex_array, axis=0)
         max_vertices = np.max(vertex_array, axis=0)
-        self.bb_center_ = (max_vertices + min_vertices) / 2 
+        self.bb_center_ = (max_vertices + min_vertices) / 2.0
 
     def _signed_volume_of_tri(self, tri, vertex_array):
         """ Get the bounding box center of the mesh  """
@@ -133,6 +173,20 @@ class Mesh3D(object):
         volume = (1.0 / 6.0) * (v1.dot(np.cross(v2, v3)))
         center = (1.0 / 3.0) * (v1 + v2 + v3)
         return volume, center
+
+    def _covariance_of_tri(self, tri, vertex_array):
+        """ Get the bounding box center of the mesh  """
+        v1 = vertex_array[tri[0], :]
+        v2 = vertex_array[tri[1], :]
+        v3 = vertex_array[tri[2], :]
+
+        A = np.zeros([3,3])
+        A[:,0] = v1 - self.center_of_mass_
+        A[:,1] = v2 - self.center_of_mass_
+        A[:,2] = v3 - self.center_of_mass_
+        C = np.linalg.det(A) * A.dot(C_canonical).dot(A.T)
+        volume = (1.0 / 6.0) * (v1.dot(np.cross(v2, v3)))
+        return C, volume
 
     def _compute_com_uniform(self):
         """ Computes the center of mass using a uniform mass distribution assumption """
@@ -152,8 +206,63 @@ class Mesh3D(object):
         self.vertex_mean_ = np.mean(vertex_array, axis=0)
 
     def _compute_mass(self):
-        """ Computes the mesh mass """
+        """ Computes the mesh mass. NOTE: Only works for watertight meshes """
         self.mass_ = self.density_ * self.get_total_volume()
+
+    def _compute_inertia(self):
+        """ Computes the mesh inertia. NOTE: Only works for watertight meshes """
+        C = self.get_covariance() 
+        self.inertia_ = self.density_ * (np.trace(C) * np.eye(3) - C)
+
+    def compute_normals(self):
+        """ Get normals from triangles cause fuck it"""
+        vertex_array = np.array(self.vertices_)
+        tri_array = np.array(self.triangles_)
+        self.normals_ = []
+        for i in range(len(self.vertices_)):
+            inds = np.where(tri_array == i)
+            first_tri = tri_array[inds[0][0],:]
+            t = vertex_array[first_tri, :]
+            v0 = t[1,:] - t[0,:] 
+            v1 = t[2,:] - t[0,:] 
+            v0 = v0 / np.linalg.norm(v0)
+            v1 = v1 / np.linalg.norm(v1)
+            n = np.cross(v0, v1)
+            n = n / np.linalg.norm(n)
+            self.normals_.append(n.tolist())
+
+        # reverse normal based on alignment with convex hull
+        hull = ss.ConvexHull(self.vertices_)
+        hull_tris = hull.simplices.tolist()
+        hull_vertex_ind = hull_tris[0][0]
+        hull_vertex = self.vertices_[hull_vertex_ind]
+        hull_vertex_normal = self.normals_[hull_vertex_ind]
+        v = np.array(hull_vertex).reshape([1,3])
+        n = np.array(hull_vertex_normal)
+        ip = (vertex_array - np.tile(hull_vertex, [vertex_array.shape[0], 1])).dot(n)
+        if ip[0] > 0:
+            self.normals_ = [[-n[0], -n[1], -n[2]] for n in self.normals_]
+
+    def get_total_volume(self):
+        total_volume = 0
+        vertex_array = np.array(self.vertices_)
+        for tri in self.triangles_:
+            volume, center = self._signed_volume_of_tri(tri, vertex_array)            
+            total_volume = total_volume + volume
+
+        # can get negative volume when tris are flipped, so auto correct assuming that mass should have been postive
+        if total_volume < 0:
+            logging.debug('Volume was negative. Flipping sign, but mesh may be degenerate')
+            total_volume = -total_volume
+        return total_volume
+
+    def get_covariance(self):
+        C_sum = np.zeros([3,3])
+        vertex_array = np.array(self.vertices_)
+        for tri in self.triangles_:
+            C, volume = self._covariance_of_tri(tri, vertex_array)            
+            C_sum = C_sum + C
+        return C_sum
     
     def principal_dims(self):
         """ Return the mesh principal dimensions """
@@ -225,7 +334,7 @@ class Mesh3D(object):
 
         try:
             self.vertices_ = vertex_array[reffed_v_old_ind, :].tolist()
-            if self.normals_:
+            if self.normals_ is not None:
                 normals_array = np.array(self.normals_)
                 self.normals_ = normals_array[reffed_v_old_ind, :].tolist()
         except IndexError:
@@ -236,6 +345,7 @@ class Mesh3D(object):
         for f in self.triangles_:
             new_triangles.append([reffed_v_new_ind[f[0]], reffed_v_new_ind[f[1]], reffed_v_new_ind[f[2]]] )
         self.triangles_ = new_triangles
+        self._compute_centroid()
         return True
 
     def image_to_3d_coords(self):
@@ -338,11 +448,12 @@ class Mesh3D(object):
         scale_factor = min_scale / vertex_extent[min_dim] 
         vertex_array = scale_factor * vertex_array
         self.vertices_ = vertex_array.tolist()
+        self._compute_centroid()
 
     def convex_hull(self):
         """ Returns the convex hull of a mesh as a new mesh """
-        hull = cvh.ConvexHull(self.vertices_)
-        hull_tris = hull.vertices
+        hull = ss.ConvexHull(self.vertices_)
+        hull_tris = hull.simplices.tolist()
         cvh_mesh = Mesh3D(self.vertices_, hull_tris, self.normals_)
         cvh_mesh.remove_unreferenced_vertices()
         return cvh_mesh
@@ -355,29 +466,25 @@ class Mesh3D(object):
         oof = obj_file.ObjFile(filename)
         oof.write(self)
 
-    def visualize(self):
+    def visualize(self, color=(0.5, 0.5, 0.5), style='surface'):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
-        mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe')
-
-    def get_total_volume(self):
-        total_volume = 0
-        vertex_array = np.array(self.vertices_)
-        for tri in self.triangles_:
-            volume, center = self._signed_volume_of_tri(tri, vertex_array)
-            total_volume = total_volume + volume
-
-        # can get negative volume when tris are flipped, so auto correct assuming that mass should have been postive
-        if total_volume < 0:
-            logging.warning('Volume was negative. Flipping sign, but mesh may be degenerate')
-            total_volume = -total_volume
-        return total_volume
+        surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation=style,
+                                     color=color)
+        return surface
 
     def create_json_metadata(self):
         return {
             'mass': self.mass,
             'category': self.category
         }
+
+    def to_hdf5(self, h):
+        """ Add mesh to hdf5 group """
+        h.create_dataset('triangles', data=np.array(self.triangles_))
+        h.create_dataset('vertices', data=np.array(self.vertices_))
+        if self.normals_:
+            h.create_dataset('normals', data=np.array(self.normals_))
 
     """
     def num_connected_components(self):
@@ -386,3 +493,17 @@ class Mesh3D(object):
             vert_labels[t[1]] = vert_labels[t[0]]
             vert_labels[t[2]] = vert_labels[t[0]]
     """                   
+
+def test_mass_inertia():
+    filename = '/home/jmahler/Libraries/hacd/20151014-09d5310-sbs51-YCB_Black_and_Decker-3d/textured-0008192.obj'
+    com = np.array([-0.030715, 0.024351, 0.023568])
+    of = obj_file.ObjFile(filename)
+    m = of.read()
+    m.set_center_of_mass(com)
+    
+    print 'MASS = ', m.mass
+    print 'INERTIA'
+    print m.inertia
+
+if __name__ == '__main__':
+    test_mass_inertia()

@@ -6,11 +6,13 @@ import tfx
 import IPython
 
 class SimilarityTransform3D:
-    def __init__(self, pose, scale=1.0):
+    def __init__(self, pose=tfx.pose(np.eye(4)), scale=1.0, from_frame='world', to_frame='my_frame'):
         if not isinstance(pose, tfx.canonical.CanonicalTransform):
             raise ValueError('Pose must be tfx canonical tf')
         self.pose_ = pose
         self.scale_ = scale
+        self.from_frame_ = from_frame
+        self.to_frame_ = to_frame
         
     def apply(self, x, direction = False):
         """ Applies a similarity transform to a point x"""
@@ -45,15 +47,66 @@ class SimilarityTransform3D:
         else:
             raise ValueError('Only numpy 3-arrays are supported')
 
-    def compose(self, other_tf):
-        pose_tf = other_tf.pose.apply(self.pose_)
-        scale_tf = other_tf.scale * self.scale_
-        return SimilarityTransform3D(pose_tf, scale_tf)
+    def dot(self, other_tf):
+        """ Compose this transform with another """
+        pose_tf = self.pose_.matrix.dot(other_tf.pose.matrix)
+        scale_tf = self.scale_ * other_tf.scale
+        return SimilarityTransform3D(pose=tfx.pose(pose_tf), scale=scale_tf, from_frame=other_tf.from_frame, to_frame=self.to_frame)
 
     def inverse(self):
+        """ Take the inverse of the transform """
         inv_pose = self.pose_.inverse()
         inv_pose.position = (1.0 / self.scale_) * inv_pose.position
-        return SimilarityTransform3D(inv_pose, 1.0 / self.scale_)
+        return SimilarityTransform3D(inv_pose, 1.0 / self.scale_, from_frame=self.to_frame, to_frame=self.from_frame)
+
+    def load(self, filename):
+        """ Load the transform """
+        f = open(filename, 'r')
+        line_list = list(f)
+        self.from_frame_ = line_list[0][:-1]
+        self.to_frame_ = line_list[1][:-1]
+        self.scale_ = float(line_list[2][:-1])
+
+        t_tokens = line_list[3][:-1].split()
+        t = np.zeros(3)
+        t[0] = float(t_tokens[0])
+        t[1] = float(t_tokens[1])
+        t[2] = float(t_tokens[2])
+
+        R = np.zeros([3,3])
+        r_tokens = line_list[4][:-1].split()
+        R[0,0] = float(r_tokens[0])
+        R[0,1] = float(r_tokens[1])
+        R[0,2] = float(r_tokens[2])
+
+        r_tokens = line_list[5][:-1].split()
+        R[1,0] = float(r_tokens[0])
+        R[1,1] = float(r_tokens[1])
+        R[1,2] = float(r_tokens[2])
+
+        r_tokens = line_list[6][:-1].split()
+        R[2,0] = float(r_tokens[0])
+        R[2,1] = float(r_tokens[1])
+        R[2,2] = float(r_tokens[2])
+        self.pose_ = tfx.pose(R, t)
+
+    def save(self, filename):
+        """ Save the transform to a custom file format """
+        R = self.rotation
+        t = self.translation
+        f = open(filename, 'w')
+        f.write('%s\n' %(self.from_frame))
+        f.write('%s\n' %(self.to_frame))
+        f.write('%f\n' %(self.scale))
+        f.write('%f %f %f\n' %(t[0], t[1], t[2]))
+        f.write('%f %f %f\n' %(R[0,0], R[0,1], R[0,2]))
+        f.write('%f %f %f\n' %(R[1,0], R[1,1], R[1,2]))
+        f.write('%f %f %f\n' %(R[2,0], R[2,1], R[2,2]))
+        f.close()
+
+    def save_pose_csv(self, filename):
+        """ Save only the pose matrix to file """
+        np.savetxt(filename, np.array(self.pose.matrix), delimiter=',')
 
     @property
     def translation(self):
@@ -66,6 +119,14 @@ class SimilarityTransform3D:
     @property
     def pose(self):
         return self.pose_
+
+    @property
+    def from_frame(self):
+        return self.from_frame_
+
+    @property
+    def to_frame(self):
+        return self.to_frame_
 
     @pose.setter
     def pose(self, pose):

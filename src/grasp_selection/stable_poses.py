@@ -2,29 +2,47 @@
 Computes the statistical distribution of stable poses for a polyhedron
 Author: Nikhil Sharma
 """
+import logging
+try:
+    import cvxopt as cvx
+    cvx.solvers.options['show_progress'] = False
+except:
+    logging.warning('Failed to import cvx')
 import math
 import sys
-# import IPython
+import IPython
 import numpy as np
 # import similarity_tf as stf
 # import tfx
-
-# import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 
 import mesh
 import obj_file
 # import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
 
-def compute_basis(vertices):
+# TODO: find a way to log output?
+
+
+def compute_basis(vertices, m):
     """
     Computes axes for a transformed basis relative to the plane in which input vertices lies
 
     vertices -- a list of numpy arrays representing points in 3D space
     """
+    vertex_array = np.array(m.vertices())
     centroid = compute_centroid(vertices)
-    z_o = np.cross(np.subtract(centroid, vertices[0]), np.subtract(centroid, vertices[1]))
+    z_o = np.cross(np.subtract(vertices[1], vertices[0]), np.subtract(vertices[2], vertices[0]))
     z_o = z_o / np.linalg.norm(z_o)
+    
+    # ensure that all vertices are on the positive halfspace (aka above the table)
+    dot_product = (vertex_array - centroid).dot(z_o)
+    if dot_product[0] < 0:
+        z_o = -z_o
+    
     x_o = np.array([-z_o[1], z_o[0], 0])
     if np.linalg.norm(x_o) == 0.0:
         x_o = np.array([1, 0, 0])
@@ -55,10 +73,15 @@ def compute_stable_poses(mesh):
 
     mesh -- a 3D Mesh object
     """
-    convex_hull, cm = mesh.convex_hull(), mesh.vertex_mean_
+    convex_hull = mesh.convex_hull()
+    cm = mesh.center_of_mass
 
     # mapping each edge in the convex hull to the two faces it borders
     triangles, vertices, edge_to_faces, triangle_to_vertex = convex_hull.triangles(), convex_hull.vertices(), {}, {}
+
+    max_tri = None
+    max_area = 0
+    i = 0
 
     for triangle in triangles:
         triangle_vertices = [vertices[i] for i in triangle]
@@ -72,16 +95,42 @@ def compute_stable_poses(mesh):
             elif p_1[0] == p_2[0] and p_1[1] < p_2[1]:
                 k = (p_2, p_1)
             elif p_1[0] == p_2[0] and p_1[1] == p_2[1] and p_1[2] < p_2[2]:
-                k = (p_2, p_1)
-                
+                k = (p_2, p_1)                
  
             if k in edge_to_faces:
                 edge_to_faces[k] += [triangle]
             else:
                 edge_to_faces[k] = [triangle]
+
+        v = np.array(triangle_vertices)
+        n = np.cross(v[1,:] - v[0,:],  v[2,:] - v[0,:])
+        n = n / np.linalg.norm(n)
+        t1 = np.array([n[1], -n[0], 0])
+        t1 = t1 / np.linalg.norm(t1)
+        t2 = np.cross(t1, n)
+        A = np.c_[t1, t2]
+        x = v.dot(A)
+        x = np.c_[x, np.ones(3)]
+        area = abs(np.linalg.norm(x))
+        if area > max_area:
+            max_area = area
+            max_tri = [triangle[0], triangle[1], triangle[2]]
+
         p_i = compute_projected_area(triangle_vertices, cm) / (4 * math.pi)
-        v = Vertex(p_i, triangle)
-        triangle_to_vertex[tuple(triangle)] = v
+        vt = Vertex(p_i, triangle)
+        triangle_to_vertex[tuple(triangle)] = vt
+
+        """
+        print p_i
+        print triangle[0], triangle[1], triangle[2]
+        if abs(n.dot(np.array([0,0,1]))) > 0.95:
+            mv.figure()
+            convex_hull.visualize()
+            mv.points3d(cm[0], cm[1], cm[2], scale_factor=0.005, color=(1,0,0))
+            mv.points3d(v[:,0], v[:,1], v[:,2], scale_factor=0.005)
+            mv.axes()
+            mv.show()
+        """
 
     # determining if landing on a given face implies toppling, and initializes a directed acyclic graph
     # a directed edge between two graph nodes implies that landing on one face will lead to toppling onto its successor
@@ -92,6 +141,7 @@ def compute_stable_poses(mesh):
         # computation of projection of cm onto plane of face
         v_0 = np.subtract(triangle_vertices[2], triangle_vertices[0])
         v_1 = np.subtract(triangle_vertices[1], triangle_vertices[0])
+        w = np.array(triangle_vertices).T
 
         v_0 = v_0 / np.linalg.norm(v_0)
         v_1 = v_1 / np.linalg.norm(v_1)
@@ -104,22 +154,34 @@ def compute_stable_poses(mesh):
         dist = np.dot(normal_vector, proj_vector)
         proj_cm = np.subtract(cm, dist*normal_vector)
 
-        other_dist = np.linalg.norm(cm - np.array(triangle_vertices[1]))
-
         # barycentric coordinates/minimum distance analysis (adapted from implementation provided at http://www.blackpawn.com/texts/pointinpoly/)
-        v_2 = np.subtract(proj_cm, triangle_vertices[0])
+        dim = 3
+        P = cvx.matrix(2 * w.T.dot(w))
+        q = cvx.matrix(-2 * proj_cm.T.dot(w))
+        G = cvx.matrix(-np.eye(dim))
+        h = cvx.matrix(np.zeros(dim))
+        A = cvx.matrix(np.ones((1, dim)))
+        b = cvx.matrix(np.ones(1))
+        sol = cvx.solvers.qp(P, q, G, h, A, b)
 
-        dot_00 = np.dot(v_0, v_0)
-        dot_01 = np.dot(v_0, v_1)
-        dot_02 = np.dot(v_0, v_2)
-        dot_11 = np.dot(v_1, v_1)
-        dot_12 = np.dot(v_1, v_2)
+        u = np.array(sol['x'])
+        norm_diff = np.sqrt(sol['primal objective'] + proj_cm.T.dot(proj_cm))
+        p = w.dot(u)
 
-        inv_denom = 1.0 / (dot_00 * dot_11 - dot_01 * dot_01)
-        u = (dot_11 * dot_02 - dot_01 * dot_12) * inv_denom
-        v = (dot_00 * dot_12 - dot_01 * dot_02) * inv_denom
-
-        proj_cm_in_triangle = (u >= 0) and (v >= 0) and (u + v < 1)
+        proj_cm_in_triangle = norm_diff < 1e-4
+        
+        """
+        if triangle[0] == 807 and triangle[1] == 742 and triangle[2] == 739:
+            mv.figure()
+            convex_hull.visualize()
+            mv.points3d(cm[0], cm[1], cm[2], scale_factor=0.005, color=(1,0,0))
+            mv.points3d(proj_cm[0], proj_cm[1], proj_cm[2], scale_factor=0.005, color=(0,1,0))
+            mv.points3d(w[0,:], w[1,:], w[2,:], scale_factor=0.005)
+            mv.points3d(p[0], p[1], p[2], scale_factor=0.005, color=(0,0,1))
+            mv.axes()
+            mv.show()
+            IPython.embed()
+        """
 
         # update list of top vertices, add edges between vertices as needed
         if not proj_cm_in_triangle:
@@ -149,10 +211,12 @@ def compute_stable_poses(mesh):
             for face in edge_to_faces[k]:
                 if list(face) != list(triangle):
                     topple_face = face
+            #if triangle[0] == 807 and triangle[1] == 742 and triangle[2] == 739:
+            #    IPython.embed()
             predecessor, successor = triangle_to_vertex[tuple(triangle)], triangle_to_vertex[tuple(topple_face)]
             predecessor.add_edge(successor)
 
-    probabilities = propagate_probabilities(triangle_to_vertex.values())
+    probabilities = propagate_probabilities(triangle_to_vertex.values())    
 
     return probabilities
 
@@ -166,9 +230,9 @@ def compute_projected_area(vertices, cm):
     """
     angles, projected_vertices = [], [np.subtract(vertex, cm) / np.linalg.norm(np.subtract(vertex, cm)) for vertex in vertices]
 
-    a = math.acos(max(1, min(-1, np.dot(projected_vertices[0], projected_vertices[1]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[1])))))
-    b = math.acos(max(1, min(-1, np.dot(projected_vertices[0], projected_vertices[2]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[2])))))
-    c = math.acos(max(1, min(-1, np.dot(projected_vertices[1], projected_vertices[2]) / (np.linalg.norm(projected_vertices[1]) * np.linalg.norm(projected_vertices[2])))))
+    a = math.acos(min(1, max(-1, np.dot(projected_vertices[0], projected_vertices[1]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[1])))))
+    b = math.acos(min(1, max(-1, np.dot(projected_vertices[0], projected_vertices[2]) / (np.linalg.norm(projected_vertices[0]) * np.linalg.norm(projected_vertices[2])))))
+    c = math.acos(min(1, max(-1, np.dot(projected_vertices[1], projected_vertices[2]) / (np.linalg.norm(projected_vertices[1]) * np.linalg.norm(projected_vertices[2])))))
     s = (a + b + c) / 2
 
     try:
@@ -196,10 +260,13 @@ def propagate_probabilities(vertices):
             visited.append(c)
             c = c.children[0]
 
-        if not vertex.is_sink:
-            c.probability += vertex.probability
-        prob_mapping[tuple(c.face)] = c.probability
+        if tuple(c.face) not in prob_mapping.keys():
+            prob_mapping[tuple(c.face)] = 0.0
+        prob_mapping[tuple(c.face)] += vertex.probability
 
+    for vertex in vertices:
+        if not vertex.is_sink:
+            prob_mapping[tuple(vertex.face)] = 0
     return prob_mapping
 
 

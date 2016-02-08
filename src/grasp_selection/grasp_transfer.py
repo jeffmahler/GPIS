@@ -204,10 +204,10 @@ def makegrasp(originalgrasp,bmat=None,center=None,direction=None):
 	if bmat is not None:
 		axis=bmat[:,1][:-1]
 		center=bmat[:,3][:-1]
-		return ParallelJawPtGrasp3D(center,axis,originalgrasp.grasp_width,originalgrasp.jaw_width,originalgrasp.approach_angle,tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0))
+		return ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center,axis,originalgrasp.grasp_width,originalgrasp.approach_angle,originalgrasp.jaw_width))
 	else:
 		axis=direction[:,1]
-		return ParallelJawPtGrasp3D(center,axis,originalgrasp.grasp_width,originalgrasp.jaw_width,originalgrasp.approach_angle,tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0))
+		return ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center,axis,originalgrasp.grasp_width,originalgrasp.approach_angle,originalgrasp.jaw_width))
 
 def getprobability(object,grasps):
 	obj_name=object[1]

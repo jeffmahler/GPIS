@@ -81,7 +81,31 @@ class CameraParams:
                 points_proj = np.round(points_proj)
 
                 # find valid indices
-                valid = (points[0,:] >= 0) & (points[1,:] >= 0) & (points[0,:] < self.width_) & (points[1,:] < self.height_)
+                valid = (points_proj[0,:] >= 0) & (points_proj[1,:] >= 0) & (points_proj[0,:] < self.width_) & (points_proj[1,:] < self.height_)
 
-                return points_proj[:2,:].astype(np.int), valid
+                return points_proj[:2,:].astype(np.int), np.where(valid)[0]
 
+        def deproject(self, depth_image):
+                '''
+                Deprojects a depth image (2D numpy float array) into a point cloud
+
+                Params:
+                   depth_image: (HxW numpy array of floats) 2D depth image to project
+                Returns:
+                   3xN numpy float array of 3D points
+                '''
+                height = depth_image.shape[0]
+                width = depth_image.shape[1]
+
+                # create homogeneous pixels 
+                row_indices = np.arange(height)
+                col_indices = np.arange(width)
+                pixel_grid = np.meshgrid(col_indices, row_indices)
+                pixels = np.c_[pixel_grid[0].flatten(), pixel_grid[1].flatten()].T
+                pixels_homog = np.r_[pixels, np.ones([1, pixels.shape[1]])]
+                depth_arr = np.tile(depth_image.flatten(), [3,1])
+
+                # deproject
+                points_3d = depth_arr * np.linalg.inv(self.K_).dot(pixels_homog)
+                return points_3d
+                

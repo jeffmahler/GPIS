@@ -1,6 +1,9 @@
 import copy
 import itertools as it
+<<<<<<< HEAD
 import logging
+=======
+>>>>>>> dev
 import numpy as np
 import os
 import sys
@@ -218,6 +221,7 @@ class GraspQualityRV(rvs.RandomVariable):
         quality_time = time.clock()
 
         #logging.info('Took %f sec to compute quality' %(quality_time - friction_time))
+
         self.sample_count_ = self.sample_count_ + 1
         return q
 

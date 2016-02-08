@@ -1,3 +1,7 @@
+"""
+Classes for mesh feature extraction.
+Author: Jeff Mahler
+"""
 from abc import ABCMeta, abstractmethod
 
 import IPython
@@ -20,11 +24,15 @@ class FeatureExtractor:
 
     @abstractmethod
     def extract(self, graspable):
-        """ Returns a set of extracted features for a graspable """
+        """
+        Returns a set of extracted features for a graspable
+        Params:
+           graspable: graspable object to extract for
+        """
         pass
 
 class SHOTFeatureExtractor(FeatureExtractor):
-    key = 'shot'
+    key = 'shot_features' # the database key
 
     def __init__(self):
         pass

@@ -1,3 +1,7 @@
+"""
+Encapsulates mesh cleaning pipeline for database generation
+Authors: Mel Roderick and Jeff Mahler
+"""
 import mesh
 import numpy as np
 import sklearn.decomposition
@@ -7,6 +11,7 @@ class MeshCleaner:
 	RescalingTypeMed = 1
 	RescalingTypeMax = 2
 	RescalingTypeAbsolute = 3
+	RescalingTypeDiag = 4
 
 	def __init__(self, mesh):
 		self.mesh_ = mesh
@@ -128,6 +133,9 @@ class MeshCleaner:
                         relative_scale = vertex_extent[dim]
 		elif rescaling_type == MeshCleaner.RescalingTypeAbsolute:
                         relative_scale = 1.0
+		elif rescaling_type == MeshCleaner.RescalingTypeDiag:
+                        diag = np.norm(vertex_extent)
+                        relative_scale = diag
 
 		# compute scale factor and rescale vertices
 		scale_factor = scale / relative_scale 

@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 import IPython
+import traceback
 
 from apiclient import discovery
 import copy
@@ -151,6 +152,20 @@ class GceJob(Job):
         self._setup()
 
     def _setup(self):
+        # get job id
+        self.id = gen_job_id()
+        self.job_name_root = 'job-%s' %(self.id)
+        if self.config['update']:
+            self.job_name_root = 'job-updater-%s' %(self.id)            
+        self.config['job_root'] = self.job_name_root
+
+        # setup logging for job
+        gce_job_log = os.path.join(self.config['log_dir'], self.job_name_root +'.log')
+        hdlr = logging.FileHandler(gce_job_log)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        hdlr.setFormatter(formatter)
+        logging.getLogger().addHandler(hdlr) 
+
         # initialize helper classes for interacting with GCE, GCS
         self.auth_http = instance.oauth_authorization(self.config)
         self.gce_helper = gce.Gce(self.auth_http, self.config, project_id=self.config['compute']['project'])
@@ -160,12 +175,6 @@ class GceJob(Job):
         self.instances = []
         self.launched_instances = {}
         self.user_terminated = False
-
-        # get job id
-        self.id = gen_job_id()
-        self.job_name_root = 'job-%s' %(self.id)
-        if self.config['update']:
-            self.job_name_root = 'job-updater-%s' %(self.id)            
 
         # setup instance completion api call
         service_not_ready = True
@@ -237,7 +246,7 @@ class GceJob(Job):
         """ Start the job! """
         self.user_terminated = False
         self.complete_instances = []
-        if True:
+        try:
             # allocate instance list
             data_disks = [gce.Disk(name, mode) for name, mode in zip(self.config['compute']['data_disks'], self.config['compute']['data_disk_modes'])]
             gce_allocator = instance.GceInstanceAllocator(self.config, self.gce_helper)
@@ -245,9 +254,10 @@ class GceJob(Job):
  
             # launch instances using multiprocessing
             self.launched_instances = self.instance_manager.launch_instances(instances, self.config['num_processes'])
-#        except Exception as e:
-#            logging.error('Failed to launch instances')
-#            return False
+        except Exception as e:
+            logging.error('Failed to launch instances')
+            logging.error('Traceback: %s' %(traceback.print_exc()))
+            return False
         return True
 
     def stop(self):
@@ -290,11 +300,12 @@ class GceJob(Job):
 
     def analyze(self):
         """ Analyze the results """
-        start_time = time.time()
         # just call an analysis script for now
-        results_script_call = 'python %s %s %s' %(self.config['results_script'], self.config.filename, self.job_store_dir)
-        end_time = time.time()
-        logging.info('Result analysis took %f sec' %(end_time - start_time))
+        if self.config['results_script']:
+            start_time = time.time()
+            results_script_call = 'python %s %s %s' %(self.config['results_script'], self.config.filename, self.job_store_dir)
+            end_time = time.time()
+            logging.info('Result analysis took %f sec' %(end_time - start_time))
 
     def store(self, wait_time=1.0):
         """
@@ -321,9 +332,12 @@ class GceJob(Job):
                 update_config['compute']['data_disk_modes'] = ['READ_WRITE' for a in data_manager.update_data_disks]
                 update_config['compute']['instance_quota'] = 1
                 update_config['compute']['run_script'] = compute_config['update_script']
+                update_config['prompt'] = 0 # turn off prompting
                 logging.info('Running update job with script %s' %(compute_config['update_script']))
 
                 update_job = GceJob(update_config)
+                update_config['job_root'] = self.job_name_root
+                
                 update_job.run()
 
                 # release access and attempt to stop the server

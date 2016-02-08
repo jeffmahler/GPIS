@@ -141,9 +141,6 @@ if __name__ == '__main__':
             del obj
 
             if obj_id > threshold_obj_id:
-                if data_id == 4:
-                    IPython.embed()
-
                 logging.info('Saving object ids')
                 obj_id_array = np.array(all_obj_ids)
                 filename = os.path.join(dest, 'obj_ids_%02d.npz' %(data_id))

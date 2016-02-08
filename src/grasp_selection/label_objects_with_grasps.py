@@ -132,7 +132,6 @@ def label_grasps(obj, dataset, output_ds, config):
     # re-load to get ids
     grasps = output_ds.grasps(obj.key)
 
-
     # stable poses
     stable_pose = dataset.stable_pose(obj.key, "pose_2")
     for grasp in grasps:

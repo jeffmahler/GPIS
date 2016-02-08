@@ -374,6 +374,7 @@ class Gce(object):
                     disk_name,
                     project,
                     zone,
+                    name=None,
                     blocking=True):
     """Creates a new persistent disk.
 
@@ -396,7 +397,10 @@ class Gce(object):
 
     body = {}
     body['sourceDisk'] = disk_name
-    body['name'] = disk_name + '-snapshot'
+    if name is None:
+      body['name'] = disk_name + '-snapshot'
+    else:
+      body['name'] = name
 
     request = self.service.disks().createSnapshot(
       disk=disk_name, project=project, zone=zone, body=body
