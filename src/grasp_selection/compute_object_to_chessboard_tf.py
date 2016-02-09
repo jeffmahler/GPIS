@@ -2,6 +2,7 @@ import copy
 import logging
 import IPython
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
 import numpy as np
 import os
 import sys
@@ -18,7 +19,7 @@ pose of a frame wrt b frame
 """
 
 # TODO: move to a custom Dex-Net visualizer
-def plot_pose(T, alpha=1.0, line_width=2.0):
+def plot_pose(T, alpha=1.0, line_width=2.0, ax=None):
     """ Provide rotation R and translation t of frame wrt world """
     T_inv = T.inverse()
     R = T_inv.rotation
@@ -28,7 +29,8 @@ def plot_pose(T, alpha=1.0, line_width=2.0):
     y_axis_3d_line = np.array([t, t + alpha * R[:,1]])
     z_axis_3d_line = np.array([t, t + alpha * R[:,2]])
 
-    ax = plt.gca(projection = '3d')
+    if ax is None:
+        ax = plt.gca(projection = '3d')
     ax.plot(x_axis_3d_line[:,0], x_axis_3d_line[:,1], x_axis_3d_line[:,2], c='r', linewidth=line_width)
     ax.plot(y_axis_3d_line[:,0], y_axis_3d_line[:,1], y_axis_3d_line[:,2], c='g', linewidth=line_width)
     ax.plot(z_axis_3d_line[:,0], z_axis_3d_line[:,1], z_axis_3d_line[:,2], c='b', linewidth=line_width)
@@ -36,16 +38,22 @@ def plot_pose(T, alpha=1.0, line_width=2.0):
     ax.scatter(t[0], t[1], t[2], c='k', s=150)
     ax.text(t[0], t[1], t[2], T.to_frame.upper())
 
-def plot_mesh(mesh, T, color='m', size=20):
+def plot_mesh(mesh, T, color='m', size=20, fig=None):
     """ Plots a mesh object in pose T """
-    ax = plt.gca(projection = '3d')
+    if fig is None:
+        ax = plt.gca(projection = '3d')
+    else:
+        ax = Axes3D(fig)
     mesh_tf = mesh.transform(T.inverse())
     mesh_tf_vertices = np.array(mesh_tf.vertices())
     ax.scatter(mesh_tf_vertices[:,0], mesh_tf_vertices[:,1], mesh_tf_vertices[:,2], c=color, s=size)
 
-def plot_grasp(grasp, T, color='c', size=1, n=25):
+def plot_grasp(grasp, T, color='c', size=1, n=25, fig=None):
     """ Plots a grasp object in pose T """
-    ax = plt.gca(projection = '3d')
+    if fig is None:
+        ax = plt.gca(projection = '3d')
+    else:
+        ax = Axes3D(fig)
     g1, g2 = grasp.endpoints()
     grasp_points = np.c_[np.array(g1), np.array(g2)]
     grasp_points_tf = T.inverse().apply(grasp_points)
@@ -80,13 +88,14 @@ TODO:
 """
 if __name__ == '__main__':
     stp_filename = sys.argv[1]
-    delta_y = float(sys.argv[2])
-    delta_z = float(sys.argv[3])
-    output_dir = sys.argv[4]
+    delta_x = float(sys.argv[2])
+    delta_y = float(sys.argv[3])
+    delta_z = float(sys.argv[4])
+    output_dir = sys.argv[5]
 
     line_width = 6.0
-    alpha = 0.05
-    dim = 0.3
+    alpha = 0.15
+    dim = 0.65
     num_grasps = 1
     save_initial = False
     convert_to_np = True
@@ -96,7 +105,7 @@ if __name__ == '__main__':
 
     # form transformation matrices
     R_stp_cb = np.eye(3)
-    t_stp_cb = np.array([0.0, delta_y, delta_z])
+    t_stp_cb = np.array([delta_x, delta_y, delta_z])
     T_stp_cb = stf.SimilarityTransform3D(pose=tfx.pose(R_stp_cb, -t_stp_cb), from_frame='cb', to_frame='stp')
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(R_stp_obj.T, np.zeros(3)), from_frame='stp', to_frame='obj')
     T_obj_cb = T_obj_stp.dot(T_stp_cb)
@@ -163,6 +172,15 @@ if __name__ == '__main__':
             plt.show()
 
     # convert saved pose matrices to numpy arrays given the new chessboard info
+    R_fg_dg = np.array([[0, 0, -1],
+                        [0, 1, 0],
+                        [1, 0, 0]])
+    R_fcb_dcb = np.array([[0, 1, 0],
+                          [1, 0, 0],
+                          [0, 0, -1]])
+    T_fg_grasp = stf.SimilarityTransform3D(pose=tfx.pose(R_fg_dg, np.zeros(3)), from_frame='grasp', to_frame='fanuc_grasp')
+    T_fcb_cb = stf.SimilarityTransform3D(pose=tfx.pose(R_fcb_dcb, np.zeros(3)), from_frame='cb', to_frame='fanuc_cb')
+
     if convert_to_np:
         file_candidates = os.listdir(output_dir)
         for file_candidate in file_candidates:
@@ -171,16 +189,18 @@ if __name__ == '__main__':
                 T_grasp_stp = stf.SimilarityTransform3D()
                 T_grasp_stp.load(os.path.join(output_dir, file_candidate))
                 
-                print T_grasp_stp.pose.matrix
-
-                T_grasp_cb = T_grasp_stp.dot(T_stp_cb)
+                T_fg_fcb = T_fg_grasp.dot(T_grasp_stp).dot(T_stp_cb).dot(T_fcb_cb.inverse())
                          
                 print 'Plotting grasp from', file_candidate
-                plot_pose(T_cb_world, alpha=alpha)
+                fig = plt.figure()
+                ax = Axes3D(fig)
+                plot_pose(T_cb_world, alpha=alpha, ax=ax)
                 #plot_pose(T_stp_cb, alpha=alpha)
-                plot_pose(T_grasp_cb, alpha=alpha)
+                plot_pose(T_fg_fcb, alpha=alpha, ax=ax)
 
-                ax = plt.gca(projection = '3d')
+                T_fg_fcb.inverse().save_pose_csv(os.path.join(output_dir, root+'.csv'))
+                
+                #ax = plt.gca(projection = '3d')
                 ax.set_xlim3d(-dim, dim)
                 ax.set_ylim3d(-dim, dim)
                 ax.set_zlim3d(-dim, dim)
