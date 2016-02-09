@@ -1,29 +1,29 @@
 from numpy import pi
-class ZekeState:
+class IzzyState:
 
     NUM_STATES = 5
-    NAME = "Zeke"
-    
+    NAME = "Izzy"
+        
     #For the two offsets below, actual angle = desired angle + OFFSET
     PHI = 0.235  #izzy arm rotation angle offset to make calculations easier.
     THETA = -0.16 #izzy wrist rotation 0 degree offset.
-    
-    ZEKE_ARM_ORIGIN_OFFSET = 0.51
-    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.42
-    
-    # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
+        
+    IZZY_ARM_ORIGIN_OFFSET = -0.51
+    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.42
+        
+    # Rotation, Elevation, Extension, Wrist rotation, Grippers
     
     @staticmethod
     def INIT_STATE():
-        return ZekeState([3.49, 0.01, 0.01, 0.53, 0, 0])
+        return IzzyState([3.49, 0.01, 0.01, 0.53, 0, 0])
         
     @staticmethod
     def MIN_STATE():
-        return ZekeState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
+        return IzzyState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
         
     @staticmethod
     def MAX_STATE():
-        return ZekeState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
+        return IzzyState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
     
     @staticmethod
     def is_rot(i):
@@ -42,7 +42,7 @@ class ZekeState:
             self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip)
             
     def __repr__(self):
-        return "ZekeState([{0}, {1}, {2}, {3}, {4}])".format(
+        return "IzzyState([{0}, {1}, {2}, {3}, {4}])".format(
             self.arm_rot, self.arm_elev, self.arm_ext, self.gripper_rot, self.gripper_grip)
         
     @property
@@ -86,4 +86,4 @@ class ZekeState:
         return self
         
     def copy(self):
-        return ZekeState(self.state[::])
+        return IzzyState(self.state[::])

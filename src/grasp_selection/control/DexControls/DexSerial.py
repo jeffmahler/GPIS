@@ -96,7 +96,7 @@ class _DexSerial(Process):
             self.ser.write(chr((val>>8) & 0xff))
             self.ser.write(chr(val & 0xff))
         
-        if self._State.NAME == "Zeke":
+        if self._State.NAME == "Zeke" or self._State.NAME == "Izzy":
             val = 0
             self.ser.write(chr((val>>24) & 0xff))
             self.ser.write(chr((val>>16) & 0xff))
@@ -151,7 +151,7 @@ class _DexSerial(Process):
         
 class DexSerialInterface:
     
-    def __init__(self, State, comm = "COM3", baudrate=115200, timeout=.01):
+    def __init__(self, State, comm, baudrate=115200, timeout=.01):
         self._comm = comm
         self._baudrate = baudrate
         self._timeout = timeout
@@ -169,7 +169,8 @@ class DexSerialInterface:
         
     def start(self):
         self._dex_serial.start()
-        sleep(DexConstants.INIT_DELAY)
+        if not DexConstants.DEBUG:
+            sleep(DexConstants.INIT_DELAY)
         
     def stop(self):
         self._flags_q.put(("stopping", True))

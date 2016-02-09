@@ -1,6 +1,7 @@
 from DexRobotZeke import DexRobotZeke
 from DexRobotTurntable import DexRobotTurntable
 from TurntableState import TurntableState
+from ZekeState import ZekeState
 from DexConstants import DexConstants
 from DexAngles import DexAngles
 from DexNumericSolvers import DexNumericSolvers
@@ -11,9 +12,6 @@ from copy import deepcopy
 from numpy.linalg import norm
 from time import sleep, time
 import matplotlib.pyplot as plt
-
-import IPython
-import numpy as np
 
 class DexController:
     '''Transformation Controller class. Controls both Zeke and Turntable
@@ -84,7 +82,7 @@ class DexController:
         rotation = array(original_pose.rotation.matrix)
         
         def _angle_2d(u, v):
-            u_norm = u / np.linalg.norm(u)
+            u_norm = u / norm(u)
             R = array([[u_norm[0], u_norm[1]],
                        [-u_norm[1], u_norm[0]]])
             vp = R.dot(v)
@@ -134,7 +132,7 @@ class DexController:
         r = norm(pos)
         #ANGLES using yaw
         phi = angles.yaw
-        d = DexConstants.ZEKE_ARM_ORIGIN_OFFSET
+        d = ZekeState.ZEKE_ARM_ORIGIN_OFFSET
         theta = DexTurntableSolver.solve(r, d, phi)
         
         target_pose.position.x = r * cos(theta)
