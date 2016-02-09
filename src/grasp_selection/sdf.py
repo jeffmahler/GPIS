@@ -475,7 +475,7 @@ class Sdf3D(Sdf):
         logging.debug('Sdf3D: Time to transform coords: %f' %(all_points_t - start_t))
         logging.debug('Sdf3D: Time to transform origin: %f' %(origin_res_t - all_points_t))
         logging.debug('Sdf3D: Time to transfer sd: %f' %(tf_t - origin_res_t))
-        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf, tf = tf.compose(self.tf_))
+        return Sdf3D(sdf_data_tf_grid, origin_tf, resolution_tf, tf = tf.dot(self.tf_))
 
     def transform_pt_obj_to_grid(self, x_sdf, direction = False):
         """ Converts a point in sdf coords to the grid basis. If direction then don't translate """

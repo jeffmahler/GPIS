@@ -336,6 +336,11 @@ class ForceClosureRV:
         self.sample_count_ = self.sample_count_ + 1
         return fc
 
+    def rvs(self, size=1):
+        if size == 1:
+            return self.sample()
+        return [self.sample() for _ in range(size)]
+
 def cartesian_to_spherical(x):
     v = x[0]**2 + x[1]**2
     r = np.sqrt(v + x[2]**2)               # r
