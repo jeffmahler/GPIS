@@ -287,6 +287,10 @@ class ForceClosureRV:
         self._parse_config(config)
         self.sample_count_ = 0
 
+        self.grasp_samples_ = []
+        self.obj_samples_ = []
+        self.friction_samples_ = []
+
     def _parse_config(self, config):
         """ Grab config data from the config file """
         self.num_cone_faces_ = config['num_cone_faces']
@@ -317,22 +321,27 @@ class ForceClosureRV:
         cur_time = time.clock()
         grasp_sample = self.grasp_rv_.rvs(size=1, iteration=self.sample_count_)
         grasp_time = time.clock()
+        self.grasp_samples_.append(grasp_sample)
 
         # sample object
         obj_sample = self.obj_rv_.rvs(size=1, iteration=self.sample_count_)
         obj_time = time.clock()
+        self.obj_samples_.append(obj_sample)
 
         # sample friction cone
         friction_coef_sample = self.friction_coef_rv_.rvs(size=1)
         friction_time = time.clock()
+        self.friction_samples_.append(friction_coef_sample)
 
         #logging.info('Grasp sample time %f'%(grasp_time - cur_time))
         #logging.info('Obj sample time %f'%(obj_time - grasp_time))
         #logging.info('Friction sample time %f'%(friction_time - obj_time))
 
         # compute force closure
-        fc = pgq.PointGraspMetrics3D.grasp_quality(grasp_sample, obj_sample, "force_closure", friction_coef = friction_coef_sample,
-                                                   num_cone_faces = self.num_cone_faces_, soft_fingers = True)
+        fc = pgq.PointGraspMetrics3D.grasp_quality(
+            grasp_sample, obj_sample, "force_closure",
+            friction_coef = friction_coef_sample,
+            num_cone_faces = self.num_cone_faces_, soft_fingers = True)
         self.sample_count_ = self.sample_count_ + 1
         return fc
 
