@@ -53,4 +53,4 @@ class DexStateViewer:
         viewer.monitor(period)
 
 if __name__ == '__main__':
-    DexStateViewer.viewZeke()
+    DexStateViewer.viewIzzy()

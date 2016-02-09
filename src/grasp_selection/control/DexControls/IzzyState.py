@@ -5,8 +5,8 @@ class IzzyState:
     NAME = "Izzy"
         
     #For the two offsets below, actual angle = desired angle + OFFSET
-    PHI = 0.235  #izzy arm rotation angle offset to make calculations easier.
-    THETA = -0.16 #izzy wrist rotation 0 degree offset.
+    PHI = 3.58  #izzy arm rotation angle offset to make calculations easier.
+    THETA = 1.06 #izzy wrist rotation 0 degree offset.
         
     IZZY_ARM_ORIGIN_OFFSET = -0.51
     IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.42
@@ -15,15 +15,15 @@ class IzzyState:
     
     @staticmethod
     def INIT_STATE():
-        return IzzyState([3.49, 0.01, 0.01, 0.53, 0, 0])
+        return IzzyState([3.58, 0.005, 0.001, 2.4, 0.003, 0])
         
     @staticmethod
     def MIN_STATE():
-        return IzzyState([0 , 0.008, 0.008, 0.1665, 0.001, 0])
+        return IzzyState([0.05, 0.008, 0.008, 1.06, 0.0027, 0])
         
     @staticmethod
     def MAX_STATE():
-        return IzzyState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
+        return IzzyState([7.07, 0.32, 0.407, 7.07, 0.038, 2*pi])
     
     @staticmethod
     def is_rot(i):
