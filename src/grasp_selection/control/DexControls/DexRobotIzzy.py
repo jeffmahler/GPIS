@@ -103,7 +103,17 @@ class DexRobotIzzy:
                 return IzzyState.MIN_STATE().gripper_rot
             return rot
                 
+        def _boundArmRot(rot):
+            if rot is None:
+                return None:
+            if rot > pi:
+                return rot - 2*pi
+            if rot < -pi:
+                return rot + 2*pi
+            return rot
+                
         target_state.set_gripper_rot(_boundGripperRot(target_state.gripper_rot))
+        target_state.set_gripper_rot(_boundArmRot(target_state.arm_rot))
         self._ser_int.gotoState(target_state, rot_speed, tra_speed, name)
                 
         self._target_state = target_state.copy()
