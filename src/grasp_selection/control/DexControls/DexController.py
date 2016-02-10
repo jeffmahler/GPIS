@@ -7,7 +7,7 @@ from DexAngles import DexAngles
 from DexNumericSolvers import DexNumericSolvers
 from DexTurntableSolver import DexTurntableSolver
 from tfx import pose, rotation, rotation_tb
-from numpy import pi, array, cos, sin, arccos, dot, ravel
+from numpy import pi, array, cos, sin, arccos, dot, ravel, c_
 from copy import deepcopy
 from numpy.linalg import norm
 from time import sleep, time
@@ -50,7 +50,7 @@ class DexController:
         self._table.reset()
         self._izzy.reset_clear_table()
         #wait til completed
-        while not self._table.is_action_complete():
+        while not self._table.is_action_complete() or not self._izzy.is_action_complete():
             sleep(0.01)
         
         #for debugging plot
@@ -62,7 +62,7 @@ class DexController:
         target_obj_angle = aligned_obj_angle - original_obj_angle
         if target_obj_angle < 0:
             target_obj_angle += 2*pi
-        target_table_state = TurntableState().set_table_rot(target_obj_angle + DexRobotTurntable.THETA)
+        target_table_state = TurntableState().set_table_rot(target_obj_angle + TurntableState.THETA)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
         
         #wait til completed
@@ -199,17 +199,13 @@ class _STF:
     def __init__(self, pose):
         self.pose = pose
        
-def test(phi):
-
-    target = pose((0.05, 0.05, 0.05), rotation_tb(phi, 90, 0), frame = DexConstants.WORLD_FRAME)
+def test():
+    isqrt2 = 1 / 1.414
+    pos = (0.05, 0.05, 0.1)
+    rot = c_[[isqrt2, isqrt2, 0], c_[[-isqrt2, isqrt2, 0], [0,0,1]]]
+    target = _STF(pose(pos, rot, frame = DexConstants.WORLD_FRAME))
 
     t = DexController()
-    t._table.reset()
     t.do_grasp(target)
-    raised = target.copy()
-    raised.position.z = 0.25
-    sleep(0.1)
-    t._izzy.transform(raised, "Raised")
-    t.plot_approach_angle()
-    t._izzy.plot()
-    t.stop()
+    
+    return t
