@@ -18,7 +18,7 @@ class IzzyState:
         
     @staticmethod
     def MIN_STATE():
-        return IzzyState([1.29, 0.00556, 0.0185, 1.06, 0.008, 0])
+        return IzzyState([1.29, 0.00556, 0.0185, 1.06, 0.00899, 0])
         
     @staticmethod
     def MAX_STATE():

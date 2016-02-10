@@ -16,11 +16,11 @@ class DexRobotIzzy:
     Abstraction for a robot profile for Izzy.
     '''
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET" : IzzyState([pi + IzzyState.PHI, 0.1, 0.02, None, 0.036, 0]),
-                                "GRIPPER_RESET" : IzzyState([None, None, None, IzzyState.THETA + pi/2, None, None]),
-                                 "IZZY_RESET_SHUTTER_FREE" : IzzyState([None, 0.01, None, None, None, None]), 
-                                "IZZY_RESET" : IzzyState([None, None, 0.01, None, None, None]),
-                                "IZZY_RESET_CLEAR_TABLE" : IzzyState([1.5 * pi + IzzyState.PHI, None, None, None, None, None])}
+    RESET_STATES = {"GRIPPER_SAFE_RESET" : IzzyState([IzzyState.PHI, 0.1, 0.02, None, 0.01]),
+                                "GRIPPER_RESET" : IzzyState([None, None, None, IzzyState.THETA + pi/2, None]),
+                                 "IZZY_RESET_SHUTTER_FREE" : IzzyState([None, 0.00556, None, None, None]), 
+                                "IZZY_RESET" : IzzyState([None, None, 0.0185, None, None]),
+                                "IZZY_RESET_CLEAR_TABLE" : IzzyState([-pi/2 + IzzyState.PHI, None, None, None, None])}
     
     IZZY_LOCAL_T = transform(
                                             vector(-IzzyState.IZZY_ARM_ORIGIN_OFFSET, 0, 0),
@@ -105,7 +105,7 @@ class DexRobotIzzy:
                 
         def _boundArmRot(rot):
             if rot is None:
-                return None:
+                return None
             if rot > pi:
                 return rot - 2*pi
             if rot < -pi:
