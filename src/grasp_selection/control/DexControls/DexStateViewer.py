@@ -38,12 +38,12 @@ class DexStateViewer:
         return self._State(sensorVals)
         
     @staticmethod
-    def viewZeke(period = 10, comm = DexConstants.ZEKE_COMM):
+    def viewZeke(period = 300, comm = DexConstants.ZEKE_COMM):
         viewer = DexStateViewer(ZekeState, comm)
         viewer.monitor(period)
         
     @staticmethod
-    def viewIzzy(period = 10, comm = DexConstants.IZZY_COMM):
+    def viewIzzy(period = 300, comm = DexConstants.IZZY_COMM):
         viewer = DexStateViewer(IzzyState, comm)
         viewer.monitor(period)
         

@@ -17,10 +17,11 @@ class DexRobotZeke:
     '''
     
     RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([pi + ZekeState.PHI, 0.1, 0.02, None, 0.036, 0]),
-                                "GRIPPER_RESET" : ZekeState([None, None, None, ZekeState.THETA + pi/2, None, None]),
-                                 "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None, None]), 
-                                "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None, None]),
-                                "ZEKE_RESET_CLEAR_TABLE" : ZekeState([1.5 * pi + ZekeState.PHI, None, None, None, None, None])}
+                    "GRIPPER_RESET" : ZekeState([None, None, None, ZekeState.THETA + pi/2, None, None]),
+                    "OBJECT_RESET" : ZekeState([pi / 2 + ZekeState.PHI, 0.1, 0.0, None, None, None]),
+                    "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None, None]), 
+                    "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None, None]),
+                    "ZEKE_RESET_CLEAR_TABLE" : ZekeState([1.5 * pi + ZekeState.PHI, None, None, None, None, None])}
     
     ZEKE_LOCAL_T = transform(
                             vector(-ZekeState.ZEKE_ARM_ORIGIN_OFFSET, 0, 0),
@@ -43,6 +44,9 @@ class DexRobotZeke:
     def reset_clear_table(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.reset(rot_speed, tra_speed)
         #self.gotoState(DexRobotZeke.RESET_STATES["ZEKE_RESET_CLEAR_TABLE"], rot_speed, tra_speed, "Reset Clear Table")
+
+    def reset_object(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+        self.gotoState(DexRobotZeke.RESET_STATES["OBJECT_RESET"], rot_speed, tra_speed, "Reset Object")
             
     def stop(self):
         self._ser_int.stop()
@@ -90,6 +94,9 @@ class DexRobotZeke:
         
     def gotoState(self, target_state, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, name = None):
 
+        print 'STATE'
+        print target_state
+
         def _boundGripperRot(rot):
             if rot is None:
                 return None
@@ -135,6 +142,9 @@ class DexRobotZeke:
             raise Exception("Can't perform rotation about x-axis on Zeke's gripper: "  + str(target_pose.rotation.euler))
             
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state, angles)
+
+        print 'TARGET STATE'
+        print target_state
 
         aim_state = target_state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext)
         

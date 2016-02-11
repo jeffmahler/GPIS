@@ -11,17 +11,20 @@ from time import sleep
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+import numpy as np
+
 class DexRobotIzzy:
     '''
     Abstraction for a robot profile for Izzy.
     '''
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET" : IzzyState([IzzyState.PHI, 0.1, 0.02, None, 0.01]),
-                                #TODO: change wrist rot to IzzyState.THETA + pi/2 when gripper wrist is working
-                                "GRIPPER_RESET" : IzzyState([None, None, None, None, None]),
-                                 "IZZY_RESET_SHUTTER_FREE" : IzzyState([None, 0.00556, None, None, None]), 
-                                "IZZY_RESET" : IzzyState([None, None, 0.0185, None, None]),
-                                "IZZY_RESET_CLEAR_TABLE" : IzzyState([-pi/2 + IzzyState.PHI, None, None, None, None])}
+    RESET_STATES = {"GRIPPER_SAFE_RESET" : IzzyState([IzzyState.PHI, 0.00556, 0.0185, None, 0.01]),
+                    #TODO: change wrist rot to IzzyState.THETA + pi/2 when gripper wrist is working
+                    "GRIPPER_RESET" : IzzyState([None, None, None, None, None]),
+                    "OBJECT_RESET" : IzzyState([-pi / 2 + IzzyState.PHI, 0.1, 0.0, None, None]),
+                    "IZZY_RESET_SHUTTER_FREE" : IzzyState([None, 0.00556, None, None, None]), 
+                    "IZZY_RESET" : IzzyState([None, None, 0.0185, None, None]),
+                    "IZZY_RESET_CLEAR_TABLE" : IzzyState([-pi/2 + IzzyState.PHI, None, None, None, None])}
     
     IZZY_LOCAL_T = transform(
                                             vector(-IzzyState.IZZY_ARM_ORIGIN_OFFSET, 0, 0),
@@ -37,14 +40,17 @@ class DexRobotIzzy:
     
     def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotIzzy.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
-        self.gotoState(DexRobotIzzy.RESET_STATES["GRIPPER_RESET"], rot_speed, tra_speed, "Gripper Reset")
-        self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET_SHUTTER_FREE"], rot_speed, tra_speed, "Reset Shutter Free")
-        self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET"], rot_speed, tra_speed, "Reset Complete")
+        #self.gotoState(DexRobotIzzy.RESET_STATES["GRIPPER_RESET"], rot_speed, tra_speed, "Gripper Reset")
+        #self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET_SHUTTER_FREE"], rot_speed, tra_speed, "Reset Shutter Free")
+        #self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET"], rot_speed, tra_speed, "Reset Complete")
             
     def reset_clear_table(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.reset(rot_speed, tra_speed)
         #self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET_CLEAR_TABLE"], rot_speed, tra_speed, "Reset Clear Table")
             
+    def reset_object(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+        self.gotoState(DexRobotIzzy.RESET_STATES["OBJECT_RESET"], rot_speed, tra_speed, "Reset Object")
+
     def stop(self):
         self._ser_int.stop()
         
@@ -74,9 +80,23 @@ class DexRobotIzzy:
         y = target_pose.position.y
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
         
+        print 'Pose to State'
+        print x
+        print y
+        print theta
+        
+        target_theta = theta + IzzyState.PHI
+        if target_theta > 2 * np.pi:
+            target_theta = target_theta - 2 * np.pi
+
+        target_elev = target_pose.position.z - IzzyState.DELTA_Z
+        if target_elev < 0.0:
+            print 'Too low'
+            target_elev = 0.0
+
         state = IzzyState()
-        state.set_arm_rot(theta + IzzyState.PHI)
-        state.set_arm_elev(target_pose.position.z)
+        state.set_arm_rot(target_theta)
+        state.set_arm_elev(target_elev)
         state.set_arm_ext(norm([x, y]) - IzzyState.IZZY_ARM_TO_GRIPPER_TIP_LENGTH)
 
         #ANGLES using pitch
@@ -114,7 +134,7 @@ class DexRobotIzzy:
         target_state.set_gripper_rot(target_state.gripper_rot)
         target_state.set_arm_rot(_boundArmRot(target_state.arm_rot))
         self._ser_int.gotoState(target_state, rot_speed, tra_speed, name)
-                
+
         self._target_state = target_state.copy()
 
     def transform(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
@@ -144,19 +164,37 @@ class DexRobotIzzy:
             raise Exception("Can't perform rotation about x-axis on Izzy's gripper: "  + str(target_pose.rotation.euler))
             
         target_state = DexRobotIzzy.pose_to_state(target_pose, self._target_state, angles)
+        target_state.set_gripper_grip(IzzyState.MAX_STATE().gripper_grip)
+
+        print 'Aiming for state'
+        print target_state
 
         aim_state = target_state.copy().set_arm_ext(IzzyState.MIN_STATE().arm_ext)
         
+        print 'Ungripping'
         self.unGrip()
         while not self.is_action_complete():
             sleep(0.01)
+        sleep(2)
+
+        print 'Aiming'
         self.gotoState(aim_state, rot_speed, tra_speed, name + "_aim")
+        while not self.is_action_complete():
+            sleep(0.01)
+        sleep(2)
+
+        print 'Executing'
         self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
 
         while not self.is_action_complete():
             sleep(0.01)
+        sleep(2)
             
+        print 'Gripping'
         self.grip()
+        while not self.is_action_complete():
+            sleep(0.01)
+        sleep(2)
         
     def _state_FK(self, state):
         arm_angle = state.arm_rot - IzzyState.PHI

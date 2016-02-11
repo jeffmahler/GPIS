@@ -13,6 +13,13 @@ from numpy.linalg import norm
 from time import sleep, time
 import matplotlib.pyplot as plt
 
+import numpy as np
+import sys
+sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection')
+
+import similarity_tf as stf
+import tfx
+
 class DexController:
     '''Transformation Controller class. Controls both Izzy and Turntable
     '''
@@ -27,6 +34,9 @@ class DexController:
             
         self._izzy = izzy
         self._table = table
+
+    def __del__(self):
+        self.stop()
 
     def do_grasp(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
      
@@ -52,6 +62,7 @@ class DexController:
         #wait til completed
         while not self._table.is_action_complete() or not self._izzy.is_action_complete():
             sleep(0.01)
+        sleep(2)
         
         #for debugging plot
         self._latest_pose = target_pose.copy()
@@ -68,6 +79,7 @@ class DexController:
         #wait til completed
         while not self._table.is_action_complete():
             sleep(0.01)
+        sleep(2)
         
         print "Executing Grasp..."
         #transform target_pose to izzy 
@@ -108,13 +120,13 @@ class DexController:
         x_axis_grasp = ravel(rotation[:,0])
         proj_x_axis_grasp = x_axis_grasp.copy()
         proj_x_axis_grasp[2] = 0
+        #psi = _angle_3d(x_axis_grasp, proj_x_axis_grasp) + pi / 2
         proj_x_axis_grasp = dot(rotation.T, proj_x_axis_grasp).ravel()
         x_axis_grasp = dot(rotation.T, x_axis_grasp).ravel()
 
         u_x = array([x_axis_grasp[0], x_axis_grasp[2]])
         v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
         psi = _angle_2d(u_x, v_x) + pi / 2
-
         print 'Psi', psi
         
         #gamma is angle between the y-axis of the grasp in world frame and the table's xy plane
@@ -124,6 +136,7 @@ class DexController:
         gamma = _angle_3d(proj_y_axis_grasp, y_axis_grasp)
         
         print 'Gamma', gamma
+        #IPython.embed()
 
         return original_pose, DexAngles(phi, psi, gamma)
         
@@ -138,9 +151,19 @@ class DexController:
         target_pose.position.x = r * cos(theta)
         target_pose.position.y = r * sin(theta)
 
+        print 'Target XY Pos'
+        print target_pose.position.x
+        print target_pose.position.y
+        print theta
+
     def reset(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._table.reset()
         self._izzy.reset()
+
+    def reset_object(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
+        """ Reset function specific to object placements """
+        self._table.reset()
+        self._izzy.reset_object()
                 
     def stop(self):
         self._table.stop()
@@ -190,22 +213,79 @@ class DexController:
         soa =array([v_arm, v_obj, v_grasp, v_obj_o, v_grasp_o]) 
         X,Y,U,V = zip(*soa)
         axis.quiver(X,Y,U,V,angles='xy',scale_units='xy',scale=1)
-        
+
         plt.draw()
         plt.show()
        
-class _STF:
+def test_state():
+    target_state = IzzyState()
+    target_state.set_arm_ext(-IzzyState.IZZY_ARM_ORIGIN_OFFSET - IzzyState.IZZY_ARM_TO_GRIPPER_TIP_LENGTH)
+    target_state.set_arm_rot(IzzyState.PHI)
+    target_state.set_gripper_grip(0.037)
+    print 'Target'
+    print target_state
 
-    def __init__(self, pose):
-        self.pose = pose
-       
-def test():
-    isqrt2 = 1 / 1.414
-    pos = (0.05, 0.05, 0.1)
-    rot = c_[[isqrt2, isqrt2, 0], c_[[-isqrt2, isqrt2, 0], [0,0,1]]]
-    target = _STF(pose(pos, rot, frame = DexConstants.WORLD_FRAME))
+    t = DexController()
+    t._table.reset()
+    t._izzy.gotoState(target_state)
+    while not t._izzy.is_action_complete():
+        sleep(0.01)
+    sleep(3)
+
+def test_state_sequence():
+    target_state = IzzyState()
+    target_state.set_arm_ext(-IzzyState.IZZY_ARM_ORIGIN_OFFSET - IzzyState.IZZY_ARM_TO_GRIPPER_TIP_LENGTH)
+    target_state.set_arm_rot(IzzyState.PHI)
+    target_state.set_gripper_grip(IzzyState.MIN_STATE().gripper_grip)
+    print 'Target'
+    print target_state
+
+    t = DexController()
+    t._izzy.gotoState(target_state)
+    while not t._izzy.is_action_complete():
+        sleep(0.01)
+    sleep(3)
+
+    target_state.set_arm_rot(3.123)
+    print 'Target'
+    print target_state
+
+    t._izzy.gotoState(target_state)
+    while not t._izzy.is_action_complete():
+        sleep(0.01)
+    sleep(3)
+
+    target_state.set_arm_rot(4.04)
+    print 'Target'
+    print target_state
+
+    t._izzy.gotoState(target_state)
+    while not t._izzy.is_action_complete():
+        sleep(0.01)
+    sleep(3)
+
+    target_state.set_arm_rot(IzzyState.PHI)
+    print 'Target'
+    print target_state
+
+    t._izzy.gotoState(target_state)
+    while not t._izzy.is_action_complete():
+        sleep(0.01)
+    sleep(3)
+
+def test_grasp():
+    theta = 6 * np.pi / 4.0
+    t = np.array([0.05, 0.05, 0.05])
+    R = np.array([[np.cos(theta), -np.sin(theta), 0],
+                  [np.sin(theta), np.cos(theta), 0],
+                  [0, 0, 1]])
+    target = stf.SimilarityTransform3D(pose=tfx.pose(R, t), scale=1.0)
 
     t = DexController()
     t.do_grasp(target)
-    
+    t.plot_approach_angle()
+
     return t
+
+if __name__ == '__main__':
+    t = test_grasp()

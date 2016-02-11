@@ -5,11 +5,12 @@ class IzzyState:
     NAME = "Izzy"
         
     #For the two offsets below, actual angle = desired angle + OFFSET
-    PHI = 3.58  #izzy arm rotation angle offset to make calculations easier.
+    PHI = 3.59  #izzy arm rotation angle offset to make calculations easier.
     THETA = 1.06 #izzy wrist rotation 0 degree offset.
+    DELTA_Z = 0.049 #izzy arm 0 elevation in world coordinates
         
-    IZZY_ARM_ORIGIN_OFFSET = -0.50
-    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.42
+    IZZY_ARM_ORIGIN_OFFSET = -0.502
+    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.395
 
     # Rotation, Elevation, Extension, Wrist rotation, Grippers
     @staticmethod
@@ -18,7 +19,7 @@ class IzzyState:
         
     @staticmethod
     def MIN_STATE():
-        return IzzyState([1.29, 0.00556, 0.0185, 1.06, 0.00899, 0])
+        return IzzyState([1.29, 0.00556, 0.0185, 1.06, 0.003, 0])
         
     @staticmethod
     def MAX_STATE():
@@ -49,7 +50,10 @@ class IzzyState:
         return self.state[0]
         
     def set_arm_rot(self, val):
-        self.state[0] = val
+        if val is not None:
+            self.state[0] = val
+        else:
+            self.state[0] = val
         return self
         
     @property
@@ -73,7 +77,10 @@ class IzzyState:
         return self.state[3]
         
     def set_gripper_rot(self, val):
-        self.state[3] = val
+        if val is not None:
+            self.state[3] = val
+        else:
+            self.state[3] = val
         return self
         
     @property

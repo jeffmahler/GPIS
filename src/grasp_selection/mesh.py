@@ -12,6 +12,7 @@ import sys
 import tfx
 
 import camera_params as cp
+import colorsys
 import obj_file
 try:
     import mayavi.mlab as mv
@@ -215,7 +216,7 @@ class Mesh3D(object):
         self.inertia_ = self.density_ * (np.trace(C) * np.eye(3) - C)
 
     def compute_normals(self):
-        """ Get normals from triangles cause fuck it"""
+        """ Get normals from triangles"""
         vertex_array = np.array(self.vertices_)
         tri_array = np.array(self.triangles_)
         self.normals_ = []
@@ -242,6 +243,41 @@ class Mesh3D(object):
         ip = (vertex_array - np.tile(hull_vertex, [vertex_array.shape[0], 1])).dot(n)
         if ip[0] > 0:
             self.normals_ = [[-n[0], -n[1], -n[2]] for n in self.normals_]
+
+    def tri_centers(self):
+        """ Return a list of the triangle centers as 3D points """
+        centers = []
+        for tri in self.triangles_:
+            v = np.array([self.vertices_[tri[0]], self.vertices_[tri[1]], self.vertices_[tri[2]]])
+            center = np.mean(v, axis=0)
+            centers.append(center.tolist())
+        return centers
+
+    def tri_normals(self):
+        """ Return a list of the triangle normals """
+        vertex_array = np.array(self.vertices_)
+        normals = []
+        for tri in self.triangles_:
+            v0 = vertex_array[tri[0],:]
+            v1 = vertex_array[tri[1],:]
+            v2 = vertex_array[tri[2],:]
+            n = np.cross(v1 - v0, v2 - v0)
+            n = n / np.linalg.norm(n)
+            normals.append(n.tolist())
+
+        # reverse normal based on alignment with convex hull
+        tri_centers = self.tri_centers()
+        hull = ss.ConvexHull(tri_centers)
+        hull_tris = hull.simplices.tolist()
+        hull_vertex_ind = hull_tris[0][0]
+        hull_vertex = tri_centers[hull_vertex_ind]
+        hull_vertex_normal = normals[hull_vertex_ind]
+        v = np.array(hull_vertex).reshape([1,3])
+        n = np.array(hull_vertex_normal)
+        ip = (np.array(tri_centers) - np.tile(hull_vertex, [np.array(tri_centers).shape[0], 1])).dot(n)
+        if ip[0] > 0:
+            normals = [[-n[0], -n[1], -n[2]] for n in normals]
+        return normals
 
     def get_total_volume(self):
         total_volume = 0
@@ -472,6 +508,19 @@ class Mesh3D(object):
         surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation=style,
                                      color=color)
         return surface
+
+    def visualize_segments(self, tri_labels, style='surface'):
+        """ Plots visualization """
+        vertex_array = np.array(self.vertices_)
+        tri_array = np.array(self.triangles_)
+        num_segments = np.max(tri_labels)+1
+        color_delta = 1.0 / num_segments
+        colors = []
+        for j in range(num_segments):
+            colors.append(colorsys.hsv_to_rgb(j*color_delta, 0.9, 0.9))
+            tris_segment = tri_array[np.where(tri_labels==j)[0],:]
+            surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], tris_segment, representation=style,
+                                         color=colors[-1])
 
     def create_json_metadata(self):
         return {

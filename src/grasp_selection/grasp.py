@@ -408,7 +408,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         pose_gripper_center_rot = tfx.transform(R_gripper_center, t_gripper_center)
 
         pose_gripper_ref = pose_center_ref.apply(pose_center_rot_center).apply(pose_gripper_center_rot)
-        return stf.SimilarityTransform3D(pose=tfx.pose(pose_gripper_ref), scale=1.0, from_frame='obj', to_frame='grasp')
+        return stf.SimilarityTransform3D(pose=tfx.pose(pose_gripper_ref), scale=1.0, from_frame='grasp', to_frame='obj')
         
     def _angle_aligned_with_stable_pose(self, stable_pose):
         '''
