@@ -9,8 +9,9 @@ class DexConstants:
     PRINT_STATES = False
     LOGGING = True
 
-    COMM = "/dev/ttyACM1"
-    TABLE_COMM = "/dev/ttyACM0"
+    ZEKE_COMM = "COM3"
+    TABLE_COMM = "COM4"
+    IZZY_COMM = "COM5"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01
 
@@ -20,10 +21,8 @@ class DexConstants:
     ROBOT_OP_TIMEOUT = 2
 
     ZEKE_LOCAL_FRAME = "ZEKE_LOCAL_FRAME"
+    IZZY_LOCAL_FRAME = "IZZY_LOCAL_FRAME"
     WORLD_FRAME = "WORLD_FRAME"
-    
-    ZEKE_ARM_ORIGIN_OFFSET = 0.51
-    ZEKE_ARM_TO_GRIPPER_TIP_OFFSET = 0.42
     
     MAX_ROT_SPEED = pi/180*150 #150 degrees per second maximum rotation
     MAX_TRA_SPEED = 0.3 #30cm per second maximum translation

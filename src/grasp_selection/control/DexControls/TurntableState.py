@@ -3,6 +3,9 @@ class TurntableState:
 
     NUM_STATES = 1
     NAME = "Turntable"
+    
+    #actual angle = desired angle + OFFSET
+    THETA = 0.4819 #turntable rotation 0 degree offset.
                 
     @staticmethod
     def INIT_STATE():

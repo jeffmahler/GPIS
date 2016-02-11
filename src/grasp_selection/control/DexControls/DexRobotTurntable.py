@@ -14,12 +14,11 @@ class DexRobotTurntable:
     Abstraction for a robot profile. Contains all information specific
     to the Turntable robot
     '''
-
-    #actual angle = desired angle + OFFSET
-    THETA = 0.4819 #turntable rotation 0 degree offset.
+    
+    #only for visualization purposes.
     _RADIUS = 5
     
-    RESET_STATE = TurntableState([THETA])
+    RESET_STATE = TurntableState([TurntableState.THETA])
 
     def __init__(self, comm = DexConstants.TABLE_COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         self._turntable= DexSerialInterface(TurntableState, comm, baudrate, timeout)      
@@ -53,26 +52,10 @@ class DexRobotTurntable:
         target_state.set_table_rot(_boundTurntableRot(target_state.table_rot))
         self._turntable.gotoState(target_state, rot_speed, tra_speed, name)
         self._target_state = target_state.copy()
-
-    @staticmethod
-    def pose_to_state(target_pose, angles = None):
-        #ANGLES using yaw
-        if angles is None:
-            phi = target_pose.rotation.tb_angles.yaw_rad
-        else:
-            phi = angles.yaw
-        phi = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
-        print 'Phi', phi
-        return TurntableState().set_table_rot(phi + DexRobotTurntable.THETA)
-        
+ 
     def _state_FK(self, state):
         return (DexRobotTurntable._RADIUS * cos(state.table_rot), DexRobotTurntable._RADIUS * sin(state.table_rot), 0)
-        
-    def transform(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
-        target_state = DexRobotTurntable.pose_to_state(target_pose, angles)
-        
-        self.gotoState(target_state, rot_speed, tra_speed, name)
-        
+         
     def maintainState(self, s):
         self._turntable.maintainState(s)
         

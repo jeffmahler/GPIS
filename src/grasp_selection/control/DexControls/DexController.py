@@ -1,33 +1,31 @@
-from DexRobotZeke import DexRobotZeke
+from DexRobotIzzy import DexRobotIzzy
 from DexRobotTurntable import DexRobotTurntable
 from TurntableState import TurntableState
+from IzzyState import IzzyState
 from DexConstants import DexConstants
 from DexAngles import DexAngles
 from DexNumericSolvers import DexNumericSolvers
 from DexTurntableSolver import DexTurntableSolver
 from tfx import pose, rotation, rotation_tb
-from numpy import pi, array, cos, sin, arccos, dot, ravel
+from numpy import pi, array, cos, sin, arccos, dot, ravel, c_
 from copy import deepcopy
 from numpy.linalg import norm
 from time import sleep, time
 import matplotlib.pyplot as plt
 
-import IPython
-import numpy as np
-
 class DexController:
-    '''Transformation Controller class. Controls both Zeke and Turntable
+    '''Transformation Controller class. Controls both Izzy and Turntable
     '''
     
-    def __init__(self, zeke = None, table = None):
-        if zeke is None:
-            print "Initialization Zeke..."
-            zeke = DexRobotZeke()
+    def __init__(self, izzy = None, table = None):
+        if izzy is None:
+            print "Initialization Izzy..."
+            izzy = DexRobotIzzy()
         if table is None:
             print "Initialization Table..."
             table = DexRobotTurntable()
             
-        self._zeke = zeke
+        self._izzy = izzy
         self._table = table
 
     def do_grasp(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
@@ -48,11 +46,11 @@ class DexController:
         print 'Aligned Theta', aligned_obj_angle
 
         print "Reseting Table Rotation..."
-        #reset zeke to clear-table-rotation position
+        #reset izzy to clear-table-rotation position
         self._table.reset()
-        self._zeke.reset_clear_table()
+        self._izzy.reset_clear_table()
         #wait til completed
-        while not self._table.is_action_complete():
+        while not self._table.is_action_complete() or not self._izzy.is_action_complete():
             sleep(0.01)
         
         #for debugging plot
@@ -64,7 +62,7 @@ class DexController:
         target_obj_angle = aligned_obj_angle - original_obj_angle
         if target_obj_angle < 0:
             target_obj_angle += 2*pi
-        target_table_state = TurntableState().set_table_rot(target_obj_angle + DexRobotTurntable.THETA)
+        target_table_state = TurntableState().set_table_rot(target_obj_angle + TurntableState.THETA)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
         
         #wait til completed
@@ -72,8 +70,8 @@ class DexController:
             sleep(0.01)
         
         print "Executing Grasp..."
-        #transform target_pose to zeke 
-        self._zeke.transform_aim_extend_grip(target_pose, name, angles, rot_speed, tra_speed)
+        #transform target_pose to izzy 
+        self._izzy.transform_aim_extend_grip(target_pose, name, angles, rot_speed, tra_speed)
         
         return target_pose.copy()
 
@@ -84,7 +82,7 @@ class DexController:
         rotation = array(original_pose.rotation.matrix)
         
         def _angle_2d(u, v):
-            u_norm = u / np.linalg.norm(u)
+            u_norm = u / norm(u)
             R = array([[u_norm[0], u_norm[1]],
                        [-u_norm[1], u_norm[0]]])
             vp = R.dot(v)
@@ -134,7 +132,7 @@ class DexController:
         r = norm(pos)
         #ANGLES using yaw
         phi = angles.yaw
-        d = DexConstants.ZEKE_ARM_ORIGIN_OFFSET
+        d = IzzyState.IZZY_ARM_ORIGIN_OFFSET
         theta = DexTurntableSolver.solve(r, d, phi)
         
         target_pose.position.x = r * cos(theta)
@@ -142,18 +140,18 @@ class DexController:
 
     def reset(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._table.reset()
-        self._zeke.reset()
+        self._izzy.reset()
                 
     def stop(self):
         self._table.stop()
-        self._zeke.stop()
+        self._izzy.stop()
         
     def getState(self):
-        return self._zeke.getState(), self._table.getState()
+        return self._izzy.getState(), self._table.getState()
         
     def pause(self, s):
         self._table.maintainState(s)
-        self._zeke.maintainState(s)
+        self._izzy.maintainState(s)
         
     def plot_approach_angle(self):
         fig = plt.figure()
@@ -196,20 +194,18 @@ class DexController:
         plt.draw()
         plt.show()
        
-def test(phi):
+class _STF:
 
-    origin = pose((0,0,0), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
-    raised = pose((0, 0, 0.15), DexConstants.DEFAULT_GRIPPER_EULER, frame = DexConstants.WORLD_FRAME)
-
-    target = pose((0.05, 0.05, 0.05), rotation_tb(phi, 90, 0), frame = DexConstants.WORLD_FRAME)
+    def __init__(self, pose):
+        self.pose = pose
+       
+def test():
+    isqrt2 = 1 / 1.414
+    pos = (0.05, 0.05, 0.1)
+    rot = c_[[isqrt2, isqrt2, 0], c_[[-isqrt2, isqrt2, 0], [0,0,1]]]
+    target = _STF(pose(pos, rot, frame = DexConstants.WORLD_FRAME))
 
     t = DexController()
-    t._table.reset()
     t.do_grasp(target)
-    raised = target.copy()
-    raised.position.z = 0.25
-    sleep(0.1)
-    t._zeke.transform(raised, "Raised")
-    t.plot_approach_angle()
-    t._zeke.plot()
-    t.stop()
+    
+    return t

@@ -3,10 +3,11 @@ from DexConstants import DexConstants
 from time import sleep, time
 from ZekeState import ZekeState
 from TurntableState import TurntableState
+from IzzyState import IzzyState
 
 class DexStateViewer:
 
-    def __init__(self, State, comm = DexConstants.COMM, baudrate=115200, timeout=.01):
+    def __init__(self, State, comm, baudrate=115200, timeout=.01):
         self.ser = Serial(comm, baudrate)
         #self.ser.setTimeout(timeout)
         self._State = State
@@ -25,7 +26,7 @@ class DexStateViewer:
         
         num_vals = self._State.NUM_STATES
         
-        if self._State.NAME == "Zeke":
+        if self._State.NAME == "Zeke" or self._State.NAME == "IZZY":
             num_vals = 6
         
         for i in range(num_vals):
@@ -37,8 +38,13 @@ class DexStateViewer:
         return self._State(sensorVals)
         
     @staticmethod
-    def viewZeke(period = 10, comm = DexConstants.COMM):
+    def viewZeke(period = 10, comm = DexConstants.ZEKE_COMM):
         viewer = DexStateViewer(ZekeState, comm)
+        viewer.monitor(period)
+        
+    @staticmethod
+    def viewIzzy(period = 10, comm = DexConstants.IZZY_COMM):
+        viewer = DexStateViewer(IzzyState, comm)
         viewer.monitor(period)
         
     @staticmethod
@@ -47,4 +53,4 @@ class DexStateViewer:
         viewer.monitor(period)
 
 if __name__ == '__main__':
-    DexStateViewer.viewZeke()
+    DexStateViewer.viewIzzy()
