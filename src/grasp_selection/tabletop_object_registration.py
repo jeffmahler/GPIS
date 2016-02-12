@@ -38,14 +38,17 @@ import tfx
 
 class DatabaseRegistrationResult:
     """ Struct to hold relevant output of registering an object from Dex-Net to real data """
-    def __init__(self, tf_obj_camera, nearest_images, nearest_distances, registration_results, best_index, total_runtime):
-        self.tf_obj_camera = tf_obj_camera
+    def __init__(self, tf_camera_obj, nearest_images, nearest_distances, registration_results, best_index, total_runtime):
+        self.tf_camera_obj = tf_camera_obj
         self.nearest_images = nearest_images
         self.nearest_distances = nearest_distances
         self.best_index = best_index
         self.total_runtime = total_runtime
 
 class TabletopRegistrationSolver:
+    def __init__(self, logging_dir=None):
+        self.logging_dir_ = logging_dir
+    
     def _create_query_image(self, color_im, depth_im, config, debug=False):
         """ Creates the query image for the database indexer """
         # read in params
@@ -106,7 +109,11 @@ class TabletopRegistrationSolver:
             plt.imshow(depth_im_crop, cmap=plt.cm.Greys_r, interpolation='none')
             plt.axis('off')
             plt.title('Cropped raw depth image', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'cropped_depth_image.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
 
         # remove spurious points by finding the largest connected object
         binary_im = ip.DepthImageProcessing.depth_to_binary(depth_im_crop)
@@ -123,9 +130,13 @@ class TabletopRegistrationSolver:
         if debug:
             plt.figure()
             plt.imshow(depth_im_crop_tf, cmap=plt.cm.Greys_r, interpolation='none')
-            plt.axis('off')
+            plt.axis('off')                            
             plt.title('Cropped, centered, and filtered depth image', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'cropped_and_centered_depth_image.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
 
         # compute normals for registration
         camera_c_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], focal_length,
@@ -153,7 +164,11 @@ class TabletopRegistrationSolver:
             plt.imshow(grayscale_im_crop_tf_index, cmap=plt.cm.Greys_r, interpolation='none')
             plt.axis('off')
             plt.title('Grayscale image for indexing', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'query_binary_image.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
         return query_image, query_point_cloud, query_object_normals, camera_i_params, tf_camera_c_camera_p
 
     def _query_database(self, query_image, database_indexer, config, debug=False):
@@ -183,7 +198,12 @@ class TabletopRegistrationSolver:
                 plt.imshow(image.image, cmap=plt.cm.Greys_r, interpolation='none')
                 plt.title('NEIGHBOR %d, DISTANCE = %f' %(j, distance), fontsize=font_size)
                 plt.axis('off')
-            plt.show()
+
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'query_nearest_neighbors.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
         return nearest_images, nearest_distances
 
     def _find_best_transformation(self, query_point_cloud, query_normals, candidate_rendered_images, dataset, config, debug=False):
@@ -279,15 +299,17 @@ class TabletopRegistrationSolver:
         if color_im.shape[0] != depth_im.shape[0] or color_im.shape[1] != depth_im.shape[1]:
             raise ValueError('Color and depth images must have the same dimension')
 
+        debug_or_save = debug or (self.logging_dir_ is not None)
+
         # remove points beyond table
         ip_start = time.time()
         query_image, query_point_cloud, query_normals, camera_c_params, tf_camera_c_camera_p = \
-            self._create_query_image(color_im, depth_im, config, debug=debug)
+            self._create_query_image(color_im, depth_im, config, debug=debug_or_save)
         ip_end = time.time()
 
         # index the database for similar objects
         query_start = time.time()
-        nearest_images, nearest_distances = self._query_database(query_image, database_indexer, config, debug=debug)
+        nearest_images, nearest_distances = self._query_database(query_image, database_indexer, config, debug=debug_or_save)
         query_end = time.time()
 
         # register to the candidates
@@ -321,12 +343,19 @@ class TabletopRegistrationSolver:
             plt.imshow(query_image.image, cmap=plt.cm.Greys_r, interpolation='none')
             plt.scatter(object_mesh_proj_pixels[0,mesh_valid_ind], object_mesh_proj_pixels[1,mesh_valid_ind], s=80, c='r')
             plt.title('Projected object mesh pixels', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'projected_mesh.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
 
         # construct and return output
         return DatabaseRegistrationResult(tf_obj_camera_p, nearest_images, nearest_distances, registration_results, best_index, total_runtime)
 
 class KnownObjectTabletopRegistrationSolver(TabletopRegistrationSolver):
+    def __init__(self, logging_dir = None):
+        TabletopRegistrationSolver.__init__(self, logging_dir)
+
     def register(self, color_im, depth_im, object_key, dataset, config, debug=False):
         """ Create a CNN object indexer for registration """
         cnn_indexer = dbi.CNN_Hdf5ObjectIndexer(object_key, dataset, config)

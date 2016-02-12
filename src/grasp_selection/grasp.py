@@ -134,7 +134,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
     def rotated_full_axis(self):
         if self.rotated_full_axis_ is None:
             R = ParallelJawPtGrasp3D._get_rotation_matrix_y(self.approach_angle)
-            self.rotated_full_axis_ = self.unrotated_full_axis_.dot(R)
+            self.rotated_full_axis_ = self.unrotated_full_axis.dot(R)
         return self.rotated_full_axis_
 
     def gripper_transform(self, gripper='zeke'):

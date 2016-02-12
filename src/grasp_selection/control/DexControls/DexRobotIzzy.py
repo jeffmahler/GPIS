@@ -11,6 +11,7 @@ from time import sleep
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+import logging
 import numpy as np
 
 class DexRobotIzzy:
@@ -40,13 +41,9 @@ class DexRobotIzzy:
     
     def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotIzzy.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
-        #self.gotoState(DexRobotIzzy.RESET_STATES["GRIPPER_RESET"], rot_speed, tra_speed, "Gripper Reset")
-        #self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET_SHUTTER_FREE"], rot_speed, tra_speed, "Reset Shutter Free")
-        #self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET"], rot_speed, tra_speed, "Reset Complete")
             
     def reset_clear_table(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.reset(rot_speed, tra_speed)
-        #self.gotoState(DexRobotIzzy.RESET_STATES["IZZY_RESET_CLEAR_TABLE"], rot_speed, tra_speed, "Reset Clear Table")
             
     def reset_object(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         self.gotoState(DexRobotIzzy.RESET_STATES["OBJECT_RESET"], rot_speed, tra_speed, "Reset Object")
@@ -80,18 +77,18 @@ class DexRobotIzzy:
         y = target_pose.position.y
         theta = DexNumericSolvers.get_cartesian_angle(x, y)
         
-        print 'Pose to State'
-        print x
-        print y
-        print theta
-        
+        logging.debug('Computed robot pose wrt robot base frame: X = %f, Y = %f, Theta = %f' %(x, y, theta))
+
+        # snap theta to valid range
         target_theta = theta + IzzyState.PHI
         if target_theta > 2 * np.pi:
+            logging.info('Decreasing computed rotation') 
             target_theta = target_theta - 2 * np.pi
 
+        # snap grasp to valid range
         target_elev = target_pose.position.z - IzzyState.DELTA_Z
         if target_elev < 0.0:
-            print 'Too low'
+            logging.info('Snapping to valid height') 
             target_elev = 0.0
 
         state = IzzyState()
@@ -166,31 +163,29 @@ class DexRobotIzzy:
         target_state = DexRobotIzzy.pose_to_state(target_pose, self._target_state, angles)
         target_state.set_gripper_grip(IzzyState.MAX_STATE().gripper_grip)
 
-        print 'Aiming for state'
-        print target_state
-
+        logging.info('Izzy goal gripper state:  %s' %(str(target_state)))
         aim_state = target_state.copy().set_arm_ext(IzzyState.MIN_STATE().arm_ext)
         
-        print 'Ungripping'
+        logging.info('Opening grippers')
         self.unGrip()
         while not self.is_action_complete():
             sleep(0.01)
         sleep(2)
 
-        print 'Aiming'
+        logging.info('Aiming Izzy toward goal state')
         self.gotoState(aim_state, rot_speed, tra_speed, name + "_aim")
         while not self.is_action_complete():
             sleep(0.01)
         sleep(2)
 
-        print 'Executing'
+        logging.info('Moving gripper to goal state')
         self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
 
         while not self.is_action_complete():
             sleep(0.01)
         sleep(2)
             
-        print 'Gripping'
+        logging.info('Closing grippers')
         self.grip()
         while not self.is_action_complete():
             sleep(0.01)

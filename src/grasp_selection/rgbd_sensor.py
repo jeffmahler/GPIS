@@ -199,7 +199,7 @@ if __name__ == '__main__':
 
     if vis:
         # read out parameters
-        tf_obj_camera_p = reg_result.tf_obj_camera
+        tf_obj_camera_p = reg_result.tf_camera_obj
         obj = dataset.graspable(object_key)
         object_mesh = obj.mesh
         object_mesh_tf= object_mesh.transform(tf_obj_camera_p)

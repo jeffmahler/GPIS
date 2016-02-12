@@ -9,6 +9,8 @@ from time import sleep
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+import logging
+
 class DexRobotTurntable:
     '''
     Abstraction for a robot profile. Contains all information specific

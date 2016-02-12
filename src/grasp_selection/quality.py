@@ -1,3 +1,7 @@
+"""
+Grasp quality metrics
+Author: Jeff Mahler and Brian Hou
+"""
 import logging
 import numpy as np
 try:

@@ -13,6 +13,7 @@ from numpy.linalg import norm
 from time import sleep, time
 import matplotlib.pyplot as plt
 
+import logging
 import numpy as np
 import sys
 sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection')
@@ -20,16 +21,18 @@ sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection')
 import similarity_tf as stf
 import tfx
 
+# TODO: update with configurable sleep times / actually make the is action complete function work correctly
+
 class DexController:
     '''Transformation Controller class. Controls both Izzy and Turntable
     '''
     
     def __init__(self, izzy = None, table = None):
         if izzy is None:
-            print "Initialization Izzy..."
+            logging.info('Initializing Izzy')
             izzy = DexRobotIzzy()
         if table is None:
-            print "Initialization Table..."
+            logging.info('Initializing Turntable')
             table = DexRobotTurntable()
             
         self._izzy = izzy
@@ -40,23 +43,23 @@ class DexController:
 
     def do_grasp(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
      
-        print "Computing Grasp Angles..."
+        logging.info('Computing grasp angles')
         target_pose, angles = DexController._stf_to_graspable_pose_and_angles(stf)
         self._latest_pose_unprocessed = target_pose.copy()
        
         original_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
  
-        print "Modifying Grasp Pose for Table Rotation..."
         #change target pose to appropriate approach pose
+        logging.info('Modifying grasp pose for table rotation')
         self._set_approach_pose(target_pose, angles)
         
         aligned_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
 
-        print 'Orig Theta', original_obj_angle
-        print 'Aligned Theta', aligned_obj_angle
+        logging.debug('Orig Theta: %f' %original_obj_angle)
+        logging.debug('Aligned Theta %f' %aligned_obj_angle)
 
-        print "Reseting Table Rotation..."
         #reset izzy to clear-table-rotation position
+        logging.info('Reseting table rotation')
         self._table.reset()
         self._izzy.reset_clear_table()
         #wait til completed
@@ -68,8 +71,8 @@ class DexController:
         self._latest_pose = target_pose.copy()
         self._latest_angles = deepcopy(angles)
         
-        print "Rotating Table..."
         #transform target_pose to table
+        logging.info('Rotation table to grasp pose')
         target_obj_angle = aligned_obj_angle - original_obj_angle
         if target_obj_angle < 0:
             target_obj_angle += 2*pi
@@ -81,8 +84,8 @@ class DexController:
             sleep(0.01)
         sleep(2)
         
-        print "Executing Grasp..."
         #transform target_pose to izzy 
+        logging.info('Moving robot to grasp pose')
         self._izzy.transform_aim_extend_grip(target_pose, name, angles, rot_speed, tra_speed)
         
         return target_pose.copy()
@@ -114,7 +117,7 @@ class DexController:
         proj_y_axis_grasp = -ravel(rotation[:2,1])
         phi = _angle_2d(proj_g_t_w, proj_y_axis_grasp)
 
-        print 'Phi', phi
+        logging.debug('Phi: %f' %phi)
         
         #psi is angle between x-axis of the grasp in world frame and the table's xy plane    
         x_axis_grasp = ravel(rotation[:,0])
@@ -127,7 +130,8 @@ class DexController:
         u_x = array([x_axis_grasp[0], x_axis_grasp[2]])
         v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
         psi = _angle_2d(u_x, v_x) + pi / 2
-        print 'Psi', psi
+
+        logging.debug('Psi: %f' %psi)
         
         #gamma is angle between the y-axis of the grasp in world frame and the table's xy plane
         y_axis_grasp = ravel(rotation[:,1])
@@ -135,9 +139,7 @@ class DexController:
         proj_y_axis_grasp[2] = 0
         gamma = _angle_3d(proj_y_axis_grasp, y_axis_grasp)
         
-        print 'Gamma', gamma
-        #IPython.embed()
-
+        logging.debug('Gamma: %f' %gamma)
         return original_pose, DexAngles(phi, psi, gamma)
         
     def _set_approach_pose(self, target_pose, angles):
@@ -151,10 +153,7 @@ class DexController:
         target_pose.position.x = r * cos(theta)
         target_pose.position.y = r * sin(theta)
 
-        print 'Target XY Pos'
-        print target_pose.position.x
-        print target_pose.position.y
-        print theta
+        logging.debug('Target pose relative to table center: X = %f, Y = %f, Theta = %f' %(target_pose.position.x, target_pose.position.y, theta))
 
     def reset(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._table.reset()

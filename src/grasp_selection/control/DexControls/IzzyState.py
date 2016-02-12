@@ -7,10 +7,10 @@ class IzzyState:
     #For the two offsets below, actual angle = desired angle + OFFSET
     PHI = 3.59  #izzy arm rotation angle offset to make calculations easier.
     THETA = 1.06 #izzy wrist rotation 0 degree offset.
-    DELTA_Z = 0.049 #izzy arm 0 elevation in world coordinates
+    DELTA_Z = 0.037 #izzy arm 0 elevation in world coordinates
         
     IZZY_ARM_ORIGIN_OFFSET = -0.502
-    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.395
+    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.392
 
     # Rotation, Elevation, Extension, Wrist rotation, Grippers
     @staticmethod
@@ -28,7 +28,16 @@ class IzzyState:
     @staticmethod
     def is_rot(i):
         return i in (0, 3)
-        
+
+    def to_dict(self):
+        d = {}
+        d['arm_rot'] = self.state[0]
+        d['arm_elev'] = self.state[1]
+        d['arm_ext'] = self.state[2]
+        d['gripper_rot'] = self.state[3]
+        d['gripper_grip'] = self.state[4]
+        return d
+
     @property
     def speeds_ids(self):
         return (1, 0, 0, 1, 0)
