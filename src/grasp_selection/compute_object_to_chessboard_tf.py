@@ -175,9 +175,9 @@ if __name__ == '__main__':
             T_fpg_world = T_fpg_fcb.dot(T_fcb_world)
 
             # save poses
-            filename = 'grasp_%d_end_pose.csv' %(j)
+            filename = 'grasp_%d_end_pose_%d.csv' %(i, j)
             T_fg_fcb.inverse().save_pose_csv(os.path.join(output_dir, filename))
-            filename = 'grasp_%d_mid_pose.csv' %(j)
+            filename = 'grasp_%d_mid_pose_%d.csv' %(i, j)
             T_fpg_fcb.inverse().save_pose_csv(os.path.join(output_dir, filename))
 
             # plot grasp
