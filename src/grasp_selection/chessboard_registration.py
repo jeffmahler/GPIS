@@ -11,6 +11,9 @@ import camera_params as cp
 import experiment_config as ec
 import rgbd_sensor as rs
 
+def ij_to_linear(i, j, width):
+    return i + j.dot(width)
+
 if __name__ == '__main__':
 
     # set up logger
@@ -64,7 +67,7 @@ if __name__ == '__main__':
 
     # get round chessboard ind
     corner_px_round = np.round(corner_px).astype(np.uint16)
-    corner_ind = rs.ij_to_linear(corner_px_round[:,0], corner_px_round[:,1], s.width_)
+    corner_ind = ij_to_linear(corner_px_round[:,0], corner_px_round[:,1], s.width_)
 
     # fit a plane to the chessboard corners
     points_3d_plane = points_3d[:, corner_ind]

@@ -15,7 +15,7 @@ datasets:
 max_chunk_size: 1
 
 #database_dir: &id_database_dir /Volumes/share/shape_data/MASTER_DB_v3
-database_dir: &id_database_dir /Users/jeff/Documents/Research/dex-net/data/db
+database_dir: &id_database_dir /Users/derasagis/DexNet/data/db
 database_cache_dir: *id_database_dir
 database_name: aselab_db.hdf5
 results_database_name: results.hdf5
@@ -60,9 +60,9 @@ lb_alpha: 0.50
 maya:
   path_to_mayapy: '/Applications/Autodesk/maya2015/Maya.app/Contents/bin/mayapy'
 
-  dest_dir: '/Users/jeff/Documents/Research/dex-net/data/rendered_sets/aselab_test'
-  mesh_dir: '/Users/jeff/Documents/Research/dex-net/data/db/aselab'
-  save_images: 0
+  dest_dir: '/Users/derasagis/DexNet/data/render/aselab_test'
+  mesh_dir: '/Users/derasagis/DexNet/data/db/aselab'
+  save_images: 1 
 
   render_mode: 'segmask' # or depth
   back_color:
@@ -145,3 +145,9 @@ compute:
 gmail_user:     &id_gmail_user      RavenDebridement
 gmail_password: &id_gmail_password  surgicallab
 notify_email:   &id_notify_email    jmahl42@gmail.com
+
+# Training render generation parameters ##############################
+mesh_database_file: /Volumes/share/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla
+train: 0.6
+validate: 0.2
+test: 0.2

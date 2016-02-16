@@ -8,7 +8,7 @@ from abc import ABCMeta, abstractmethod
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+#from mpl_toolkits.mplot3d import Axes3D
 import numbers
 
 from PIL import Image

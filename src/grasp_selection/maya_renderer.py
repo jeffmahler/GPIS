@@ -8,6 +8,7 @@ import argparse
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages')
 sys.path.append('/usr/local/Cellar/python/2.7.10/Frameworks/Python.framework/Versions/2.7/lib/python2.7')
+sys.path.append('/Users/derasagis/anaconda3/envs/h5serv/lib/python2.7/site-packages')
 import IPython
 #IPython.embed()
 
@@ -217,14 +218,16 @@ class MayaRenderer(object):
 		im_arr = im_arr[start_i:end_i, start_j:end_j]
 
 		# optional save
+		image_dest = None
 		if mesh_filename is not None:
+			print('Saving%s!!!!!!!!!!!!!!!!!' % path.join(self.dest_dir_, obj_key, mesh_filename+self.file_type_))
 			image_filename = mesh_filename+self.file_type_
 			image_dest = path.join(self.dest_dir_, obj_key, image_filename)
 			im = Image.fromarray(np.uint8(im_arr))
 			im.save(image_dest)
 
 		# create rendered image
-		rendered_image = ri.RenderedImage(im_arr, camera_pos, camera_rot, camera_interest_pos)
+		rendered_image = ri.RenderedImage(im_arr, camera_pos, camera_rot, camera_interest_pos, image_dest=image_dest)
 		return rendered_image
 
 	def render_images_for_object(self, obj_key, save_images=False, obj_name=None):
@@ -313,7 +316,7 @@ if __name__ == '__main__':
 			for i, stable_pose in enumerate(stable_poses):
 				if stable_pose.p > config['maya']['min_prob']:
 					rendered_images = renderer.render(obj, dataset, render_mode=render_mode, rot=stable_pose.r, extra_key='_stp_%d'%(i), save_images=save_images)
-					dataset.store_rendered_images(obj.key, rendered_images, stable_pose_id=stable_pose.id, image_type=render_mode)
+					#dataset.store_rendered_images(obj.key, rendered_images, stable_pose_id=stable_pose.id, image_type=render_mode)
 	
 	database.close()				
 					
