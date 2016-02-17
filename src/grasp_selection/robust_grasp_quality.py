@@ -1,9 +1,6 @@
 import copy
 import itertools as it
-<<<<<<< HEAD
 import logging
-=======
->>>>>>> dev
 import numpy as np
 import os
 import sys
@@ -292,10 +289,8 @@ class RobustGraspQuality:
                              snapshot_rate = snapshot_rate)
 
         # convert to estimated prob success
+        # TODO: return variances?
         final_model = ua_result.models[-1]
         mn_q = final_model.means
-        if not compute_variance:
-            return mn_q[0]
-        var_q = models.BetaBernoulliModel.sample_variance(final_model.alphas, final_model.betas)
-        return mn_q, var_q
+        return mn_q[0]
         

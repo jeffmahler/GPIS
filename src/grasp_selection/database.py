@@ -24,6 +24,7 @@ import IPython
 INDEX_FILE = 'index.db'
 HDF5_EXT = '.hdf5'
 OBJ_EXT = '.obj'
+STL_EXT = '.stl'
 
 READ_ONLY_ACCESS = 'READ_ONLY'
 READ_WRITE_ACCESS = 'READ_WRITE'
@@ -244,8 +245,8 @@ class Hdf5Dataset(Dataset):
         elif stable_pose_id is not None:
             return self.stable_pose_data(key)[stable_pose_id][RENDERED_IMAGES_KEY]
         elif image_type is not None:
-            return self.objects(key)[RENDERED_IMAGES_KEY][image_type]
-        return self.objects(key)[RENDERED_IMAGES_KEY]
+            return self.object(key)[RENDERED_IMAGES_KEY][image_type]
+        return self.object(key)[RENDERED_IMAGES_KEY]
 
     # iterators
     def __getitem__(self, index):
@@ -319,13 +320,22 @@ class Hdf5Dataset(Dataset):
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
 
-    def obj_mesh_filename(self, key):
+    def obj_mesh_filename(self, key, scale=1.0):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
+        mesh.rescale(scale)
         obj_filename = os.path.join(self.cache_dir_, key + OBJ_EXT)
         of = obj_file.ObjFile(obj_filename)
         of.write(mesh)
         return obj_filename
+
+    def stl_mesh_filename(self, key, scale=1.0):
+        """ Writes an stl file in the database "cache"  directory and returns the path to the file """
+        obj_filename = self.obj_mesh_filename(key, scale=scale)
+        stl_filename = os.path.join(self.cache_dir_, key + STL_EXT)
+        meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(obj_filename, stl_filename)
+        os.system(meshlabserver_cmd)
+        return stl_filename
 
     # grasp data
     # TODO: implement handling of stable poses and tasks
