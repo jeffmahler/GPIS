@@ -5,7 +5,7 @@ from TurntableState import TurntableState
 
 class DexConstants:
 
-    DEBUG = False
+    DEBUG = True
     PRINT_STATES = False
     LOGGING = True
 

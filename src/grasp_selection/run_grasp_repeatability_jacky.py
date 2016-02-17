@@ -2,21 +2,22 @@
 Script to evaluate the probability of success for a few grasps on Izzy, logging the target states and the predicted quality in simulation
 Authors: Jeff Mahler and Jacky Liang
 """
-import copy
 import logging
 import IPython
 import numpy as np
+import mayavi.mlab as mv
 
 import os
 import shutil
 import sys
 sys.path.append("src/grasp_selection/control/DexControls")
 
-from DexConstants import DexConstants
 from DexController import DexController
 from DexRobotIzzy import DexRobotIzzy
 from ZekeState import ZekeState
 from IzzyState import IzzyState
+import discrete_adaptive_samplers as das
+import termination_conditions as tc
 
 from MayaviVisualizer import MayaviVisualizer
 from MABSingleObjectObjective import MABSingleObjectObjective
@@ -25,6 +26,7 @@ import rgbd_sensor as rs
 import database as db
 import experiment_config as ec
 import tfx
+import similarity_tf as stf
 
 # Experiment tag generator for saving output
 def gen_experiment_id(n=10):
@@ -39,6 +41,7 @@ def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc
 
     # get sorted list of grasps to ensure that we get the top grasp
     sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_name, metric)
+
     num_total_grasps = len(sorted_grasps)
     best_grasp = sorted_grasps[0]
     grasp_set.append(best_grasp)
@@ -50,8 +53,8 @@ def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc
     i = 0
     while len(grasp_set) < num_grasps:
         grasp_candidate = sorted_grasps[indices[i]]
-        grasp_candidate = grasp_candidate.grasp_aligned_with_stable_pose(self.stable_pose)
-        in_collision = grasp_candidate.collides_with_stable_pose(self.stable_pose)
+        grasp_candidate = grasp_candidate.grasp_aligned_with_stable_pose(stable_pose)
+        in_collision = grasp_candidate.collides_with_stable_pose(stable_pose)
         center_rel_table = grasp_candidate.center - stable_pose.x0
         dist_to_table = center_rel_table.dot(stable_pose.r[2,:])
 
@@ -60,7 +63,7 @@ def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc
             grasp_set.append(grasp_candidate)
         i = i+1
     
-    return grasp_sets
+    return grasp_set
     
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
@@ -73,6 +76,8 @@ if __name__ == '__main__':
     dataset_name = config['datasets'].keys()[0]
     object_name = config['object_name']
     num_grasp_views = config['num_grasp_views']
+    max_iter = config['max_iter']
+    snapshot_rate = config['snapshot_rate']
 
     # open database and dataset
     database = db.Hdf5Database(database_filename, config)
@@ -121,16 +126,22 @@ if __name__ == '__main__':
             az = j * delta_view
             mv.view(az)
             figname = 'grasp_%d_view_%d.png' %(i, j)                
-            mv.savefig(os.path.join(experiment_dir, figname))
+            #mv.savefig(os.path.join(experiment_dir, figname))
 
     # init hardware
     logging.info('Initializing hardware')
     camera = rs.RgbdSensor()
-    self.ctrl = DexController()
+    ctrl = DexController()
+    
+    camera.reset()
 
     # Thompson sampling
-    objective = MABSingleObjectObjective()
+    objective = MABSingleObjectObjective(graspable, stable_pose, ds, ctrl, camera, config)
     ts = das.ThompsonSampling(objective, grasps_to_execute)
     logging.info('Running Thompson sampling.')
+
+    tc_list = [
+        tc.MaxIterTerminationCondition(max_iter),
+        ]
     ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
-    self.ctrl.stop()
+    ctrl.stop()

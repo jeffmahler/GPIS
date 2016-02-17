@@ -1,3 +1,6 @@
+import sys
+sys.path.append("src/grasp_selection/control/DexControls")
+
 import os
 import numpy as np
 import time
@@ -6,6 +9,9 @@ import similarity_tf as stf
 import tabletop_object_registration as tor
 import mayavi.mlab as mv
 import tfx
+import logging
+import copy
+from DexConstants import DexConstants
 
 from objectives import Objective
 from grasp import ParallelJawPtGrasp3D
@@ -54,8 +60,8 @@ class MABSingleObjectObjective(Objective):
         # run grasping trial
         trial_start = time.time()
 
-        logging.info('Grasp %d trial %d' %(grasp.grasp_id, i))
-        logging_dir = os.path.join(grasp_dir, 'trial_%d' %(i))
+        logging.info('Grasp %d' %(grasp.grasp_id))
+        logging_dir = os.path.join(grasp_dir, 'trial_%d' %(0))
         if not os.path.exists(logging_dir):
             os.mkdir(logging_dir)
 
@@ -80,17 +86,6 @@ class MABSingleObjectObjective(Objective):
                 T_camera_obj.from_frame = 'obj'
                 T_camera_obj.to_frame = 'camera'
                 T_obj_camera = T_camera_obj.inverse()    
-
-                # save depth and color images
-                min_d = np.min(depth_im)
-                max_d = np.max(depth_im)
-                depth_im2 = 255.0 * (depth_im - min_d) / (max_d - min_d)
-                depth_im2 = Image.fromarray(depth_im2.astype(np.uint8))
-                filename = 'depth.png'
-                depth_im2.save(os.path.join(logging_dir, filename))
-                color_im2 = Image.fromarray(color_im)
-                filename = 'color.png'
-                color_im2.save(os.path.join(logging_dir, filename))
             else:
                 # load the object pose from a file (for debugging only)
                 T_camera_obj = stf.SimilarityTransform3D()
@@ -217,7 +212,7 @@ class MABSingleObjectObjective(Objective):
             exceptions.append('Dataset: %s, Object: %s, Grasp: %d, Exception: %s' % (self.dataset.name, self.graspable.key, grasp.grasp_id, str(e)))
 
         trial_stop = time.time()
-        logging.info('Trial %d took %f sec' %(i, trial_stop - trial_start))
+        logging.info('Trial took %f sec' %(trial_stop - trial_start))
 
         # log all exceptions
         exceptions_filename = os.path.join(grasp_dir, 'exceptions.txt')

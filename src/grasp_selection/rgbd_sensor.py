@@ -78,6 +78,10 @@ class RgbdSensor(object):
         if self.color_stream_:
             self.color_stream_.stop()
 
+    def reset(self):
+        self.stop()
+        self.start()
+
     def get_depth_image(self):
         frame = self.depth_stream_.read_frame()
         raw_buf = frame.get_buffer_as_uint16()
