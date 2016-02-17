@@ -15,7 +15,7 @@ from DexConstants import DexConstants
 
 from objectives import Objective
 from grasp import ParallelJawPtGrasp3D
-from MayaviVisualizer import MayaviVisualizer
+from mayavi_visualizer import MayaviVisualizer
 
 class MABSingleObjectObjective(Objective):
 
