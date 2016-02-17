@@ -20,7 +20,7 @@ import discrete_adaptive_samplers as das
 import termination_conditions as tc
 
 from MayaviVisualizer import MayaviVisualizer
-from MABSingleObjectObjective import MABSingleObjectObjective
+from mab_single_object_objective import MABSingleObjectObjective
 
 import rgbd_sensor as rs
 import database as db
