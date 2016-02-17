@@ -341,6 +341,7 @@ class Hdf5Dataset(Dataset):
     # TODO: implement handling of stable poses and tasks
     def grasps(self, key, gripper='pr2', stable_pose_id=None):
         """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
+        print self.grasp_data(key).keys()
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
             return []
