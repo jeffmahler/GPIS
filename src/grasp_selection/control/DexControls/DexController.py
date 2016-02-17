@@ -48,7 +48,7 @@ class DexController:
         self._latest_pose_unprocessed = target_pose.copy()
        
         original_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
- 
+
         #change target pose to appropriate approach pose
         logging.info('Modifying grasp pose for table rotation')
         self._set_approach_pose(target_pose, angles)
@@ -76,6 +76,7 @@ class DexController:
         target_obj_angle = aligned_obj_angle - original_obj_angle
         if target_obj_angle < 0:
             target_obj_angle += 2*pi
+
         target_table_state = TurntableState().set_table_rot(target_obj_angle + TurntableState.THETA)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
         
@@ -286,5 +287,17 @@ def test_grasp():
 
     return t
 
+def test_grip():
+    t = DexController()
+    t._izzy.grip()
+    sleep(3)
+    
+    current_state, _ = t.getState()
+    high_state = current_state.copy().set_arm_elev(0.2)
+    high_state.set_gripper_grip(IzzyState.MIN_STATE().gripper_grip)
+
+    t._izzy.gotoState(high_state)
+    sleep(10)
+
 if __name__ == '__main__':
-    t = test_grasp()
+    t = test_grip()
