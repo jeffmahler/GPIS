@@ -133,17 +133,8 @@ def label_grasps(obj, dataset, output_ds, config):
     grasps = output_ds.grasps(obj.key)
 
     # stable poses
-    stable_pose = dataset.stable_pose(obj.key, "pose_2")
-    for grasp in grasps:
-        if grasp.collides_with_stable_pose(stable_pose):
-            grasp.close_fingers(obj, vis=True)
-            plt.ioff()
-            plt.show()
-        else:
-            print 'NOT COLLIDING!'
-            grasp.close_fingers(obj, vis=True)
-            plt.ioff()
-            plt.show()            
+    stable_poses = dataset.stable_poses(obj.key)
+          
 
     grasp_metrics = output_ds.grasp_metrics(obj.key, grasps)
     
