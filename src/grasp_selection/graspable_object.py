@@ -174,16 +174,16 @@ class GraspableObject3D(GraspableObject):
 
     def transform(self, tf):
         """ Transforms object by tf """
-        new_tf = tf.compose(self.tf_)
+        tf.from_frame = self.tf_.to_frame
+        tf.to_frame = self.tf_.to_frame
+        new_tf = tf.dot(self.tf_)
         sdf_tf = self.sdf_.transform(tf)
 
         # TODO: fix mesh class
         if self.mesh_ is not None:
-            mesh_tf = copy.copy(self.mesh_)
-            mesh_tf.tf_ = new_tf
+            mesh_tf = self.mesh_.transform(tf)
 
         return GraspableObject3D(sdf_tf, mesh_tf, new_tf)
-
     def _find_projection(self, curr_loc, direction, max_projection, back_up, num_samples, vis=False):
         """Finds the point of contact when shooting a direction ray from curr_loc.
         Params:

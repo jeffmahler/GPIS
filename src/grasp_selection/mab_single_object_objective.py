@@ -5,13 +5,18 @@ import os
 import numpy as np
 import time
 
+from DexConstants import DexConstants
+from DexController import DexController
+from DexRobotIzzy import DexRobotIzzy
+from ZekeState import ZekeState
+from IzzyState import IzzyState
+
 import similarity_tf as stf
 import tabletop_object_registration as tor
 import mayavi.mlab as mv
 import tfx
 import logging
 import copy
-from DexConstants import DexConstants
 
 from objectives import Objective
 from grasp import ParallelJawPtGrasp3D
@@ -29,8 +34,7 @@ class MABSingleObjectObjective(Objective):
 
     # Grasp execution main function
     def evaluate(self, grasp):
-        grasp_success = 0
-    
+        # read config
         debug = self.config['debug']
         load_object = self.config['load_object']
         alpha = self.config['alpha']
@@ -49,50 +53,50 @@ class MABSingleObjectObjective(Objective):
         collision_box_vertices = np.array(debug_output[0]).T
         if does_collide:
             logging.error('Grasp is in collision')
-            return
+            return 0
 
         # setup buffers
+        """
         exceptions = []
         grasp_dir = os.path.join(self.config['experiment_dir'], 'grasp_%d' %(grasp.grasp_id))
         if not os.path.exists(grasp_dir):
             os.mkdir(grasp_dir)
+        """
 
         # run grasping trial
         trial_start = time.time()
+        logging.info('Evaluating grasp %d' %(grasp.grasp_id))
+        T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(self.stable_pose.r)) 
+        object_mesh = self.graspable.mesh
+        object_mesh_tf = object_mesh.transform(T_obj_stp)
 
-        logging.info('Grasp %d' %(grasp.grasp_id))
-        logging_dir = os.path.join(grasp_dir, 'trial_%d' %(0))
-        if not os.path.exists(logging_dir):
-            os.mkdir(logging_dir)
+        mv.clf()
+        object_mesh_tf.visualize(style='wireframe')
+        MayaviVisualizer.plot_grasp(grasp, T_obj_stp, alpha=1.5*alpha, tube_radius=tube_radius)
+        mv.show()
 
+        grasp_success = 0
+        self.camera.reset()
         try:
-            if not load_object:
-                # move the arm out of the way
-                logging.info('Moving arm out of the way')
-                self.ctrl.reset_object()
-                while not self.ctrl._izzy.is_action_complete():
-                    time.sleep(0.01)
+            # move the arm out of the way
+            logging.info('Moving arm out of the way')
+            self.ctrl.reset_object()
+            while not self.ctrl._izzy.is_action_complete():
+                time.sleep(0.01)
+                
+            # prompt for object placement
+            yesno = raw_input('Place object. Hit [ENTER] when done')
 
-                # prompt for object placement
-                yesno = raw_input('Place object. Hit [ENTER] when done')
-
-                # retrieve object pose from camera
-                logging.info('Registering object')
-                depth_im = self.camera.get_depth_image()
-                color_im = self.camera.get_color_image()
-                registration_solver = tor.KnownObjectTabletopRegistrationSolver(logging_dir)
-                reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), self.graspable.key, self.dataset, self.config, debug=debug)
-                T_camera_obj = reg_result.tf_camera_obj
-                T_camera_obj.from_frame = 'obj'
-                T_camera_obj.to_frame = 'camera'
-                T_obj_camera = T_camera_obj.inverse()    
-            else:
-                # load the object pose from a file (for debugging only)
-                T_camera_obj = stf.SimilarityTransform3D()
-                T_camera_obj.load('data/calibration/spray_pose.stf')
-                T_camera_obj.from_frame = 'obj'
-                T_camera_obj.to_frame = 'camera'
-                T_obj_camera = T_camera_obj.inverse()
+            # retrieve object pose from camera
+            logging.info('Registering object')
+            depth_im = self.camera.get_depth_image()
+            color_im = self.camera.get_color_image()
+            registration_solver = tor.KnownObjectTabletopRegistrationSolver()
+            reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), self.graspable.key, self.dataset, self.config, debug=debug)
+            T_camera_obj = reg_result.tf_camera_obj
+            T_camera_obj.from_frame = 'obj'
+            T_camera_obj.to_frame = 'camera'
+            T_obj_camera = T_camera_obj.inverse()    
 
             # transform the mesh to the stable pose to get a z offset from the table
             T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(self.stable_pose.r)) 
@@ -138,14 +142,16 @@ class MABSingleObjectObjective(Objective):
             # visualize the robot's understanding of the world
             logging.info('Displaying robot world state')
             mv.clf()
-            MayaviVisualizer.mv_plot_table(T_table_world, d=table_extent)
-            MayaviVisualizer.mv_plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            MayaviVisualizer.mv_plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            MayaviVisualizer.mv_plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            MayaviVisualizer.mv_plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            MayaviVisualizer.mv_plot_mesh(object_mesh, T_obj_world)
-            MayaviVisualizer.mv_plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
-
+            MayaviVisualizer.plot_table(T_table_world, d=table_extent)
+            MayaviVisualizer.plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            MayaviVisualizer.plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            MayaviVisualizer.plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            MayaviVisualizer.plot_mesh(object_mesh, T_obj_world)
+            MayaviVisualizer.plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
+            mv.show()
+            
+            """
             delta_view = 360.0 / num_grasp_views
             mv.view(distance=cam_dist)
             for j in range(num_grasp_views):
@@ -153,6 +159,7 @@ class MABSingleObjectObjective(Objective):
                 mv.view(azimuth=az)
                 figname = 'estimated_scene_view_%d.png' %(j)                
                 mv.savefig(os.path.join(logging_dir, figname))
+            """
 
             # execute the grasp
             logging.info('Executing grasp')
@@ -215,11 +222,13 @@ class MABSingleObjectObjective(Objective):
         logging.info('Trial took %f sec' %(trial_stop - trial_start))
 
         # log all exceptions
+        """
         exceptions_filename = os.path.join(grasp_dir, 'exceptions.txt')
         out_exceptions = open(exceptions_filename, 'w')
         for exception in exceptions:
             out_exceptions.write('%s\n' %(exception))
         out_exceptions.close()
+        """
 
         # return successes and failures
         return grasp_success

@@ -5,13 +5,13 @@ from TurntableState import TurntableState
 
 class DexConstants:
 
-    DEBUG = True
+    DEBUG = False
     PRINT_STATES = False
     LOGGING = True
 
-    ZEKE_COMM = "COM3"
-    TABLE_COMM = "/dev/ttyACM0"
-    IZZY_COMM = "/dev/ttyACM1"
+    ZEKE_COMM = "/dev/ttyACM1"
+    TABLE_COMM = "/dev/ttyACM2"
+    IZZY_COMM = "/dev/ttyACM3"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01
 
@@ -36,6 +36,7 @@ class DexConstants:
     
     MAX_ELEVATION = 0.3
     ROLL_THRESH = 0.4
+    GRIPPER_CLOSE_FORCE_THRESH = 650.0
 
     #DEFAULT_GRIPPER_EULER = rotation_euler(0, pi/2, 0, 'sxyz')
     

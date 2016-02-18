@@ -3,11 +3,12 @@ from multiprocessing import Process, Queue
 from time import sleep, time
 from DexConstants import DexConstants
 from DexNumericSolvers import DexNumericSolvers
+from DexSensorReadings import DexSensorReadings
 from Logger import Logger
 
 class _DexSerial(Process):
     #Private class that abstracts continuous serial communication with DexRobots    
-    def __init__(self, State, flags_q, states_q, state_read_q, comm, baudrate, timeout):
+    def __init__(self, State, flags_q, states_q, state_read_q, sensor_read_q, comm, baudrate, timeout):
         Process.__init__(self)
         
         self._State = State
@@ -19,6 +20,7 @@ class _DexSerial(Process):
         self._flags_q = flags_q
         self._states_q = states_q
         self._state_read_q = state_read_q
+        self._sensor_read_q = sensor_read_q
         
         self._flags = {
             "stopping" : False,
@@ -50,6 +52,7 @@ class _DexSerial(Process):
 
             if self._flags["reading"]:
                 self._state_read_q.put(self._getStateSerial())
+                self._sensor_read_q.put(self._getSensorsSerial())
                 self._flags["reading"] = False
             
             #sending the current state
@@ -148,6 +151,25 @@ class _DexSerial(Process):
                 return 'Comm Failure'
             
         return self._State(sensorVals)
+
+    def _getSensorsSerial(self):
+        if DexConstants.DEBUG:
+            return self._current_sensors
+
+        self.ser.flushInput()
+        self.ser.write("f")
+        sensorVals = []
+        
+        num_vals = DexSensorReadings.NUM_SENSORS
+        
+        for i in range(num_vals):
+            try:
+                sensorVals.append(float(self.ser.readline()))
+            except:
+                return 'Comm Failure'
+            
+        return DexSensorReadings(sensorVals)
+
         
 class DexSerialInterface:
     
@@ -165,7 +187,8 @@ class DexSerialInterface:
         self._flags_q = Queue()
         self._states_q = Queue()
         self._state_read_q = Queue()
-        self._dex_serial = _DexSerial(self._State, self._flags_q, self._states_q, self._state_read_q, self._comm, self._baudrate, self._timeout)
+        self._sensor_read_q = Queue()
+        self._dex_serial = _DexSerial(self._State, self._flags_q, self._states_q, self._state_read_q, self._sensor_read_q, self._comm, self._baudrate, self._timeout)
         
     def start(self):
         self._dex_serial.start()
@@ -191,6 +214,16 @@ class DexSerialInterface:
                 raise Exception("Get State timed out")
 
         return self._state_read_q.get()
+
+    def getSensors(self):
+        self._flags_q.put(("reading", True))
+        
+        started = time()
+        while self._sensor_read_q.empty():
+            if time() - started > DexConstants.ROBOT_OP_TIMEOUT:
+                raise Exception("Get Sensors timed out")
+
+        return self._sensor_read_q.get()
         
     def _queueState(self, state):
         self._states_q.put({"Type" : "State", "Data" : state.copy()})

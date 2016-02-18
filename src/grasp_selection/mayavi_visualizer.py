@@ -5,7 +5,7 @@ class MayaviVisualizer:
 
     # MAYAVI VISUALIZER
     @staticmethod
-    def mv_plot_table(T_table_world, d=0.5):
+    def plot_table(T_table_world, d=0.5):
         """ Plots a table in pose T """
         table_vertices = np.array([[d, d, 0],
                                    [d, -d, 0],
@@ -16,7 +16,7 @@ class MayaviVisualizer:
         mv.triangular_mesh(table_vertices[:,0], table_vertices[:,1], table_vertices[:,2], table_tris, representation='surface', color=(0,0,0))
 
     @staticmethod
-    def mv_plot_pose(T_frame_world, alpha=0.5, tube_radius=0.005, center_scale=0.025):
+    def plot_pose(T_frame_world, alpha=0.5, tube_radius=0.005, center_scale=0.025):
         T_world_frame = T_frame_world.inverse()
         R = T_world_frame.rotation
         t = T_world_frame.translation
@@ -34,17 +34,17 @@ class MayaviVisualizer:
         mv.text3d(t[0], t[1], t[2], ' %s' %T_frame_world.to_frame.upper(), scale=0.01)
 
     @staticmethod
-    def mv_plot_mesh(mesh, T_mesh_world, style='wireframe', color=(0.5,0.5,0.5)):
+    def plot_mesh(mesh, T_mesh_world, style='wireframe', color=(0.5,0.5,0.5)):
         mesh_tf = mesh.transform(T_mesh_world.inverse())
         mesh_tf.visualize(style=style, color=color)
 
     @staticmethod
-    def mv_plot_point_cloud(point_cloud, T_points_world, color=(0,1,0), scale=0.01):
+    def plot_point_cloud(point_cloud, T_points_world, color=(0,1,0), scale=0.01):
         point_cloud_tf = T_points_world.apply(point_cloud).T
         mv.points3d(point_cloud_tf[:,0], point_cloud_tf[:,1], point_cloud_tf[:,2], color=color, scale_factor=scale)
 
     @staticmethod
-    def mv_plot_grasp(grasp, T_obj_world, alpha=0.5, tube_radius=0.005, endpoint_color=(0,1,0), endpoint_scale=0.01, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1)):
+    def plot_grasp(grasp, T_obj_world, alpha=0.5, tube_radius=0.005, endpoint_color=(0,1,0), endpoint_scale=0.01, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1)):
         g1, g2 = grasp.endpoints()
         center = grasp.center
         g1_tf = T_obj_world.inverse().apply(g1)

@@ -48,7 +48,7 @@ class DatasetConfig:
 # Global array of all datasets and params
 DATASETS = [
     DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
-    DatasetConfig(name='aselab', extension='.obj', scale=0.8246, synthetic=False),
+    DatasetConfig(name='aselab', extension='.obj', scale=1.0, synthetic=False),
     DatasetConfig(name='autodesk', extension='.off', synthetic=True),
 #    DatasetConfig(name='Archive3D', extension='.3DS'),
     DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
@@ -62,6 +62,7 @@ DATASETS = [
     DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
     DatasetConfig(name='SHREC14LSGTB', extension='.off', cat_db=mdb.SHRECObjectDatabase('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla')),
     DatasetConfig(name='siemens', extension='.stl', synthetic=True),
+    DatasetConfig(name='segments_small', extension='.off', synthetic=True),
     DatasetConfig(name='surgical', extension='.obj'),
     DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase())
 ]
@@ -166,7 +167,9 @@ if __name__ == '__main__':
                     try:
                         # convert to obj
                         obj_filename = '%s.obj' %(fullpath_file_root)
-                        decimation_script = os.path.join(config['root_dir'], 'scripts/decimation.mlx')
+                        decimation_script = None
+                        if config['decimate_models']:
+                            decimation_script = os.path.join(config['root_dir'], 'scripts/decimation.mlx')
                         mesh = MeshFile.extract_mesh(filename, obj_filename, decimation_script)
                         mesh.set_density(4000.0)
 

@@ -486,6 +486,18 @@ class Mesh3D(object):
         self.vertices_ = vertex_array.tolist()
         self._compute_centroid()
 
+    def rescale(self, scale_factor):
+        '''
+        Rescales the vertex coordinates by scale factor
+        Params:
+           scale_factor: (float) the scale factor
+        Returns:
+           Nothing. Modified the mesh in place (for now)
+        '''
+        vertex_array = np.array(self.vertices_)
+        scaled_vertices = scale_factor * vertex_array
+        self.vertices_ = scaled_vertices.tolist()
+
     def convex_hull(self):
         """ Returns the convex hull of a mesh as a new mesh """
         hull = ss.ConvexHull(self.vertices_)

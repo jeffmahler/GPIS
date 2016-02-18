@@ -11,6 +11,7 @@ from time import sleep
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
+import IPython
 import logging
 import numpy as np
 
@@ -53,12 +54,26 @@ class DexRobotIzzy:
         
     def getState(self):
         return self._ser_int.getState()       
-        
+
+    def getSensors(self):
+        sensor_vals = self._ser_int.getSensors()       
+        if isinstance(sensor_vals, str):
+            return None
+        return sensor_vals
+
     def grip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
         state.set_gripper_grip(IzzyState.MIN_STATE().gripper_grip)
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
         
+        sensor_vals = self.getSensors()
+        while sensor_vals is None or sensor_vals.gripper_force < DexConstants.GRIPPER_CLOSE_FORCE_THRESH:
+            sleep(0.1)
+            sensor_vals = self.getSensors()
+
+        current_state = self.getState()
+        self.gotoState(current_state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
+
     def unGrip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
         state.set_gripper_grip(IzzyState.MAX_STATE().gripper_grip)
