@@ -134,8 +134,18 @@ def label_grasps(obj, dataset, output_ds, config):
 
     # stable poses
     stable_poses = dataset.stable_poses(obj.key)
-          
-
+    #convert stable poses to wrenches
+    stable_pose_wrenches = []
+    mass = 1 #TODO: possibly change to real mass in the future
+    gravity_magnitude = mass * 9.8
+    for stable_pose in stable_poses:
+        stable_pose_normal = stable_pose.r[2]
+        gravity_force = - gravity_magnitude * stable_pose_normal
+        wrench = np.append(gravity_force, [0,0,0])
+        stable_pose_wrenches.append(wrench)
+        
+    grasp_force_limit = config["grasp_force_limit"]
+        
     grasp_metrics = output_ds.grasp_metrics(obj.key, grasps)
     
     # extract features
@@ -193,6 +203,20 @@ def label_grasps(obj, dataset, output_ds, config):
             grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
             grasp_metrics[grasp.grasp_id][vfc_tag] = vfc
 
+            #probability of partial closure
+            logging.info("Computing probability of partial closure")
+            for i, wrench in enumerate(stable_pose_wrenches):
+                params = {"force_limits": grasp_force_limit, "target_wrench": wrench}
+                params_rv = rvs.ArtificialSingleRV(params)
+                ppc, vpc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='partial_closure',
+                                                                      params_rv=params_rv, num_samples=config['ppc_num_samples'], compute_variance=True)
+
+                ppc_tag = db.generate_metric_tag('ppc_sp_%d' % i, config)
+                vpc_tag = db.generate_metric_tag('vpc_sp_%d' % i, config)
+                                                                      
+                grasp_metrics[grasp.grasp_id][ppc_tag] = ppc
+                grasp_metrics[grasp.grasp_id][vpc_tag] = vpc
+            
             # expected ferrari canny
             """
             logging.info('Computing ferrari canny')

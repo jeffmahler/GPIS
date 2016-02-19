@@ -76,6 +76,21 @@ class RandomVariable(object):
         # generate a new sample
         return self.sample(size=size)
 
+class ArtificialRV(RandomVariable):
+    '''
+    A fake RV that always returns the given object
+    '''
+    def __init__(self, obj):
+        self.obj_ = obj
+
+    def sample(self, size = 1):
+        return [self.obj_] * size
+        
+class ArtificialSingleRV(ArtificialRV):
+
+    def sample(self, size = None):
+        return self.obj_
+        
 class GraspableObjectPoseGaussianRV(RandomVariable):
     def __init__(self, obj, config):
         self.obj_ = obj
