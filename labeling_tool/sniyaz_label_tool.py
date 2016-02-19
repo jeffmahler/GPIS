@@ -112,6 +112,7 @@ def select_mode(vtk_obj, event):
         interactor.interactor_style = default_interaction_style
 
 
+
 def project_3D(box_start, box_end):
 
     global msh
@@ -130,47 +131,75 @@ def project_3D(box_start, box_end):
     view_to_disp_mat = mlab_3D_to_2D.get_view_to_display_matrix(figure.scene)
     disp_coords = mlab_3D_to_2D.apply_transform_to_points(norm_view_coords, view_to_disp_mat)
 
-    closest_vecticies = np.empty((figure.scene.get_size()[0], figure.scene.get_size()[1]), dtype="object")
+    closest_triangles = np.empty((figure.scene.get_size()[0], figure.scene.get_size()[1]), dtype="object")
 
-    in_vertex_indicies = []
-    for i in range(len(x)):
+    in_triangle_indicies = []
 
-        screen_x_cord = disp_coords[:, 0][i]
-        #For some reason, the script we stole thinks the origin is the upper left. It's actually the 
-        #lower left, so we need to adjust here!
-        screen_y_cord = figure.scene.get_size()[1] - disp_coords[:, 1][i]
-        
-        x_in_box = screen_x_cord > min(box_start[0], box_end[0]) and screen_x_cord < max(box_start[0], box_end[0])
-        y_in_box = screen_y_cord > min(box_start[1], box_end[1]) and screen_y_cord < max(box_start[1], box_end[1])
+    for t in range(len(triangles)):
 
-        if x_in_box and y_in_box:
-            previous_closest_vertex = closest_vecticies[screen_x_cord, screen_y_cord]
-            z_distance = norm_view_coords[:, 2][i]
-            
-            if (not previous_closest_vertex) or (previous_closest_vertex and z_distance < previous_closest_vertex[1]):
-                closest_vecticies[screen_x_cord, screen_y_cord] = (i, z_distance)
+        cur_triangle = triangles[t]
+        screen_x_data = []
+        screen_y_data = []
+
+        for i in cur_triangle:
+
+            screen_x_cord = disp_coords[:, 0][i]
+            #For some reason, the script we stole thinks the origin is the upper left. It's actually the 
+            #lower left, so we need to adjust here!
+            screen_y_cord = figure.scene.get_size()[1] - disp_coords[:, 1][i]
+
+            screen_x_data.append(screen_x_cord)
+            screen_y_data.append(screen_y_cord)
+
+        screen_cord_A = (screen_x_data[0], screen_y_data[0])
+        screen_cord_B = (screen_x_data[1], screen_y_data[1])
+        screen_cord_C = (screen_x_data[2], screen_y_data[2])
+
+        valid_triangle = False
+        for coord in [screen_cord_A, screen_cord_B, screen_cord_C]:
+
+            if bounding_box_check(coord[0], coord[1], box_start, box_end):
+                valid_triangle = True
+
+
+        if not valid_triangle:
+            continue
+
+
+        #find "bounding box" for this triangle on the display screen.
+        min_screen_x = int(min(screen_x_data))
+        max_screen_x = int(max(screen_x_data))
+        min_screen_y = int(min(screen_y_data))
+        max_screen_y = int(max(screen_y_data))
+
+        for x in range(min_screen_x, max_screen_x+1):
+            for y in range(min_screen_y, max_screen_y+1):
+
+                in_triangle = in_triangle_checker(screen_cord_A, screen_cord_B, screen_cord_C, (x, y))
+                in_bounding_box = bounding_box_check(x, y, box_start, box_end)
+
+                if in_triangle and in_bounding_box:
+
+                    previous_closest_triangle = closest_triangles[x, y]
+                    z_depth = max([norm_view_coords[:, 2][i] for i in cur_triangle])
+                    if (not previous_closest_triangle) or (previous_closest_triangle and z_depth < previous_closest_triangle[1]):
+                        closest_triangles[x, y] = (t, z_depth)
 
 
     for i in range(figure.scene.get_size()[0]):
         for j in range(figure.scene.get_size()[1]):
-            if closest_vecticies[i, j]:
-                closest_vertex = closest_vecticies[i, j][0]
-                in_vertex_indicies.append(closest_vertex)
+            if closest_triangles[i, j]:
+                closest_traingle_index = closest_triangles[i, j][0]
+                in_triangle_indicies.append(closest_traingle_index)
 
 
-    #Label any triangle with A (even one) vertex in the include set.
-    # removed_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) != 0]
-    # new_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) == 0]
-
-    #Label only triangles that have EVERY vertex in the include set.
-    removed_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) == 3]
-    new_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) < 3]
-
+    removed_triangles = [triangles[t] for t in in_triangle_indicies]
+    new_triangles = [triangles[t] for t in range(len(triangles)) if t not in in_triangle_indicies]
 
     msh = mesh.Mesh3D(msh.vertices(), new_triangles, msh.normals())
     if not colored_msh and len(removed_triangles) > 0:
         colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles, msh.normals())
-    else:
+    elif colored_msh:
         colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles + colored_msh.triangles(), msh.normals())
 
     mlab.clf()
@@ -180,6 +209,46 @@ def project_3D(box_start, box_end):
 
     mlab.title('LABEL MODE ON')
 
+
+
+def in_triangle_checker(vertex_A, vertex_B, vertex_C, checked_point):
+
+    A = np.array(list(vertex_A) + [0])
+    B = np.array(list(vertex_B) + [0])
+    C = np.array(list(vertex_C) + [0])
+    P = np.array(list(checked_point) + [0])
+
+    w = np.subtract(P, A)
+    u = np.subtract(B, A)
+    v = np.subtract(C, A)
+
+    v_cross_w = np.cross(v, w)
+    v_cross_u = np.cross(v, u)
+    u_cross_w = np.cross(u, w)
+    u_cross_v = np.cross(u, v)
+
+    sign_r = np.dot(v_cross_w , v_cross_u)
+    sign_t = np.dot(u_cross_w, u_cross_v)
+
+    if sign_r < 0 or sign_t < 0:
+        return False
+
+    norm_v_cross_w = np.linalg.norm(v_cross_w)
+    norm_u_cross_w = np.linalg.norm(u_cross_w)
+    norm_v_cross_u = np.linalg.norm(v_cross_u)
+
+    r = norm_v_cross_w/norm_v_cross_u
+    t = norm_u_cross_w/norm_v_cross_u
+
+    return (r + t <= 1)
+
+
+def bounding_box_check(x, y, box_start, box_end):
+
+    x_in_box = x > min(box_start[0], box_end[0]) and x < max(box_start[0], box_end[0])
+    y_in_box = y > min(box_start[1], box_end[1]) and y < max(box_start[1], box_end[1])
+
+    return x_in_box and y_in_box
 
 
 interactor.add_observer('LeftButtonPressEvent', box_bounding)
