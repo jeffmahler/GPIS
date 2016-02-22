@@ -21,8 +21,10 @@ except:
 
 import mesh
 import obj_file
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
+
+import sklearn.decomposition
 
 # TODO: find a way to log output?
 
@@ -52,6 +54,28 @@ def compute_basis(vertices, m):
     y_o = y_o / np.linalg.norm(y_o)
 
     R = np.array([np.transpose(x_o), np.transpose(y_o), np.transpose(z_o)])
+
+    # rotate the vertices and then align along the principal axes
+    rotated_vertices = R.dot(vertex_array.T)
+    xy_components = rotated_vertices[:2,:].T
+
+    pca = sklearn.decomposition.PCA(n_components = 2)
+    pca.fit(xy_components)
+    comp_array = pca.components_
+    x_o = np.array([comp_array[0,0], comp_array[0,1], 0])
+    y_o = np.array([comp_array[1,0], comp_array[1,1], 0])
+
+    x_o = R.T.dot(x_o)
+    y_o = R.T.dot(y_o)
+    R = np.array([np.transpose(x_o), np.transpose(y_o), np.transpose(z_o)])    
+
+    """
+    rotated_vertices = R.dot(vertex_array.T)
+    plt.figure()
+    ax = plt.gca(projection='3d')
+    ax.scatter(rotated_vertices[0,:], rotated_vertices[1,:], rotated_vertices[2,:])
+    plt.show()
+    """
     return R
 
 def compute_centroid(vertices):

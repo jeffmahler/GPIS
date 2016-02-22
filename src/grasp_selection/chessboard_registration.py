@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
         depth_im[depth_im > 0] = depth_im[depth_im > 0] / counts[depth_im > 0]
         color_im = s.get_color_image()
-        corner_px = ip.ColorImageProcessing.find_chessboard(color_im, sx=config['sx'], sy=config['sy'])
+        corner_px = ip.ColorImageProcessing.find_chessboard(color_im, sx=config['sx'], sy=config['sy'], vis=True)
 
     depth_im[depth_im > 1.0] = 0.0
 
@@ -94,15 +94,13 @@ if __name__ == '__main__':
     # determine y-axis from z-axis (normal vector) and x-axis
     yaxis = np.cross(n, proj_orient)
 
+    if yaxis[0] < 0:
+        proj_orient = -proj_orient
+        yaxis = -yaxis
+
     # produce translation and rotation from plane center and chessboard basis
     rotation = np.hstack((proj_orient[:,np.newaxis], yaxis[:,np.newaxis], n[:,np.newaxis])).T
     translation = mean_point_plane
-
-    # print out rotation and translation matrices
-    print('Rotation: ')
-    print(rotation)
-    print('Translation: ')
-    print(translation)
 
     # save tranformation arrays
     theta = config['table_angle'] * np.pi / 180.0
@@ -114,6 +112,12 @@ if __name__ == '__main__':
                                   [-1, 0, 0],
                                   [0, 0, 1]])
     rotation_camera_world = rotation_camera_cb.T.dot(rotation_world_table).dot(rotation_table_cb)
+
+    # print out rotation and translation matrices
+    print('Rotation: ')
+    print(rotation_camera_world)
+    print('Translation: ')
+    print(translation)
 
     f = open(config['save_dir']+'rotation_camera_cb.npy', 'w')
     np.save(f, rotation_camera_world)

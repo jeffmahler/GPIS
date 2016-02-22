@@ -77,7 +77,7 @@ class MABSingleObjectObjective(Objective):
 
         grasp_success = 0
         self.camera.reset()
-        try:
+        if True: #try:
             # move the arm out of the way
             logging.info('Moving arm out of the way')
             self.ctrl.reset_object()
@@ -189,12 +189,20 @@ class MABSingleObjectObjective(Objective):
                 self.ctrl._izzy.plot()
 
             # get human input on grasp success
+            """
             human_input = raw_input('Did the grasp succeed? [y/n] ')
             if human_input.lower() != 'n':
                 logging.info('Recorded grasp success')
                 grasp_success = 1
             else:
                 logging.info('Recorded grasp failure')
+            """
+            force = self.ctrl._izzy.getSensors().gripper_force
+            if force > DexConstants.GRIPPER_CLOSE_FORCE_THRESH:
+                logging.info('Recorded grasp success')
+                grasp_success = 1
+            else:
+                logging.info('Recorded grasp failure')                
 
             # return to the reset state
             self.ctrl._izzy.gotoState(current_state)
@@ -214,9 +222,8 @@ class MABSingleObjectObjective(Objective):
                 time.sleep(0.01)
             time.sleep(2)
 
-        except Exception as e:
-            logging.error(str(e))
-            exceptions.append('Dataset: %s, Object: %s, Grasp: %d, Exception: %s' % (self.dataset.name, self.graspable.key, grasp.grasp_id, str(e)))
+        #except Exception as e:
+        #    raise e
 
         trial_stop = time.time()
         logging.info('Trial took %f sec' %(trial_stop - trial_start))

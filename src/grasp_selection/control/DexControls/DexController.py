@@ -1,7 +1,9 @@
 from DexRobotIzzy import DexRobotIzzy
+from DexRobotZeke import DexRobotZeke
 from DexRobotTurntable import DexRobotTurntable
 from TurntableState import TurntableState
 from IzzyState import IzzyState
+from ZekeState import ZekeState
 from DexConstants import DexConstants
 from DexAngles import DexAngles
 from DexNumericSolvers import DexNumericSolvers
@@ -13,11 +15,12 @@ from numpy.linalg import norm
 from time import sleep, time
 import matplotlib.pyplot as plt
 
+import copy
 import logging
 import numpy as np
 import sys
 sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection')
-
+import IPython
 import similarity_tf as stf
 import tfx
 
@@ -27,45 +30,45 @@ class DexController:
     '''Transformation Controller class. Controls both Izzy and Turntable
     '''
     
-    def __init__(self, izzy = None, table = None):
-        if izzy is None:
-            logging.info('Initializing Izzy')
-            izzy = DexRobotIzzy()
+    def __init__(self, robot = None, table = None):
+        if robot is None:
+            logging.info('Initializing Robot')
+            robot = DexRobotZeke()
         if table is None:
             logging.info('Initializing Turntable')
             table = DexRobotTurntable()
             
-        self._izzy = izzy
+        self._robot = robot
         self._table = table
 
     def __del__(self):
         self.stop()
 
-    def do_grasp(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
+    def do_grasp(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, sleep_val=1.0):
      
         logging.info('Computing grasp angles')
         target_pose, angles = DexController._stf_to_graspable_pose_and_angles(stf)
         self._latest_pose_unprocessed = target_pose.copy()
-       
+
+        print 'Before', target_pose.position
         original_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
 
         #change target pose to appropriate approach pose
         logging.info('Modifying grasp pose for table rotation')
         self._set_approach_pose(target_pose, angles)
         
+        print 'After', target_pose.position
         aligned_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
 
-        logging.debug('Orig Theta: %f' %original_obj_angle)
-        logging.debug('Aligned Theta %f' %aligned_obj_angle)
+        logging.info('Orig Theta: %f' %original_obj_angle)
+        logging.info('Aligned Theta %f' %aligned_obj_angle)
 
         #reset izzy to clear-table-rotation position
         logging.info('Reseting table rotation')
         self._table.reset()
-        self._izzy.reset_clear_table()
+        self._robot.reset_clear_table()
         #wait til completed
-        while not self._table.is_action_complete() or not self._izzy.is_action_complete():
-            sleep(0.01)
-        sleep(2)
+        turntable_state = self._table.getState()
         
         #for debugging plot
         self._latest_pose = target_pose.copy()
@@ -74,22 +77,18 @@ class DexController:
         #transform target_pose to table
         logging.info('Rotation table to grasp pose')
         target_obj_angle = aligned_obj_angle - original_obj_angle
-        if target_obj_angle < 0:
+        if target_obj_angle <= -turntable_state.table_rot:
             target_obj_angle += 2*pi
 
-        target_table_state = TurntableState().set_table_rot(target_obj_angle + TurntableState.THETA)
+        target_table_state = TurntableState().set_table_rot(target_obj_angle + turntable_state.table_rot)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
         
         #wait til completed
-        while not self._table.is_action_complete():
-            sleep(0.01)
-        sleep(2)
-        
         #transform target_pose to izzy 
         logging.info('Moving robot to grasp pose')
-        self._izzy.transform_aim_extend_grip(target_pose, name, angles, rot_speed, tra_speed)
+        target_state = self._robot.transform_aim_extend_grip(target_pose, name, angles, rot_speed, tra_speed)
         
-        return target_pose.copy()
+        return copy.copy(target_state)
 
     @staticmethod
     def _stf_to_graspable_pose_and_angles(stf):
@@ -130,7 +129,9 @@ class DexController:
 
         u_x = array([x_axis_grasp[0], x_axis_grasp[2]])
         v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
-        psi = _angle_2d(u_x, v_x) + pi / 2
+
+        # TODO: re-enable when wrist comes back on
+        psi = np.pi#_angle_2d(u_x, v_x) + pi / 2
 
         logging.debug('Psi: %f' %psi)
         
@@ -148,7 +149,7 @@ class DexController:
         r = norm(pos)
         #ANGLES using yaw
         phi = angles.yaw
-        d = IzzyState.IZZY_ARM_ORIGIN_OFFSET
+        d = ZekeState.ZEKE_ARM_ORIGIN_OFFSET
         theta = DexTurntableSolver.solve(r, d, phi)
         
         target_pose.position.x = r * cos(theta)
@@ -158,23 +159,23 @@ class DexController:
 
     def reset(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         self._table.reset()
-        self._izzy.reset()
+        self._robot.reset()
 
     def reset_object(self, rot_speed=DexConstants.DEFAULT_ROT_SPEED, tra_speed=DexConstants.DEFAULT_TRA_SPEED):
         """ Reset function specific to object placements """
         self._table.reset()
-        self._izzy.reset_object()
+        self._robot.reset_object()
                 
     def stop(self):
         self._table.stop()
-        self._izzy.stop()
+        self._robot.stop()
         
     def getState(self):
-        return self._izzy.getState(), self._table.getState()
+        return self._robot.getState(), self._table.getState()
         
     def pause(self, s):
         self._table.maintainState(s)
-        self._izzy.maintainState(s)
+        self._robot.maintainState(s)
         
     def plot_approach_angle(self):
         fig = plt.figure()
@@ -218,63 +219,45 @@ class DexController:
         plt.show()
        
 def test_state():
-    target_state = IzzyState()
-    target_state.set_arm_ext(-IzzyState.IZZY_ARM_ORIGIN_OFFSET - IzzyState.IZZY_ARM_TO_GRIPPER_TIP_LENGTH)
-    target_state.set_arm_rot(IzzyState.PHI)
+    target_state = ZekeState()
+    target_state.set_arm_ext(ZekeState.ZEKE_ARM_ORIGIN_OFFSET - ZekeState.ZEKE_ARM_TO_GRIPPER_TIP_LENGTH)
+    target_state.set_arm_rot(ZekeState.PHI + np.pi)
     target_state.set_gripper_grip(0.037)
     print 'Target'
     print target_state
 
     t = DexController()
     t._table.reset()
-    t._izzy.gotoState(target_state)
-    while not t._izzy.is_action_complete():
-        sleep(0.01)
-    sleep(3)
+    t._robot.gotoState(target_state)
+
+    current_state = t._robot.getState()
+    print 'Reached'
+    print current_state
 
 def test_state_sequence():
-    target_state = IzzyState()
-    target_state.set_arm_ext(-IzzyState.IZZY_ARM_ORIGIN_OFFSET - IzzyState.IZZY_ARM_TO_GRIPPER_TIP_LENGTH)
-    target_state.set_arm_rot(IzzyState.PHI)
-    target_state.set_gripper_grip(IzzyState.MIN_STATE().gripper_grip)
+    target_state = ZekeState()
+    target_state.set_arm_ext(ZekeState.ZEKE_ARM_ORIGIN_OFFSET - ZekeState.ZEKE_ARM_TO_GRIPPER_TIP_LENGTH)
+    target_state.set_arm_rot(ZekeState.PHI + np.pi)
+    target_state.set_gripper_grip(0.037)
     print 'Target'
     print target_state
 
     t = DexController()
-    t._izzy.gotoState(target_state)
-    while not t._izzy.is_action_complete():
-        sleep(0.01)
-    sleep(3)
+    t._table.reset()
+    t._robot.gotoState(target_state)
 
-    target_state.set_arm_rot(3.123)
-    print 'Target'
-    print target_state
+    target_state.set_arm_elev(0.1)
+    t._robot.gotoState(target_state)
 
-    t._izzy.gotoState(target_state)
-    while not t._izzy.is_action_complete():
-        sleep(0.01)
-    sleep(3)
+    target_state.set_arm_rot(ZekeState.PHI + 7 * np.pi / 8)
+    t._robot.gotoState(target_state)
 
-    target_state.set_arm_rot(4.04)
-    print 'Target'
-    print target_state
-
-    t._izzy.gotoState(target_state)
-    while not t._izzy.is_action_complete():
-        sleep(0.01)
-    sleep(3)
-
-    target_state.set_arm_rot(IzzyState.PHI)
-    print 'Target'
-    print target_state
-
-    t._izzy.gotoState(target_state)
-    while not t._izzy.is_action_complete():
-        sleep(0.01)
-    sleep(3)
+    current_state = t._robot.getState()
+    print 'Reached'
+    print current_state
 
 def test_grasp():
-    theta = 6 * np.pi / 4.0
+    theta = np.pi / 2
     t = np.array([0.05, 0.05, 0.05])
     R = np.array([[np.cos(theta), -np.sin(theta), 0],
                   [np.sin(theta), np.cos(theta), 0],
@@ -283,21 +266,37 @@ def test_grasp():
 
     t = DexController()
     t.do_grasp(target)
+
+    current_state, _ = t.getState()
+    print current_state
+    
     t.plot_approach_angle()
 
     return t
 
 def test_grip():
     t = DexController()
-    t._izzy.grip()
-    sleep(3)
+
+    #target_state = ZekeState([3.44, 0.108, 0.163, None, ZekeState.MAX_STATE().gripper_grip, 0])
+    #t._robot.gotoState(target_state)
+    #sleep(3)    
+
     
+    print 'Ungripping'
+    t._robot.unGrip()
+
+    print 'Gripping'
+    t._robot.grip()
+    """
+
     current_state, _ = t.getState()
     high_state = current_state.copy().set_arm_elev(0.2)
-    high_state.set_gripper_grip(IzzyState.MIN_STATE().gripper_grip)
+    high_state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
 
-    t._izzy.gotoState(high_state)
+    t._robot.gotoState(high_state)
     sleep(10)
+    """
 
 if __name__ == '__main__':
-    t = test_grip()
+    logging.getLogger().setLevel(logging.DEBUG)
+    t = test_state_sequence()

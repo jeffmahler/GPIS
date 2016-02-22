@@ -35,7 +35,7 @@ class DexRobotIzzy:
                                             frame=DexConstants.WORLD_FRAME)
 
     def __init__(self, comm = DexConstants.IZZY_COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
-        self._ser_int = DexSerialInterface(IzzyState, comm, baudrate, timeout)      
+        self._ser_int = DexSerialInterface(IzzyState, comm, baudrate, timeout, read_sensors=True)      
         self._ser_int.start()
         self._target_state = self.getState()
         Logger.clear(IzzyState.NAME)
@@ -67,11 +67,13 @@ class DexRobotIzzy:
         self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
         
         sensor_vals = self.getSensors()
-        while sensor_vals is None or sensor_vals.gripper_force < DexConstants.GRIPPER_CLOSE_FORCE_THRESH:
+        current_state = self.getState()
+        while (sensor_vals is None or sensor_vals.gripper_force < DexConstants.GRIPPER_CLOSE_FORCE_THRESH) and \
+                current_state.gripper_grip > IzzyState.MIN_STATE().gripper_grip + DexConstants.GRIPPER_CLOSE_EPS:
             sleep(0.1)
             sensor_vals = self.getSensors()
+            current_state = self.getState()
 
-        current_state = self.getState()
         self.gotoState(current_state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
 
     def unGrip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
@@ -202,9 +204,6 @@ class DexRobotIzzy:
             
         logging.info('Closing grippers')
         self.grip()
-        while not self.is_action_complete():
-            sleep(0.01)
-        sleep(2)
         
     def _state_FK(self, state):
         arm_angle = state.arm_rot - IzzyState.PHI

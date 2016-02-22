@@ -58,7 +58,7 @@ class DexStateViewer:
 
     @staticmethod
     def viewZeke(period = 300, comm = DexConstants.ZEKE_COMM):
-        viewer = DexStateViewer(ZekeState, comm)
+        viewer = DexStateViewer(ZekeState, comm, print_sensors=True)
         viewer.monitor(period)
         
     @staticmethod
@@ -72,4 +72,4 @@ class DexStateViewer:
         viewer.monitor(period)
 
 if __name__ == '__main__':
-    DexStateViewer.viewIzzy()
+    DexStateViewer.viewZeke()

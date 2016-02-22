@@ -48,6 +48,9 @@ class DatabaseRegistrationResult:
 class TabletopRegistrationSolver:
     def __init__(self, logging_dir=None):
         self.logging_dir_ = logging_dir
+
+    def log_to(self, logging_dir):
+        self.logging_dir_ = logging_dir
     
     def _create_query_image(self, color_im, depth_im, config, debug=False):
         """ Creates the query image for the database indexer """
@@ -215,6 +218,7 @@ class TabletopRegistrationSolver:
         feature_matcher_dist_thresh = config['feature_matcher_dist_thresh']
         feature_matcher_norm_thresh = config['feature_matcher_norm_thresh']
         num_registration_iters = config['num_registration_iters']
+        compute_total_cost = config['compute_total_registration_cost']
 
         # register from nearest images
         registration_results = []
@@ -247,7 +251,8 @@ class TabletopRegistrationSolver:
             # point to plane ICP solver
             ppis = reg.PointToPlaneICPSolver(sample_size=icp_sample_size, gamma=icp_relative_point_plane_cost, mu=icp_regularization_lambda)
             ppfm = fm.PointToPlaneFeatureMatcher(dist_thresh=feature_matcher_dist_thresh, norm_thresh=feature_matcher_norm_thresh) 
-            registration = ppis.register(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters, vis=debug)
+            registration = ppis.register(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters,
+                                         compute_total_cost=compute_total_cost, vis=debug)
             registration_results.append(registration)
 
             logging.info('Neighbor %d registration cost %f' %(i, registration.cost))
@@ -353,10 +358,13 @@ class TabletopRegistrationSolver:
         return DatabaseRegistrationResult(tf_obj_camera_p, nearest_images, nearest_distances, registration_results, best_index, total_runtime)
 
 class KnownObjectTabletopRegistrationSolver(TabletopRegistrationSolver):
-    def __init__(self, logging_dir = None):
+    def __init__(self, object_key, dataset, config, logging_dir=None):
         TabletopRegistrationSolver.__init__(self, logging_dir)
+        self.object_key_ = object_key
+        self.dataset_ = dataset
+        self.cnn_indexer_ = dbi.CNN_Hdf5ObjectIndexer(object_key, dataset, config)
+        self.config_ = config
 
-    def register(self, color_im, depth_im, object_key, dataset, config, debug=False):
+    def register(self, color_im, depth_im, debug=False):
         """ Create a CNN object indexer for registration """
-        cnn_indexer = dbi.CNN_Hdf5ObjectIndexer(object_key, dataset, config)
-        return TabletopRegistrationSolver.register(self, color_im, depth_im, dataset, cnn_indexer, config['registration'], debug=debug)
+        return TabletopRegistrationSolver.register(self, color_im, depth_im, self.dataset_, self.cnn_indexer_, self.config_['registration'], debug=debug)

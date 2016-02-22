@@ -1,5 +1,5 @@
 """
-Script to evaluate the probability of success for a few grasps on Izzy, logging the target states and the predicted quality in simulation
+Script to evaluate the probability of success for a few grasps on Zeke, logging the target states and the predicted quality in simulation
 Authors: Jeff Mahler and Jacky Liang
 """
 import copy
@@ -20,76 +20,25 @@ import sys
 sys.path.append("src/grasp_selection/control/DexControls")
 import time
 
+from DexAngles import DexAngles
 from DexConstants import DexConstants
 from DexController import DexController
-from DexRobotIzzy import DexRobotIzzy
+from DexRobotZeke import DexRobotZeke
 from ZekeState import ZekeState
-from IzzyState import IzzyState
+from ZekeState import ZekeState
 
+import camera_params as cp
 import database as db
+import discrete_adaptive_samplers as das
 import experiment_config as ec
+import mab_single_object_objective as msoo
+import mayavi_visualizer as mvis
 import quality
 import rgbd_sensor as rs
 import similarity_tf as stf
 import tabletop_object_registration as tor
+import termination_conditions as tc
 import tfx
-
-# MAYAVI VISUALIZER
-def mv_plot_table(T_table_world, d=0.5):
-    """ Plots a table in pose T """
-    table_vertices = np.array([[d, d, 0],
-                               [d, -d, 0],
-                               [-d, d, 0],
-                               [-d, -d, 0]])
-    table_vertices_tf = T_table_world.apply(table_vertices.T).T
-    table_tris = np.array([[0, 1, 2], [1, 2, 3]])
-    mv.triangular_mesh(table_vertices[:,0], table_vertices[:,1], table_vertices[:,2], table_tris, representation='surface', color=(0,0,0))
-
-def mv_plot_pose(T_frame_world, alpha=0.5, tube_radius=0.005, center_scale=0.025):
-    T_world_frame = T_frame_world.inverse()
-    R = T_world_frame.rotation
-    t = T_world_frame.translation
-
-    x_axis_tf = np.array([t, t + alpha * R[:,0]])
-    y_axis_tf = np.array([t, t + alpha * R[:,1]])
-    z_axis_tf = np.array([t, t + alpha * R[:,2]])
-        
-    mv.points3d(t[0], t[1], t[2], color=(1,1,1), scale_factor=center_scale)
-    
-    mv.plot3d(x_axis_tf[:,0], x_axis_tf[:,1], x_axis_tf[:,2], color=(1,0,0), tube_radius=tube_radius)
-    mv.plot3d(y_axis_tf[:,0], y_axis_tf[:,1], y_axis_tf[:,2], color=(0,1,0), tube_radius=tube_radius)
-    mv.plot3d(z_axis_tf[:,0], z_axis_tf[:,1], z_axis_tf[:,2], color=(0,0,1), tube_radius=tube_radius)
-
-    mv.text3d(t[0], t[1], t[2], ' %s' %T_frame_world.to_frame.upper(), scale=0.01)
-
-def mv_plot_mesh(mesh, T_mesh_world, style='wireframe', color=(0.5,0.5,0.5)):
-    mesh_tf = mesh.transform(T_mesh_world.inverse())
-    mesh_tf.visualize(style=style, color=color)
-
-def mv_plot_point_cloud(point_cloud, T_points_world, color=(0,1,0), scale=0.01):
-    point_cloud_tf = T_points_world.apply(point_cloud).T
-    mv.points3d(point_cloud_tf[:,0], point_cloud_tf[:,1], point_cloud_tf[:,2], color=color, scale_factor=scale)
-
-def mv_plot_grasp(grasp, T_obj_world, alpha=0.5, tube_radius=0.005, endpoint_color=(0,1,0), endpoint_scale=0.01, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1)):
-    g1, g2 = grasp.endpoints()
-    center = grasp.center
-    g1_tf = T_obj_world.inverse().apply(g1)
-    g2_tf = T_obj_world.inverse().apply(g2)
-    center_tf = T_obj_world.inverse().apply(center)
-    grasp_axis_tf = np.array([g1_tf, g2_tf])
-
-    T_gripper_obj = grasp.gripper_transform(gripper='zeke')
-    palm_axis = T_gripper_obj.rotation[:,1]
-
-    axis_tf = np.array([g1_tf, g2_tf])
-    palm_axis_tf = T_obj_world.inverse().apply(palm_axis, direction=True)
-    palm_axis_tf = np.array([center_tf, center_tf + alpha * palm_axis_tf])
-
-    mv.points3d(g1_tf[0], g1_tf[1], g1_tf[2], color=endpoint_color, scale_factor=endpoint_scale)
-    mv.points3d(g2_tf[0], g2_tf[1], g2_tf[2], color=endpoint_color, scale_factor=endpoint_scale)
-
-    mv.plot3d(grasp_axis_tf[:,0], grasp_axis_tf[:,1], grasp_axis_tf[:,2], color=grasp_axis_color, tube_radius=tube_radius)
-    mv.plot3d(palm_axis_tf[:,0], palm_axis_tf[:,1], palm_axis_tf[:,2], color=palm_axis_color, tube_radius=tube_radius)
 
 # Experiment tag generator for saving output
 def gen_experiment_id(n=10):
@@ -121,14 +70,14 @@ def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc
         dist_to_table = center_rel_table.dot(stable_pose.r[2,:])
 
         # make sure not in collision and above z
-        if not in_collision and dist_to_table > IzzyState.DELTA_Z:
+        if not in_collision and dist_to_table > ZekeState.DELTA_Z:
             grasp_set.append(grasp_candidate)
         i = i+1
     
     return grasp_set
 
 # Grasp execution main function
-def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, camera, config):
+def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registration_solver, ctrl, camera, config):
     debug = config['debug']
     load_object = config['load_object']
     alpha = config['alpha']
@@ -168,14 +117,13 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, ca
         logging_dir = os.path.join(grasp_dir, 'trial_%d' %(i))
         if not os.path.exists(logging_dir):
             os.mkdir(logging_dir)
+        registration_solver.log_to(logging_dir)
 
-        try:
+        if True:#try:
             if not load_object:
                 # move the arm out of the way
                 logging.info('Moving arm out of the way')
                 ctrl.reset_object()
-                while not ctrl._izzy.is_action_complete():
-                    time.sleep(0.01)
 
                 # prompt for object placement
                 yesno = raw_input('Place object. Hit [ENTER] when done')
@@ -184,8 +132,15 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, ca
                 logging.info('Registering object')
                 depth_im = camera.get_depth_image()
                 color_im = camera.get_color_image()
-                registration_solver = tor.KnownObjectTabletopRegistrationSolver(logging_dir)
-                reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), graspable.key, dataset, config, debug=debug)
+                
+                # get point cloud (for debugging only)
+                camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], fx=config['registration']['focal_length'])
+                points_3d = camera_params.deproject(depth_im)
+                subsample_inds = np.arange(points_3d.shape[1])[::20]
+                points_3d = points_3d[:,subsample_inds]
+
+                # register
+                reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), debug=debug)
                 T_camera_obj = reg_result.tf_camera_obj
                 T_camera_obj.from_frame = 'obj'
                 T_camera_obj.to_frame = 'camera'
@@ -253,14 +208,16 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, ca
             # visualize the robot's understanding of the world
             logging.info('Displaying robot world state')
             mv.clf()
-            mv_plot_table(T_table_world, d=table_extent)
-            mv_plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            mv_plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            mv_plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            mv_plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            mv_plot_mesh(object_mesh, T_obj_world)
-            mv_plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
-
+            mvis.MayaviVisualizer.plot_table(T_table_world, d=table_extent)
+            mvis.MayaviVisualizer.plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            mvis.MayaviVisualizer.plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            mvis.MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            mvis.MayaviVisualizer.plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            mvis.MayaviVisualizer.plot_mesh(object_mesh, T_obj_world)
+            mvis.MayaviVisualizer.plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
+            #mvis.MayaviVisualizer.plot_point_cloud(points_3d, T_world_camera, color=(0,1,1))
+            mv.show()
+            
             delta_view = 360.0 / num_grasp_views
             mv.view(distance=cam_dist)
             for j in range(num_grasp_views):
@@ -272,19 +229,14 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, ca
             # execute the grasp
             logging.info('Executing grasp')
             grasp_tf = T_gripper_world.inverse()
-            ctrl.do_grasp(grasp_tf)
-            while not ctrl._izzy.is_action_complete():
-                time.sleep(0.01)
+            target_state = ctrl.do_grasp(grasp_tf)
             if debug:
                 ctrl.plot_approach_angle()
     
             # record states
             current_state, _ = ctrl.getState()
-            target_pose = DexRobotIzzy.IZZY_LOCAL_T * grasp_tf.pose
-            target_pose.frame = DexConstants.IZZY_LOCAL_FRAME
-            target_state = DexRobotIzzy.pose_to_state(target_pose, current_state)
             high_state = current_state.copy().set_arm_elev(lift_height)
-            high_state.set_gripper_grip(IzzyState.MIN_STATE().gripper_grip)
+            high_state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
             logging.info('Targeted state: %s' %(str(target_state)))
             logging.info('Reached state: %s' %(str(current_state)))
 
@@ -313,11 +265,9 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, ca
 
             # lift the object
             logging.info('Lifting object')
-            ctrl._izzy.gotoState(high_state)
-            while not ctrl._izzy.is_action_complete():
-                time.sleep(0.01)
+            ctrl._robot.gotoState(high_state)
             if debug:
-                ctrl._izzy.plot()
+                ctrl._robot.plot()
 
             # get human input on grasp success
             human_input = raw_input('Did the grasp succeed? [y/n] ')
@@ -345,26 +295,17 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, ctrl, ca
             success_f.flush()
 
             # return to the reset state
-            ctrl._izzy.gotoState(current_state)
-            while not ctrl._izzy.is_action_complete():
-                time.sleep(0.01)
-            time.sleep(2)
+            ctrl._robot.gotoState(current_state)
 
-            ctrl._izzy.unGrip()
-            while not ctrl._izzy.is_action_complete():
-                time.sleep(0.01)
-            time.sleep(2)
+            ctrl._robot.unGrip()
 
-            reset_state = DexRobotIzzy.RESET_STATES["GRIPPER_SAFE_RESET"]
-            reset_state.set_gripper_grip(IzzyState.MAX_STATE().gripper_grip)
-            ctrl._izzy.gotoState(reset_state)
-            while not ctrl._izzy.is_action_complete():
-                time.sleep(0.01)
-            time.sleep(2)
+            reset_state = DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"]
+            reset_state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
+            ctrl._robot.gotoState(reset_state)
 
-        except Exception as e:
-            logging.error(str(e))
-            exceptions.append('Dataset: %s, Object: %s, Grasp: %d, Exception: %s' % (dataset.name, graspable.key, grasp.grasp_id, str(e)))
+        #except Exception as e:
+        #    logging.error(str(e))
+        #    exceptions.append('Dataset: %s, Object: %s, Grasp: %d, Exception: %s' % (dataset.name, graspable.key, grasp.grasp_id, str(e)))
 
         trial_stop = time.time()
         logging.info('Trial %d took %f sec' %(i, trial_stop - trial_start))
@@ -390,6 +331,8 @@ if __name__ == '__main__':
     dataset_name = config['datasets'].keys()[0]
     object_name = config['object_name']
     num_grasp_views = config['num_grasp_views']
+    max_iter = config['max_iter']
+    snapshot_rate = config['snapshot_rate']
 
     # open database and dataset
     database = db.Hdf5Database(database_filename, config)
@@ -430,9 +373,10 @@ if __name__ == '__main__':
     delta_view = 360.0 / num_grasp_views
 
     for i, grasp in enumerate(grasps_to_execute):
+        logging.info('Grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps_to_execute)))
         mv.clf()
         object_mesh_tf.visualize(style='wireframe')
-        mv_plot_grasp(grasp, T_obj_stp, alpha=1.5*config['alpha'], tube_radius=config['tube_radius'])
+        mvis.MayaviVisualizer.plot_grasp(grasp, T_obj_stp, alpha=1.5*config['alpha'], tube_radius=config['tube_radius'])
 
         for j in range(num_grasp_views):
             az = j * delta_view
@@ -440,14 +384,51 @@ if __name__ == '__main__':
             figname = 'grasp_%d_view_%d.png' %(i, j)                
             mv.savefig(os.path.join(experiment_dir, figname))
 
+    # preload registration solver
+    registration_solver = tor.KnownObjectTabletopRegistrationSolver(object_name, ds, config)
+
     # init hardware
-    logging.info('Initializing hardware')
+    logging.info('Initializing camera')
     camera = rs.RgbdSensor()
+    logging.info('Initializing robot')
     ctrl = DexController()
+
+    """
+    current_state, _ = ctrl.getState()
+    logging.info('Before: %s' %(str(current_state)))
+
+    reset_state = DexRobotZeke.RESET_STATES['GRIPPER_SAFE_RESET']
+    reset_state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
+    reset_state.set_arm_ext(None)
+    reset_state.set_arm_elev(None)
+    ctrl._robot.gotoState(reset_state)
+    time.sleep(6)
+
+    current_state, _ = ctrl.getState()
+    logging.info('After: %s' %(str(current_state)))
+
+    #ctrl._robot.grip()
+    ctrl.stop()
+    #IPython.embed()
+    exit(0)
+    """
+
+    # run bandits to debug
+    """
+    objective = msoo.MABSingleObjectObjective(graspable, stable_pose, ds, ctrl, camera, config)
+    ts = das.ThompsonSampling(objective, grasps_to_execute)
+    logging.info('Running Thompson sampling.')
+
+    tc_list = [
+        tc.MaxIterTerminationCondition(max_iter),
+        ]
+    ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
+    ctrl.stop()
+    """
 
     # execute each grasp
     for i, grasp in enumerate(grasps_to_execute):
-        try:
+        if True:#try:
             logging.info('Evaluating grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps_to_execute)))
 
             # also compute deterministic metrics
@@ -467,7 +448,8 @@ if __name__ == '__main__':
             camera.reset()
 
             # get physical success ratio
-            grasp_successes, grasp_lifts = test_grasp_physical_success(graspable, grasp, stable_pose, ds, ctrl, camera, config)
+            grasp_successes, grasp_lifts = test_grasp_physical_success(graspable, grasp, stable_pose, ds, registration_solver,
+                                                                       ctrl, camera, config)
 
             # compute the probability of success
             p_success = np.mean(grasp_successes)
@@ -485,9 +467,9 @@ if __name__ == '__main__':
                 writer.writeheader()
             writer.writerow(grasp_q)
             output_f.flush()
-        except Exception as e:
+        #except Exception as e:
             # TODO: handle more gracefully
-            ctrl.stop()
-            raise e
+        #    ctrl.stop()
+        #    raise e
 
     ctrl.stop()

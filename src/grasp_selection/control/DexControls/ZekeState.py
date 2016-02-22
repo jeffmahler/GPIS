@@ -5,11 +5,13 @@ class ZekeState:
     NAME = "Zeke"
     
     #For the two offsets below, actual angle = desired angle + OFFSET
-    PHI = 0.235  #izzy arm rotation angle offset to make calculations easier.
-    THETA = -0.16 #izzy wrist rotation 0 degree offset.
+    PHI = 0.30 # zeke arm rotation angle offset to make calculations easier.
+    THETA = 1.10 # zeke wrist rotation 0 degree offset.
+    DELTA_Z = 0.032 # zeke arm 0 elevation in world coordinates
+    WRIST_TO_FINGER_RADIUS = 0.006 # the radius of the fingers from the center of wrist rotation
     
     ZEKE_ARM_ORIGIN_OFFSET = 0.51
-    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.42
+    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.40
     
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     
@@ -23,12 +25,22 @@ class ZekeState:
         
     @staticmethod
     def MAX_STATE():
-        return ZekeState([2*pi, 0.3, 0.3, pi, 0.032, 2*pi])
+        return ZekeState([2*pi, 0.3, 0.3, 2*pi, 0.059, 2*pi])
     
     @staticmethod
     def is_rot(i):
         return i in (0, 3)
         
+
+    def to_dict(self):
+        d = {}
+        d['arm_rot'] = self.state[0]
+        d['arm_elev'] = self.state[1]
+        d['arm_ext'] = self.state[2]
+        d['gripper_rot'] = self.state[3]
+        d['gripper_grip'] = self.state[4]
+        return d
+
     @property
     def speeds_ids(self):
         return (1, 0, 0, 1, 0)

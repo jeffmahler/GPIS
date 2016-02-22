@@ -10,7 +10,7 @@ class IzzyState:
     DELTA_Z = 0.037 #izzy arm 0 elevation in world coordinates
         
     IZZY_ARM_ORIGIN_OFFSET = -0.502
-    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.392
+    IZZY_ARM_TO_GRIPPER_TIP_LENGTH = 0.402
 
     # Rotation, Elevation, Extension, Wrist rotation, Grippers
     @staticmethod
@@ -23,7 +23,7 @@ class IzzyState:
         
     @staticmethod
     def MAX_STATE():
-        return IzzyState([5.6, 0.29, 0.34, 7.07, 0.035, 2*pi])
+        return IzzyState([5.6, 0.29, 0.34, 7.07, 0.072, 2*pi])
     
     @staticmethod
     def is_rot(i):
