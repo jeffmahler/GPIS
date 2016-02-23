@@ -51,7 +51,34 @@ class TabletopRegistrationSolver:
 
     def log_to(self, logging_dir):
         self.logging_dir_ = logging_dir
-    
+
+    def _table_to_stp_transform(self, T_table_camera, x0_stp, config):
+        """ Compute a transformation to align the table normal with the z axis """
+        # load table plane from calib
+        R_obj_table = np.eye(3)
+        calibration_dir = config['calibration_dir']
+        R_camera_table = np.load(os.path.join(calibration_dir, 'rotation_camera_cb.npy'))
+        t_camera_table = np.load(os.path.join(calibration_dir, 'translation_camera_cb.npy'))
+
+        # transform the table normal from camera to table basis
+        n_table = T_table_camera.apply(R_camera_table[:,2], direction=True)
+        x0_table = T_table_camera.apply(t_camera_table)
+        table_tan_x_table = np.array([-n_table[1], n_table[0], 0])
+        table_tan_x_table = table_tan_x_table / np.linalg.norm(table_tan_x_table)
+        table_tan_y_table = np.cross(n_table, table_tan_x_table)
+        t0 = R_obj_table[:,0].dot(table_tan_x_table)
+        t1 = R_obj_table[:,0].dot(table_tan_y_table)
+        xp = t0*table_tan_x_table + t1*table_tan_y_table
+        xp = xp / np.linalg.norm(xp)
+        yp = np.cross(n_table, xp)
+        Rp = np.c_[xp, yp, n_table]
+
+        # zero out x-y vals of target, since we only want the z values to match
+        x0_stp[0] = 0.0
+        x0_stp[1] = 0.0
+        T_stp_table = stf.SimilarityTransform3D(pose=tfx.pose(Rp.T, x0_stp - Rp.T.dot(x0_table)), from_frame='stp', to_frame='stp')        
+        return T_stp_table
+
     def _create_query_image(self, color_im, depth_im, config, debug=False):
         """ Creates the query image for the database indexer """
         # read in params
@@ -224,21 +251,31 @@ class TabletopRegistrationSolver:
         registration_results = []
         min_cost = np.inf
         best_reg = None
+        best_T_stp_stp_p = None
         best_index = -1
         for i, neighbor_image in enumerate(candidate_rendered_images):
             # load object mesh
             obj = dataset.graspable(neighbor_image.obj_key)
             object_mesh = obj.mesh
 
+            # form transforms
+            T_stp_camera = neighbor_image.stp_to_camera_transform().inverse()
+            T_stp_obj = neighbor_image.object_to_stp_transform()
+
             # get source object points
-            source_mesh_tf = neighbor_image.camera_to_object_transform()        
-            source_object_mesh = object_mesh.transform(source_mesh_tf)
+            source_object_mesh = object_mesh.transform(T_stp_obj)
             source_object_mesh.compute_normals()
             source_object_points = np.array(source_object_mesh.vertices())
             source_object_normals = np.array(source_object_mesh.normals())
-            
+            source_mesh_ref_point = T_stp_obj.apply(neighbor_image.stable_pose.x0)
+
+            # match table normals
+            T_stp_stp_p = self._table_to_stp_transform(T_stp_camera, source_mesh_ref_point, config)
+            T_stp_camera = T_stp_stp_p.dot(T_stp_camera)
             target_object_points = ip.PointCloudProcessing.remove_zero_points(query_point_cloud).T
             target_object_normals = ip.NormalCloudProcessing.remove_zero_normals(query_normals).T
+            target_object_points = T_stp_camera.apply(target_object_points.T).T
+            target_object_normals = T_stp_camera.apply(target_object_normals.T, direction=True).T
 
             # display the points relative to one another
             if debug:
@@ -246,27 +283,32 @@ class TabletopRegistrationSolver:
                 mlab.figure()
                 mlab.points3d(source_object_points[:,0], source_object_points[:,1], source_object_points[:,2], color=(1,0,0), scale_factor = 0.005)
                 mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
+                mlab.axes()
                 mlab.show()
 
             # point to plane ICP solver
             ppis = reg.PointToPlaneICPSolver(sample_size=icp_sample_size, gamma=icp_relative_point_plane_cost, mu=icp_regularization_lambda)
             ppfm = fm.PointToPlaneFeatureMatcher(dist_thresh=feature_matcher_dist_thresh, norm_thresh=feature_matcher_norm_thresh) 
-            registration = ppis.register(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters,
-                                         compute_total_cost=compute_total_cost, vis=debug)
+            registration = ppis.register_2d(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters,
+                                            compute_total_cost=compute_total_cost, vis=debug)
             registration_results.append(registration)
 
             logging.info('Neighbor %d registration cost %f' %(i, registration.cost))
             if registration.cost < min_cost:
                 min_cost = registration.cost
                 best_reg = registration
-                best_tf_camera_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_reg.R, best_reg.t))
+                best_T_stp_camera = T_stp_camera
+                best_T_stp_stp_p = stf.SimilarityTransform3D(pose=tfx.pose(best_reg.R, best_reg.t), from_frame='stp', to_frame='stp')
                 best_index = i
 
         # compute best transformation from object to camera basis
-        best_tf_obj_camera = candidate_rendered_images[best_index].camera_to_object_transform()
-        best_tf_obj_camera_p = best_tf_camera_camera_p.pose.matrix.dot(best_tf_obj_camera.pose.matrix)
-        best_tf_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_tf_obj_camera_p))
-        return best_tf_obj_camera_p, registration_results, best_index
+        best_T_obj_stp = candidate_rendered_images[best_index].object_to_stp_transform().inverse()
+        best_T_obj_camera = best_T_obj_stp.dot(best_T_stp_stp_p.inverse()).dot(best_T_stp_camera)
+
+        #best_tf_obj_camera = candidate_rendered_images[best_index].camera_to_object_transform()
+        #best_tf_obj_camera_p = best_tf_camera_camera_p.pose.matrix.dot(best_tf_obj_camera.pose.matrix)
+        #best_tf_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_tf_obj_camera_p))
+        return best_T_obj_camera.inverse(), registration_results, best_index
 
     def register(self, color_im, depth_im, dataset, database_indexer, config, debug=False):
         """

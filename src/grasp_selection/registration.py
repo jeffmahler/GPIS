@@ -311,7 +311,8 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         self.mu_ = mu
         IterativeRegistrationSolver.__init__(self)
     
-    def register(self, orig_source_points, target_points, orig_source_normals, target_normals, matcher, num_iterations=1, vis=False):
+    def register(self, orig_source_points, target_points, orig_source_normals, target_normals, matcher,
+                 num_iterations=1, compute_total_cost=True, vis=False):
         """
         Iteratively register objects to one another using a modified version of point to plane ICP.
         The cost func is actually PointToPlane_COST + gamma * PointToPoint_COST
@@ -402,26 +403,150 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
             R_sol = R.dot(R_sol)
             t_sol = R.dot(t_sol) + t
 
-        # rematch all points to get the final cost
+        total_cost = 0
         source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
         source_normals = (R_sol.dot(orig_source_normals.T)).T
 
-        corrs = matcher.match(source_points, target_points, source_normals, target_normals)
-        valid_corrs = np.where(corrs.index_map != -1)[0]
-        num_corrs = valid_corrs.shape[0]
-        if num_corrs == 0:
-            return RegistrationResult(R_sol, t_sol, np.inf)
+        if compute_total_cost:
+            # rematch all points to get the final cost
+            corrs = matcher.match(source_points, target_points, source_normals, target_normals)
+            valid_corrs = np.where(corrs.index_map != -1)[0]
+            num_corrs = valid_corrs.shape[0]
+            if num_corrs == 0:
+                return RegistrationResult(R_sol, t_sol, np.inf)
 
-        # get the corresponding points
-        source_corr_points = corrs.source_points[valid_corrs,:]
-        target_corr_points = corrs.target_points[corrs.index_map[valid_corrs], :]
-        target_corr_normals = corrs.target_normals[corrs.index_map[valid_corrs], :]
+            # get the corresponding points
+            source_corr_points = corrs.source_points[valid_corrs,:]
+            target_corr_points = corrs.target_points[corrs.index_map[valid_corrs], :]
+            target_corr_normals = corrs.target_normals[corrs.index_map[valid_corrs], :]
 
-        # determine total cost
-        source_target_alignment = np.diag((source_corr_points - target_corr_points).dot(target_corr_normals.T))
-        point_plane_cost = (1.0 / num_corrs) * np.sum(source_target_alignment * source_target_alignment)
-        point_dist_cost = (1.0 / num_corrs) * np.sum(np.linalg.norm(source_corr_points - target_corr_points, axis=1)**2)
-        total_cost = point_plane_cost + self.gamma_ * point_dist_cost
+            # determine total cost
+            source_target_alignment = np.diag((source_corr_points - target_corr_points).dot(target_corr_normals.T))
+            point_plane_cost = (1.0 / num_corrs) * np.sum(source_target_alignment * source_target_alignment)
+            point_dist_cost = (1.0 / num_corrs) * np.sum(np.linalg.norm(source_corr_points - target_corr_points, axis=1)**2)
+            total_cost = point_plane_cost + self.gamma_ * point_dist_cost
+
+        if vis:
+            vis_corrs(source_points, target_points, corrs.index_map, plot_lines=False)        
+        return RegistrationResult(R_sol, t_sol, total_cost)
+
+    def register_2d(self, orig_source_points, target_points, orig_source_normals, target_normals, matcher,
+                    num_iterations=1, compute_total_cost=True, vis=False):
+        """
+        Iteratively register objects to one another using a modified version of point to plane ICP
+        which only solves for tx and ty (translation in the plane) and theta (rotation about the z axis).
+        The cost func is actually PointToPlane_COST + gamma * PointToPoint_COST
+        Points should be specified in the basis of the planar worksurface
+
+        Params:
+           source_points: (Nx3 array) source object points
+           target_points: (Nx3 array) target object points
+           source_normals: (Nx3 array) source object outward-pointing normals
+           target_normals: (Nx3 array) target object outward-pointing normals
+           matcher: (PointToPlaneFeatureMatcher) object to match the point sets
+           num_iterations: (int) the number of iterations to run
+        Returns:
+           RegistrationResult object containing the source to target transformation
+        """        
+        # setup the problem
+        normal_norms = np.linalg.norm(target_normals, axis=1)
+        valid_inds = np.nonzero(normal_norms)
+        target_points = target_points[valid_inds[0],:]
+        target_normals = target_normals[valid_inds[0],:]
+
+        normal_norms = np.linalg.norm(orig_source_normals, axis=1)
+        valid_inds = np.nonzero(normal_norms)
+        orig_source_points = orig_source_points[valid_inds[0],:]
+        orig_source_normals = orig_source_normals[valid_inds[0],:]
+
+        # alloc buffers for solutions
+        source_mean_point = np.mean(orig_source_points, axis=0)
+        target_mean_point = np.mean(target_points, axis=0)
+        R_sol = np.eye(3)
+        t_sol = np.zeros([3, 1]) #init with diff between means
+        t_sol[:,0] = target_mean_point - source_mean_point
+
+        # iterate through
+        for i in range(num_iterations):
+            logging.info('Point to plane ICP iteration %d' %(i))
+
+            # subsample points
+            subsample_inds = np.random.choice(orig_source_points.shape[0], size=self.sample_size_)
+            source_points = orig_source_points[subsample_inds,:]
+            source_normals = orig_source_normals[subsample_inds,:]
+
+            # transform source points
+            source_points = (R_sol.dot(source_points.T) + np.tile(t_sol, [1, source_points.shape[0]])).T
+            source_normals = (R_sol.dot(source_normals.T)).T
+        
+            # closest points
+            corrs = matcher.match(source_points, target_points, source_normals, target_normals)
+
+            # solve optimal rotation + translation
+            valid_corrs = np.where(corrs.index_map != -1)[0]
+            source_corr_points = corrs.source_points[valid_corrs,:]
+            target_corr_points = corrs.target_points[corrs.index_map[valid_corrs], :]
+            target_corr_normals = corrs.target_normals[corrs.index_map[valid_corrs], :]
+
+            num_corrs = valid_corrs.shape[0]
+            if num_corrs == 0:
+                break
+
+            # create A and b matrices for Gauss-Newton step on joint cost function
+            A = np.zeros([3,3])
+            b = np.zeros([3,1])
+            Ap = np.zeros([3,3])
+            bp = np.zeros([3,1])
+            G = np.zeros([3,3])
+            G[:2,1:] = np.eye(2)
+
+            for i in range(num_corrs):
+                s = source_corr_points[i:i+1,:].T
+                t = target_corr_points[i:i+1,:].T
+                n = target_corr_normals[i:i+1,:].T
+                G[0,0] = -s[1] 
+                G[1,0] = s[0]
+                A += G.T.dot(n).dot(n.T).dot(G)
+                b += G.T.dot(n).dot(n.T).dot(t - s)
+
+                Ap += G.T.dot(G)
+                bp += G.T.dot(t - s)
+            v = np.linalg.solve(A + self.gamma_*Ap + self.mu_*np.eye(3),
+                                b + self.gamma_*bp)
+
+            # create pose values from the solution
+            R = np.eye(3)
+            R = R + skew(np.array([[0],[0],[v[0,0]]]))
+            U, S, V = np.linalg.svd(R)
+            R = U.dot(V)
+            t = np.array([[v[1,0]], [v[2,0]], [0]])
+
+            # incrementally update the final transform
+            R_sol = R.dot(R_sol)
+            t_sol = R.dot(t_sol) + t
+
+        total_cost = 0
+        if compute_total_cost:
+            # rematch all points to get the final cost
+            source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
+            source_normals = (R_sol.dot(orig_source_normals.T)).T
+
+            corrs = matcher.match(source_points, target_points, source_normals, target_normals)
+            valid_corrs = np.where(corrs.index_map != -1)[0]
+            num_corrs = valid_corrs.shape[0]
+            if num_corrs == 0:
+                return RegistrationResult(R_sol, t_sol, np.inf)
+
+            # get the corresponding points
+            source_corr_points = corrs.source_points[valid_corrs,:]
+            target_corr_points = corrs.target_points[corrs.index_map[valid_corrs], :]
+            target_corr_normals = corrs.target_normals[corrs.index_map[valid_corrs], :]
+
+            # determine total cost
+            source_target_alignment = np.diag((source_corr_points - target_corr_points).dot(target_corr_normals.T))
+            point_plane_cost = (1.0 / num_corrs) * np.sum(source_target_alignment * source_target_alignment)
+            point_dist_cost = (1.0 / num_corrs) * np.sum(np.linalg.norm(source_corr_points - target_corr_points, axis=1)**2)
+            total_cost = point_plane_cost + self.gamma_ * point_dist_cost
 
         if vis:
             vis_corrs(source_points, target_points, corrs.index_map, plot_lines=False)        

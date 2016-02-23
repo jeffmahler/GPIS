@@ -117,7 +117,7 @@ class DexController:
         proj_y_axis_grasp = -ravel(rotation[:2,1])
         phi = _angle_2d(proj_g_t_w, proj_y_axis_grasp)
 
-        logging.debug('Phi: %f' %phi)
+        logging.info('Phi: %f' %phi)
         
         #psi is angle between x-axis of the grasp in world frame and the table's xy plane    
         x_axis_grasp = ravel(rotation[:,0])
@@ -131,9 +131,8 @@ class DexController:
         v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
 
         # TODO: re-enable when wrist comes back on
-        psi = np.pi#_angle_2d(u_x, v_x) + pi / 2
-
-        logging.debug('Psi: %f' %psi)
+        psi = _angle_2d(u_x, v_x)
+        logging.info('Psi: %f' %psi)
         
         #gamma is angle between the y-axis of the grasp in world frame and the table's xy plane
         y_axis_grasp = ravel(rotation[:,1])
@@ -141,7 +140,7 @@ class DexController:
         proj_y_axis_grasp[2] = 0
         gamma = _angle_3d(proj_y_axis_grasp, y_axis_grasp)
         
-        logging.debug('Gamma: %f' %gamma)
+        logging.info('Gamma: %f' %gamma)
         return original_pose, DexAngles(phi, psi, gamma)
         
     def _set_approach_pose(self, target_pose, angles):

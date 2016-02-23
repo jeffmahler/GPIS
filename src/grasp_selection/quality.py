@@ -90,6 +90,16 @@ class PointGraspMetrics3D:
             logging.debug('No normals')
             return 0#-np.inf
 
+        # normalize torques
+        mn, mx = obj.mesh.bounding_box()
+        rho = np.max(mx)
+        torques = torques / rho
+
+        if params is None:
+            params = {}
+        params['rho'] = rho
+        params['mu'] = friction_coef 
+
         if vis:
             ax = plt.gca()
             ax.set_xlim3d(0, obj.sdf.dims_[0])
@@ -105,7 +115,7 @@ class PointGraspMetrics3D:
         return quality
 
     @staticmethod
-    def grasp_matrix(forces, torques, normals, soft_fingers=False, params = None):
+    def grasp_matrix(forces, torques, normals, soft_fingers=False, finger_diameter=0.01, params=None):
         num_forces = forces.shape[1]
         num_torques = torques.shape[1]
         if num_forces != num_torques:
@@ -124,7 +134,7 @@ class PointGraspMetrics3D:
             G[3:,i] = torques[:,i]
 
         if soft_fingers:
-            G[3:,-num_normals:] = normals
+            G[3:,-num_normals:] = np.pi * finger_diameter * params['mu'] * normals / params['rho']
         return G
 
     @staticmethod
@@ -155,7 +165,7 @@ class PointGraspMetrics3D:
         if params is not None:
             eps = params['eps']
 
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         min_norm = PointGraspMetrics3D.min_norm_vector_in_facet(G)
         return 1 * (min_norm < eps) # if greater than eps, 0 is outside of hull
 
@@ -207,11 +217,11 @@ class PointGraspMetrics3D:
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
         """ The Ferrari-Canny L1 metric """
         eps = np.sqrt(1e-2)
-        if params is not None:
+        if params is not None and 'eps' in params.keys():
             eps = params['eps']
 
         # create grasp matrix
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         s = time.clock()
         hull = cvh.ConvexHull(G.T, joggle=True)
         e = time.clock()
@@ -229,12 +239,14 @@ class PointGraspMetrics3D:
 
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
+        closest_facet = None
         for v in hull.vertices:
             if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
                 facet = G[:, v]
                 dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
                 if dist < min_dist:
                     min_dist = dist
+                    closest_facet = facet
         return min_dist
 
     @staticmethod

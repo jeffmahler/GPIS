@@ -20,9 +20,9 @@ class DexRobotZeke:
     Abstraction for a robot profile for Zeke
     '''
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, None, 0.036]),
-                    "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi/2, None]),
-                    "OBJECT_RESET" : ZekeState([3 * pi / 2 + ZekeState.PHI, 0.01, 0.02, None, None]),
+    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi, 0.036]),
+                    "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi, None]),
+                    "OBJECT_RESET" : ZekeState([3 * pi / 2 + ZekeState.PHI, 0.01, 0.02, ZekeState.THETA + pi, None]),
                     "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None]), 
                     "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None]),
                     "ZEKE_RESET_CLEAR_TABLE" : ZekeState([3 * pi /2 + + ZekeState.PHI, None, None, None, None])}
@@ -111,6 +111,11 @@ class DexRobotZeke:
         else:
             # TODO: update Zeke with kinematics - this angle should really be computed from the pose in Zeke itself, NOT in the controller
             psi = angles.psi
+            if psi < pi/2:
+                psi = psi + pi
+            elif psi > 3*pi/2:
+                psi = psi - pi
+            
         delta_h_wrist_fingers = ZekeState.WRIST_TO_FINGER_RADIUS * np.cos(psi) # the differential height of the fingers due to the wrist rotation
         delta_xy_wrist_fingers = ZekeState.WRIST_TO_FINGER_RADIUS * -np.sin(psi) # the differential xy pos of the fingers due to the wrist rotation
         
@@ -142,6 +147,7 @@ class DexRobotZeke:
         print 'Pose Y', target_pose.position.x
         print 'Pose Z', target_pose.position.z
         print 'Delta h', delta_h_wrist_fingers
+        print 'Psi', psi
 
         state = ZekeState()
         state.set_arm_rot(target_theta)
