@@ -461,6 +461,7 @@ class Mesh3D(object):
     def transform(self, tf):
         vertex_array = np.array(self.vertices_)
         vertex_array_tf = tf.apply(vertex_array.T)
+        # TODO: transform normals as well
         return Mesh3D(vertex_array_tf.T.tolist(), self.triangles_)
 
     def rescale_vertices(self, min_scale):
