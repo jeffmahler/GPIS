@@ -8,6 +8,7 @@ import pdb
 import mlab_3D_to_2D
 import os
 import sys
+import pickle
 
 other_code_dir = "../src/grasp_selection"
 other_code_dir = os.getcwd() + "/" + other_code_dir
@@ -15,46 +16,6 @@ sys.path.insert(0, other_code_dir)
 
 import obj_file as of
 import mesh
-
-################################################################################
-# Disable the rendering, to get bring up the figure quicker:
-figure = mlab.gcf()
-mlab.clf()
-figure.scene.disable_render = True
-
-#Load mesh here
-
-filename = "/Users/Sherdil/Research/GPIS/data/test/meshes/Co_clean.obj"
-ofile = of.ObjFile(filename)
-msh = ofile.read()
-colored_msh = None
-
-
-msh.visualize((0.0, 0.0, 1.0))
-
-
-
-# Every object has been created, we can reenable the rendering.
-figure.scene.disable_render = False
-################################################################################
-
-
-
-
-#Sherdil Code start
-
-
-engine = mlab.get_engine()
-scene = engine.scenes[0]
-vtk_scene = scene.scene
-interactor = vtk_scene.interactor
-render_window = vtk_scene.render_window
-
-draw_box_start_coords = [0]*2
-draw_box_triggered = False
-draw_mode = False
-default_interaction_style = interactor.interactor_style
-
 
 
 def box_bounding(vtk_obj, event):
@@ -95,21 +56,30 @@ def select_mode(vtk_obj, event):
     key_code = vtk_obj.GetKeyCode()
 
     #We want the "e" key to trigger a switch in the edit mode.
-    if (key_code != 'e'):
-        return
-    
-    if (not draw_mode): 
+    if (key_code == 'e' and view_mode == 'l'):
+        if (not draw_mode): 
 
-        pdb.set_trace
+            pdb.set_trace
 
-        mlab.title('LABEL MODE ON')
-        draw_mode = True
-        interactor.interactor_style = tvtk.InteractorStyleImage()
+            mlab.title('LABEL MODE ON')
+            draw_mode = True
+            interactor.interactor_style = tvtk.InteractorStyleImage()
 
-    else:
-        mlab.title('')
-        draw_mode = False
-        interactor.interactor_style = default_interaction_style
+        else:
+            mlab.title('')
+            draw_mode = False
+            interactor.interactor_style = default_interaction_style
+
+    #Write out a bianry mask for the vertices if the user decides to quit.
+    elif (key_code == 'q'):
+
+        if (view_mode == 'l' and colored_msh != None):
+            save_file = open(save_mask_name, 'w')
+            triangle_list = [original_triangles.index(t) for t in colored_msh.triangles()]
+            np.save(save_file, triangle_list)
+            save_file.close()
+
+        sys.exit()
 
 
 
@@ -131,75 +101,31 @@ def project_3D(box_start, box_end):
     view_to_disp_mat = mlab_3D_to_2D.get_view_to_display_matrix(figure.scene)
     disp_coords = mlab_3D_to_2D.apply_transform_to_points(norm_view_coords, view_to_disp_mat)
 
-    closest_triangles = np.empty((figure.scene.get_size()[0], figure.scene.get_size()[1]), dtype="object")
+    in_vertex_indicies = []
+    for i in range(len(x)):
 
-    in_triangle_indicies = []
+        screen_x_cord = disp_coords[:, 0][i]
+        #For some reason, the script we stole thinks the origin is the upper left. It's actually the 
+        #lower left, so we need to adjust here!
+        screen_y_cord = figure.scene.get_size()[1] - disp_coords[:, 1][i]
+        
+        x_in_box = screen_x_cord > min(box_start[0], box_end[0]) and screen_x_cord < max(box_start[0], box_end[0])
+        y_in_box = screen_y_cord > min(box_start[1], box_end[1]) and screen_y_cord < max(box_start[1], box_end[1])
 
-    for t in range(len(triangles)):
-
-        cur_triangle = triangles[t]
-        screen_x_data = []
-        screen_y_data = []
-
-        for i in cur_triangle:
-
-            screen_x_cord = disp_coords[:, 0][i]
-            #For some reason, the script we stole thinks the origin is the upper left. It's actually the 
-            #lower left, so we need to adjust here!
-            screen_y_cord = figure.scene.get_size()[1] - disp_coords[:, 1][i]
-
-            screen_x_data.append(screen_x_cord)
-            screen_y_data.append(screen_y_cord)
-
-        screen_cord_A = (screen_x_data[0], screen_y_data[0])
-        screen_cord_B = (screen_x_data[1], screen_y_data[1])
-        screen_cord_C = (screen_x_data[2], screen_y_data[2])
-
-        valid_triangle = False
-        for coord in [screen_cord_A, screen_cord_B, screen_cord_C]:
-
-            if bounding_box_check(coord[0], coord[1], box_start, box_end):
-                valid_triangle = True
+        if x_in_box and y_in_box:
+            in_vertex_indicies.append(i)
 
 
-        if not valid_triangle:
-            continue
+    #Label any triangle with A (even one) vertex in the bounding box
+    #removed_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) != 0]
+    #new_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) == 0]
 
-
-        #find "bounding box" for this triangle on the display screen.
-        min_screen_x = int(min(screen_x_data))
-        max_screen_x = int(max(screen_x_data))
-        min_screen_y = int(min(screen_y_data))
-        max_screen_y = int(max(screen_y_data))
-
-        for x in range(min_screen_x, max_screen_x+1):
-            for y in range(min_screen_y, max_screen_y+1):
-
-                in_triangle = in_triangle_checker(screen_cord_A, screen_cord_B, screen_cord_C, (x, y))
-                in_bounding_box = bounding_box_check(x, y, box_start, box_end)
-
-                if in_triangle and in_bounding_box:
-
-                    previous_closest_triangle = closest_triangles[x, y]
-                    z_depth = max([norm_view_coords[:, 2][i] for i in cur_triangle])
-                    if (not previous_closest_triangle) or (previous_closest_triangle and z_depth < previous_closest_triangle[1]):
-                        closest_triangles[x, y] = (t, z_depth)
-
-
-    for i in range(figure.scene.get_size()[0]):
-        for j in range(figure.scene.get_size()[1]):
-            if closest_triangles[i, j]:
-                closest_traingle_index = closest_triangles[i, j][0]
-                in_triangle_indicies.append(closest_traingle_index)
-
-
-    removed_triangles = [triangles[t] for t in in_triangle_indicies]
-    new_triangles = [triangles[t] for t in range(len(triangles)) if t not in in_triangle_indicies]
-
+    #Label only triangles that have EVERY vertex in the bounding box.
+    removed_triangles, new_triangles = triangle_grabber(triangles, in_vertex_indicies)
     msh = mesh.Mesh3D(msh.vertices(), new_triangles, msh.normals())
     if not colored_msh and len(removed_triangles) > 0:
         colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles, msh.normals())
-    elif colored_msh:
+    else:
         colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles + colored_msh.triangles(), msh.normals())
 
     mlab.clf()
@@ -209,46 +135,82 @@ def project_3D(box_start, box_end):
 
     mlab.title('LABEL MODE ON')
 
+def triangle_grabber(triangles, vertex_list):
+
+    #Label any triangle with A (even one) vertex in the bounding box
+    # masked_triangles = [t for t in triangles if len(set(t).intersection(vertex_list)) != 0]
+    # not_masked_traingles = [t for t in triangles if len(set(t).intersection(vertex_list)) == 0]
+
+    #Label only triangles that have EVERY vertex in the bounding box.
+    masked_triangles = [t for t in triangles if len(set(t).intersection(vertex_list)) == 3]
+    not_masked_traingles = [t for t in triangles if len(set(t).intersection(vertex_list)) < 3]
+    return (masked_triangles, not_masked_traingles)
+
+def load_saved_mask(mask_file):
+
+    global msh
+    global colored_msh
+
+    read_file = open(mask_file, 'r')
+    triangle_index_list = np.load(read_file)
+    read_file.close()
+    masked_triangles = [msh.triangles()[i] for i in triangle_index_list]
+    non_masked_triangles = [msh.triangles()[i] for i in range(len(msh.triangles())) if i not in triangle_index_list]
+    msh = mesh.Mesh3D(msh.vertices(), non_masked_triangles, msh.normals())
+    colored_msh = mesh.Mesh3D(msh.vertices(), masked_triangles, msh.normals())
+    mlab.clf()
+    msh.visualize((0.0, 0.0, 1.0))
+    colored_msh.visualize((1.0, 0.0, 0.0))
 
 
-def in_triangle_checker(vertex_A, vertex_B, vertex_C, checked_point):
-
-    A = np.array(list(vertex_A) + [0])
-    B = np.array(list(vertex_B) + [0])
-    C = np.array(list(vertex_C) + [0])
-    P = np.array(list(checked_point) + [0])
-
-    w = np.subtract(P, A)
-    u = np.subtract(B, A)
-    v = np.subtract(C, A)
-
-    v_cross_w = np.cross(v, w)
-    v_cross_u = np.cross(v, u)
-    u_cross_w = np.cross(u, w)
-    u_cross_v = np.cross(u, v)
-
-    sign_r = np.dot(v_cross_w , v_cross_u)
-    sign_t = np.dot(u_cross_w, u_cross_v)
-
-    if sign_r < 0 or sign_t < 0:
-        return False
-
-    norm_v_cross_w = np.linalg.norm(v_cross_w)
-    norm_u_cross_w = np.linalg.norm(u_cross_w)
-    norm_v_cross_u = np.linalg.norm(v_cross_u)
-
-    r = norm_v_cross_w/norm_v_cross_u
-    t = norm_u_cross_w/norm_v_cross_u
-
-    return (r + t <= 1)
+#APPLICATION CORE
 
 
-def bounding_box_check(x, y, box_start, box_end):
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
 
-    x_in_box = x > min(box_start[0], box_end[0]) and x < max(box_start[0], box_end[0])
-    y_in_box = y > min(box_start[1], box_end[1]) and y < max(box_start[1], box_end[1])
+#Arguemnts exptected: pythonw sniyaz_lableing_tool mode mesh_to_load output_file_name 
+#mode: l for labeling, r to read mask
+#output_file_name: if labeling the loaded mesh, as opposed to just reading it
 
-    return x_in_box and y_in_box
+#Load mesh here
+view_mode = sys.argv[1]
+mesh_filename = os.path.abspath(sys.argv[2])
+save_mask_name = sys.argv[3]
+
+
+ofile = of.ObjFile(mesh_filename)
+msh = ofile.read()
+colored_msh = None
+msh.visualize((0.0, 0.0, 1.0))
+
+
+
+# Every object has been created, we can reenable the rendering.
+figure.scene.disable_render = False
+################################################################################
+
+
+if (view_mode == 'r'):
+    load_saved_mask(save_mask_name)
+
+
+engine = mlab.get_engine()
+scene = engine.scenes[0]
+vtk_scene = scene.scene
+interactor = vtk_scene.interactor
+render_window = vtk_scene.render_window
+
+draw_box_start_coords = [0]*2
+draw_box_triggered = False
+draw_mode = False
+default_interaction_style = interactor.interactor_style
+original_triangles = msh.triangles()
+
+
 
 
 interactor.add_observer('LeftButtonPressEvent', box_bounding)
