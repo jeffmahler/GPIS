@@ -1,5 +1,8 @@
-from numpy import cross, dot, array
+from numpy import cross, dot, array, pi, ndarray
 from mesh import Mesh3D
+from obj_file import ObjFile
+from similarity_tf import SimilarityTransform3D as tf
+from tfx import pose, rotation_tb
 
 class CollisionDetection:    
     
@@ -21,8 +24,14 @@ class CollisionDetection:
         return False
         
     @staticmethod
+    def _cast_to_np_array(v):
+        if type(v) is not ndarray:
+            v = array(v)
+        return v
+        
+    @staticmethod
     def collide_trianlge_seg(triangle, seg):
-        vs = [v for v in triangle]
+        vs = [CollisionDetection._cast_to_np_array(v) for v in triangle]
         
         v1, v2, v3 = vs[0], vs[1], vs[2]
         e1 = v2 - v1
@@ -55,8 +64,11 @@ class CollisionDetection:
         
     @staticmethod
     def collide_mesh_mesh(m1, m2):
-        for t1 in m1.triangles():
-            for t2 in m2.triangles():
+        m1_triangles = m1.triangles()
+        m2_triangles = m2.triangles()
+        print "Triangles count: m1:{0}, m2:{1}".format(len(m1_triangles), len(m2_triangles))
+        for t1 in m1_triangles:
+            for t2 in m2_triangles:
                 _t1 = [m1.vertices()[t1[i]] for i in range(3)]
                 _t2 = [m2.vertices()[t2[i]] for i in range(3)]
                 if CollisionDetection.collide_triangle_triangle(_t1, _t2):
@@ -64,6 +76,7 @@ class CollisionDetection:
         return False
         
 def test_collision_detection():
+    '''
     print "Performing CollisionDetection Unit Tests..."
     v1 = array([0, 0, 0])
     v2 = array([1, 0, 0])
@@ -115,6 +128,24 @@ def test_collision_detection():
     m3 = Mesh3D([v7, v8, v9, w3], [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])
     assert not CollisionDetection.collide_mesh_mesh(m1, m3), "Error! Mesh {0} is not supposed to collide with mesh {1}".format(m1, m3)    
     print "Passed!"
+    '''
+    
+    
+    obj_path = "/mnt/terastation/shape_data/SHREC14LSGTB/M005130.obj"
+    of = ObjFile(obj_path)
+    m4 = of.read()
+    m5 = of.read()
+    
+    print "Testing real mesh collide with mesh..."
+    rot_tf = tf(pose([0,0,0], rotation_tb(pi/4,0,0)))
+    m5_rot = m5.transform(rot_tf)
+    assert CollisionDetection.collide_mesh_mesh(m4, m5_rot), "Error! Mesh {0} is supposed to collide with mesh {1}".format(m4, m5_rot)
+    print "Passed!"
+    
+    print "Testing real mesh does not collide with mesh..."
+    tra_tf = tf(pose([10,10,10]))
+    m5_tra = m5.transform(tra_tf)
+    assert CollisionDetection.collide_mesh_mesh(m4, m5_tra), "Error! Mesh {0} is not supposed to collide with mesh {1}".format(m4, m5_tra)
     
     print "All tests passed!"
         
