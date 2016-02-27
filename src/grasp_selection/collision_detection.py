@@ -1,6 +1,5 @@
 from numpy import cross, dot, array
 from mesh import Mesh3D
-from IPython import embed
 
 class CollisionDetection:    
     
