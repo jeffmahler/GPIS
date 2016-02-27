@@ -47,14 +47,15 @@ def gen_experiment_id(n=10):
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
 
-def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'):
+def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000',
+                      gripper='zeke'):
     """ Add the best grasp according to PFC as well as num_grasps-1 uniformly at random from the remaining set """
     grasp_set = []
 
     # get sorted list of grasps to ensure that we get the top grasp
-    sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_name, metric)
+    sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_name, metric, gripper=gripper)
     num_total_grasps = len(sorted_grasps)
-    best_grasp = sorted_grasps[0]
+    best_grasp = sorted_grasps[20]
     grasp_set.append(best_grasp)
 
     # get random indices
@@ -196,8 +197,8 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
 
             # check gripper alignment (SPECIFIC TO THE SPRAY!)
             gripper_y_axis_world = T_gripper_world.rotation[1,:]
-            obj_y_axis_world = T_obj_world.rotation[1,:]
-            if gripper_y_axis_world.dot(obj_y_axis_world) > 0:
+            obj_y_axis_world = T_obj_world.rotation[0,:]
+            if gripper_y_axis_world.dot(obj_y_axis_world) < 0:
                 logging.info('Flipping grasp')
                 R_gripper_p_gripper = np.array([[-1, 0, 0],
                                                 [0, -1, 0],
@@ -357,17 +358,22 @@ if __name__ == '__main__':
 
     # read the grasp metrics and features
     graspable = ds.graspable(object_name)
-    grasps = ds.grasps(object_name)
-    grasp_features = ds.grasp_features(object_name, grasps)
-    grasp_metrics = ds.grasp_metrics(object_name, grasps)
+    grasps = ds.grasps(object_name, gripper=config['gripper'])
+    grasp_metrics = ds.grasp_metrics(object_name, grasps, gripper=config['gripper'])
     stable_poses = ds.stable_poses(object_name)
     stable_pose = stable_poses[config['stable_pose_index']]
+    
+    # HACK to fix a y-axis orientation bug in the stable pose code
+    if np.abs(np.linalg.det(stable_pose.r) + 1) < 0.01:
+        stable_pose.r[1,:] = -stable_pose.r[1,:]
 
     # compute the list of grasps to execute (TODO: update this section)
-    grasps_to_execute = compute_grasp_set(ds, object_name, stable_pose, config['num_grasps_to_sample'], metric=config['grasp_metric'])
+    grasps_to_execute = compute_grasp_set(ds, object_name, stable_pose, config['num_grasps_to_sample'],
+                                          metric=config['grasp_metric'], gripper=config['gripper'])
 
     # plot grasps
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
+    T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
     object_mesh = graspable.mesh
     object_mesh_tf = object_mesh.transform(T_obj_stp)
     delta_view = 360.0 / num_grasp_views
@@ -375,8 +381,8 @@ if __name__ == '__main__':
     for i, grasp in enumerate(grasps_to_execute):
         logging.info('Grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps_to_execute)))
         mv.clf()
-        object_mesh_tf.visualize(style='wireframe')
-        mvis.MayaviVisualizer.plot_grasp(grasp, T_obj_stp, alpha=1.5*config['alpha'], tube_radius=config['tube_radius'])
+        T_obj_world = mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world, d=0.1)
+        mvis.MayaviVisualizer.plot_grasp(grasp, T_obj_world, alpha=1.5*config['alpha'], tube_radius=config['tube_radius'])
 
         for j in range(num_grasp_views):
             az = j * delta_view
@@ -385,7 +391,7 @@ if __name__ == '__main__':
             mv.savefig(os.path.join(experiment_dir, figname))
 
     # preload registration solver
-    registration_solver = tor.KnownObjectTabletopRegistrationSolver(object_name, ds, config)
+    registration_solver = tor.KnownObjectStablePoseTabletopRegistrationSolver(object_name, stable_pose.id, ds, config)
 
     # init hardware
     logging.info('Initializing camera')

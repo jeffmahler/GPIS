@@ -449,6 +449,7 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
            RegistrationResult object containing the source to target transformation
         """        
         # setup the problem
+        logging.info('Setting up problem')
         normal_norms = np.linalg.norm(target_normals, axis=1)
         valid_inds = np.nonzero(normal_norms)
         target_points = target_points[valid_inds[0],:]
