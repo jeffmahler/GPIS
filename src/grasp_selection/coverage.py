@@ -435,7 +435,7 @@ if __name__ == '__main__':
             triangle_labels = []
             for line in f:
                 triangle_labels.append(int(line))
-            triangle_labels = np.array(triangle_labels[:-1])
+            triangle_labels = np.array(triangle_labels)
 
             # organize grasps by segment
             vertex_labels = [[] for i in range(len(all_vertices))]
