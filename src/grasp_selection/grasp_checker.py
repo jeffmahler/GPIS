@@ -30,66 +30,40 @@ PR2_MODEL_FILE = 'data/models/pr2.robot.xml'
 class OpenRaveGraspChecker(object):
     # global environment vars
     env_ = None
-    robot_ = None
+    zeke_gripper_ = "data/robots/zeke_gripper/zeke_gripper.obj"
+    zeke_gripper_t = "data/robots/zeke_gripper/T_grasp_to_gripper.stf"
+    gripper_ = None
+    t_grasp_to_gripper_ = None
 
-    def __init__(self, env = None, robot = None, view = True, win_height = 1200, win_width = 1200, cam_dist = 0.5):
-        """ Defaults to using the PR2 """
-        if env is None and (OpenRaveGraspChecker.env_ is None or OpenRaveGraspChecker.robot_ is None):
+    def __init__(self, env = None, gripper = None, t_grasp_to_gripper = None, view = True, win_height = 1200, win_width = 1200, cam_dist = 0.5):
+        """ Defaults to using the Zeke gripper """
+        if env is None and OpenRaveGraspChecker.env_ is None:
             OpenRaveGraspChecker._setup_rave_env()
 
         self.object_ = None
         self.view_ = view
-        self._init_robot()        
-        self._init_poses()
         if view:
             self._init_viewer(win_height, win_width, cam_dist)
-        
-    @property
-    def env(self):
-        if OpenRaveGraspChecker.env_ is None or OpenRaveGraspChecker.robot_ is None:
-            OpenRaveGraspChecker._setup_rave_env()
-        return OpenRaveGraspChecker.env_
+        self._init_gripper(gripper, t_grasp_to_gripper)
 
     @property
-    def robot(self):
-        if OpenRaveGraspChecker.env_ is None or OpenRaveGraspChecker.robot_ is None:
+    def env(self):
+        if OpenRaveGraspChecker.env_ is None:
             OpenRaveGraspChecker._setup_rave_env()
-        return OpenRaveGraspChecker.robot_            
+        return OpenRaveGraspChecker.env_
 
     @staticmethod
     def _setup_rave_env():
         """ OpenRave environment """
         OpenRaveGraspChecker.env_ = rave.Environment()
-        OpenRaveGraspChecker.env_.Load(PR2_MODEL_FILE)
-        OpenRaveGraspChecker.robot_ = OpenRaveGraspChecker.env_.GetRobots()[0]
 
-    def _init_robot(self):
-        """ Initialize the robot """
-        # set initial pose
-        self.robot.SetTransform(rave.matrixFromPose(np.array([1,0,0,0,0,0,0])))
-        self.robot.SetDOFValues([0.54,-1.57, 1.57, 0.54],[22,27,15,34])
-        
-        # get robot manipulation tools
-        self.manip_ = self.robot.SetActiveManipulator("leftarm_torso")
-        self.maniprob_ = rave.interfaces.BaseManipulation(self.robot) # create the interface for task manipulation programs
-        self.taskprob_ = rave.interfaces.TaskManipulation(self.robot) # create the interface for task manipulation programs
-        self.finger_joint_ = self.robot.GetJoint('l_gripper_l_finger_joint')
-        
-    def _init_poses(self):
-        """ Load the poses necessary for computing pregrasp poses """
-        # pose from gripper to world frame
-        self.T_gripper_world_ = self.robot.GetManipulator("leftarm_torso").GetTransform()
-
-        # set transform between rviz and openrave
-        R_fix = np.array([[0, 0, -1],
-                          [0, 1, 0],
-                          [1, 0, 0]])
-        T_fix = np.eye(4)
-        T_fix[:3,:3] = R_fix
-        T_fix[1,3] = 0
-        T_fix[2,3] = -0.05
-        self.T_rviz_or_ = T_fix
-
+    def _init_gripper(self, gripper, t_grasp_to_gripper):
+        if gripper is None or t_grasp_to_gripper is None:
+            gripper = self._load_obj_from_file(OpenRaveGraspChecker.zeke_gripper_)
+            t_grasp_to_gripper = stf.SimilarityTransform3D().load(OpenRaveGraspChecker.zeke_gripper_t)
+        OpenRaveGraspChecker.gripper_ = gripper
+        OpenRaveGraspChecker.t_grasp_to_gripper = t_grasp_to_gripper
+     
     def _init_viewer(self, height, width, cam_dist):
         """ Initialize the OpenRave viewer """
         # set OR viewer
@@ -110,13 +84,13 @@ class OpenRaveGraspChecker(object):
         self.T_cam_world_ = self.T_obj_world_.dot(self.T_cam_obj_)
         viewer.SetCamera(self.T_cam_world_, cam_dist)
 
-        # set only left robot gripper as visible
-        for link in self.robot.GetLinks():
-            link_name = link.GetName()
-            if link_name[0] == u'l' and link_name.find('gripper') != -1:
-                link.SetVisible(True)
-            else:
-                link.SetVisible(False)
+    def _load_obj_from_file(self, filename):
+        if filename is None or filename == '':
+            raise ValueError('Object to load must have a valid mesh filename to use OpenRave grasp checking')
+        self.env.Load(filename)
+
+        obj = self.env.GetBodies()[-1]
+        return obj    
 
     def _load_object(self, graspable_object):
         """ Load the object model into OpenRave """ 
@@ -125,22 +99,7 @@ class OpenRaveGraspChecker(object):
 
         # load object model
         object_mesh_filename = graspable_object.model_name        
-        if object_mesh_filename is None or object_mesh_filename == '':
-            raise ValueError('Graspable must have a valid mesh filename to use OpenRave grasp checking')
-        self.env.Load(object_mesh_filename)
-
-        # intialize object, grasps
-        obj = self.env.GetBodies()[1]
-        return obj
-
-    def get_link_mesh(self, link_name = 'l_gripper_palm_link'):
-        """ Returns the vertices and triangles for the mesh of the given link """
-        link = self.robot.GetLink(link_name)
-        link_geoms = link.GetGeometries()
-        link_tris = link_geoms[0].GetCollisionMesh()
-        verts = link_tris.vertices
-        inds = link_tris.indices
-        return verts, inds
+        return self._load_obj_from_file(object_mesh_filename)
 
     def move_to_pregrasp(self, grasp_pose, eps=1e-2):
         """ Move the robot to the pregrasp pose given by the grasp object """
@@ -159,8 +118,7 @@ class OpenRaveGraspChecker(object):
 
         # set robot position as inverse of object (for viewing purposes)
         T_robot_world = np.linalg.inv(T_obj_world)
-        self.robot.SetTransform(T_robot_world)
-
+    
         return T_gripper_obj, T_robot_world
         
     def view_grasps(self, graspable, object_grasps, auto_step=False, close_fingers=False):
@@ -184,13 +142,6 @@ class OpenRaveGraspChecker(object):
                     while user_input != '':
                         user_input = raw_input()
 
-                # display finger closing if desired
-                if close_fingers:
-                    self.taskprob_.CloseFingers() # close fingers until collision
-                    self.robot.WaitForController(0) # wait
-                    time.sleep(1)
-                    self.taskprob_.ReleaseFingers() # open fingets
-                    self.robot.WaitForController(0) # wait
             ind = ind + 1
 
         self.env.Remove(obj)
@@ -251,56 +202,7 @@ class OpenRaveGraspChecker(object):
         self.env.Remove(obj)
         return object_grasps_keep
 
-def test_grasp_collisions():
-    np.random.seed(100)
-
-    h = plt.figure()
-    ax = h.add_subplot(111, projection = '3d')
-
-    sdf_3d_file_name = 'data/test/sdf/Co.sdf'
-#    sdf_3d_file_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/dove_beauty_bar.sdf'
-    sf = sdf_file.SdfFile(sdf_3d_file_name)
-    sdf_3d = sf.read()
-
-    mesh_name = 'data/test/meshes/Co.obj'
-#    mesh_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/dove_beauty_bar.obj'
-    of = obj_file.ObjFile(mesh_name)
-    m = of.read()
-
-    graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m, model_name=mesh_name)
-
-    rave.raveSetDebugLevel(rave.DebugLevel.Error)
-    grasp_checker = OpenRaveGraspChecker()
-
-    center = np.array([0, 0, 0.02])
-    axis = np.array([1, 0, 0]) 
-    axis = axis / np.linalg.norm(axis)
-    width = 0.1
-    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
-
-    grasp.close_fingers(graspable, vis=True)
-    grasp_checker.prune_grasps_in_collision(graspable, [grasp], auto_step=True, close_fingers=True, delay=30)
-
-def test_grasp_poses():
-    sdf_3d_file_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/munchkin_white_hot_duck_bath_toy.sdf'
-    sf = sdf_file.SdfFile(sdf_3d_file_name)
-    sdf_3d = sf.read()
-
-    mesh_name = '/mnt/terastation/shape_data/MASTER_DB_v0/amazon_picking_challenge/munchkin_white_hot_duck_bath_toy.obj'
-    of = obj_file.ObjFile(mesh_name)
-    m = of.read()
-
-    graspable = graspable_object.GraspableObject3D(sdf_3d, mesh=m, model_name=mesh_name)
-    center = np.array([0, 0, 0.02])
-    axis = np.array([1, 0, 0])
-    axis = axis / np.linalg.norm(axis)
-    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center, axis, 0.1))
-    rotated_grasps = grasp.transform(graspable.tf, 2 * np.pi / 10)
-
-    grasp_checker = OpenRaveGraspChecker()
-    rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step = True)
-
-def grasp_model_figure():
+def test_grasp_collision():
     np.random.seed(100)
 
     h = plt.figure()
@@ -331,12 +233,15 @@ def grasp_model_figure():
     axis = axis / np.linalg.norm(axis)
     width = 0.1
     grasp = g.ParallelJawPtGrasp3D(g.ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
-
+    
     rotated_grasps = grasp.transform(graspable.tf, 2.0 * np.pi / 20.0)
+    
+    IPython.embed()
+
+    '''
     print len(rotated_grasps)
     grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=False, close_fingers=True, delay=1)
+    '''
 
 if __name__ == "__main__":
-#    test_grasp_collisions()
-#    test_grasp_poses()
-    grasp_model_figure()
+    test_grasp_collision()
