@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -91,6 +92,7 @@ class ObjFile:
         vertices = mesh.vertices()
         faces = mesh.triangles()
         normals = mesh.normals()
+        colors = mesh.colors()
 
         # write human-readable header
         f.write('###########################################################\n')
@@ -102,9 +104,14 @@ class ObjFile:
         f.write('###########################################################\n')
         f.write('\n')
 
-        # write the vertex list
-        for v in vertices:
-            f.write('v %f %f %f\n' %(v[0], v[1], v[2]))
+        if colors is None:
+            # write the vertex list
+            for v in vertices:
+                f.write('v %f %f %f\n' %(v[0], v[1], v[2]))
+        else:
+            assert len(vertices) == colors.shape[0], 'Color dimension mismatch'
+            for v, c in zip(vertices, colors):
+                f.write('v %f %f %f %f %f %f\n' %(v[0], v[1], v[2], c[0], c[1], c[2]))
 
         # write the normals list
         if normals is not None and len(normals) > 0:
@@ -116,6 +123,8 @@ class ObjFile:
             f.write('f %d %d %d\n' %(t[0]+1, t[1]+1, t[2]+1)) # convert back to 1-indexing
 
         f.close()
+
+        logging.info('Wrote mesh to %s', self.filepath_)
 
 if __name__ == '__main__':
     test_file = sys.argv[1]

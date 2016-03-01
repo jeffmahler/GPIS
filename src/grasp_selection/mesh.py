@@ -2,6 +2,7 @@
 Encapsulates mesh for grasping operations
 Author: Jeff Mahler
 '''
+import copy
 import logging
 import IPython
 import numpy as np
@@ -55,6 +56,7 @@ class Mesh3D(object):
         self.density_ = density
         self.category_ = category
         self.component_ = component
+        self.colors_ = None
 
         # compute mesh properties
         self._compute_bb_center()
@@ -74,6 +76,11 @@ class Mesh3D(object):
         if self.normals_ is not None:
             return self.normals_
         return None #"Mesh does not have a list of normals."
+
+    def colors(self):
+        if self.colors_ is None:
+            return np.ones((len(self.vertices()), 3))
+        return self.colors_
 
     def centroid(self):
         self._compute_centroid()
@@ -124,7 +131,7 @@ class Mesh3D(object):
 
     @density.setter
     def category(self, c):
-        self.cateogry_ = c
+        self.category_ = c
 
     @scale.setter
     def scale(self, scale):
@@ -138,6 +145,9 @@ class Mesh3D(object):
 
     def set_normals(self, normals):
         self.normals_ = normals
+
+    def set_colors(self, colors):
+        self.colors_ = colors
 
     def set_metadata(self, metadata):
         self.metadata_ = metadata
@@ -157,6 +167,25 @@ class Mesh3D(object):
         min_vertices = np.min(vertex_array, axis=0)
         max_vertices = np.max(vertex_array, axis=0)
         return min_vertices, max_vertices
+
+    def bounding_box_mesh(self):
+        """Get the mesh bounding box as a mesh."""
+        min_vert, max_vert = self.bounding_box()
+        xs, ys, zs = zip(max_vert, min_vert)
+        vertices = []
+        for x in xs:
+            for y in ys:
+                for z in zs:
+                    vertices.append([x, y, z])
+        triangles = (np.array([
+            [5, 7, 3], [5, 3, 1],
+            [2, 4, 8], [2, 8, 6],
+            [6, 8, 7], [6, 7, 5],
+            [1, 3, 4], [1, 4, 2],
+            [6, 5, 1], [6, 1, 2],
+            [7, 8, 4], [7, 4, 3],
+        ]) - 1).tolist()
+        return Mesh3D(vertices, triangles)
 
     def _compute_bb_center(self):
         """ Get the bounding box center of the mesh  """
@@ -458,6 +487,12 @@ class Mesh3D(object):
             normals_array_rot = R.dot(normals_array.T)
             self.normals_ = normals_array_rot.tolist()
 
+    def copy(self):
+        # WARNING: this only copies vertices and triangles
+        vertices = list(self.vertices())
+        triangles = list(self.triangles())
+        return Mesh3D(vertices, triangles)
+
     def transform(self, tf):
         vertex_array = np.array(self.vertices_)
         vertex_array_tf = tf.apply(vertex_array.T)
@@ -503,7 +538,8 @@ class Mesh3D(object):
         """ Returns the convex hull of a mesh as a new mesh """
         hull = ss.ConvexHull(self.vertices_)
         hull_tris = hull.simplices.tolist()
-        cvh_mesh = Mesh3D(self.vertices_, hull_tris, self.normals_)
+        # TODO do normals properly...
+        cvh_mesh = Mesh3D(self.vertices_, hull_tris)#, self.normals_)
         cvh_mesh.remove_unreferenced_vertices()
         return cvh_mesh
 
@@ -545,7 +581,7 @@ class Mesh3D(object):
         """ Add mesh to hdf5 group """
         h.create_dataset('triangles', data=np.array(self.triangles_))
         h.create_dataset('vertices', data=np.array(self.vertices_))
-        if self.normals_:
+        if self.normals_ is not None:
             h.create_dataset('normals', data=np.array(self.normals_))
 
     """
