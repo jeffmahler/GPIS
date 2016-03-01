@@ -495,6 +495,15 @@ class Mesh3D(object):
         cvh_mesh.remove_unreferenced_vertices()
         return cvh_mesh
 
+    def perturb(self, sigma=1e-4):
+        vert_array = np.array(self.vertices())
+        noise = sigma * np.random.standard_normal(vert_array.shape)
+
+        perturbed_vert_array = vert_array + noise
+        perturbed_vert = perturbed_vert_array.tolist()
+
+        return Mesh3D(perturbed_vert, list(self.triangles()))
+
     def make_image(self, filename, rot):
         proj_img = self.project_binary(cp, T)
         file_root, file_ext = os.path.splitext(filename)
