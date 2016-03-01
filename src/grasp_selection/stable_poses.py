@@ -63,10 +63,9 @@ def compute_basis(vertices, m):
     pca.fit(xy_components)
     comp_array = pca.components_
     x_o = np.array([comp_array[0,0], comp_array[0,1], 0])
-    y_o = np.array([comp_array[1,0], comp_array[1,1], 0])
 
     x_o = R.T.dot(x_o)
-    y_o = R.T.dot(y_o)
+    y_o = np.cross(z_o, x_o)
     R = np.array([np.transpose(x_o), np.transpose(y_o), np.transpose(z_o)])    
 
     """

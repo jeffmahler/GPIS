@@ -1,3 +1,4 @@
+import IPython
 import numpy as np
 import tfx
 
@@ -15,6 +16,10 @@ class RenderedImage:
         self.stable_pose = stable_pose
         self.obj_key = obj_key
         self.descriptors = {}
+
+        # HACK: to fix stable pose bug
+        if self.stable_pose is not None and np.abs(np.linalg.det(self.stable_pose.r) + 1) < 0.01:
+            self.stable_pose.r[1,:] = -self.stable_pose.r[1,:]
 
     def object_to_stp_transform(self):
         T_obj_obj_p = tfx.pose(self.stable_pose.r).matrix

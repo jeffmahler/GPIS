@@ -3,6 +3,7 @@ A basic struct-like Stable Pose class to make accessing pose probability and rot
 
 Author: Nikhil Sharma
 """
+import numpy as np
 
 class StablePose(object):
     def __init__(self, p, r, x0, stp_id=-1):
@@ -18,3 +19,7 @@ class StablePose(object):
         self.r = r
         self.x0 = x0
         self.id = stp_id
+
+        # HACK: to fix stable pose bug
+        if np.abs(np.linalg.det(self.r) + 1) < 0.01:
+            self.r[1,:] = -self.r[1,:]

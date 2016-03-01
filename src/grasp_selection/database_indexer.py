@@ -120,6 +120,25 @@ class CNN_Hdf5ObjectIndexer(CNN_Hdf5DatabaseIndexer):
             rendered_image_pool = self.dataset_.rendered_images(self.obj_key_, image_type=self.image_type_)
         return rendered_image_pool
 
+class CNN_Hdf5ObjectStablePoseIndexer(CNN_Hdf5DatabaseIndexer):
+    """ Indexes data using the distance between CNN representations of images """
+    def __init__(self, obj_key, stp_id, dataset, config):
+        if not isinstance(dataset, db.Hdf5Dataset):
+            raise ValueError('Must provide an Hdf5 dataset object to index')
+        if obj_key not in dataset.object_keys:
+            raise ValueError('Object key %s not in datset' %(obj_key))            
+        self.obj_key_ = obj_key
+        self.stp_id_ = stp_id
+        self.dataset_ = dataset # handle to hdf5 data
+        CNN_Hdf5DatabaseIndexer.__init__(self, config)
+
+    def _retrieve_objects(self):
+        """ Retrieves objects from the provided dataset. """
+        rendered_image_pool = []
+        stable_pose = self.dataset_.stable_pose(self.obj_key_, self.stp_id_)
+        rendered_image_pool = self.dataset_.rendered_images(self.obj_key_, stable_pose_id=stable_pose.id, image_type=self.image_type_)
+        return rendered_image_pool
+
 # TODO: Implement below when needed
 class RawHdf5DatabaseIndexer(Hdf5DatabaseIndexer):
     """ Indexes data using the raw distance between objects """
