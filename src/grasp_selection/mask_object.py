@@ -1,13 +1,14 @@
 """
 Script for protecting meshes from triangle masks.
 
-Usage: python src/grasp_selection/mask_object.py masks/turbine_housing.obj
+Usage: python src/grasp_selection/mask_object.py masks
 
 Author: Brian Hou
 """
 
 import argparse
 import logging
+import glob
 import os
 import time
 
@@ -160,34 +161,39 @@ def mask(mesh, mask_indices, output_paths):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('obj_file')
+    parser.add_argument('obj_dir')
     args = parser.parse_args()
 
-    # Read mesh to be masked
-    mesh = of.ObjFile(args.obj_file).read()
+    for obj_file in sorted(glob.glob(os.path.join(args.obj_dir, '*.obj'))):
+        mask_file = obj_file.replace('.obj', '_mask.npy')
 
-    obj_dir, obj_fname = os.path.split(args.obj_file)
-    obj_name = obj_fname.split('.')[0]
+        # Only keep obj files with masks
+        if os.path.isfile(mask_file):
+            print(obj_file)
+            mesh = of.ObjFile(obj_file).read()
 
-    # Load mask indices
-    mask_fname = '{}_mask.npy'.format(obj_name)
-    mask_indices = load_mask_indices(os.path.join(obj_dir, mask_fname))
+            obj_dir, obj_fname = os.path.split(obj_file)
+            obj_name = obj_fname.split('.')[0]
 
-    # Apply mask to create new object, write masked object to *_masked.obj
-    output_files = [
-        os.path.join(obj_dir, 'output', s.format(obj_name)) for s in [
-            '{}_mask_colored.obj',   # color masked faces (i.e. Sherdil's viewer)
-            '{}_mask_hull.obj',      # hull only (no color)
-            '{}_mask_bbox.obj',      # bbox only (no color)
-            '{}_no_mask.obj',        # unmasked region only (no color)
+            # Load mask indices
+            mask_fname = '{}_mask.npy'.format(obj_name)
+            mask_indices = load_mask_indices(os.path.join(obj_dir, mask_fname))
 
-            '{}_masked_hull.obj',         # masked (hull) obj (no color)
-            '{}_masked_hull_colored.obj', # masked (hull) obj
-            '{}_masked_bbox.obj',         # masked (bbox) obj (no color)
-            '{}_masked_bbox_colored.obj', # masked (bbox) obj
-         ]
-    ]
-    mask(mesh, mask_indices, output_files)
+            # Apply mask to create new object, write masked object to *_masked.obj
+            output_files = [
+                os.path.join(obj_dir, 'output', s.format(obj_name)) for s in [
+                    '{}_mask_colored.obj',   # color masked faces (i.e. Sherdil's viewer)
+                    '{}_mask_hull.obj',      # hull only (no color)
+                    '{}_mask_bbox.obj',      # bbox only (no color)
+                    '{}_no_mask.obj',        # unmasked region only (no color)
+
+                    '{}_masked_hull.obj',         # masked (hull) obj (no color)
+                    '{}_masked_hull_colored.obj', # masked (hull) obj
+                    '{}_masked_bbox.obj',         # masked (bbox) obj (no color)
+                    '{}_masked_bbox_colored.obj', # masked (bbox) obj
+                ]
+            ]
+            mask(mesh, mask_indices, output_files)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
