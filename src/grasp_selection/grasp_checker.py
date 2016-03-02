@@ -12,8 +12,6 @@ import numpy as np
 
 import openravepy as rave
 
-#from message_wrappers import GraspWrapper
-
 import database as db
 import grasp as g
 import graspable_object
@@ -25,17 +23,15 @@ import tfx
 
 import IPython
 
-PR2_MODEL_FILE = 'data/models/pr2.robot.xml'
-
 class OpenRaveGraspChecker(object):
     # global environment vars
     env_ = None
     zeke_gripper_ = "data/robots/zeke_gripper/zeke_gripper.obj"
     zeke_gripper_t = "data/robots/zeke_gripper/T_grasp_to_gripper.stf"
-    gripper_ = None
-    t_grasp_to_gripper_ = None
+    gripper = None
+    T_grasp_to_gripper = None
 
-    def __init__(self, env = None, gripper = None, t_grasp_to_gripper = None, view = True, win_height = 1200, win_width = 1200, cam_dist = 0.5):
+    def __init__(self, env = None, gripper = None, T_grasp_to_gripper = None, view = True, win_height = 1200, win_width = 1200, cam_dist = 0.5):
         """ Defaults to using the Zeke gripper """
         if env is None and OpenRaveGraspChecker.env_ is None:
             OpenRaveGraspChecker._setup_rave_env()
@@ -44,7 +40,7 @@ class OpenRaveGraspChecker(object):
         self.view_ = view
         if view:
             self._init_viewer(win_height, win_width, cam_dist)
-        self._init_gripper(gripper, t_grasp_to_gripper)
+        self._init_gripper(gripper, T_grasp_to_gripper)
 
     @property
     def env(self):
@@ -57,12 +53,13 @@ class OpenRaveGraspChecker(object):
         """ OpenRave environment """
         OpenRaveGraspChecker.env_ = rave.Environment()
 
-    def _init_gripper(self, gripper, t_grasp_to_gripper):
-        if gripper is None or t_grasp_to_gripper is None:
+    def _init_gripper(self, gripper, T_grasp_to_gripper):
+        if gripper is None or T_grasp_to_gripper is None:
             gripper = self._load_obj_from_file(OpenRaveGraspChecker.zeke_gripper_)
-            t_grasp_to_gripper = stf.SimilarityTransform3D().load(OpenRaveGraspChecker.zeke_gripper_t)
-        OpenRaveGraspChecker.gripper_ = gripper
-        OpenRaveGraspChecker.t_grasp_to_gripper = t_grasp_to_gripper
+            T_grasp_to_gripper = stf.SimilarityTransform3D()
+            T_grasp_to_gripper.load(OpenRaveGraspChecker.zeke_gripper_t)
+        OpenRaveGraspChecker.gripper = gripper
+        OpenRaveGraspChecker.T_grasp_to_gripper = T_grasp_to_gripper
      
     def _init_viewer(self, height, width, cam_dist):
         """ Initialize the OpenRave viewer """
@@ -102,7 +99,7 @@ class OpenRaveGraspChecker(object):
         return self._load_obj_from_file(object_mesh_filename)
 
     def move_to_pregrasp(self, grasp_pose, eps=1e-2):
-        """ Move the robot to the pregrasp pose given by the grasp object """
+        """ Move the gripper to the pregrasp pose given by the grasp object """
         # get grasp pose
         gripper_position = grasp_pose.position
         gripper_orientation = grasp_pose.orientation
@@ -114,93 +111,54 @@ class OpenRaveGraspChecker(object):
  
         # get grasp pose relative to object
         T_gripper_obj = rave.matrixFromPose(gripper_pose)
-        T_obj_world = self.T_gripper_world_.dot(self.T_rviz_or_).dot(np.linalg.inv(T_gripper_obj))
+        T_obj_world = self.T_grasp_to_gripper.pose.array.dot(np.linalg.inv(T_gripper_obj))
 
-        # set robot position as inverse of object (for viewing purposes)
-        T_robot_world = np.linalg.inv(T_obj_world)
-    
-        return T_gripper_obj, T_robot_world
+        # set gripper position as inverse of object (for viewing purposes)
+        T_gripper_world = np.linalg.inv(T_obj_world)
+        self.gripper.SetTransform(T_gripper_world)
+
+        return T_gripper_obj, T_gripper_world
         
-    def view_grasps(self, graspable, object_grasps, auto_step=False, close_fingers=False):
+    def view_grasps(self, graspable, object_grasps, auto_step=False, delay = 1):
         """ Display all of the grasps """
         if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
         ind = 0
-        obj = self._load_object(graspable)
+        print "Total grasps: ",  len(object_grasps)
 
         for grasp in object_grasps:
             logging.info('Visualizing grasp %d' %(ind))
+
+            print "%dth grasp"%ind
+
+            obj = self._load_object(graspable)
             self.move_to_pregrasp(grasp.gripper_pose())
+            in_collision = self.collides_with(graspable, grasp)
+            print "Collision? {0}".format(in_collision)
 
-            # only display grasps out of collision
-            in_collision = self.env.CheckCollision(self.robot, obj)
-            if not in_collision:
-                if auto_step:
-                    time.sleep(0.25)
-                else:
-                    user_input = 'x'
-                    while user_input != '':
-                        user_input = raw_input()
+            if auto_step:
+                time.sleep(delay)
+            else:
+                user_input = "x"
+                while user_input != '':
+                    user_input = raw_input()
 
-            ind = ind + 1
+            self.env.Remove(obj)
+            ind += 1
 
-        self.env.Remove(obj)
-
-    def prune_grasps_in_collision(self, graspable, object_grasps, closed_thresh = 0.05, auto_step = False, close_fingers = False, delay = 0.01):
-        """ Remove all grasps from the object grasps list that are in collision with the given object """
+    def collides_with(self, graspable, test_grasp):
+        """ Returns true if the gripper collides with grraspable in the test_grasp, false otherwise"""
         if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
-        ind = 0
-        object_grasps_keep = []
-        i = 0
         obj = self._load_object(graspable)
 
-        # loop through grasps and check collisions for each
-        for grasp in object_grasps:
-            T_gripper_obj, T_robot_world = self.move_to_pregrasp(grasp.gripper_pose())
-            # grasp.close_fingers(graspable, vis=True)
-            # IPython.embed()
-
-            if T_gripper_obj is None:
-                continue
-
-            # only display grasps out of collision
-            in_collision = self.env.CheckCollision(self.robot, obj)
-            time.sleep(1)
-            if not in_collision:
-                if auto_step:
-                    time.sleep(delay)
-                else:
-                    user_input = 'x'
-                    while user_input != '':
-                        user_input = raw_input()
-
-                # display finger closing if desired
-                if close_fingers:
-                    # close fingers until collision
-                    self.taskprob_.CloseFingers()
-                    self.robot.WaitForController(0) # wait
-
-                    user_input = 'x'
-                    while user_input != '':
-                        user_input = raw_input()
-                    #time.sleep(1)
-
-                    # check that the gripper contacted something
-                    closed_amount = self.finger_joint_.GetValues()[0]
-                    if closed_amount > closed_thresh:
-                        object_grasps_keep.append(grasp)
-
-                    # open fingers
-                    self.taskprob_.ReleaseFingers()
-                    self.robot.WaitForController(0) # wait
-                else:
-                    object_grasps_keep.append(grasp)
-
-            i = i+1
-
+        self.move_to_pregrasp(test_grasp.gripper_pose())
+     
+        in_collision = self.env.CheckCollision(self.gripper, obj)
+        
         self.env.Remove(obj)
-        return object_grasps_keep
+
+        return in_collision
 
 def test_grasp_collision():
     np.random.seed(100)
@@ -236,12 +194,8 @@ def test_grasp_collision():
     
     rotated_grasps = grasp.transform(graspable.tf, 2.0 * np.pi / 20.0)
     
-    IPython.embed()
-
-    '''
     print len(rotated_grasps)
-    grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=False, close_fingers=True, delay=1)
-    '''
+    grasp_checker.view_grasps(graspable, rotated_grasps, auto_step=False, delay=1)
 
 if __name__ == "__main__":
     test_grasp_collision()
