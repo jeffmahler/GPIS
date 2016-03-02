@@ -161,7 +161,7 @@ class OpenRaveGraspChecker(object):
 
         return in_collision
 
-def test_grasp_collision():
+def test_grasp_collision(gripper_name):
     np.random.seed(100)
 
     h = plt.figure()
@@ -185,7 +185,15 @@ def test_grasp_collision():
                                                    tf=stf.SimilarityTransform3D(tfx.identity_tf(), 0.75))
 
     rave.raveSetDebugLevel(rave.DebugLevel.Error)
-    grasp_checker = OpenRaveGraspChecker()
+
+    tra = np.array([0,0,0.095])
+    rot_mat = np.array([[0,0,1],
+                       [1,0,0],
+                       [0,1,0]])
+    tgtg = stf.SimilarityTransform3D(tfx.pose(tra, rot_mat))
+    tgtg.save("data/robots/fanuc_lehf/T_grasp_to_gripper.stf")
+
+    grasp_checker = OpenRaveGraspChecker(gripper_name = gripper_name)
 
     center = np.array([0, 0, 0])
     axis = np.array([1, 0, 0]) 
@@ -194,7 +202,11 @@ def test_grasp_collision():
     grasp = g.ParallelJawPtGrasp3D(g.ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
     
     rotated_grasps = grasp.transform(graspable.tf, 2.0 * np.pi / 20.0)
+    logging.getLogger().setLevel(logging.INFO)
     grasp_checker.view_grasps(graspable, rotated_grasps, auto_step=False, delay=1)
 
 if __name__ == "__main__":
-    test_grasp_collision()
+    gripper_name = "zeke"
+    if len(sys.argv) == 2:
+        gripper_name = sys.argv[1]
+    test_grasp_collision(gripper_name)
