@@ -513,7 +513,7 @@ class Mesh3D(object):
             i_centroid = len(new_vertices)
             new_vertices.append(centroid)
             
-            for pair in [(0,1), (1,2), (0,2)]:
+            for pair in [(0,1), (1,2), (2,0)]:
                 a = triangle[pair[0]]
                 b = triangle[pair[1]]
                 new_triangles.append([a, b, i_centroid])
@@ -627,5 +627,15 @@ def test_mass_inertia():
     print 'INERTIA'
     print m.inertia
 
+def test_subdivide():
+    vs = [[0,0,0],[0,1,0],[1,0,0]]
+    ts = [[0,1,2]]
+    
+    m = Mesh3D(vs, ts)
+    sm = m.subdivide().subdivide()
+    of = obj_file.ObjFile("sm.obj")
+    of.write(sm)
+    
 if __name__ == '__main__':
     test_mass_inertia()
+    #test_subdivide()

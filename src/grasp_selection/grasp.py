@@ -84,7 +84,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             raise ValueError('Nonzero jaw width not yet supported')
 
         self.center_ = grasp_center
-        self.axis_ = grasp_axis / np.linalg.norm(grasp_axis)
+        self.axis_ = axis / np.linalg.norm(axis)
         self.grasp_width_ = grasp_width
         self.jaw_width_ = jaw_width
         self.approach_angle_ = grasp_angle
@@ -92,7 +92,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.timestamp_ = timestamp
         self.grasp_id_ = grasp_id
 
-        self.unrotated_full_axis_ = None
+        self.unrotated_full_axis_ = None 
         self.rotated_full_axis_ = None
 
     @property
@@ -151,7 +151,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
     def set_approach_angle(self, angle):
         self.approach_angle_ = angle
         self.rotated_full_axis_ = None
-        
+    
     def endpoints(self):
         return self.center_ - (self.grasp_width_ / 2.0) * self.axis_, self.center_ + (self.grasp_width_ / 2.0) * self.axis_,
 
