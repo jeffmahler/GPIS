@@ -499,6 +499,30 @@ class Mesh3D(object):
         # TODO: transform normals as well
         return Mesh3D(vertex_array_tf.T.tolist(), self.triangles_)
 
+    def subdivide(self):
+        '''Returns a copy of the current mesh but subdivided by one iteration'''
+        new_mesh = self.copy()
+        new_vertices = new_mesh.vertices()
+        old_triangles = new_mesh.triangles()
+        
+        new_triangles = []
+        for triangle in old_triangles:
+            t_vertices = [new_vertices[i] for i in triangle]
+            centroid = np.average(t_vertices, axis=0)
+            
+            i_centroid = len(new_vertices)
+            new_vertices.append(centroid)
+            
+            for pair in [(0,1), (1,2), (0,2)]:
+                a = triangle[pair[0]]
+                b = triangle[pair[1]]
+                new_triangles.append([a, b, i_centroid])
+        
+        new_mesh.set_vertices(new_vertices)
+        new_mesh.set_triangles(new_triangles)
+        
+        return new_mesh
+        
     def rescale_vertices(self, min_scale):
         '''
         Rescales the vertex coordinates so that the minimum dimension (X, Y, Z) is exactly min_scale
