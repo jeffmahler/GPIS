@@ -76,31 +76,64 @@ def filter_faces(mesh, face_bitmask):
     return filtered
 
 
-def zipper(unmasked, masked, masked_vert_bitmask, fname_out):
+def zipper(unmasked, masked_parts, fname_outs):
     """Create a new mesh with the vertices and triangles of both unmasked and masked
     regions, and write the mesh to fname_out.
 
     Also, keep track of which vertex indices are referenced by new triangles.
 
-    unmasked, masked -- mesh.Mesh3D
-    masked_vert_bitmask -- zero bitarray that *will be mutated*
-    fname_out -- string path to output file
+    unmasked -- mesh.Mesh3D
+    masked_parts -- list of mesh.Mesh3D
+    fname_outs -- list of string paths to output file
     """
     zipper_start = time.time()
-    offset = len(unmasked.vertices())
+    num_new_verts = len(unmasked.vertices()) + \
+                    sum(len(masked.vertices()) for masked in masked_parts)
+    masked_vert_bitmask = np.zeros(num_new_verts, np.bool)
 
-    new_verts = unmasked.vertices() + masked.vertices()
+    new_verts = list(unmasked.vertices())
     new_tris = list(unmasked.triangles())
 
-    for tri in masked.triangles():
-        new_tri = [v + offset for v in tri]
-        masked_vert_bitmask[new_tri] = 1
-        new_tris.append(new_tri)
+    for masked, fname_out in zip(masked_parts, fname_outs):
+        offset = len(new_verts)
+        new_verts = new_verts + masked.vertices()
 
-    merged = m.Mesh3D(new_verts, new_tris)
+        next_tris = []
+        for tri in masked.triangles():
+            new_tri = [v + offset for v in tri]
+            masked_vert_bitmask[new_tri] = 1
+            next_tris.append(new_tri)
+        new_tris = new_tris + next_tris
+
+        merged = m.Mesh3D(new_verts, new_tris)
+        of.ObjFile(fname_out).write(merged)
+
     logging.info('Took %f seconds.', time.time() - zipper_start)
-    of.ObjFile(fname_out).write(merged)
-    return merged
+    return merged, masked_vert_bitmask
+
+
+def partial_mask(mesh, partial_mask_indices, output_paths):
+    """Return a list of meshes where the masked faces are iteratively replaced with
+    their convex hull.
+
+    mesh -- mesh.Mesh3D
+    partial_mask_indices -- np.array of face indices (0-indexed)
+    """
+    full_bitmask = np.zeros(len(mesh.triangles()), np.bool)
+    hulls = []
+    for mask_indices in partial_mask_indices:
+        bitmask = np.zeros(len(mesh.triangles()), np.bool)
+        bitmask[mask_indices] = 1
+        full_bitmask[mask_indices] = 1
+
+        masked_only = filter_faces(mesh, bitmask)
+        masked_hull = masked_only.convex_hull()
+        hulls.append(masked_hull)
+
+    unmasked_only = filter_faces(mesh, ~full_bitmask)
+    of.ObjFile(output_paths[0]).write(unmasked_only)
+
+    zipper(unmasked_only, hulls, output_paths[1:])
 
 
 def mask(mesh, mask_indices, output_paths):
@@ -141,23 +174,20 @@ def mask(mesh, mask_indices, output_paths):
 
     # Combine masked and unmasked region
     logging.info('Combining masked and unmasked regions.')
-    new_num_verts = len(unmasked_only.vertices()) + len(masked_hull.vertices())
-    masked_vert_bitmask = np.zeros(new_num_verts, np.bool)
-    masked_hull = zipper(unmasked_only, masked_hull,
-                         masked_vert_bitmask, output_paths[4])
+    masked_hull, masked_vert_bitmask = \
+        zipper(unmasked_only, [masked_hull], [output_paths[4]])
 
     # Color hull region on combined mesh
     color_vertices(masked_hull, masked_vert_bitmask, output_paths[5])
 
     # Combine masked and unmasked region
     logging.info('Combining masked and unmasked regions.')
-    new_num_verts = len(unmasked_only.vertices()) + len(masked_bbox.vertices())
-    masked_vert_bitmask = np.zeros(new_num_verts, np.bool)
-    masked_bbox = zipper(unmasked_only, masked_bbox,
-                         masked_vert_bitmask, output_paths[6])
+    masked_bbox, masked_vert_bitmask = \
+        zipper(unmasked_only, [masked_bbox], [output_paths[6]])
 
     # Color hull region on combined mesh
     color_vertices(masked_bbox, masked_vert_bitmask, output_paths[7])
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -194,6 +224,26 @@ def main():
                 ]
             ]
             mask(mesh, mask_indices, output_files)
+
+        partial_masks = sorted(glob.glob(obj_file.replace('.obj', '_partial_mask_*.npy')))
+        if partial_masks:
+            print(obj_file)
+            mesh = of.ObjFile(obj_file).read()
+
+            obj_dir, obj_fname = os.path.split(obj_file)
+            obj_name = obj_fname.split('.')[0]
+
+            partial_mask_indices = [load_mask_indices(p) for p in partial_masks]
+            output_files = [
+                os.path.join(obj_dir, 'output', s.format(obj_name)) for s in [
+                    '{}_no_mask.obj', # unmasked region only
+                ]
+            ] + [
+                os.path.join(obj_dir, 'output', p.split('/')[-1].replace('.npy', '.obj'))
+                for p in partial_masks
+            ]
+            partial_mask(mesh, partial_mask_indices, output_files)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
