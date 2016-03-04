@@ -66,6 +66,7 @@ class PointGrasp(Grasp):
 class ParallelJawPtGrasp3D(PointGrasp):
 
     _GRIPPER_BOUNDING_BOX = {"half_height":0.019, "half_length":0.055, "half_width": 0.087}
+    #_GRIPPER_BOUNDING_BOX = {"half_height":0.01, "half_length":0.02, "half_width": 0.02}
 
     def __init__(self, configuration, frame='object', timestamp=None, grasp_id=None):
         """
@@ -78,7 +79,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
            grasp_id: string key to index the grasp in the database
         """
         # get parameters from configuration array
-        grasp_center, grasp_axis, grasp_width, grasp_angle, jaw_width = ParallelJawPtGrasp3D.params_from_configuration(configuration)
+        grasp_center, grasp_axis, grasp_width, grasp_angle, jaw_width, min_grasp_width = \
+            ParallelJawPtGrasp3D.params_from_configuration(configuration)
 
         if jaw_width != 0:
             raise ValueError('Nonzero jaw width not yet supported')
@@ -87,6 +89,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         self.axis_ = grasp_axis / np.linalg.norm(grasp_axis)
         self.grasp_width_ = grasp_width
         self.jaw_width_ = jaw_width
+        self.min_grasp_width_ = min_grasp_width
         self.approach_angle_ = grasp_angle
         self.frame_ = frame
         self.timestamp_ = timestamp
@@ -104,6 +107,9 @@ class ParallelJawPtGrasp3D(PointGrasp):
     @property
     def grasp_width(self):
         return self.grasp_width_
+    @property
+    def min_grasp_width(self):
+        return self.min_grasp_width_
     @property
     def jaw_width(self):
         return self.jaw_width_
@@ -137,14 +143,13 @@ class ParallelJawPtGrasp3D(PointGrasp):
             self.rotated_full_axis_ = self.unrotated_full_axis.dot(R)
         return self.rotated_full_axis_
 
-    def gripper_transform(self, gripper='zeke'):
+    def gripper_transform(self, gripper=None):
         """ Returns the transformation from the object frame to the gripper frame as a similarity transform 3D object """
-        R = self.rotated_full_axis
-        if gripper == 'zeke':
-            R_zeke = np.array([[0, -1, 0],
-                               [1, 0, 0],
-                               [0, 0, 1]])
-            R = R.dot(R_zeke)
+        R_grip_p_grip = self.rotated_full_axis
+        R_grip_robot = np.eye(3)
+        if gripper is not None:
+            R_grip_robot = gripper.T_grasp_gripper.rotation
+        R = R_grip_p_grip.dot(R_grip_robot)
         t = self.center
         return stf.SimilarityTransform3D(pose=tfx.pose(R, t), from_frame='gripper', to_frame='obj').inverse()
         
@@ -163,20 +168,25 @@ class ParallelJawPtGrasp3D(PointGrasp):
         return R
         
     @staticmethod
-    def configuration_from_params(center, axis, width, angle=0, jaw_width=0):
-        configuration = np.zeros(9)
+    def configuration_from_params(center, axis, width, angle=0, jaw_width=0, min_width=0):
+        configuration = np.zeros(10)
         configuration[0:3] = center
         configuration[3:6] = axis
         configuration[6] = width
         configuration[7] = angle
         configuration[8] = jaw_width
+        configuration[9] = min_width
         return configuration
 
     @staticmethod
     def params_from_configuration(configuration):
-        if not isinstance(configuration, np.ndarray) or configuration.shape[0] != 9:
-            raise ValueError('Configuration must be numpy ndarray of size 9')
-        return configuration[0:3], configuration[3:6], configuration[6], configuration[7], configuration[8]
+        if not isinstance(configuration, np.ndarray) or (configuration.shape[0] != 9 and configuration.shape[0] != 10):
+            raise ValueError('Configuration must be numpy ndarray of size 9 or 10')
+        if configuration.shape[0] == 9:
+            min_grasp_width = 0
+        else:
+            min_grasp_width = configuration[9]
+        return configuration[0:3], configuration[3:6], configuration[6], configuration[7], configuration[8], min_grasp_width
 
     @staticmethod
     def grasp_center_from_endpoints(g1, g2):
@@ -202,16 +212,18 @@ class ParallelJawPtGrasp3D(PointGrasp):
         """
         # compute num samples to use based on sdf resolution
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(self.grasp_width_)
-        num_samples = int(Grasp.samples_per_grid * grasp_width_grid) # at least 1 sample per grid
+        num_samples = int(Grasp.samples_per_grid * float(grasp_width_grid) / 2) # at least 1 sample per grid
 
         # get grasp endpoints in sdf frame
         g1_world, g2_world = self.endpoints()
 
         # get line of action
-        line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(g1_world, self.axis_, self.grasp_width_, obj, num_samples)
-        line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2_world, -self.axis_, self.grasp_width_, obj, num_samples)
+        line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(g1_world, self.axis_, self.grasp_width_, obj,
+                                                                     num_samples, min_width = self.min_grasp_width)
+        line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2_world, -self.axis_, self.grasp_width_, obj,
+                                                                     num_samples, min_width = self.min_grasp_width)
 
-        if vis:
+        if False:#vis:
             plt.figure()
             plt.clf()
             h = plt.gcf()
@@ -233,7 +245,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         return contacts_found, [c1, c2]
 
     @staticmethod
-    def create_line_of_action(g, axis, width, obj, num_samples, convert_grid=True):
+    def create_line_of_action(g, axis, width, obj, num_samples, min_width = 0, convert_grid=True):
         """
         Creates a straight line of action, or list of grid points, from a given
         point and direction in world or grid coords
@@ -247,7 +259,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             line_of_action - list of numpy 3-arrays in grid coords to check surface contacts
         """
         num_samples = max(num_samples, 3) # always at least 3 samples
-        line_of_action = [g + t * axis for t in np.linspace(0, width, num = num_samples)]
+        line_of_action = [g + t * axis for t in np.linspace(0, float(width) / 2 - float(min_width) / 2, num = num_samples)]
         if convert_grid:
             as_array = np.array(line_of_action).T
             transformed = obj.sdf.transform_pt_obj_to_grid(as_array)
@@ -287,7 +299,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             pt_grid = line_of_action[i]
 
             # visualize
-            if vis:
+            if False:#vis:
                 ax = plt.gca(projection = '3d')
                 ax.scatter(pt_grid[0], pt_grid[1], pt_grid[2], c=u'r')
 
@@ -434,12 +446,11 @@ class ParallelJawPtGrasp3D(PointGrasp):
                 return abs(np.dot(normal, grasp_axis_rotated))
             return matrix_product
     
-        stable_pose_normal = stable_pose.r[2]
+        stable_pose_normal = stable_pose.r[2,:]
         
         theta = _argmin(_get_matrix_product_x_axis(np.array([1,0,0]), np.dot(inv(self.unrotated_full_axis), stable_pose_normal)), 0, 2*np.pi, 1000)
-        
         return theta
-        
+
     def grasp_aligned_with_stable_pose(self, stable_pose):
         '''
         Returns the grasp with approach_angle set appropriately to align with stable pose
@@ -447,7 +458,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
         theta = self._angle_aligned_with_stable_pose(stable_pose)
         new_grasp = deepcopy(self)
         new_grasp.set_approach_angle(theta)
-        
         return new_grasp
         
     def collides_with_stable_pose(self, stable_pose, debug = []):
@@ -489,7 +499,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         
     @staticmethod
     def grasp_from_contact_and_axis_on_grid(obj, grasp_c1_world, grasp_axis_world, grasp_width_world, grasp_angle=0, jaw_width_world=0,
-                                            vis = False, stop = False, backup=0.5):
+                                            min_grasp_width_world = 0, vis = False, stop = False, backup=0.5):
         """
         Creates a grasp from a single contact point in grid coordinates and direction in grid coordinates
         Params:
@@ -498,6 +508,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             grasp_axis - normalized direction of the grasp in world
             grasp_width_world - grasp_width in world coords
             jaw_width_world - width of jaws in world coords
+            min_grasp_width_world - min closing width of jaws
             vis - whether or not to visualize the grasp
         Returns:
             ParallelJawGrasp3D object
@@ -507,15 +518,16 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp_axis_world = grasp_axis_world / np.linalg.norm(grasp_axis_world)
         grasp_axis_grid = obj.sdf.transform_pt_obj_to_grid(grasp_axis_world, direction=True)
         grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(grasp_width_world)
+        min_grasp_width_grid = obj.sdf.transform_pt_obj_to_grid(min_grasp_width_world)
         grasp_c1_grid = obj.sdf.transform_pt_obj_to_grid(grasp_c1_world) - backup * grasp_axis_grid # subtract to find true point
         num_samples = int(2 * grasp_width_grid) # at least 2 samples per grid
         g2 = grasp_c1_grid + (grasp_width_grid - backup) * grasp_axis_grid
 
         # get line of action
         line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(grasp_c1_grid, grasp_axis_grid, grasp_width_grid, obj, num_samples,
-                                                                     convert_grid = False)
+                                                                     min_width=min_grasp_width_grid, convert_grid = False)
         line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2, -grasp_axis_grid, grasp_width_grid, obj, num_samples,
-                                                                     convert_grid = False)
+                                                                     min_width=min_grasp_width_grid, convert_grid = False)
         if vis:
             obj.sdf.scatter()
             ax = plt.gca(projection = '3d')
