@@ -25,7 +25,7 @@ def box_bounding(vtk_obj, event):
 
     current_mouse_position = interactor.event_position
 
-    if not draw_mode:
+    if not draw_mode and not undo_mode:
         return
 
     if (not draw_box_triggered):
@@ -41,7 +41,7 @@ def box_bounding(vtk_obj, event):
 
 def draw_box(vtk_obj, event):
 
-    if not draw_mode:
+    if not draw_mode and not undo_mode:
         return
 
     if draw_box_triggered:
@@ -53,13 +53,13 @@ def draw_box(vtk_obj, event):
 
 def select_mode(vtk_obj, event):
     global draw_mode
+    global undo_mode
+    global draw_box_triggered
     key_code = vtk_obj.GetKeyCode()
 
     #We want the "e" key to trigger a switch in the edit mode.
-    if (key_code == 'e' and view_mode == 'l'):
+    if (key_code == 'e' and view_mode == 'l' and not undo_mode):
         if (not draw_mode): 
-
-            pdb.set_trace
 
             mlab.title('LABEL MODE ON')
             draw_mode = True
@@ -67,8 +67,21 @@ def select_mode(vtk_obj, event):
 
         else:
             mlab.title('')
+            draw_box_triggered = False
             draw_mode = False
             interactor.interactor_style = default_interaction_style
+
+    elif (key_code == 'u' and view_mode == 'l' and not draw_mode):
+        if (not undo_mode):
+            mlab.title('UNDO MODE ON')
+            undo_mode = True
+            interactor.interactor_style = tvtk.InteractorStyleImage()
+        else:
+            mlab.title('')
+            draw_box_triggered = False
+            undo_mode = False
+            interactor.interactor_style = default_interaction_style
+
 
     #Write out a bianry mask for the vertices if the user decides to quit.
     elif (key_code == 'q'):
@@ -92,7 +105,6 @@ def project_3D(box_start, box_end):
     y = np.array([i[1] for i in msh.vertices()])
     z = np.array([i[2] for i in msh.vertices()])
     W = np.ones(x.shape)
-    triangles = msh.triangles()
 
     hmgns_world_coords = np.column_stack((x, y, z, W))
     comb_trans_mat = mlab_3D_to_2D.get_world_to_view_matrix(figure.scene)
@@ -115,25 +127,35 @@ def project_3D(box_start, box_end):
         if x_in_box and y_in_box:
             in_vertex_indicies.append(i)
 
+    message = ""
 
-    #Label any triangle with A (even one) vertex in the bounding box
-    #removed_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) != 0]
-    #new_triangles = [t for t in triangles if len(set(t).intersection(in_vertex_indicies)) == 0]
+    if (undo_mode):
+        
+        if (not colored_msh):
+            return
 
-    #Label only triangles that have EVERY vertex in the bounding box.
-    removed_triangles, new_triangles = triangle_grabber(triangles, in_vertex_indicies)
-    msh = mesh.Mesh3D(msh.vertices(), new_triangles, msh.normals())
-    if not colored_msh and len(removed_triangles) > 0:
-        colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles, msh.normals())
+        message = "UNDO MODE ON"
+        triangles = colored_msh.triangles()
+        undone_triangles, still_masked_triangles = triangle_grabber(triangles, in_vertex_indicies)
+        msh = mesh.Mesh3D(msh.vertices(), msh.triangles() + undone_triangles, msh.normals())
+        colored_msh = mesh.Mesh3D(msh.vertices(), still_masked_triangles, msh.normals())
+
     else:
-        colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles + colored_msh.triangles(), msh.normals())
+        message = 'LABEL MODE ON'
+        triangles = msh.triangles()
+        removed_triangles, new_triangles = triangle_grabber(triangles, in_vertex_indicies)
+        msh = mesh.Mesh3D(msh.vertices(), new_triangles, msh.normals())
+        if not colored_msh and len(removed_triangles) > 0:
+            colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles, msh.normals())
+        else:
+            colored_msh = mesh.Mesh3D(msh.vertices(), removed_triangles + colored_msh.triangles(), msh.normals())
 
     mlab.clf()
     msh.visualize((0.0, 0.0, 1.0))
     if colored_msh:
         colored_msh.visualize((1.0, 0.0, 0.0))
 
-    mlab.title('LABEL MODE ON')
+    mlab.title(message)
 
 def triangle_grabber(triangles, vertex_list):
 
@@ -207,6 +229,7 @@ render_window = vtk_scene.render_window
 draw_box_start_coords = [0]*2
 draw_box_triggered = False
 draw_mode = False
+undo_mode = False
 default_interaction_style = interactor.interactor_style
 original_triangles = msh.triangles()
 
