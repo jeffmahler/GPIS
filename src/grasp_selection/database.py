@@ -395,9 +395,16 @@ class Hdf5Dataset(Dataset):
         return hfact.Hdf5ObjectFactory.write_grasp_features(grasp_feature_dict, self.grasp_data(key, gripper), force_overwrite)
 
     # stable pose data
-    def stable_poses(self, key):
+    def stable_poses(self, key, min_p=0.0):
         """ Stable poses for object key """
-        return hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
+        stps = hfact.Hdf5ObjectFactory.stable_poses(self.stable_pose_data(key))
+
+        # prune low probability stable poses
+        stp_list = []
+        for stp in stps:
+            if stp.p > min_p:
+                stp_list.append(stp)
+        return stp_list
 
     def stable_pose(self, key, stable_pose_id):
         """ Stable pose of stable pose id for object key """

@@ -4,6 +4,7 @@ Author: Jeff Mahler
 """
 import cv2
 import logging
+import IPython
 import matplotlib.pyplot as plt
 import numpy as np
 import tfx
@@ -100,15 +101,17 @@ class DepthImageProcessing:
     @staticmethod
     def image_shift_to_transform(source_depth_im, target_depth_im, camera_params, diff_px):
         """ Converts 2D pixel shift transformation between two depth images into a 3D transformation """
-        source_center_px = np.array(source_depth_im.shape) / 2.0
-        source_depth_center = source_depth_im[source_center_px[0], source_center_px[1]]
-        target_center_px = source_center_px + diff_px
-        target_point_center = source_depth_center * np.linalg.inv(camera_params.K_).dot(np.array([target_center_px[1], target_center_px[0], 1]))
+        nonzero_source_depth_px = np.where(source_depth_im > 0)
+        source_px = np.array([nonzero_source_depth_px[0][0], nonzero_source_depth_px[1][0]])
+        source_depth = source_depth_im[source_px[0], source_px[1]]
+        target_px = source_px + diff_px
+        source_point = source_depth * np.linalg.inv(camera_params.K_).dot(np.array([source_px[1], source_px[0], 1]))
+        target_point = source_depth * np.linalg.inv(camera_params.K_).dot(np.array([target_px[1], target_px[0], 1]))
 
-        translation_source_target = target_point_center
+        translation_source_target = target_point - source_point
         translation_source_target[2] = 0
         tf_source_target = tfx.pose(np.eye(3), translation_source_target)
-        return stf.SimilarityTransform3D(pose=tfx.pose(tf_source_target))
+        return stf.SimilarityTransform3D(pose=tfx.pose(tf_source_target), from_frame='camera', to_frame='camera')
 
 class GrayscaleImageProcessing:
     pass

@@ -40,6 +40,7 @@ import similarity_tf as stf
 import termination_conditions as tc
 import tfx
 
+<<<<<<< HEAD
 from grasp_collision_checker import OpenRaveGraspChecker
 
 def is_collision_free(obj, stable_pose, grasp, gripper):
@@ -63,6 +64,11 @@ def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_gr
     # load grasps and metrics
     sorted_grasps, sorted_metrics = dataset.sorted_grasps(obj.key, metric=metric, gripper=config['gripper'])
 
+=======
+def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps, config, grasp_set=[]):
+    # load grasps and metrics
+    sorted_grasps, sorted_metrics = dataset.sorted_grasps(obj.key, metric=metric, gripper=config['gripper'])
+>>>>>>> dev_jeff
     grasp_ids = [g.grasp_id for g in grasp_set]
 
     # load gripper
@@ -72,7 +78,11 @@ def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_gr
     cf_grasps = []
     cf_metrics = []
     for grasp, metric in zip(sorted_grasps, sorted_metrics):
+<<<<<<< HEAD
         if is_collision_free(obj, stable_pose, grasp, gripper):
+=======
+        if not gripper.collides_with_table(grasp, stable_pose):
+>>>>>>> dev_jeff
             cf_grasps.append(grasp)
             cf_metrics.append(metric)
 
@@ -102,7 +112,11 @@ def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, conf
     cf_grasps = []
     cf_metrics = []
     for grasp in grasps:
+<<<<<<< HEAD
         if is_collision_free(obj, stable_pose, grasp, gripper):
+=======
+        if not gripper.collides_with_table(grasp, stable_pose):
+>>>>>>> dev_jeff
             cf_grasps.append(grasp)
 
     # randomly sample grasps
@@ -200,5 +214,9 @@ if __name__ == '__main__':
         stable_pose = dataset.stable_pose(object_key, stp_id)
         logging.info('Displaying grasps for object {}'.format(obj.key))
         generate_candidate_grasps_quantile_random(obj, stable_pose, dataset, config)
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> dev_jeff
     database.close()

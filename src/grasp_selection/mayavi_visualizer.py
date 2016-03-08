@@ -1,3 +1,4 @@
+import json
 import IPython
 import numpy as np
 import mayavi.mlab as mv
@@ -6,15 +7,9 @@ import obj_file as objf
 import similarity_tf as stf
 import tfx
 
-class RobotGripper:
-    def __init__(self, mesh_filename, stf_filename):
-        of = objf.ObjFile(mesh_filename)
-        self.mesh = of.read()
-        self.T_mesh_gripper = stf.SimilarityTransform3D()
-        self.T_mesh_gripper.load(stf_filename)
-
-ZEKE_GRIPPER = RobotGripper('/home/jmahler/jeff_working/GPIS/data/robots/zeke_gripper/zeke_gripper.obj',
-                            '/home/jmahler/jeff_working/GPIS/data/robots/zeke_gripper/T_grasp_to_gripper.stf')
+import gripper as gr
+ZEKE_GRIPPER = gr.RobotGripper.load('zeke')
+FANUC_GRIPPER = gr.RobotGripper.load('fanuc_lehf')
 
 class MayaviVisualizer:
 
@@ -54,13 +49,21 @@ class MayaviVisualizer:
         mesh_tf.visualize(style=style, color=color)
 
     @staticmethod
+    def plot_mesh_sdf(graspable):
+        """ For debugging sdf vs mesh transform """
+        mv.figure()
+        graspable.mesh.visualize(style='wireframe')
+        sdf_points, _ = graspable.sdf.surface_points(grid_basis=False)
+        mv.points3d(sdf_points[:,0], sdf_points[:,1], sdf_points[:,2], color=(1,0,0), scale_factor=0.001)
+        mv.show()
+
+    @staticmethod
     def plot_stable_pose(mesh, stable_pose, T_table_world, d=0.5, style='wireframe', color=(0.5,0.5,0.5)):
         T_mesh_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r))
         mesh_tf = mesh.transform(T_mesh_stp)
         mn, mx = mesh_tf.bounding_box()
         z = mn[2]
         x0 = np.array([0,0,-z])
-
         T_table_obj = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r, x0),
                                                  from_frame='obj', to_frame='table')
         T_world_obj = T_table_world.inverse().dot(T_table_obj)
@@ -98,12 +101,13 @@ class MayaviVisualizer:
             mv.plot3d(palm_axis_tf[:,0], palm_axis_tf[:,1], palm_axis_tf[:,2], color=palm_axis_color, tube_radius=tube_radius)
 
     @staticmethod
-    def plot_gripper(grasp, T_obj_world, plot_approach=False, alpha=0.5, tube_radius=0.005, endpoint_color=(0,1,0), endpoint_scale=0.01, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1),
-                     stp=None):
-        T_gripper_obj = grasp.gripper_transform(gripper='zeke')
-        T_mesh_obj = ZEKE_GRIPPER.T_mesh_gripper.dot(T_gripper_obj)
+    def plot_gripper(grasp, T_obj_world, gripper=None, color=(0.5,0.5,0.5)):
+        if gripper is None:
+            gripper = FANUC_GRIPPER
+        T_gripper_obj = grasp.gripper_transform(gripper)
+        T_mesh_obj = gripper.T_mesh_gripper.dot(T_gripper_obj)
         T_mesh_world = T_mesh_obj.dot(T_obj_world)
-        MayaviVisualizer.plot_mesh(ZEKE_GRIPPER.mesh, T_mesh_world, style='surface', color=(1,1,1))
+        MayaviVisualizer.plot_mesh(gripper.mesh, T_mesh_world, style='surface', color=color)
 
     @staticmethod
     def plot_colorbar(min_q, max_q, max_val=0.35, num_interp=100, width=25):
@@ -113,8 +117,8 @@ class MayaviVisualizer:
         image = np.tile(vals, [1, width])
         mv.imshow(image, colormap='hsv')
 
-if __name__ == '__main__':
-    mesh_filename = '/home/jmahler/jeff_working/GPIS/data/robots/zeke_gripper/zeke_gripper.obj'
+def test_zeke_gripper():
+    mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/zeke/gripper.obj'
     of = objf.ObjFile(mesh_filename)
     gripper_mesh = of.read()
 
@@ -123,6 +127,9 @@ if __name__ == '__main__':
     oof.write(gripper_mesh)
     
     T_mesh_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='mesh')
+    R_grasp_gripper = np.array([[0, -1, 0],
+                                [1, 0, 0],
+                                [0, 0, 1]])
     R_mesh_gripper = np.array([[0, -1, 0],
                                [1, 0, 0],
                                [0, 0, 1]])
@@ -130,11 +137,60 @@ if __name__ == '__main__':
     T_mesh_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_mesh_gripper, t_mesh_gripper),
                                                from_frame='gripper', to_frame='mesh')
     T_gripper_world = T_mesh_gripper.inverse().dot(T_mesh_world)
+    T_grasp_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_grasp_gripper), from_frame='gripper', to_frame='grasp')
 
-    T_gripper_world.inverse().save('/home/jmahler/jeff_working/GPIS/data/robots/zeke_gripper/T_grasp_to_gripper.stf')
+    T_mesh_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/T_mesh_gripper.stf')
+    T_grasp_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/T_grasp_gripper.stf')
+
+    gripper_params = {}
+    gripper_params['min_width'] = 0.0
+    gripper_params['max_width'] = 0.082
+    f = open('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/params.json', 'w')
+    json.dump(gripper_params, f)
 
     MayaviVisualizer.plot_pose(T_mesh_world, alpha=0.05, tube_radius=0.0025, center_scale=0.005)
     MayaviVisualizer.plot_pose(T_gripper_world, alpha=0.05, tube_radius=0.0025, center_scale=0.005)
     MayaviVisualizer.plot_mesh(gripper_mesh, T_mesh_world, style='surface', color=(1,1,1))
     mv.axes()
     mv.show()
+
+def test_fanuc_gripper():
+    mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/fanuc_lehf/gripper.obj'
+    of = objf.ObjFile(mesh_filename)
+    gripper_mesh = of.read()
+
+    gripper_mesh.center_vertices_bb()
+    oof = objf.ObjFile(mesh_filename)
+    oof.write(gripper_mesh)
+    
+    T_mesh_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='mesh')
+    R_grasp_gripper = np.array([[0, 0, 1],
+                                [0, -1, 0],
+                                [1, 0, 0]])
+    R_mesh_gripper = np.array([[0, 1, 0],
+                               [-1, 0, 0],
+                               [0, 0, 1]])
+    t_mesh_gripper = np.array([0.0, 0.0, 0.065])
+    T_mesh_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_mesh_gripper, t_mesh_gripper),
+                                               from_frame='gripper', to_frame='mesh')
+    T_gripper_world = T_mesh_gripper.inverse().dot(T_mesh_world)
+    T_grasp_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_grasp_gripper), from_frame='gripper', to_frame='grasp')
+
+    T_mesh_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/fanuc_lehf/T_mesh_gripper.stf')
+    T_grasp_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/fanuc_lehf/T_grasp_gripper.stf')
+
+    gripper_params = {}
+    gripper_params['min_width'] = 0.015
+    gripper_params['max_width'] = 0.048
+    f = open('/home/jmahler/jeff_working/GPIS/data/grippers/fanuc_lehf/params.json', 'w')
+    json.dump(gripper_params, f)
+
+    MayaviVisualizer.plot_pose(T_mesh_world, alpha=0.05, tube_radius=0.0025, center_scale=0.005)
+    MayaviVisualizer.plot_pose(T_gripper_world, alpha=0.05, tube_radius=0.0025, center_scale=0.005)
+    MayaviVisualizer.plot_mesh(gripper_mesh, T_mesh_world, style='surface', color=(1,1,1))
+    mv.axes()
+    mv.show()    
+
+if __name__ == '__main__':
+    test_zeke_gripper()
+    test_fanuc_gripper()

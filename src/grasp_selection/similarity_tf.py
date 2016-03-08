@@ -61,13 +61,14 @@ class SimilarityTransform3D:
         inv_pose.position = (1.0 / self.scale_) * inv_pose.position
         return SimilarityTransform3D(inv_pose, 1.0 / self.scale_, from_frame=self.to_frame, to_frame=self.from_frame)
 
-    def load(self, filename):
+    @staticmethod
+    def load(filename):
         """ Load the transform """
         f = open(filename, 'r')
         line_list = list(f)
-        self.from_frame_ = line_list[0][:-1]
-        self.to_frame_ = line_list[1][:-1]
-        self.scale_ = float(line_list[2][:-1])
+        from_frame= line_list[0][:-1]
+        to_frame = line_list[1][:-1]
+        scale = float(line_list[2][:-1])
 
         t_tokens = line_list[3][:-1].split()
         t = np.zeros(3)
@@ -90,7 +91,8 @@ class SimilarityTransform3D:
         R[2,0] = float(r_tokens[0])
         R[2,1] = float(r_tokens[1])
         R[2,2] = float(r_tokens[2])
-        self.pose_ = tfx.pose(R, t)
+        pose = tfx.pose(R, t)
+        return SimilarityTransform3D(pose=pose, scale=scale, from_frame=from_frame, to_frame=to_frame)
 
     def save(self, filename):
         """ Save the transform to a custom file format """
