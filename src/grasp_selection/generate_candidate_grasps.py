@@ -40,6 +40,17 @@ import similarity_tf as stf
 import termination_conditions as tc
 import tfx
 
+from grasp_collision_checker import OpenRaveGraspChecker
+
+def in_collision(grasp_checker, grasp, gripper, stable_pose):
+    if gripper.collides_with_table(grasp, stable_pose):
+        return True
+        
+    if grasp_checker.in_collision(grasp):
+        return True
+        
+    return False
+
 def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps, config, grasp_set=[]):
     # load grasps and metrics
     sorted_grasps, sorted_metrics = dataset.sorted_grasps(obj.key, metric=metric, gripper=config['gripper'])
@@ -47,12 +58,14 @@ def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_gr
 
     # load gripper
     gripper = gr.RobotGripper.load(config['gripper'])
-
+    grasp_checker = OpenRaveGraspChecker(gripper)
+    grasp_checker.set_object(obj)
+    
     # keep only the collision-free grasps
     cf_grasps = []
     cf_metrics = []
     for grasp, metric in zip(sorted_grasps, sorted_metrics):
-        if not gripper.collides_with_table(grasp, stable_pose):
+        if not in_collision(grasp_checker, grasp, gripper, stable_pose):
             cf_grasps.append(grasp)
             cf_metrics.append(metric)
 
@@ -77,12 +90,14 @@ def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, conf
 
     # load gripper
     gripper = gr.RobotGripper.load(config['gripper'])
-
+    grasp_checker = OpenRaveGraspChecker(gripper)
+    grasp_checker.set_object(obj)
+    
     # keep only the collision-free grasps
     cf_grasps = []
     cf_metrics = []
     for grasp in grasps:
-        if not gripper.collides_with_table(grasp, stable_pose):
+        if not in_collision(grasp_checker, grasp, gripper, stable_pose):
             cf_grasps.append(grasp)
 
     # randomly sample grasps
