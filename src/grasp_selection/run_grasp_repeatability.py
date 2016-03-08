@@ -40,6 +40,9 @@ import tabletop_object_registration as tor
 import termination_conditions as tc
 import tfx
 
+from gripper import RobotGripper
+from grasp_collision_checker import OpenRaveGraspChecker
+
 # Experiment tag generator for saving output
 def gen_experiment_id(n=10):
     """ Random string for naming """
@@ -88,16 +91,22 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
     lift_height = config['lift_height']
     num_grasp_views = config['num_grasp_views']
     cam_dist = config['cam_dist']
+    gripper_name = config['gripper']
 
+    if gripper_name is None:
+        gripper_name = 'zeke'
+    gripper = RobotGripper.load(gripper_name)
+    
     # check collisions
     logging.info('Checking grasp collisions with table')
     grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
-    debug_output = []
-    does_collide = grasp.collides_with_stable_pose(stable_pose, debug_output)
-    collision_box_vertices = np.array(debug_output[0]).T
-    if does_collide:
-        logging.error('Grasp is in collision')
-        return
+    if gripper.collides_with_table(grasp, stable_pose):
+        logging.error("Grasp is in collision with table")
+    
+    logging.info("Checking grasp collisions with object")
+    grasp_checker = OpenRaveGraspChecker(gripper)
+    if grasp_checker.collision_between(graspable, grasp):
+        logging.error("Grasp is in collision with object")
 
     # setup buffers
     exceptions = []
