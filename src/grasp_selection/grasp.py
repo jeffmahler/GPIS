@@ -86,7 +86,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             raise ValueError('Nonzero jaw width not yet supported')
 
         self.center_ = grasp_center
-        self.axis_ = axis / np.linalg.norm(axis)
+        self.axis_ = grasp_axis / np.linalg.norm(grasp_axis)
         self.grasp_width_ = grasp_width
         self.jaw_width_ = jaw_width
         self.min_grasp_width_ = min_grasp_width

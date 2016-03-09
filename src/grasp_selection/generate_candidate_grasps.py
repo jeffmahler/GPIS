@@ -43,24 +43,26 @@ import tfx
 from grasp_collision_checker import OpenRaveGraspChecker
 
 def in_collision(grasp_checker, grasp, gripper, stable_pose):
-    if gripper.collides_with_table(grasp, stable_pose):
+    grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
+    grasp_mirrored = copy.deepcopy(grasp)
+    grasp_mirrored.set_approach_angle(grasp_mirrored.approach_angle - np.pi)
+
+    if gripper.collides_with_table(grasp, stable_pose) or gripper.collides_with_table(grasp_mirrored, stable_pose):
         return True
-        
-    if grasp_checker.in_collision(grasp):
+
+    if grasp_checker.in_collision(grasp) or grasp_checker.in_collision(grasp_mirrored):
         return True
         
     return False
 
-def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps, config, grasp_set=[]):
+def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps, config, grasp_checker, gripper, grasp_set=[]):
     # load grasps and metrics
     sorted_grasps, sorted_metrics = dataset.sorted_grasps(obj.key, metric=metric, gripper=config['gripper'])
     grasp_ids = [g.grasp_id for g in grasp_set]
-
-    # load gripper
-    gripper = gr.RobotGripper.load(config['gripper'])
-    grasp_checker = OpenRaveGraspChecker(gripper)
-    grasp_checker.set_object(obj)
     
+    # load obj into grasp checker
+    grasp_checker.set_object(obj)
+
     # keep only the collision-free grasps
     cf_grasps = []
     cf_metrics = []
@@ -68,29 +70,27 @@ def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_gr
         if not in_collision(grasp_checker, grasp, gripper, stable_pose):
             cf_grasps.append(grasp)
             cf_metrics.append(metric)
-
+    
     # get the quantiles
     num_cf_grasps = len(cf_grasps)
     delta_i = float(num_cf_grasps) / num_grasps
     delta_i = max(delta_i, 1)
-    for i in range(num_grasps):
+    for i in range(num_cf_grasps):
         j = int(i * delta_i)
         grasp = cf_grasps[j]
         while grasp.grasp_id in grasp_ids and j < num_cf_grasps:
-            j = j+1
             grasp = cf_grasps[j]
-        grasp_set.append(grasp)
+            j += 1
+        grasp_set.add(grasp)
 
     return grasp_set
 
-def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, config, grasp_set=[]):
+def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, config, grasp_checker, gripper, grasp_set=[]):
     # load grasps
     grasps = dataset.grasps(obj.key, gripper=config['gripper'])
     grasp_ids = [g.grasp_id for g in grasp_set]
 
     # load gripper
-    gripper = gr.RobotGripper.load(config['gripper'])
-    grasp_checker = OpenRaveGraspChecker(gripper)
     grasp_checker.set_object(obj)
     
     # keep only the collision-free grasps
@@ -99,7 +99,7 @@ def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, conf
     for grasp in grasps:
         if not in_collision(grasp_checker, grasp, gripper, stable_pose):
             cf_grasps.append(grasp)
-
+    
     # randomly sample grasps
     num_cf_grasps = len(cf_grasps)
     indices = np.arange(num_cf_grasps).tolist()
@@ -109,7 +109,7 @@ def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, conf
     while i < num_grasps and j < num_cf_grasps:
         grasp = cf_grasps[j]
         if grasp.grasp_id not in grasp_ids:
-            grasp_set.append(grasp)
+            grasp_set.add(grasp)
             i = i+1
         j = j+1
     return grasp_set
@@ -128,32 +128,35 @@ def generate_candidate_grasps_quantile_random(obj, stable_pose, dataset, config)
         max_q_vals.append(max_q)
         if metrics[i].find('ppc') != -1:
             metrics[i] = metrics[i] %(stable_pose.id)
-    
-    # add quantiles for each desired metric
-    grasp_set = []
-    for metric in metrics:
-        grasp_set = generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps_per_metric, config, grasp_set=grasp_set)
+  
+    gripper = gr.RobotGripper.load(config['gripper'])
+    grasp_checker = OpenRaveGraspChecker(gripper, view=False)
 
-    grasp_set = generate_candidate_grasps_random(obj, stable_pose, dataset, num_random_grasps, config, grasp_set=grasp_set)
-        
+    # add quantiles for each desired metric
+    grasp_set = set()
+    for metric in metrics:
+        grasp_set = generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps_per_metric, config, grasp_checker, gripper, grasp_set=grasp_set)
+    grasp_set = generate_candidate_grasps_random(obj, stable_pose, dataset, num_random_grasps, config, grasp_checker, gripper, grasp_set=grasp_set)
+
     # plot a histogram for each metric
+    logging.info("Found %d collision-free grasps" % len(grasp_set))
     grasp_metrics = dataset.grasp_metrics(obj.key, grasp_set, gripper=config['gripper'])
     for metric, min_q, max_q in zip(metrics, min_q_vals, max_q_vals):
         metric_vals = [grasp_metrics[g.grasp_id][metric] for g in grasp_set]
         plotting.plot_grasp_histogram(metric_vals, num_bins=config['num_bins'], min_q=min_q, max_q=max_q)
         figname = 'obj_%s_metric_%s_histogram.pdf' %(obj.key, metric)
         plt.savefig(os.path.join(config['output_dir'], figname), dpi=config['dpi'])
-
+    
     grasp_ids = np.array([g.grasp_id for g in grasp_set])
     id_filename = 'obj_%s_%s_grasp_ids.npy' %(obj.key, stable_pose.id)
     np.save(os.path.join(config['output_dir'], id_filename), grasp_ids)
-
+    
     # display grasps
     T_table_world = stf.SimilarityTransform3D(tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
-    gripper = gr.RobotGripper.load(config['gripper'])
     mlab.figure(bgcolor=(0.5,0.5,0.5), size=(1000,1000))
     delta_view = 360.0 / config['num_views']
     for i, grasp in enumerate(grasp_set):
+        print i
         logging.info('Displaying grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasp_set)))
 
         for metric in metrics:
@@ -189,9 +192,9 @@ if __name__ == '__main__':
 
     for dataset_name in config['datasets'].keys():
         dataset = database.dataset(dataset_name)
-
         # check each object in the dataset with grasps
         obj = dataset[object_key]
+        obj.set_model_name(dataset.obj_mesh_filename(object_key))
         stable_pose = dataset.stable_pose(object_key, stp_id)
         logging.info('Displaying grasps for object {}'.format(obj.key))
         generate_candidate_grasps_quantile_random(obj, stable_pose, dataset, config)

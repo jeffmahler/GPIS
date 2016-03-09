@@ -146,7 +146,7 @@ class OpenRaveGraspChecker(object):
 
         if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
-
+        
         self.move_to_pregrasp(grasp.gripper_transform(self.gripper_))
         return self.env.CheckCollision(self.gripper_obj_, self.obj_)
 
@@ -154,7 +154,7 @@ class OpenRaveGraspChecker(object):
         """ Returns true if the gripper collides with grraspable in the test_grasp, false otherwise"""
         if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
-
+        
         self.obj_ = self._load_object(graspable)
 
         self.move_to_pregrasp(grasp.gripper_transform(self.gripper_))

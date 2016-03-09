@@ -111,6 +111,9 @@ class GraspableObject:
     def category(self):
         return self.category_
 
+    def set_model_name(self, model_name):
+        self.model_name_ = model_name
+
 class GraspableObject2D(GraspableObject):
     # TODO: fix 2d with similiarity tfs
     def __init__(self, sdf, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0)):
