@@ -8,6 +8,7 @@ import IPython
 import numpy as np
 import os
 from PIL import Image, ImageDraw
+import Queue
 import sklearn.decomposition
 import sys
 import tfx
@@ -273,6 +274,28 @@ class Mesh3D(object):
         if ip[0] > 0:
             self.normals_ = [[-n[0], -n[1], -n[2]] for n in self.normals_]
 
+    def surface_area(self, indices=None):
+        """ Computes the surface area of triangles specified by indices """
+        num_tris = len(self.triangles_)
+        if indices is None:
+            indices = np.arange(num_tris).tolist()
+
+        surface_area = 0.0
+        for index in indices:
+            if index < num_tris:
+                # compute surface area of individual triangle
+                tri = self.triangles_[index]
+                v0 = np.array(self.vertices_[tri[0]])
+                v1 = np.array(self.vertices_[tri[1]])
+                v2 = np.array(self.vertices_[tri[2]])
+                w0 = v1 - v0
+                w1 = v2 - v0
+                if np.linalg.norm(w0) > 0 and np.linalg.norm(w1) > 0:
+                    theta = np.arccos(w0.dot(w1) / (np.linalg.norm(w0) * np.linalg.norm(w1)))
+                    if not np.isnan(theta):
+                        surface_area = surface_area + 0.5 * np.linalg.norm(w0) * np.linalg.norm(w1) * np.sin(theta)
+        return surface_area
+
     def tri_centers(self):
         """ Return a list of the triangle centers as 3D points """
         centers = []
@@ -303,7 +326,8 @@ class Mesh3D(object):
         hull_vertex_normal = normals[hull_vertex_ind]
         v = np.array(hull_vertex).reshape([1,3])
         n = np.array(hull_vertex_normal)
-        ip = (np.array(tri_centers) - np.tile(hull_vertex, [np.array(tri_centers).shape[0], 1])).dot(n)
+        diff_v = np.array(tri_centers) - np.tile(hull_vertex, [np.array(tri_centers).shape[0], 1]) 
+        ip = diff_v.dot(n)
         if ip[0] > 0:
             normals = [[-n[0], -n[1], -n[2]] for n in normals]
         return normals
@@ -522,7 +546,7 @@ class Mesh3D(object):
         self.vertices_ = vertex_array.tolist()
         self._compute_centroid()
 
-    def rescale(self, scale_factor):
+    def rescale(self, scale_factor, center=False):
         '''
         Rescales the vertex coordinates by scale factor
         Params:
@@ -531,17 +555,78 @@ class Mesh3D(object):
            Nothing. Modified the mesh in place (for now)
         '''
         vertex_array = np.array(self.vertices_)
-        scaled_vertices = scale_factor * vertex_array
+        if center:
+            vertex_centroid = np.mean(vertex_array, axis=0)
+            vertex_centroid_array = np.tile(vertex_centroid, [vertex_array.shape[0], 1])
+            scaled_vertices = scale_factor * (vertex_array - vertex_centroid_array) + vertex_centroid_array
+        else:
+            scaled_vertices = scale_factor * vertex_array
         self.vertices_ = scaled_vertices.tolist()
 
     def convex_hull(self):
         """ Returns the convex hull of a mesh as a new mesh """
         hull = ss.ConvexHull(self.vertices_)
         hull_tris = hull.simplices.tolist()
-        # TODO do normals properly...
-        cvh_mesh = Mesh3D(self.vertices_, hull_tris)#, self.normals_)
+        cvh_mesh = Mesh3D(self.vertices_, hull_tris, self.normals_)
         cvh_mesh.remove_unreferenced_vertices()
         return cvh_mesh
+
+    def copy(self):
+        # WARNING: this only copies vertices and triangles
+        vertices = list(self.vertices())
+        triangles = list(self.triangles())
+        return Mesh3D(vertices, triangles)
+
+    @staticmethod
+    def max_edge_length(tri, vertices):
+        v0 = np.array(vertices[tri[0]])
+        v1 = np.array(vertices[tri[1]])
+        v2 = np.array(vertices[tri[2]])
+        max_edge_len = max(np.linalg.norm(v1-v0), max(np.linalg.norm(v1-v0), np.linalg.norm(v2-v1)))
+        return max_edge_len
+
+    def subdivide(self, min_triangle_length = None):
+        '''Returns a copy of the current mesh but subdivided by one iteration'''
+        new_mesh = self.copy()
+        new_vertices = new_mesh.vertices()
+        old_triangles = new_mesh.triangles()
+        
+        new_triangles = []
+        triangle_index_mapping = {}
+        tri_queue = Queue.Queue()
+        
+        for j, triangle in enumerate(old_triangles):
+            tri_queue.put((j, triangle))
+            triangle_index_mapping[j]  = []
+
+        while not tri_queue.empty():
+            tri_index_pair = tri_queue.get()
+            j = tri_index_pair[0]
+            triangle = tri_index_pair[1]
+
+            if min_triangle_length is None or Mesh3D.max_edge_length(triangle, new_vertices) > min_triangle_length:
+                t_vertices = np.array([new_vertices[i] for i in triangle])
+                edge01 = 0.5 * (t_vertices[0,:] + t_vertices[1,:])
+                edge12 = 0.5 * (t_vertices[1,:] + t_vertices[2,:])
+                edge02 = 0.5 * (t_vertices[0,:] + t_vertices[2,:])
+
+                i_01 = len(new_vertices)
+                i_12 = len(new_vertices)+1
+                i_02 = len(new_vertices)+2
+                new_vertices.append(edge01)
+                new_vertices.append(edge12)
+                new_vertices.append(edge02)
+            
+                for triplet in [[triangle[0], i_01, i_02], [triangle[1], i_12, i_01], [triangle[2], i_02, i_12], [i_01, i_12, i_02]]:
+                    tri_queue.put((j, triplet))
+
+            else:
+                new_triangles.append(triangle)
+                triangle_index_mapping[j].append(len(new_triangles)-1)
+
+        new_mesh.set_vertices(new_vertices)
+        new_mesh.set_triangles(new_triangles)
+        return new_mesh, triangle_index_mapping
 
     def make_image(self, filename, rot):
         proj_img = self.project_binary(cp, T)
@@ -551,11 +636,28 @@ class Mesh3D(object):
         oof = obj_file.ObjFile(filename)
         oof.write(self)
 
+    def mask(self, mask):
+        """ Keep only the triangles specified by indices in |mask| """
+        new_triangles = []
+        for i, triangle in enumerate(self.triangles_):
+            if i in mask.tolist():
+                new_triangles.append(triangle)
+
+        masked_mesh = Mesh3D(self.vertices_, new_triangles, normals=self.normals_)
+        masked_mesh.remove_unreferenced_vertices()
+        return masked_mesh
+
     def visualize(self, color=(0.5, 0.5, 0.5), style='surface'):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
-        surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation=style,
-                                     color=color)
+        if style == 'dexnet':
+            surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='surface',
+                                         color=color)
+            mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation='wireframe',
+                               color=(0,0,0))
+        else:
+            surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation=style,
+                                         color=color)
         return surface
 
     def visualize_segments(self, tri_labels, style='surface'):

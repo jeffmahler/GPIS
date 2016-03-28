@@ -47,24 +47,25 @@ class DatasetConfig:
 
 # Global array of all datasets and params
 DATASETS = [
-    DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
-    DatasetConfig(name='aselab', extension='.obj', scale=1.0, synthetic=False),
-    DatasetConfig(name='autodesk', extension='.off', synthetic=True),
-#    DatasetConfig(name='Archive3D', extension='.3DS'),
-    DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
-    DatasetConfig(name='Cat50_ModelDatabase', extension='.obj', cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/Cat50_ModelDatabase')),
-    DatasetConfig(name='google', extension='.obj', synthetic=True),
-    DatasetConfig(name='inventor_small', extension='.wrl', synthetic=True),
-    DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False),
-    DatasetConfig(name='MeshSegBenchmark', extension='.off', synthetic=True),
-    DatasetConfig(name='ModelNet40', extension='.off', cat_db=mdb.ModelNet40ObjectDatabase('/mnt/terastation/shape_data/MASTER_DB_v2/ModelNet40/index.db')),
-    DatasetConfig(name='NTU3D', extension='.obj'),
-    DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
-    DatasetConfig(name='SHREC14LSGTB', extension='.off', cat_db=mdb.SHRECObjectDatabase('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla')),
-    DatasetConfig(name='siemens', extension='.stl', synthetic=True),
-    DatasetConfig(name='segments_small', extension='.off', synthetic=True),
-    DatasetConfig(name='surgical', extension='.obj'),
-    DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase())
+    # DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
+    # DatasetConfig(name='aselab', extension='.obj', scale=1.0, synthetic=False),
+    # DatasetConfig(name='autodesk', extension='.off', synthetic=True),
+    # DatasetConfig(name='Archive3D', extension='.3DS'),
+    # DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
+    # DatasetConfig(name='Cat50_ModelDatabase', extension='.obj', cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/Cat50_ModelDatabase')),
+    # DatasetConfig(name='google', extension='.obj', synthetic=True),
+    # DatasetConfig(name='inventor_small', extension='.wrl', synthetic=True),
+    # DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False),
+    # DatasetConfig(name='MeshSegBenchmark', extension='.off', synthetic=True),
+    # DatasetConfig(name='ModelNet40', extension='.off', cat_db=mdb.ModelNet40ObjectDatabase('/mnt/terastation/shape_data/MASTER_DB_v2/ModelNet40/index.db')),
+    # DatasetConfig(name='NTU3D', extension='.obj'),
+    # DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
+    # DatasetConfig(name='SHREC14LSGTB', extension='.off', cat_db=mdb.SHRECObjectDatabase('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla')),
+    # DatasetConfig(name='siemens', extension='.stl', synthetic=True),
+    # DatasetConfig(name='segments_small', extension='.off', synthetic=True),
+    # DatasetConfig(name='surgical', extension='.obj'),
+    # DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase())
+    DatasetConfig(name='thingiverse', extension='.stl', synthetic=True),
 ]
 
 # read in params

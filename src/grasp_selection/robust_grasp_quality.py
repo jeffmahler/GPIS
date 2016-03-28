@@ -238,6 +238,8 @@ class RobustGraspQuality:
 
         # brute force with uniform allocation
         snapshot_rate = config['bandit_snapshot_rate']
+        if snapshot_rate is None:
+            snapshot_rate = 100
         objective = objectives.RandomBinaryObjective()
         ua = das.UniformAllocationMean(objective, candidates)
         ua_result = ua.solve(termination_condition = tc.MaxIterTerminationCondition(num_samples),

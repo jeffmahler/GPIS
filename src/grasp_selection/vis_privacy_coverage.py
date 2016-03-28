@@ -22,7 +22,7 @@ import similarity_tf as stf
 import tfx
 
 import contacts
-import coverage
+import privacy_coverage as coverage
 import database as db
 import experiment_config as ec
 import grasp as g
@@ -39,16 +39,6 @@ if __name__ == '__main__':
     config_filename = sys.argv[1]
     config = ec.ExperimentConfig(config_filename)
 
-    #database_filename = os.path.join(config['database_dir'], config['database_name'])
-    #database = db.Hdf5Database(database_filename, config)
-    #dataset = database[config['datasets'].keys()[0]]
-
-    #obj = dataset['Tube-Pipe-Fittings-Gaskets-54']#Tube-Pipe-Fittings-YBends-ReducedYBends-89']
-    #object_keys = dataset.object_keys
-    #random.shuffle(object_keys)
-    #if True:#for obj in dataset:
-    #   obj_name = obj.key
-
     dataset = config['hacky_vis_stuff']
     obj_names = list(config['hacky_vis_stuff'])
     for i in range(len(dataset)):
@@ -59,11 +49,8 @@ if __name__ == '__main__':
         d_key = name.split('/')[-1]
         dataset[i] = go.GraspableObject3D(d_sdf, d_mesh, key=d_key)
 
-    # for obj_name in object_keys:
-    #     obj = dataset[obj_name]
-    #IPython.embed()
-    #exit(0)
 
+    # loop through the objects and visualize coverage for each
     for obj_name, obj in zip(obj_names, dataset):
 
         # Stable poses
@@ -136,6 +123,7 @@ if __name__ == '__main__':
             coverage.vis_stable(obj, grasps[:num_grasps], qualities[:num_grasps],
                                 most_stable_pose, vis_transform=True, max_rays=500, high=None)
             mlab.show()
+            exit(0)
         except:
             pass
             #continue

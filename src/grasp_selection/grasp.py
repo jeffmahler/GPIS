@@ -152,7 +152,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
         R = R_grip_p_grip.dot(R_grip_robot)
         t = self.center
         return stf.SimilarityTransform3D(pose=tfx.pose(R, t), from_frame='gripper', to_frame='obj').inverse()
-        
+    
     def set_approach_angle(self, angle):
         self.approach_angle_ = angle
         self.rotated_full_axis_ = None
@@ -459,6 +459,43 @@ class ParallelJawPtGrasp3D(PointGrasp):
         new_grasp = deepcopy(self)
         new_grasp.set_approach_angle(theta)
         return new_grasp
+
+    def _angle_aligned_with_table(self, stable_pose):
+        '''
+        Returns the y-axis rotation angle that'd allow the current pose to align with stable pose
+        '''    
+        def _argmax(f, a, b, n):
+            #finds the argmax x of f(x) in the range [a, b) with n samples
+            delta = (b - a) / n
+            max_y = f(a)
+            max_x = a
+            for i in range(1, n):
+                x = i * delta
+                y = f(x)
+                if y >= max_y:
+                    max_y = y
+                    max_x = x
+            return max_x
+    
+        def _get_matrix_product_x_axis(grasp_axis, normal):
+            def matrix_product(theta):
+                R = ParallelJawPtGrasp3D._get_rotation_matrix_y(theta)
+                grasp_axis_rotated = np.dot(R, grasp_axis)
+                return np.dot(normal, grasp_axis_rotated)
+            return matrix_product
+    
+        stable_pose_normal = stable_pose.r[2]
+        theta = _argmax(_get_matrix_product_x_axis(np.array([1,0,0]), np.dot(inv(self.unrotated_full_axis), -stable_pose_normal)), 0, 2*np.pi, 1000)        
+        return theta
+
+    def grasp_aligned_with_table(self, stable_pose):
+        '''
+        Returns the grasp with approach_angle set appropriately to align with stable pose
+        '''
+        theta = self._angle_aligned_with_table(stable_pose)
+        new_grasp = deepcopy(self)
+        new_grasp.set_approach_angle(theta)        
+        return new_grasp
         
     def collides_with_stable_pose(self, stable_pose, debug = []):
         '''
@@ -613,6 +650,12 @@ class ParallelJawPtGrasp3D(PointGrasp):
         grasp.successes = data['successes']
         grasp.failures = data['failures']
         return grasp
+
+    @staticmethod
+    def distance(g1, g2, alpha=1.0):
+        center_dist = np.linalg.norm(g2.center - g2.center)
+        axis_dist = (2.0 / np.pi) * np.arccos(np.abs(g1.axis.dot(g2.axis)))
+        return alpha * center_dist + axis_dist
 
 def test_find_contacts():
     """ Should visually check for reasonable contacts (large green circles) """

@@ -13,6 +13,7 @@ import IPython
 
 from mayavi import mlab
 
+import itertools
 import os
 import logging
 import math
@@ -127,8 +128,20 @@ def grasp_from_contacts(c1, c2, width=MAX_WIDTH):
         grasp_center, grasp_axis, width=width)
     return g.ParallelJawPtGrasp3D(grasp_configuration)
 
+def randos(n):
+    while True:
+        yield np.random.randint(n)
+    yield -100
+
 def compute_qualities(graspable, indices, contacts,
-                      metric='ferrari_canny_L1', friction_coef=0.5):
+                      metric='ferrari_canny_L1', friction_coef=0.5, num_samples=200, stp=None):
+    if stp is None:
+        check_stable = lambda g: True
+    else:
+        def check_stable(grasp, n=stp.r[2, :], x0=stp.x0):
+            g1, g2 = grasp.endpoints()
+            return n.dot(g2-x0) > 0 and n.dot(g1-x0) > 0
+
     n = len(contacts)
     grasps = []
     index_pairs = []
@@ -136,6 +149,51 @@ def compute_qualities(graspable, indices, contacts,
     valid_contacts = []
 
     start_quality = time.time()
+    logging.info('%d possible grasps', n * (n+1) / 2)
+  
+    np.random.seed(0)
+    all_c1 = randos(n)
+    all_c2 = randos(n)
+
+    cnt = 0
+    seen = set()
+    # for i, j in itertools.product(range(n), repeat=2):
+    for i, j in itertools.izip(all_c1, all_c2):
+        if i > j: # i should always be less than j
+            i, j = j, i
+
+        if cnt % 10000 == 0:
+            logging.info('Computing qualities for pair %d: (%d, %d)', cnt, i, j)
+        x, y = indices[i], indices[j]
+        c1, c2 = contacts[i], contacts[j]
+        grasp_valid = q.PointGraspMetrics3D.force_closure(c1, c2, friction_coef) and (i, j) not in seen
+
+        if grasp_valid:
+            seen.add((i, j))
+            if c1 not in valid_contacts:
+                valid_contacts.append(c1)
+            if c2 not in valid_contacts:
+                valid_contacts.append(c2)
+
+            grasp = grasp_from_contacts(c1, c2)
+            grasp.grasp_width_ = 0.15
+
+            if not check_stable(grasp):
+                continue
+
+            quality = q.PointGraspMetrics3D.grasp_quality(grasp, graspable, metric, True, friction_coef)
+            if quality <= 0:
+                continue
+
+            grasps.append(grasp)
+            index_pairs.append((x,y))
+            qualities.append(quality)
+        cnt += 1
+
+        if len(grasps) == num_samples or cnt > 4e6 or cnt > 10 * n**2:
+            break
+
+    """
     for i in range(n):
         x = indices[i]
         c1 = contacts[i]
@@ -146,10 +204,8 @@ def compute_qualities(graspable, indices, contacts,
             y = indices[j]
             c2 = contacts[j]
 
-            grasp_valid = True
-            if not in_force_closure(c1, c2, friction_coef):
-                grasp_valid = False
-                
+            grasp_valid = q.PointGraspMetrics3D.force_closure(c1, c2, friction_coef)
+
             if grasp_valid:
                 grasp = grasp_from_contacts(c1, c2)
                 grasps.append(grasp)
@@ -163,6 +219,8 @@ def compute_qualities(graspable, indices, contacts,
 
         logging.info('Took %f seconds to compute qualities for index %d',
                      time.time() - start_quality_iter, i)
+    """
+
     logging.info('Took %f seconds to compute all qualities',
                  time.time() - start_quality)
 
@@ -173,6 +231,7 @@ def compute_qualities(graspable, indices, contacts,
     plt.show()
     """
 
+    print(len(grasps))
     return grasps, index_pairs, qualities
 
 # Functions for plotting
@@ -378,10 +437,10 @@ def vis_stable(graspable, grasps, qualities,
         mlab.figure()
         graspable.mesh.visualize()
         mlab.triangular_mesh(table_vertices[:,0], table_vertices[:,1], table_vertices[:,2],
-                             table_tris, representation='surface', color=(0,0,0), opacity=0.5)
+                             table_tris, representation='surface', color=(0,0,0), opacity=1.0)
 
     # prune grasps in collision with the surface
-    logging.info('Pruning grasps')
+    logging.info('Pruning %d grasps', len(grasps))
     valid_grasps = []
     valid_qualities = []
     for grasp, quality in zip(grasps, qualities):
@@ -398,9 +457,17 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     config_filename = sys.argv[1]
     config = ec.ExperimentConfig(config_filename)
-    database_filename = os.path.join(config['database_dir'], config['database_name'])
-    database = db.Hdf5Database(database_filename, config)
-    dataset = database[config['datasets'].keys()[0]]
+    # database_filename = os.path.join(config['database_dir'], config['database_name'])
+    # database = db.Hdf5Database(database_filename, config)
+    # dataset = database[config['datasets'].keys()[0]]
+
+    dataset = config['hacky_stuff']
+    for i in range(len(dataset)):
+        d_key = dataset[i].split('/')[-1]
+        print(d_key)
+        d_mesh = obj_file.ObjFile(os.path.join('masks', dataset[i]+'.obj')).read()
+        d_sdf = sdf_file.SdfFile(os.path.join('masks', dataset[i]+'.sdf')).read()
+        dataset[i] = go.GraspableObject3D(d_sdf, d_mesh, key=d_key)
 
     mode = CONTACT_MODE_TRI_CENTERS
 
@@ -408,14 +475,23 @@ if __name__ == '__main__':
         obj_name = graspable.key
 
         # stable poses
-        stable_pose_filename = os.path.join(config['out_dir'], '{}_stable_poses.stp'.format(obj_name))
-        stp.StablePoseFile().write_mesh_stable_poses(graspable.mesh, stable_pose_filename, min_prob=0.01)
+        if 'mask' not in obj_name:
+            stable_pose_filename = os.path.join(config['out_dir'], '{}_stable_poses.stp'.format(obj_name))
+            stp.StablePoseFile().write_mesh_stable_poses(graspable.mesh, stable_pose_filename, min_prob=0.01)
+        else:
+            clean_name = obj_name.replace('_no_mask', '').replace('_masked_bbox', '').replace('_masked_hull', '')
+            stable_pose_filename = os.path.join(config['out_dir'], '{}_stable_poses.stp'.format(clean_name))
         stable_poses = stp.StablePoseFile().read(stable_pose_filename)
+
+        # find most stable pose
+        stable_pose_probs = np.array([s.p for s in stable_poses])
+        highest_index = np.where(stable_pose_probs == np.max(stable_pose_probs))[0]
+        most_stable_pose = stable_poses[highest_index[0]]
 
         # antipodal pairs
         all_contacts, all_vertices, all_normals = load_vertex_contacts(graspable, mode=mode)
         valid_indices, valid_contacts = filter_contacts(all_contacts, max_vertices=config['max_vertices'])  # for all grasps
-        grasps, index_pairs, qualities = compute_qualities(graspable, valid_indices, valid_contacts)
+        grasps, index_pairs, qualities = compute_qualities(graspable, valid_indices, valid_contacts, stp=most_stable_pose)
 
         # Save expensive computation
         grasps_filename = os.path.join(config['out_dir'], '{}_grasps.pkl'.format(obj_name))
@@ -427,7 +503,7 @@ if __name__ == '__main__':
         np.save(quality_filename, np.array(qualities))
 
         # organize grasps by segment
-        if config['use_segments']:
+        if False:#config['use_segments']:
             seg_filename = os.path.join(config['shape_data_dir'], config['datasets'].keys()[0], '%s_0.seg' %(obj_name))
 
             # load segments

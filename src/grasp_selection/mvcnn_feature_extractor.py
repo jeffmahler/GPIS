@@ -145,7 +145,6 @@ class MVCNNBatchFeatureExtractor(fex.FeatureExtractor):
         # load and batch process the feature vectors
         rendered_objects = self._load_rendered_objects(graspables)
         return self._batch_create_feature_vectors(rendered_objects)
-
 class MVCNNSubsetBatchFeatureExtractor(MVCNNBatchFeatureExtractor):
     def __init__(self, num_images, config):
         self.num_images_ = num_images

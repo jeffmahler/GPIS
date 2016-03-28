@@ -23,7 +23,6 @@ import sdf_file
 import similarity_tf as stf
 import tfx
 import feature_functions as ff
-
 import discrete_adaptive_samplers as das
 import models
 import objectives

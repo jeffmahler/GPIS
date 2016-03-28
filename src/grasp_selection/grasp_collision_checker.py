@@ -35,7 +35,7 @@ class OpenRaveGraspChecker(object):
         if env is None and OpenRaveGraspChecker.env_ is None:
             OpenRaveGraspChecker._setup_rave_env()        
 
-        self.object_ = None
+        self.obj_ = None
         self.view_ = view
         self.gripper_ = gripper
         self.gripper_obj_ = self._load_obj_from_file(gripper.mesh_filename)

@@ -2,6 +2,7 @@
 Class to encapsulate robot grippers
 Author: Jeff
 """
+import IPython
 import json
 import numpy as np
 import obj_file
@@ -42,11 +43,10 @@ class RobotGripper():
         x0 = stable_pose.x0
 
         # check all vertices for intersection with table
-        collision = False
-        for vertex in mesh_tf.vertices():
-            v = np.array(vertex)
-            if n.dot(v - x0) < 0:
-                collision = True
+        vertices = np.array(mesh_tf.vertices())
+        num_vertices = vertices.shape[0]
+        ip = (vertices - np.tile(x0.reshape(1,3), (num_vertices, 1))).dot(n)
+        collision = (ip < 0).any()
         return collision
 
     @staticmethod
