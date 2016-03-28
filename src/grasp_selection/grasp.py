@@ -299,7 +299,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             pt_grid = line_of_action[i]
 
             # visualize
-            if False:#vis:
+            if vis:
                 ax = plt.gca(projection = '3d')
                 ax.scatter(pt_grid[0], pt_grid[1], pt_grid[2], c=u'r')
 
