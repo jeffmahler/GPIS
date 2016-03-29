@@ -224,8 +224,20 @@ class PatchOrientationFeatureExtractor(FeatureExtractor):
     name = 'patch_orientation'
 
     """Class for extracting grasp direction."""
-    def __init__(self, patch_orientation, feature_weight=1.0):
-        self.patch_orientation_ = patch_orientation
+    def __init__(self, grasp, graspable, feature_weight=1.0):
+        success, contacts = grasp.close_fingers(graspable, vis=False)
+        self.patch_orientation_ = np.zeros([3, 6])
+        if success:
+            direction, x, y = contacts[0].tangents(grasp.axis)
+            self.patch_orientation_[:,0] = direction
+            self.patch_orientation_[:,1] = x
+            self.patch_orientation_[:,2] = y
+
+            direction, x, y = contacts[1].tangents(-grasp.axis)
+            self.patch_orientation_[:,3] = direction
+            self.patch_orientation_[:,4] = x
+            self.patch_orientation_[:,5] = y
+        
         self.feature_weight_ = feature_weight
 
     def to_json(self, dest):
@@ -237,7 +249,30 @@ class PatchOrientationFeatureExtractor(FeatureExtractor):
 
     @property
     def phi(self):
-        return self.feature_weight_ * self.patch_orientation_
+        return self.feature_weight_ * self.patch_orientation_.flatten()
+
+class SurfaceNormalFeatureExtractor(FeatureExtractor):
+    name = 'surface_normals'
+
+    """Class for extracting surface normals."""
+    def __init__(self, grasp, graspable, feature_weight=1.0):
+        success, contacts = grasp.close_fingers(graspable, vis=False)
+        self.surface_normals_ = np.zeros([3, 2])
+        if success and contacts[0].normal is not None and contacts[1].normal is not None:
+            self.surface_normals_[:,0] = contacts[0].normal
+            self.surface_normals_[:,1] = contacts[1].normal
+        self.feature_weight_ = feature_weight
+
+    def to_json(self, dest):
+        return self.dictionary()
+
+    @property
+    def descriptor(self):
+        return self.surface_normals_
+
+    @property
+    def phi(self):
+        return self.feature_weight_ * self.surface_normals_.flatten()
 
 class GraspAxisAngleFeatureExtractor(FeatureExtractor):
     name = 'normal'
@@ -315,12 +350,13 @@ class ProjectionDiscFeatureExtractor(WindowFeatureExtractor):
     def __init__(self, surface, feature_weight=1.0, num_angles=16):
         self.num_angles_ = num_angles
         WindowFeatureExtractor.__init__(self, surface, feature_weight) 
+        self.window_ = self.surface_.proj_win
         self._compute_surface_disc()
 
     def _interpolate(self, x, y):
         """ Interpolates the values in the window at real valued coordinates x and y """
-        d = int(np.sqrt(self.surface_.proj_win.shape[0]))
-        square_proj_win = self.surface_.proj_win.reshape(d, d)
+        d = int(np.sqrt(self.window_.shape[0]))
+        square_proj_win = self.window_.reshape(d, d)
         
         # snap to grid dimensions
         x_snap = max(0, min(x, d-1))
@@ -351,7 +387,7 @@ class ProjectionDiscFeatureExtractor(WindowFeatureExtractor):
 
     def _compute_surface_disc(self):
         """ Compute a surface disc """
-        d = np.sqrt(self.surface_.proj_win.shape[0])
+        d = np.sqrt(self.window_.shape[0])
         num_radial = int((d - 1.0) / 2.0) + 1
         self.surface_disc_ = np.zeros([num_radial, self.num_angles_])
         for i in range(self.num_angles_):
@@ -404,6 +440,36 @@ class CurvatureWindowFeatureExtractor(WindowFeatureExtractor):
     @property
     def phi(self):
         return self.feature_weight * self.surface_.curvature
+
+class GradXDiscFeatureExtractor(ProjectionDiscFeatureExtractor):
+    """Class for extracting window features."""
+    name = 'gradx_disc'
+
+    def __init__(self, surface, feature_weight=1.0, num_angles=16):
+        self.num_angles_ = num_angles
+        WindowFeatureExtractor.__init__(self, surface, feature_weight) 
+        self.window_ = self.surface_.grad_x
+        self._compute_surface_disc()
+
+class GradYDiscFeatureExtractor(ProjectionDiscFeatureExtractor):
+    """Class for extracting window features."""
+    name = 'grady_disc'
+
+    def __init__(self, surface, feature_weight=1.0, num_angles=16):
+        self.num_angles_ = num_angles
+        WindowFeatureExtractor.__init__(self, surface, feature_weight) 
+        self.window_ = self.surface_.grad_y
+        self._compute_surface_disc()
+
+class CurvatureDiscFeatureExtractor(ProjectionDiscFeatureExtractor):
+    """Class for extracting window features."""
+    name = 'curvature_disc'
+
+    def __init__(self, surface, feature_weight=1.0, num_angles=16):
+        self.num_angles_ = num_angles
+        WindowFeatureExtractor.__init__(self, surface, feature_weight) 
+        self.window_ = self.surface_.curvature
+        self._compute_surface_disc()
 
 class GravityFeatureExtractor(FeatureExtractor):
     """Abstract class for extracting gravity-related features."""
@@ -509,12 +575,14 @@ class GraspableFeatureExtractor:
         self.weights_ = [
             self.proj_win_weight_, self.grad_x_weight_,
             self.grad_y_weight_, self.curvature_weight_,
-            self.proj_win_weight_
+            self.proj_win_weight_, self.proj_win_weight_,
+            self.proj_win_weight_, self.proj_win_weight_
         ]
         self.classes_ = [
             ProjectionWindowFeatureExtractor, GradXWindowFeatureExtractor,
             GradYWindowFeatureExtractor, CurvatureWindowFeatureExtractor,
-            ProjectionDiscFeatureExtractor
+            ProjectionDiscFeatureExtractor, GradXDiscFeatureExtractor,
+            GradYDiscFeatureExtractor, CurvatureDiscFeatureExtractor
         ]
 
     def _compute_feature_rep(self, grasp, root_name=None):
@@ -553,7 +621,8 @@ class GraspableFeatureExtractor:
             GraspCenterFeatureExtractor(grasp.center, self.grasp_center_weight_),
             #GraspAxisFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
             CenterOfMassFeatureExtractor(self.graspable_.mesh.center_of_mass, self.grasp_axis_weight_),
-            PatchOrientationFeatureExtractor(grasp.axis, self.grasp_axis_weight_),
+            PatchOrientationFeatureExtractor(grasp, self.graspable_, self.grasp_axis_weight_),
+            SurfaceNormalFeatureExtractor(grasp, self.graspable_, self.grasp_axis_weight_),
             # GraspAxisAngleFeatureExtractor(grasp.axis, c1.normal, self.grasp_angle_weight_),
             # GraspAxisAngleFeatureExtractor(-grasp.axis, c2.normal, self.grasp_angle_weight_)
         ]

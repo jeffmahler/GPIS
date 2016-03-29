@@ -8,7 +8,10 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 
 import openravepy as rave

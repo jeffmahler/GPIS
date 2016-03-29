@@ -13,7 +13,10 @@ import time
 
 import IPython
 import matplotlib.pyplot as plt
-import mayavi.mlab as mlab
+try:
+    import mayavi.mlab as mlab
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import scipy.stats
 
@@ -27,8 +30,8 @@ import grasp_sampler as gs
 import gripper as gr
 import json_serialization as jsons
 import kernels
-import models
 import mayavi_visualizer as mv
+import models
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
@@ -59,6 +62,7 @@ def label_grasps(obj, dataset, output_ds, config):
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'],
                 max_iter=config['max_grasp_sampling_iters'])
+            grasp_sms = [0] * len(grasps)
 
             # pad with gaussian grasps
             num_grasps = len(grasps)
@@ -73,46 +77,72 @@ def label_grasps(obj, dataset, output_ds, config):
                     obj, target_num_grasps=target_num_grasps,
                     check_collisions=config['check_collisions'],
                     max_iter=config['max_grasp_sampling_iters'])
+
                 grasps.extend(gaussian_grasps)
+                grasp_sms.extend([1] * len(gaussian_grasps))
+        elif config['grasp_sampler'] == 'anti_uniform':
+            # half uniform and half antipodal sampling
+            num_grasps_sample = config['target_num_grasps'] / 2
+
+            antipodal_sampler = ags.AntipodalGraspSampler(config)
+            antipodal_grasps = antipodal_sampler.generate_grasps(
+                obj, target_num_grasps=num_grasps_sample,
+                check_collisions=config['check_collisions'],
+                max_iter=config['max_grasp_sampling_iters'])
+            grasp_sms = [0] * len(antipodal_grasps)
+
+            uniform_sampler = gs.UniformGraspSampler(config)
+            uniform_grasps = uniform_sampler.generate_grasps(
+                obj, target_num_grasps=num_grasps_sample,
+                check_collisions=config['check_collisions'],
+                max_iter=config['max_grasp_sampling_iters'])
+
+            grasps = antipodal_grasps + uniform_grasps
+            logging.info('Num antipodal %d' %(len(antipodal_grasps)))
+            logging.info('Num uniform %d' %(len(uniform_grasps)))
+            grasp_sms.extend([2] * len(uniform_grasps))
         else:
             # gaussian sampling
             logging.info('Using Gaussian grasp sampling')
             sampler = gs.GaussianGraspSampler(config)
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'])
+            grasp_sms.extend([1] * len(grasps))
 
         sample_end = time.clock()
         sample_duration = sample_end - sample_start
         logging.info('Grasp candidate generation took %f sec' %(sample_duration))
 
-        if config['vis']:
-            for grasp in grasps:
-                T_obj_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='obj')
-                mlab.figure()
-                mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world, style='surface')
-                mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, color=(1,1,1))
-                mlab.show()
-
         if not grasps or len(grasps) == 0:
             logging.info('No grasps found for %s' %(obj.key))
             return
 
+        """
+        T_obj_world = stf.SimilarityTransform3D(from_frame='world', to_frame='obj')
+        mlab.figure()
+        mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world)
+        for grasp in grasps:
+            mv.MayaviVisualizer.plot_grasp(grasp, T_obj_world)
+        mlab.show()
+        """
+            
         # store the grasps
         output_ds.store_grasps(obj.key, grasps, gripper=gripper_name)
 
     # load all grasps to get ids
     grasps = output_ds.grasps(obj.key, gripper=gripper_name)
 
-    # extract features (disabled for now)
+    # extract features
     if config['extract_features']:
         logging.info('Extracting features')
         feature_extractor = ff.GraspableFeatureExtractor(obj, config)
         all_features = feature_extractor.compute_all_features(grasps)
         raw_feature_dict = {}
-        for g, f in zip(grasps, all_features):
+        for g, f, s in zip(grasps, all_features, grasp_sms):
             if f is not None:
                 raw_feature_dict[g.grasp_id] = f.features()
-
+                raw_feature_dict[g.grasp_id].append(ff.GraspFeature('sampling_method', 'sampling_method', s))
+                
         # store features
         output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
 
@@ -137,23 +167,26 @@ def label_grasps(obj, dataset, output_ds, config):
         grasp_force_limit = config['grasp_force_limit']
         
         # create alternate configs for double and half the uncertainty
+        low_u_mult = config['low_u_mult']
+        high_u_mult = config['high_u_mult']
         low_u_config = copy.deepcopy(config)
-        low_u_config['sigma_mu'] = 0.5 * low_u_config['sigma_mu'] 
-        low_u_config['sigma_rot_grasp'] = 0.5 * low_u_config['sigma_rot_grasp'] 
-        low_u_config['sigma_trans_grasp'] = 0.5 * low_u_config['sigma_trans_grasp'] 
-        low_u_config['sigma_rot_obj'] = 0.5 * low_u_config['sigma_rot_obj'] 
-        low_u_config['sigma_trans_obj'] = 0.5 * low_u_config['sigma_trans_obj'] 
-        low_u_config['sigma_scale_obj'] = 0.5 * low_u_config['sigma_scale_obj'] 
+
+        low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
+        low_u_config['sigma_rot_grasp'] = low_u_mult * low_u_config['sigma_rot_grasp'] 
+        low_u_config['sigma_trans_grasp'] = low_u_mult * low_u_config['sigma_trans_grasp'] 
+        low_u_config['sigma_rot_obj'] = low_u_mult * low_u_config['sigma_rot_obj'] 
+        low_u_config['sigma_trans_obj'] = low_u_mult * low_u_config['sigma_trans_obj'] 
+        low_u_config['sigma_scale_obj'] = low_u_mult * low_u_config['sigma_scale_obj'] 
 
         med_u_config = copy.deepcopy(config)
 
         high_u_config = copy.deepcopy(config)
-        high_u_config['sigma_mu'] = 2.0 * high_u_config['sigma_mu'] 
-        high_u_config['sigma_rot_grasp'] = 2.0 * high_u_config['sigma_rot_grasp'] 
-        high_u_config['sigma_trans_grasp'] = 2.0 * high_u_config['sigma_trans_grasp'] 
-        high_u_config['sigma_rot_obj'] = 2.0 * high_u_config['sigma_rot_obj'] 
-        high_u_config['sigma_trans_obj'] = 2.0 * high_u_config['sigma_trans_obj'] 
-        high_u_config['sigma_scale_obj'] = 2.0 * high_u_config['sigma_scale_obj'] 
+        high_u_config['sigma_mu'] = high_u_mult * high_u_config['sigma_mu'] 
+        high_u_config['sigma_rot_grasp'] = high_u_mult * high_u_config['sigma_rot_grasp'] 
+        high_u_config['sigma_trans_grasp'] = high_u_mult * high_u_config['sigma_trans_grasp'] 
+        high_u_config['sigma_rot_obj'] = high_u_mult * high_u_config['sigma_rot_obj'] 
+        high_u_config['sigma_trans_obj'] = high_u_mult * high_u_config['sigma_trans_obj'] 
+        high_u_config['sigma_scale_obj'] = high_u_mult * high_u_config['sigma_scale_obj'] 
 
         # compute deterministic quality
         grasp_metrics = {}
@@ -163,22 +196,29 @@ def label_grasps(obj, dataset, output_ds, config):
             if grasp.grasp_id not in grasp_metrics.keys():
                 grasp_metrics[grasp.grasp_id] = {}
 
-            grasp_metrics[grasp.grasp_id]['ferrari_canny_L1'] = \
-                quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'ferrari_canny_L1', friction_coef=config['friction_coef'],
-                                                          num_cone_faces=config['num_cone_faces'], soft_fingers=True)
+            # compute ferrari canny
+            if 'ferrari_canny_L1' in config['deterministic_metrics']:
+                grasp_metrics[grasp.grasp_id]['ferrari_canny_L1'] = \
+                    quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'ferrari_canny_L1', friction_coef=config['friction_coef'],
+                                                              num_cone_faces=config['num_cone_faces'], soft_fingers=True)
 
-            grasp_metrics[grasp.grasp_id]['force_closure'] = \
-                quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'force_closure', friction_coef=config['friction_coef'],
-                                                          num_cone_faces=config['num_cone_faces'], soft_fingers=True)
+            # compute force closure
+            if 'force_closure' in config['deterministic_metrics']:
+                grasp_metrics[grasp.grasp_id]['force_closure'] = \
+                    quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'force_closure', friction_coef=config['friction_coef'],
+                                                              num_cone_faces=config['num_cone_faces'], soft_fingers=True)
 
-            for stable_pose, stable_pose_wrench in zip(stable_poses, stable_pose_wrenches):
-                pc_tag = 'lift_closure_%s' %(stable_pose.id)
-                params = {}
-                params['force_limits'] = grasp_force_limit
-                params['target_wrench'] = stable_pose_wrench
-                grasp_metrics[grasp.grasp_id][pc_tag] = \
-                    quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'partial_closure', friction_coef=config['friction_coef'],
-                                                              num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
+            
+            # compute partial closure for each stable pose
+            if 'partial_closure' in config['deterministic_metrics']:
+                for stable_pose, stable_pose_wrench in zip(stable_poses, stable_pose_wrenches):
+                    pc_tag = 'lift_closure_%s' %(stable_pose.id)
+                    params = {}
+                    params['force_limits'] = grasp_force_limit
+                    params['target_wrench'] = stable_pose_wrench
+                    grasp_metrics[grasp.grasp_id][pc_tag] = \
+                        quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'partial_closure', friction_coef=config['friction_coef'],
+                                                                  num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
            
         # compute robust quality metrics
         uncertainty_configs = [low_u_config, med_u_config, high_u_config]
@@ -203,30 +243,33 @@ def label_grasps(obj, dataset, output_ds, config):
 
                 # probability of force closure
                 logging.info('Computing probability of force closure')
-                pfc, vfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
-                                                                      num_samples=config['pfc_num_samples'], compute_variance=True)
-                grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
-                grasp_metrics[grasp.grasp_id][vfc_tag] = vfc
+                if 'force_closure' in config['robust_metrics']:
+                    pfc, vfc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='force_closure',
+                                                                          num_samples=config['pfc_num_samples'], compute_variance=True)
+                    grasp_metrics[grasp.grasp_id][pfc_tag] = pfc
+                    grasp_metrics[grasp.grasp_id][vfc_tag] = vfc
 
                 #probability of partial closure
                 logging.info("Computing probability of partial closure")
-                for stable_pose, wrench in zip(stable_poses, stable_pose_wrenches):
-                    params = {"force_limits": grasp_force_limit, "target_wrench": wrench}
-                    params_rv = rvs.ArtificialSingleRV(params)
-                    ppc, vpc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='partial_closure',
-                                                                          params_rv=params_rv, num_samples=config['ppc_num_samples'], compute_variance=True)
+                if 'partial_closure' in config['robust_metrics']:
+                    for stable_pose, wrench in zip(stable_poses, stable_pose_wrenches):
+                        params = {"force_limits": grasp_force_limit, "target_wrench": wrench}
+                        params_rv = rvs.ArtificialSingleRV(params)
+                        ppc, vpc = rgq.RobustGraspQuality.probability_success(graspable_rv, grasp_rv, f_rv, config, quality_metric='partial_closure',
+                                                                              params_rv=params_rv, num_samples=config['ppc_num_samples'], compute_variance=True)
                     
-                    ppc_tag = db.generate_metric_tag('ppc_%s' %(stable_pose.id), config)
-                    vpc_tag = db.generate_metric_tag('vpc_%s' %(stable_pose.id), config)
+                        ppc_tag = db.generate_metric_tag('ppc_%s' %(stable_pose.id), config)
+                        vpc_tag = db.generate_metric_tag('vpc_%s' %(stable_pose.id), config)
                                                                       
-                    grasp_metrics[grasp.grasp_id][ppc_tag] = ppc
-                    grasp_metrics[grasp.grasp_id][vpc_tag] = vpc
+                        grasp_metrics[grasp.grasp_id][ppc_tag] = ppc
+                        grasp_metrics[grasp.grasp_id][vpc_tag] = vpc
                 
                 # expected ferrari canny
                 logging.info('Computing ferrari canny')
-                eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
-                num_samples=config['eq_num_samples'])
-                grasp_metrics[grasp.grasp_id][efcny_tag] = eq
+                if 'ferrari_canny_L1' in config['robust_metrics']:
+                    eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
+                                                                 num_samples=config['eq_num_samples'])
+                    grasp_metrics[grasp.grasp_id][efcny_tag] = eq
 
         quality_stop_time = time.time()
         logging.info('Quality computation for %d grasps took %f sec.' %(len(grasps), quality_stop_time - quality_start_time))
@@ -277,11 +320,11 @@ if __name__ == '__main__':
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
             
-            if True:#try:
+            try:
                 label_grasps(obj, dataset, output_ds, config)
-            #except Exception as e:
-            #    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-            #    logging.warning(str(e))
+            except Exception as e:
+                logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                logging.warning(str(e))
 
     database.close()
 

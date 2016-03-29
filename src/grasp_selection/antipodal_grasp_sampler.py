@@ -74,7 +74,7 @@ class AntipodalGraspSampler(gs.ExactGraspSampler):
             alpha - the angle between the normal and v
         """
         if (v.dot(cone) < 0).any(): # v should point in same direction as cone
-            return False, None
+            v = -v # don't worry about sign, we don't know it anyway...
         f = -n / np.linalg.norm(n)
         alpha = np.arccos(f.T.dot(v) / np.linalg.norm(v))
         return alpha <= np.arctan(self.friction_coef), alpha
@@ -130,9 +130,15 @@ class AntipodalGraspSampler(gs.ExactGraspSampler):
                         for i in range(cone1.shape[1]):
                             ax.scatter(x1_grid[0] - cone1_grid[0], x1_grid[1] - cone1_grid[1], x1_grid[2] - cone1_grid[2], s = 50, c = u'm')
 
+                    # random axis flips since we don't have guarantees on surface normal directoins
+                    if random.random() > 0.5:
+                        v = -v
+
                     # start searching for contacts
                     grasp, c2 = ParallelJawPtGrasp3D.grasp_from_contact_and_axis_on_grid(graspable, x1, v, self.gripper.max_width,
-                                                                                         min_grasp_width_world=self.gripper.min_width, vis = vis)
+                                                                                         min_grasp_width_world=self.gripper.min_width,
+                                                                                         vis=vis)
+
                     if grasp is None or c2 is None:
                         continue
 
