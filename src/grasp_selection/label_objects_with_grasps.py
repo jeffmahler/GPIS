@@ -13,7 +13,10 @@ import time
 
 import IPython
 import matplotlib.pyplot as plt
-import mayavi.mlab as mlab
+try:
+    import mayavi.mlab as mv
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import scipy.stats
 
