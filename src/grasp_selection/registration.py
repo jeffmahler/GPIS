@@ -90,6 +90,7 @@ def vis_corrs(source_points, target_points, matches, source_normals=None, target
             pair[1,:] = target_points[i,:] + t * target_normals[i,:]
             mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
 
+    mlab.axes()
     mlab.show()
 
 def icp_mesh_point_cloud(mesh, point_cloud, num_iterations):
@@ -466,6 +467,10 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         R_sol = np.eye(3)
         t_sol = np.zeros([3, 1]) #init with diff between means
         t_sol[:,0] = target_mean_point - source_mean_point
+        t_sol[2,0] = 0
+
+        if vis:
+            vis_corrs(orig_source_points, target_points, None, plot_lines=False)                    
 
         # iterate through
         for i in range(num_iterations):

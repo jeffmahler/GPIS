@@ -6,6 +6,7 @@ import copy
 import logging
 import IPython
 import numpy as np
+import Queue
 import os
 from PIL import Image, ImageDraw
 import sklearn.decomposition
@@ -492,6 +493,57 @@ class Mesh3D(object):
         vertices = list(self.vertices())
         triangles = list(self.triangles())
         return Mesh3D(vertices, triangles)
+
+    @staticmethod
+    def max_edge_length(tri, vertices):
+        v0 = np.array(vertices[tri[0]])
+        v1 = np.array(vertices[tri[1]])
+        v2 = np.array(vertices[tri[2]])
+        max_edge_len = max(np.linalg.norm(v1-v0), max(np.linalg.norm(v1-v0), np.linalg.norm(v2-v1)))
+        return max_edge_len
+
+    def subdivide(self, min_triangle_length = None):
+        '''Returns a copy of the current mesh but subdivided by one iteration'''
+        new_mesh = self.copy()
+        new_vertices = new_mesh.vertices()
+        old_triangles = new_mesh.triangles()
+        
+        new_triangles = []
+        triangle_index_mapping = {}
+        tri_queue = Queue.Queue()
+        
+        for j, triangle in enumerate(old_triangles):
+            tri_queue.put((j, triangle))
+            triangle_index_mapping[j]  = []
+
+        while not tri_queue.empty():
+            tri_index_pair = tri_queue.get()
+            j = tri_index_pair[0]
+            triangle = tri_index_pair[1]
+
+            if min_triangle_length is None or Mesh3D.max_edge_length(triangle, new_vertices) > min_triangle_length:
+                t_vertices = np.array([new_vertices[i] for i in triangle])
+                edge01 = 0.5 * (t_vertices[0,:] + t_vertices[1,:])
+                edge12 = 0.5 * (t_vertices[1,:] + t_vertices[2,:])
+                edge02 = 0.5 * (t_vertices[0,:] + t_vertices[2,:])
+
+                i_01 = len(new_vertices)
+                i_12 = len(new_vertices)+1
+                i_02 = len(new_vertices)+2
+                new_vertices.append(edge01)
+                new_vertices.append(edge12)
+                new_vertices.append(edge02)
+            
+                for triplet in [[triangle[0], i_01, i_02], [triangle[1], i_12, i_01], [triangle[2], i_02, i_12], [i_01, i_12, i_02]]:
+                    tri_queue.put((j, triplet))
+
+            else:
+                new_triangles.append(triangle)
+                triangle_index_mapping[j].append(len(new_triangles)-1)
+
+        new_mesh.set_vertices(new_vertices)
+        new_mesh.set_triangles(new_triangles)
+        return new_mesh, triangle_index_mapping
 
     def transform(self, tf):
         vertex_array = np.array(self.vertices_)
