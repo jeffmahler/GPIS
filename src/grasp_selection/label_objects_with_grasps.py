@@ -90,13 +90,15 @@ def label_grasps(obj, dataset, output_ds, config):
                 max_iter=config['max_grasp_sampling_iters'])
             grasp_sms = [0] * len(antipodal_grasps)
 
-            uniform_sampler = ags.AntipodalGraspSampler(config)
-            uniform_grasps = antipodal_sampler.generate_grasps(
+            uniform_sampler = gs.UniformGraspSampler(config)
+            uniform_grasps = uniform_sampler.generate_grasps(
                 obj, target_num_grasps=num_grasps_sample,
                 check_collisions=config['check_collisions'],
                 max_iter=config['max_grasp_sampling_iters'])
 
             grasps = antipodal_grasps + uniform_grasps
+            logging.info('Num antipodal %d' %(len(antipodal_grasps)))
+            logging.info('Num uniform %d' %(len(uniform_grasps)))
             grasp_sms.extend([2] * len(uniform_grasps))
         else:
             # gaussian sampling
