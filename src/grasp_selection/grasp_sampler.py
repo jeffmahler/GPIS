@@ -128,6 +128,44 @@ class ExactGraspSampler(GraspSampler):
 
         return grasps
 
+class UniformGraspSampler(ExactGraspSampler):
+    def _generate_grasps(self, graspable, num_grasps,
+                         check_collisions=False, max_num_samples=1000, vis=False):
+        """
+        Returns a list of candidate grasps for graspable object using uniform point pairs from the SDF
+        Params:
+            graspable - (GraspableObject3D) the object to grasp
+            num_grasps - (int) the number of grasps to generate
+        Returns:
+            list of ParallelJawPtGrasp3D objects
+        """
+        # get all surface points
+        surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
+        num_surface = surface_points.shape[0]
+        i = 0
+        grasps = []
+        
+        # get all grasps
+        while len(grasps) < num_grasps and i < max_num_samples:
+            # get candidate contacts
+            indices = np.random.choice(2, size=num_surface, replace=False)
+            c0 = surface_points[indices[0], :]
+            c1 = surface_points[indices[1], :]
+            
+            # compute centers and axes
+            grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c0, c1)
+            grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c0, c1)
+            g = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center,
+                                                                                    grasp_axis,
+                                                                                    self.gripper_.width))
+            # keep grasps if the fingers close
+            success, contacts = g.close_fingers(graspable)
+            if success:
+                grasps.append(g)
+            i += 1
+
+        return grasps
+
 class GaussianGraspSampler(ExactGraspSampler):
     def _generate_grasps(self, graspable, num_grasps,
                          check_collisions=False, vis=False,
