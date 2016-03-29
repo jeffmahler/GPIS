@@ -217,7 +217,7 @@ figure.scene.disable_render = False
 
 
 if (view_mode == 'r'):
-    load_saved_mask(save_mask_name)
+    msh, colored_msh = load_saved_mask()
 
 
 engine = mlab.get_engine()
