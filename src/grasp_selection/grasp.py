@@ -336,7 +336,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     # contact not yet found if next sdf value is smaller
                     if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
                         contact_found = False
-
             i = i+1
 
         # visualization
@@ -526,8 +525,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         # get line of action
         line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(grasp_c1_grid, grasp_axis_grid, grasp_width_grid, obj, num_samples,
                                                                      min_width=min_grasp_width_grid, convert_grid = False)
-        line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2, -grasp_axis_grid, grasp_width_grid, obj, num_samples,
-                                                                     min_width=min_grasp_width_grid, convert_grid = False)
+        line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2, -grasp_axis_grid, 2*grasp_width_grid, obj, num_samples,
+                                                                     min_width=0, convert_grid = False)
         if vis:
             obj.sdf.scatter()
             ax = plt.gca(projection = '3d')
@@ -543,7 +542,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.set_ylim3d(0, obj.sdf.dims_[1])
             ax.set_zlim3d(0, obj.sdf.dims_[2])
             plt.draw()
-        if not contact1_found or not contact2_found:
+        if not contact1_found or not contact2_found or np.linalg.norm(c1.point - c2.point) < min_grasp_width_grid:
             logging.debug('No contacts found for grasp')
             return None, None
 
