@@ -1,7 +1,11 @@
 import json
 import IPython
+import logging
 import numpy as np
-import mayavi.mlab as mv
+try:
+    import mayavi.mlab as mv
+except:
+    logging.info('Failed to import mayavi')
 import matplotlib.pyplot as plt
 import obj_file as objf
 import similarity_tf as stf

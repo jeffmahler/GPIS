@@ -13,7 +13,10 @@ import time
 
 import IPython
 import matplotlib.pyplot as plt
-import mayavi.mlab as mlab
+try:
+    import mayavi.mlab as mlab
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import scipy.stats
 
@@ -28,7 +31,6 @@ import gripper as gr
 import json_serialization as jsons
 import kernels
 import models
-import mayavi_visualizer as mv
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
@@ -85,14 +87,6 @@ def label_grasps(obj, dataset, output_ds, config):
         sample_duration = sample_end - sample_start
         logging.info('Grasp candidate generation took %f sec' %(sample_duration))
 
-        if config['vis']:
-            for grasp in grasps:
-                T_obj_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='obj')
-                mlab.figure()
-                mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world, style='surface')
-                mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, color=(1,1,1))
-                mlab.show()
-
         if not grasps or len(grasps) == 0:
             logging.info('No grasps found for %s' %(obj.key))
             return
@@ -112,16 +106,6 @@ def label_grasps(obj, dataset, output_ds, config):
         for g, f in zip(grasps, all_features):
             if f is not None:
                 raw_feature_dict[g.grasp_id] = f.features()
-
-            # vis patches
-            """
-            T_world_obj = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3)), from_frame='obj', to_frame='world')
-            T_obj_world = T_world_obj.inverse()
-            mlab.figure(bgcolor=(1,1,1), size=(1200, 1200))
-            mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world, style='surface')
-            mv.MayaviVisualizer.plot_patches(f, T_obj_world=T_obj_world)
-            mlab.show()
-            """
 
         # store features
         output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
