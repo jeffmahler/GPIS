@@ -82,6 +82,8 @@ class _DexSerial(Process):
                 elif type == "State":
                     self._current_state = data
                     self._updated_state = True
+                elif type == "*":
+                    self._sendArbitraryRequest(data)
 
     def _isValidState(self, state):
         for i in range(self._State.NUM_STATES):
@@ -94,6 +96,14 @@ class _DexSerial(Process):
                 return False
         return True          
 
+    def _sendArbitraryRequest(self, msg):
+        Logger.log("Sent Arbitrary Message", msg, self._State.NAME)
+        
+        if DexConstants.DEBUG:
+            return
+            
+        self.ser.write(msg)
+        
     def _sendSingleStateRequest(self, state):
         Logger.log("Sent State", state, self._State.NAME)
    
@@ -263,6 +273,9 @@ class DexSerialInterface:
         
     def _queueLabel(self, label):
         self._states_q.put({"Type" : "Label", "Data" : label})
+
+    def queueArbitraryRequest(self, data):
+        self._states_q.put({"Type": "*", "Data": data})
         
     def maintainState(self, s):
         num_pauses = s / DexConstants.INTERP_TIME_STEP
