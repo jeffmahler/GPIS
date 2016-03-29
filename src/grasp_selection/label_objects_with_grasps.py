@@ -13,7 +13,10 @@ import time
 
 import IPython
 import matplotlib.pyplot as plt
-import mayavi.mlab as mlab
+try:
+    import mayavi.mlab as mlab
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import scipy.stats
 
@@ -28,7 +31,6 @@ import gripper as gr
 import json_serialization as jsons
 import kernels
 import models
-import mayavi_visualizer as mv
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
