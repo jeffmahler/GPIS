@@ -30,7 +30,6 @@ import grasp_sampler as gs
 import gripper as gr
 import json_serialization as jsons
 import kernels
-import mayavi_visualizer as mv
 import models
 import objectives
 import pfc
@@ -119,15 +118,6 @@ def label_grasps(obj, dataset, output_ds, config):
             logging.info('No grasps found for %s' %(obj.key))
             return
 
-        """
-        T_obj_world = stf.SimilarityTransform3D(from_frame='world', to_frame='obj')
-        mlab.figure()
-        mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world)
-        for grasp in grasps:
-            mv.MayaviVisualizer.plot_grasp(grasp, T_obj_world)
-        mlab.show()
-        """
-            
         # store the grasps
         output_ds.store_grasps(obj.key, grasps, gripper=gripper_name)
 
