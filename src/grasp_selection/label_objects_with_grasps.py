@@ -46,10 +46,12 @@ GRAVITY_ACCEL = 9.81
 
 def label_grasps(obj, dataset, output_ds, config):
     gripper_name = config['gripper']
+    start_time = time.time()
     
     # sample grasps
     if config['sample_grasps']:
         logging.info('Generating new grasps')
+        sample_start_time = time.time()
 
         if config['check_collisions']:
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
@@ -129,12 +131,17 @@ def label_grasps(obj, dataset, output_ds, config):
         # store the grasps
         output_ds.store_grasps(obj.key, grasps, gripper=gripper_name)
 
+        sample_stop_time = time.time()
+        logging.info('Sampling %d grasps took %f sec.' %(len(grasps), sample_stop_time - sample_start_time))
+
     # load all grasps to get ids
     grasps = output_ds.grasps(obj.key, gripper=gripper_name)
 
     # extract features
     if config['extract_features']:
         logging.info('Extracting features')
+        feature_start_time = time.time()
+
         feature_extractor = ff.GraspableFeatureExtractor(obj, config)
         all_features = feature_extractor.compute_all_features(grasps)
         raw_feature_dict = {}
@@ -146,9 +153,13 @@ def label_grasps(obj, dataset, output_ds, config):
         # store features
         output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
 
+        feature_stop_time = time.time()
+        logging.info('Feature extraction for %d grasps took %f sec.' %(len(grasps), feature_stop_time - feature_start_time))
+
     # compute grasp metrics
     if config['compute_grasp_metrics']:
         logging.info('Computing grasp metrics')
+        quality_start_time = time.time()
 
         # stable poses
         stable_poses = dataset.stable_poses(obj.key, min_p=config['stp_min_p'])
@@ -222,7 +233,6 @@ def label_grasps(obj, dataset, output_ds, config):
            
         # compute robust quality metrics
         uncertainty_configs = [low_u_config, med_u_config, high_u_config]
-        quality_start_time = time.time()
         logging.info('Computing robust quality')
 
         # iterate through levels of uncertainty
@@ -276,6 +286,10 @@ def label_grasps(obj, dataset, output_ds, config):
 
         # store grasp metrics
         output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
+
+    # report total time
+    stop_time = time.time()
+    logging.info('Labelling for %d grasps took %f sec in total.' %(len(grasps), stop_time - start_time))
 
 if __name__ == '__main__':
     np.random.seed(100)
