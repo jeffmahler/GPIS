@@ -49,9 +49,9 @@ if __name__ == '__main__':
     # read the grasp metrics and features
     ds = database.dataset(args.dataset)
     o = ds.object_keys
-    grasps = ds.grasps(o[0])
-    grasp_features = ds.grasp_features(o[0], grasps)
-    grasp_metrics = ds.grasp_metrics(o[0], grasps)
+    grasps = ds.grasps(o[0], gripper=config['gripper'])
+    grasp_features = ds.grasp_features(o[0], grasps, gripper=config['gripper'])
+    grasp_metrics = ds.grasp_metrics(o[0], grasps, gripper=config['gripper'])
 
     IPython.embed()
 
