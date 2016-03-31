@@ -130,7 +130,6 @@ class DexController:
         u_x = array([x_axis_grasp[0], x_axis_grasp[2]])
         v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
 
-        # TODO: re-enable when wrist comes back on
         psi = _angle_2d(u_x, v_x)
         logging.info('Psi: %f' %psi)
         
@@ -245,10 +244,15 @@ def test_state_sequence():
     t._table.reset()
     t._robot.gotoState(target_state)
 
+    IPython.embed()
+
     target_state.set_arm_elev(0.1)
     t._robot.gotoState(target_state)
 
     target_state.set_arm_rot(ZekeState.PHI + 7 * np.pi / 8)
+    t._robot.gotoState(target_state)
+
+    target_state.set_gripper_rot(3.14)
     t._robot.gotoState(target_state)
 
     current_state = t._robot.getState()

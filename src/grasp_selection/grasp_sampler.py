@@ -151,17 +151,18 @@ class UniformGraspSampler(ExactGraspSampler):
             indices = np.random.choice(num_surface, size=2, replace=False)
             c0 = surface_points[indices[0], :]
             c1 = surface_points[indices[1], :]
-            
-            # compute centers and axes
-            grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c0, c1)
-            grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c0, c1)
-            g = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center,
-                                                                                    grasp_axis,
-                                                                                    self.gripper.max_width))
-            # keep grasps if the fingers close
-            success, contacts = g.close_fingers(graspable)
-            if success:
-                grasps.append(g)
+
+            if np.linalg.norm(c1 - c0) > self.gripper.min_width and np.linalg.norm(c1 - c0) < self.gripper.max_width:
+                # compute centers and axes
+                grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c0, c1)
+                grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c0, c1)
+                g = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center,
+                                                                                        grasp_axis,
+                                                                                        self.gripper.max_width))
+                # keep grasps if the fingers close
+                success, contacts = g.close_fingers(graspable)
+                if success:
+                    grasps.append(g)
             i += 1
 
         return grasps
@@ -207,7 +208,6 @@ class GaussianGraspSampler(ExactGraspSampler):
             # add grasp if it has valid contacts
             if contacts_found and np.linalg.norm(contacts[0].point - contacts[1].point) > self.min_contact_dist:
                 grasps.append(grasp)
-
 
         # visualize
         if vis:

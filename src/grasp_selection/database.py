@@ -362,6 +362,14 @@ class Hdf5Dataset(Dataset):
         sorted_metrics = [g[1] for g in grasps_and_metrics]
         return sorted_grasps, sorted_metrics
 
+    def delete_grasps(self, key, gripper='pr2', stable_pose_id=None):
+        """ Deletes a set of grasps associated with the given gripper """
+        if gripper not in self.grasp_data(key).keys():
+            logging.warning('Gripper type %s not found. Nothing to delete' %(gripper))
+            return False
+        del self.grasp_data(key)[gripper]
+        return True
+
     def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """
         # create group for gripper if necessary

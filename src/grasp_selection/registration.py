@@ -533,9 +533,18 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
 
         total_cost = 0
         if compute_total_cost:
+            # subsample points
+            subsample_inds = np.random.choice(orig_source_points.shape[0], size=self.sample_size_)
+            source_points = orig_source_points[subsample_inds,:]
+            source_normals = orig_source_normals[subsample_inds,:]
+
+            # transform source points
+            source_points = (R_sol.dot(source_points.T) + np.tile(t_sol, [1, source_points.shape[0]])).T
+            source_normals = (R_sol.dot(source_normals.T)).T
+
             # rematch all points to get the final cost
-            source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
-            source_normals = (R_sol.dot(orig_source_normals.T)).T
+            #source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
+            #source_normals = (R_sol.dot(orig_source_normals.T)).T
 
             corrs = matcher.match(source_points, target_points, source_normals, target_normals)
             valid_corrs = np.where(corrs.index_map != -1)[0]

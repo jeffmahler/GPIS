@@ -7,12 +7,13 @@ import csv
 import logging
 import IPython
 from PIL import Image
-import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 import mayavi.mlab as mv
+import numpy as np
+import random
 from random import choice
 import os
 import shutil
@@ -31,6 +32,7 @@ import camera_params as cp
 import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
+import gripper as gr
 import mab_single_object_objective as msoo
 import mayavi_visualizer as mvis
 import quality
@@ -47,16 +49,21 @@ def gen_experiment_id(n=10):
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
 
-def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000',
-                      gripper='zeke'):
+def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, gripper, metric='pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'):
     """ Add the best grasp according to PFC as well as num_grasps-1 uniformly at random from the remaining set """
     grasp_set = []
 
     # get sorted list of grasps to ensure that we get the top grasp
-    sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_name, metric, gripper=gripper)
+    sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_name, metric, gripper=gripper.name)
     num_total_grasps = len(sorted_grasps)
-    best_grasp = sorted_grasps[20]
-    grasp_set.append(best_grasp)
+    best_grasp = sorted_grasps[0]
+
+    i = 0
+    while len(grasp_set) < 1 and i < len(sorted_grasps):
+        grasp_candidate = sorted_grasps[i].grasp_aligned_with_stable_pose(stable_pose)
+        if not gripper.collides_with_table(grasp_candidate, stable_pose):
+            grasp_set.append(grasp_candidate)
+        i = i+1
 
     # get random indices
     indices = np.arange(1, num_total_grasps)
@@ -78,7 +85,7 @@ def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, metric='pfc
     return grasp_set
 
 # Grasp execution main function
-def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registration_solver, ctrl, camera, config):
+def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset, registration_solver, ctrl, camera, config):
     debug = config['debug']
     load_object = config['load_object']
     alpha = config['alpha']
@@ -92,12 +99,14 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
     # check collisions
     logging.info('Checking grasp collisions with table')
     grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
+    """
     debug_output = []
     does_collide = grasp.collides_with_stable_pose(stable_pose, debug_output)
     collision_box_vertices = np.array(debug_output[0]).T
     if does_collide:
         logging.error('Grasp is in collision')
         return
+    """
 
     # setup buffers
     exceptions = []
@@ -114,6 +123,7 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
     for i in range(num_grasp_trials):
         trial_start = time.time()
 
+        # setup loggin
         logging.info('Grasp %d trial %d' %(grasp.grasp_id, i))
         logging_dir = os.path.join(grasp_dir, 'trial_%d' %(i))
         if not os.path.exists(logging_dir):
@@ -125,6 +135,9 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
                 # move the arm out of the way
                 logging.info('Moving arm out of the way')
                 ctrl.reset_object()
+        
+                # reset object with fishing line
+                #ctrl._table.reset_fishing()
 
                 # prompt for object placement
                 yesno = raw_input('Place object. Hit [ENTER] when done')
@@ -192,10 +205,11 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
     
             T_obj_world = T_obj_camera.dot(T_camera_world)
             
-            T_gripper_obj = grasp.gripper_transform(gripper='zeke')
+            T_gripper_obj = grasp.gripper_transform(gripper=gripper)
             T_gripper_world = T_gripper_obj.dot(T_obj_world)
 
             # check gripper alignment (SPECIFIC TO THE SPRAY!)
+            """
             gripper_y_axis_world = T_gripper_world.rotation[1,:]
             obj_y_axis_world = T_obj_world.rotation[0,:]
             if gripper_y_axis_world.dot(obj_y_axis_world) < 0:
@@ -205,20 +219,23 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
                                                 [0, 0, 1]])
                 T_gripper_p_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_gripper_p_gripper, np.zeros(3)), from_frame='gripper', to_frame='gripper')
                 T_gripper_world = T_gripper_p_gripper.dot(T_gripper_world)
+            """
 
             # visualize the robot's understanding of the world
             logging.info('Displaying robot world state')
             mv.clf()
             mvis.MayaviVisualizer.plot_table(T_table_world, d=table_extent)
             mvis.MayaviVisualizer.plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            mvis.MayaviVisualizer.plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
+            #mvis.MayaviVisualizer.plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
             mvis.MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
             mvis.MayaviVisualizer.plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            mvis.MayaviVisualizer.plot_mesh(object_mesh, T_obj_world)
+            mvis.MayaviVisualizer.plot_mesh(object_mesh, T_obj_world, color=(1,0,0))
             mvis.MayaviVisualizer.plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
+            mvis.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper)
             #mvis.MayaviVisualizer.plot_point_cloud(points_3d, T_world_camera, color=(0,1,1))
             mv.show()
             
+            """
             delta_view = 360.0 / num_grasp_views
             mv.view(distance=cam_dist)
             for j in range(num_grasp_views):
@@ -226,6 +243,7 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
                 mv.view(azimuth=az)
                 figname = 'estimated_scene_view_%d.png' %(j)                
                 mv.savefig(os.path.join(logging_dir, figname))
+            """
 
             # execute the grasp
             logging.info('Executing grasp')
@@ -295,14 +313,22 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
             success_writer.writerow(success_dict)
             success_f.flush()
 
-            # return to the reset state
+            # drop the object
             ctrl._robot.gotoState(current_state)
-
             ctrl._robot.unGrip()
 
+            # reset the object with fishing line
+            #high_state = current_state.copy().set_arm_elev(lift_height)
+            #ctrl._robot.gotoState(high_state)            
+            #ctrl._table.reset_fishing()
+
+            # go to reset
             reset_state = DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"]
             reset_state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
             ctrl._robot.gotoState(reset_state)
+
+            #reset_state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
+            #ctrl._robot.gotoState(reset_state)
 
         #except Exception as e:
         #    logging.error(str(e))
@@ -322,6 +348,9 @@ def test_grasp_physical_success(graspable, grasp, stable_pose, dataset, registra
     return grasp_successes, grasp_lifts
 
 if __name__ == '__main__':
+    np.random.seed(100)
+    random.seed(100)
+
     logging.getLogger().setLevel(logging.INFO)
     config_filename = sys.argv[1]
     output_dir = sys.argv[2]
@@ -338,6 +367,7 @@ if __name__ == '__main__':
     # open database and dataset
     database = db.Hdf5Database(database_filename, config)
     ds = database.dataset(dataset_name)
+    gripper = gr.RobotGripper.load(config['gripper'])
 
     # setup output directories and logging (TODO: make experiment wrapper class in future)
     experiment_id = 'single_grasp_experiment_%s' %(gen_experiment_id())
@@ -369,7 +399,7 @@ if __name__ == '__main__':
 
     # compute the list of grasps to execute (TODO: update this section)
     grasps_to_execute = compute_grasp_set(ds, object_name, stable_pose, config['num_grasps_to_sample'],
-                                          metric=config['grasp_metric'], gripper=config['gripper'])
+                                          gripper, metric=config['grasp_metric'])
 
     # plot grasps
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
@@ -381,14 +411,18 @@ if __name__ == '__main__':
     for i, grasp in enumerate(grasps_to_execute):
         logging.info('Grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps_to_execute)))
         mv.clf()
-        T_obj_world = mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world, d=0.1)
-        mvis.MayaviVisualizer.plot_grasp(grasp, T_obj_world, alpha=1.5*config['alpha'], tube_radius=config['tube_radius'])
-
+        T_obj_world = mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world, d=0.1,
+                                                             style='surface', color=(1,0,0))
+        mvis.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper)
+        mv.show()
+        
+        """
         for j in range(num_grasp_views):
             az = j * delta_view
             mv.view(az)
             figname = 'grasp_%d_view_%d.png' %(i, j)                
             mv.savefig(os.path.join(experiment_dir, figname))
+        """
 
     # preload registration solver
     registration_solver = tor.KnownObjectStablePoseTabletopRegistrationSolver(object_name, stable_pose.id, ds, config)
@@ -454,7 +488,8 @@ if __name__ == '__main__':
             camera.reset()
 
             # get physical success ratio
-            grasp_successes, grasp_lifts = test_grasp_physical_success(graspable, grasp, stable_pose, ds, registration_solver,
+            grasp_successes, grasp_lifts = test_grasp_physical_success(graspable, grasp, gripper, stable_pose, ds,
+                                                                       registration_solver,
                                                                        ctrl, camera, config)
 
             # compute the probability of success

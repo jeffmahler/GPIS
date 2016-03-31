@@ -152,7 +152,10 @@ def label_grasps(obj, dataset, output_ds, config):
         quality_start_time = time.time()
 
         # stable poses
-        stable_poses = dataset.stable_poses(obj.key, min_p=config['stp_min_p'])
+        if config['ppc_stp_id']:
+            stable_poses = [dataset.stable_pose(obj.key, config['ppc_stp_id'])]
+        else:
+            stable_poses = dataset.stable_poses(obj.key, min_p=config['stp_min_p'])
 
         #convert stable poses to wrenches
         stable_pose_wrenches = []
@@ -265,7 +268,7 @@ def label_grasps(obj, dataset, output_ds, config):
                         grasp_metrics[grasp.grasp_id][vpc_tag] = vpc
                 
                 # expected ferrari canny
-                logging.info('Computing ferrari canny')
+                logging.info('Computing expected ferrari canny')
                 if 'ferrari_canny_L1' in config['robust_metrics']:
                     eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
                                                                  num_samples=config['eq_num_samples'])
@@ -319,11 +322,14 @@ if __name__ == '__main__':
         # label each object in the dataset with grasps
         for obj in dataset:
             logging.info('Labelling object {} with grasps'.format(obj.key))
-            
+
             # create the graspable if necessary
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
-            
+            elif config['delete_existing_grasps']:
+                logging.warning('Deleting existing grasps for object {}'.format(obj.key))
+                output_ds.delete_grasps(obj.key, gripper=config['gripper'])
+
             try:
                 label_grasps(obj, dataset, output_ds, config)
             except Exception as e:

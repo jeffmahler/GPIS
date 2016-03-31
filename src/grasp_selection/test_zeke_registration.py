@@ -181,6 +181,7 @@ if __name__ == '__main__':
         mv.figure()
         mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world)
         mv.show()
+    exit(0)
     """
 
     stable_pose = stable_poses[config['stable_pose_index']]

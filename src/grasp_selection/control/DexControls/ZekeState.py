@@ -5,13 +5,13 @@ class ZekeState:
     NAME = "Zeke"
     
     #For the two offsets below, actual angle = desired angle + OFFSET
-    PHI = 0.30 # zeke arm rotation angle offset to make calculations easier.
-    THETA = 1.10 # zeke wrist rotation 0 degree offset.
+    PHI = 0.29 # zeke arm rotation angle offset to make calculations easier.
+    THETA = 1.11 # zeke wrist rotation 0 degree offset.
     DELTA_Z = 0.032 # zeke arm 0 elevation in world coordinates
     WRIST_TO_FINGER_RADIUS = 0.006 # the radius of the fingers from the center of wrist rotation
     
     ZEKE_ARM_ORIGIN_OFFSET = 0.51
-    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.40
+    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.41
     
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     

@@ -288,9 +288,9 @@ class TabletopRegistrationSolver:
             x0_table = T_stp_camera.apply(T_camera_p_camera_c.inverse().apply(t_camera_table))
             x0_table[2] = x0_table[2] - config['chessboard_thickness'] 
 
-            #min_z_ind = np.where(target_object_points[:,2] == np.min(target_object_points[:,2]))[0][0]
-            #x0_lowest = target_object_points[min_z_ind,:].T
-            #IPython.embed()
+            min_z_ind = np.where(target_object_points[:,2] == np.min(target_object_points[:,2]))[0][0]
+            x0_lowest = target_object_points[min_z_ind,:].T
+            x0_table[2] = min(x0_table[2], x0_lowest[2])
 
             T_stp_stp_p = self._table_to_stp_transform(T_stp_camera, -x0_stp, x0_table, config)
             target_object_points = T_stp_stp_p.apply(target_object_points.T).T
