@@ -73,8 +73,8 @@ class TabletopRegistrationSolver:
         Rp = np.c_[xp, yp, n_table]
 
         # zero out x-y vals of target, since we only want the z values to match
-        x0_stp[0] = 0.0
-        x0_stp[1] = 0.0
+        x0_table[0] = 0.0
+        x0_table[1] = 0.0
         T_stp_table = stf.SimilarityTransform3D(pose=tfx.pose(Rp.T, -Rp.T.dot(x0_table)), from_frame='stp', to_frame='stp')        
         return T_stp_table
 
@@ -235,7 +235,7 @@ class TabletopRegistrationSolver:
                 plt.savefig(os.path.join(self.logging_dir_, figname))
         return nearest_images, nearest_distances
 
-    def _find_best_transformation(self, query_point_cloud, query_normals, candidate_rendered_images, dataset, config, debug=False):
+    def _find_best_transformation(self, query_point_cloud, query_normals, candidate_rendered_images, dataset, T_camera_p_camera_c, config, debug=False):
         """ Finds the best transformation from the candidate set using Point to Plane Iterated closest point """
         # read params
         icp_sample_size = config['icp_sample_size']
@@ -255,7 +255,9 @@ class TabletopRegistrationSolver:
         for i, neighbor_image in enumerate(candidate_rendered_images):
             # load object mesh
             obj = dataset.graspable(neighbor_image.obj_key)
-            object_mesh = obj.mesh
+
+            # subdivide the mesh
+            object_mesh, _ = obj.mesh.subdivide(min_triangle_length=0.025)
 
             # form transforms
             T_stp_camera = neighbor_image.stp_to_camera_transform().inverse()
@@ -281,11 +283,14 @@ class TabletopRegistrationSolver:
             target_object_points = T_stp_camera.apply(target_object_points.T).T
             target_object_normals = T_stp_camera.apply(target_object_normals.T, direction=True).T
 
-            min_z_ind = np.where(target_object_points[:,2] == np.min(target_object_points[:,2]))[0][0]
-            x0_table = target_object_points[min_z_ind,:].T
-            #x0_table[0] = 0
-            #x0_table[1] = 0
-            #x0_table[2] = x0_table[2] - config['table_surface_tol']
+            calibration_dir = config['calibration_dir']
+            t_camera_table = np.load(os.path.join(calibration_dir, 'translation_camera_cb.npy'))
+            x0_table = T_stp_camera.apply(T_camera_p_camera_c.inverse().apply(t_camera_table))
+            x0_table[2] = x0_table[2] - config['chessboard_thickness'] 
+
+            #min_z_ind = np.where(target_object_points[:,2] == np.min(target_object_points[:,2]))[0][0]
+            #x0_lowest = target_object_points[min_z_ind,:].T
+            #IPython.embed()
 
             T_stp_stp_p = self._table_to_stp_transform(T_stp_camera, -x0_stp, x0_table, config)
             target_object_points = T_stp_stp_p.apply(target_object_points.T).T
@@ -294,15 +299,26 @@ class TabletopRegistrationSolver:
 
             # display the points relative to one another
             if debug:
+                subsample_inds2 = np.arange(source_object_points.shape[0])[::20]
                 subsample_inds = np.arange(target_object_points.shape[0])[::20]
                 T_table_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
                 mlab.figure()                
-                T_obj_world = mv.MayaviVisualizer.plot_stable_pose(object_mesh, neighbor_image.stable_pose, T_table_world)
-                mlab.points3d(source_object_points[:,0], source_object_points[:,1], source_object_points[:,2], color=(1,0,0), scale_factor = 0.005)
+                mlab.points3d(source_object_points[subsample_inds2,0], source_object_points[subsample_inds2,1], source_object_points[subsample_inds2,2], color=(1,0,0), scale_factor = 0.005)
                 mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
                 mlab.points3d(x0_table[0], x0_table[1], x0_table[2], color=(1, 1,0), scale_factor = 0.015)
                 mlab.points3d(x0_table2[0], x0_table2[1], x0_table2[2], color=(0, 1,1), scale_factor = 0.015)
                 mlab.points3d(0,0,0, color=(1, 1,1), scale_factor = 0.03)
+
+                """
+                t = 1e-2
+                pair = np.zeros([2,3])
+                for k in subsample_inds2.tolist():
+                    pair[0,:] = source_object_points[k,:]
+                    pair[1,:] = source_object_points[k,:] + t * source_object_normals[k,:]
+                    mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
+                """
+
+                T_obj_world = mv.MayaviVisualizer.plot_stable_pose(object_mesh, neighbor_image.stable_pose, T_table_world)
                 mlab.axes()
                 mlab.show()
 
@@ -395,7 +411,7 @@ class TabletopRegistrationSolver:
         # register to the candidates
         registration_start = time.time()
         T_camera_c_obj, registration_results, best_index = \
-            self._find_best_transformation(query_point_cloud, query_normals, nearest_images, dataset, config, debug=debug)
+            self._find_best_transformation(query_point_cloud, query_normals, nearest_images, dataset, T_camera_p_camera_c, config, debug=debug)
         T_camera_p_obj = T_camera_p_camera_c.dot(T_camera_c_obj)
         registration_end = time.time()
 

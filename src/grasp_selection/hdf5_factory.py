@@ -207,17 +207,20 @@ class Hdf5ObjectFactory(object):
         for i in range(num_grasps):
             # get the grasp data y'all
             grasp_key = GRASP_KEY + '_' + str(i)
-            grasp_id =      data[grasp_key].attrs[GRASP_ID_KEY]            
-            grasp_type =    data[grasp_key].attrs[GRASP_TYPE_KEY]
-            configuration = data[grasp_key].attrs[GRASP_CONFIGURATION_KEY]
-            frame =         data[grasp_key].attrs[GRASP_RF_KEY]            
-            timestamp =     data[grasp_key].attrs[GRASP_TIMESTAMP_KEY]            
-
-            # create object based on type
-            g = None
-            if grasp_type == 'ParallelJawPtGrasp3D':
-                g = grasp.ParallelJawPtGrasp3D(configuration=configuration, frame=frame, timestamp=timestamp, grasp_id=grasp_id)
-            grasps.append(g)
+            if grasp_key in data.keys():
+                grasp_id =      data[grasp_key].attrs[GRASP_ID_KEY]            
+                grasp_type =    data[grasp_key].attrs[GRASP_TYPE_KEY]
+                configuration = data[grasp_key].attrs[GRASP_CONFIGURATION_KEY]
+                frame =         data[grasp_key].attrs[GRASP_RF_KEY]            
+                timestamp =     data[grasp_key].attrs[GRASP_TIMESTAMP_KEY]            
+                
+                # create object based on type
+                g = None
+                if grasp_type == 'ParallelJawPtGrasp3D':
+                    g = grasp.ParallelJawPtGrasp3D(configuration=configuration, frame=frame, timestamp=timestamp, grasp_id=grasp_id)
+                grasps.append(g)
+            else:
+                logging.debug('Grasp %s is corrupt. Skipping' %(grasp_key))
 
         return grasps
 
