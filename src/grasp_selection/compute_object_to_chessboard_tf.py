@@ -204,9 +204,7 @@ if __name__ == '__main__':
     R_fcb_dcb = np.array([[0, 1, 0],
                           [1, 0, 0],
                           [0, 0, -1]])
-    #R_fcb_dcb = np.array([[-1, 0, 0],
-    #                      [0, 1, 0],
-    #                      [0, 0, -1]])
+    
     T_fg_grasp = stf.SimilarityTransform3D(pose=tfx.pose(R_fg_dg, np.zeros(3)), from_frame='grasp', to_frame='fanuc_grasp')
     T_fpg_fg = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), np.array([0, 0, delta_pregrasp])), from_frame='fanuc_grasp', to_frame='fanuc_pregrasp')
     T_lcb_fcb = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), np.array([0, 0, -delta_lift])), from_frame='fanuc_cb', to_frame='fanuc_lcb')
@@ -226,30 +224,9 @@ if __name__ == '__main__':
             
         # form the grasp set to attempt
         grasp_parallel_table = grasp.grasp_aligned_with_stable_pose(stable_pose)
-        #print grasp_parallel_table.gripper_transform(gripper=config['gripper']).rotation.T[:,0].dot(stable_pose.r[2,:])
         T_par_grasp_obj = grasp_parallel_table.gripper_transform(gripper=config['gripper']).inverse()
         T_par_grasp_cb = T_par_grasp_obj.dot(T_obj_cb)
         T_par_fg_fcb = T_fg_grasp.dot(T_par_grasp_cb).dot(T_fcb_cb.inverse())
-        #print T_par_grasp_cb.rotation.T
-        #T_par_grasp_stp = T_par_grasp_cb.dot(T_stp_cb.inverse())
-        #print T_par_grasp_stp.rotation.T
-
-        #T_obj_world = T_obj_cb.dot(T_cb_world)
-        #T_world_obj = T_obj_world.inverse()
-
-        # want x axis negatively aligned with table normal
-        #if T_par_fg_fcb.rotation[0,2] < 0: # aligned with table
-        #    print 'flipping X'
-        #    grasp_parallel_table.approach_angle_ = grasp_parallel_table.approach_angle_ + np.pi
-
-        #print grasp_parallel_table.approach_angle_ 
-        
-        # want z axis positively aligned with chessboard x axis
-        #if T_par_fg_fcb.rotation[2,0] < 0: # aligned with robot
-        #    print 'flipping Z'
-        #    grasp_parallel_table.approach_angle_ = np.pi - grasp_parallel_table.approach_angle_
-
-        #print grasp_parallel_table.approach_angle_ 
 
         grasp_lifted_table = copy.copy(grasp_parallel_table)
         grasp_lifted_table.approach_angle_ = grasp_parallel_table.approach_angle_ - 1 * np.pi / 16
@@ -260,12 +237,7 @@ if __name__ == '__main__':
             T_grasp_obj = g.gripper_transform(gripper=config['gripper'])
             x_axis_obj = T_grasp_obj.inverse().rotation[:,0]
             table_normal_obj = T_obj_stp.rotation[:,2]
-            #print T_world_obj.apply(x_axis_obj, direction=True).dot(T_world_obj.apply(table_normal_obj, direction=True))
-            #print T_obj_stp.inverse().apply(x_axis_obj, direction=True)
-            #print x_axis_obj
-            #print table_normal_obj
-            #IPython.embed()
-
+  ]
             T_grasp_cb = T_grasp_obj.dot(T_obj_cb)
             T_fg_fcb = T_fg_grasp.dot(T_grasp_cb).dot(T_fcb_cb.inverse())
             T_fg_world = T_fg_fcb.dot(T_fcb_world)
@@ -288,11 +260,8 @@ if __name__ == '__main__':
             # plot grasp
             if config['debug']:
                 fig = plt.figure()
-                ax = Axes3D(fig)
+                ax = Axes3D(fig)]
 
-                #plot_pose(T_grasp_obj, alpha=alpha, ax=ax)
-                #plot_pose(T_obj_stp.inverse(), alpha=alpha, ax=ax)
-                #plot_pose(T_obj_stp, alpha=alpha, ax=ax)
                 plot_pose(T_fg_world, alpha=alpha, ax=ax)
                 plot_pose(T_fcb_world, alpha=alpha, ax=ax)
                 plot_pose(T_fg_world, alpha=alpha, ax=ax)
