@@ -8,10 +8,12 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d, Axes3D #<-- Note the capitalization!
 import numpy as np
 import os
+import random
 import sys
 
 import database as db
 import experiment_config as ec
+import obj_file as objf
 import similarity_tf as stf
 import stable_pose_class as stp
 import tfx
@@ -27,6 +29,7 @@ def plot_pose(T, alpha=1.0, line_width=2.0, ax=None):
     """ Provide rotation R and translation t of frame wrt world """
     T_inv = T.inverse()
     R = T_inv.rotation
+    #print R
     t = T_inv.translation
 
     x_axis_3d_line = np.array([t, t + alpha * R[:,0]])
@@ -81,6 +84,56 @@ def plot_grasp(grasp, T, color='c', size=1, n=25, fig=None):
     approach_line_tf = approach_line_tf.T
     ax.plot(approach_line_tf[:,0], approach_line_tf[:,1], approach_line_tf[:,2], c='y', linewidth=10)
 
+def prune_grasps_in_collision(grasps, stable_pose):
+    """ Prune grasps in collision """
+    coll_free_grasps = []
+    for grasp in grasps:
+        #grasp_aligned = grasp.grasp_aligned_with_stable_pose(stable_pose)
+        if True:#not grasp_aligned.collides_with_stable_pose(stable_pose):
+            coll_free_grasps.append(grasp)
+    return coll_free_grasps
+
+def generate_candidate_grasps(num_grasps, object_key, dataset, config):
+    metrics = ['force_closure']#, 'pfc_f_0.200000_tg_0.010000_rg_0.200000_to_0.010000_ro_0.200000']
+    thresholds = [-1]#, 0.1]
+
+    grasps = dataset.grasps(object_key, gripper=config['gripper'])
+    #grasp_ids = np.array([g.grasp_id for g in grasps])
+    #ind = np.where(grasp_ids == 213)[0]
+    #grasps = [grasps[ind[0]]]
+    #return grasps
+
+    grasp_metrics = dataset.grasp_metrics(object_key, grasps, gripper=config['gripper'])
+
+    # only keep high quality grasps
+    high_quality_grasps = []
+    for metric, tau in zip(metrics, thresholds):
+        for grasp in grasps:
+            if grasp_metrics[grasp.grasp_id][metric] > tau:
+                high_quality_grasps.append(grasp)
+    grasps = high_quality_grasps
+    random.shuffle(grasps)
+    grasps = grasps[:num_grasps]
+    """
+    grasp_ids = [g.grasp_id for g in grasps]
+
+    indices = np.arange(1, len(sorted_grasps)).tolist()
+    random.shuffle(indices)
+    for index in indices:
+        if len(grasps) >= num_grasps:
+            break
+
+        g = sorted_grasps[index]
+        if g.grasp_id not in grasp_ids:
+            grasps.append(g)
+            grasp_ids.append(g.grasp_id)
+
+    for grasp in grasps:
+        logging.info('Metrics for grasp %d' %(grasp.grasp_id))
+        for metric in grasp_metrics[grasp.grasp_id].keys():
+            logging.info('%s: %f' %(metric, grasp_metrics[grasp.grasp_id][metric]))
+    """
+    return grasps
 
 """
 TODO:
@@ -91,25 +144,48 @@ TODO:
   - add options for wrist to gripper frame offset
 """
 if __name__ == '__main__':
-    stp_filename = sys.argv[1]
-    delta_x = float(sys.argv[2])
-    delta_y = float(sys.argv[3])
-    delta_z = float(sys.argv[4])
-    delta_pregrasp = float(sys.argv[5])
-    output_dir = sys.argv[6]
 
-    line_width = 6.0
-    alpha = 0.15
-    dim = 0.65
-    num_grasps = 100
+    random.seed(100)
+    logging.getLogger().setLevel(logging.INFO)
+    config_filename = sys.argv[1]
 
-    # read in stable pose rotation
-    R_stp_obj = np.load(stp_filename)
-    stable_pose = stp.StablePose(1.0, R_stp_obj, np.zeros(3))
+    # open the database
+    config = ec.ExperimentConfig(config_filename)
+    database_name = os.path.join(config['database_dir'], config['database_name'])
+    database = db.Hdf5Database(database_name, config)
+    dataset = database.dataset(config['datasets'].keys()[0])
 
+    # read config
+    stp_id = config['stp_id']
+    delta_x = -config['delta_x'] - config['cb_platform_x']
+    delta_y = -config['delta_y'] - config['cb_platform_y']
+    delta_z = config['delta_z'] + config['cb_platform_z']
+    delta_pregrasp = config['delta_pregrasp']
+    delta_lift = config['delta_lift']
+    output_dir = config['output_dir']
+
+    object_key = config['object_key']
+    line_width = config['line_width']
+    alpha = config['alpha']
+    dim = config['plot_dim']
+    num_grasps = config['num_grasps']
+
+    # read in stable pose and rotation
+    stable_pose = dataset.stable_pose(object_key, stp_id)
+
+    if np.abs(np.linalg.det(stable_pose.r) + 1) < 0.01:
+        stable_pose.r[1,:] = -stable_pose.r[1,:]
+
+    R_stp_obj = stable_pose.r
+    n = stable_pose.r[2,:]
+
+    obj_filename = dataset.obj_mesh_filename(object_key)
+    of = objf.ObjFile(obj_filename)
+    mesh = of.read()
+    
     # form transformation matrices
-    R_stp_cb = np.array([[-1, 0, 0],
-                        [0, -1, 0],
+    R_stp_cb = np.array([[0, -1, 0],
+                        [1, 0, 0],
                         [0, 0, 1]])
     t_cb_stp = np.array([delta_x, delta_y, delta_z])
     T_stp_cb = stf.SimilarityTransform3D(pose=tfx.pose(R_stp_cb, -R_stp_cb.T.dot(t_cb_stp)), from_frame='cb', to_frame='stp')
@@ -122,76 +198,113 @@ if __name__ == '__main__':
     T_cb_world = stf.SimilarityTransform3D(pose=tfx.pose(R_cb_world, t_cb_world), to_frame='cb')
 
     # transformations from FANUC to Dex-Net conventions
-    R_fg_dg = np.array([[0, 0, -1],
-                        [0, 1, 0],
+    R_fg_dg = np.array([[0, 0, 1],
+                        [0, -1, 0],
                         [1, 0, 0]])
     R_fcb_dcb = np.array([[0, 1, 0],
                           [1, 0, 0],
                           [0, 0, -1]])
+    #R_fcb_dcb = np.array([[-1, 0, 0],
+    #                      [0, 1, 0],
+    #                      [0, 0, -1]])
     T_fg_grasp = stf.SimilarityTransform3D(pose=tfx.pose(R_fg_dg, np.zeros(3)), from_frame='grasp', to_frame='fanuc_grasp')
     T_fpg_fg = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), np.array([0, 0, delta_pregrasp])), from_frame='fanuc_grasp', to_frame='fanuc_pregrasp')
+    T_lcb_fcb = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), np.array([0, 0, -delta_lift])), from_frame='fanuc_cb', to_frame='fanuc_lcb')
     T_fcb_cb = stf.SimilarityTransform3D(pose=tfx.pose(R_fcb_dcb, np.zeros(3)), from_frame='cb', to_frame='fanuc_cb')
     T_fcb_world = T_fcb_cb.dot(T_cb_world)
+    T_obj_world = T_obj_cb.dot(T_cb_world)
+    T_obj_fcb = T_obj_world.dot(T_fcb_world.inverse())
 
-    # load the object
-    object_key = 'spray'
-    config_filename = 'cfg/test_cnn_database_indexer.yaml'
-    config = ec.ExperimentConfig(config_filename)
-    database_name = os.path.join(config['database_dir'], config['database_name'])
-    database = db.Hdf5Database(database_name, config)
-    dataset = database.dataset(config['datasets'].keys()[0])
-    obj = dataset.graspable(object_key)
-    mesh = obj.mesh
-    n = R_stp_obj[2,:]
+    filename = 'object_%s_pose.csv' %(object_key)
+    T_obj_fcb.inverse().save_pose_csv(os.path.join(output_dir, filename))
 
     # get the best grasp
-    metric = 'pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'
-    sorted_grasps, sorted_metrics = dataset.sorted_grasps(object_key, metric)
-    for i, grasp in enumerate(sorted_grasps):
-        print 'Processing grasp', i
-        if i >= num_grasps:
-            break
+    grasps = generate_candidate_grasps(num_grasps, object_key, dataset, config)
+    grasps = prune_grasps_in_collision(grasps, stable_pose)
+    for i, grasp in enumerate(grasps):
+        print 'Processing grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps))
             
         # form the grasp set to attempt
         grasp_parallel_table = grasp.grasp_aligned_with_stable_pose(stable_pose)
-        T_par_grasp_cb = grasp_parallel_table.gripper_pose_stf().inverse().dot(T_obj_cb)
+        #print grasp_parallel_table.gripper_transform(gripper=config['gripper']).rotation.T[:,0].dot(stable_pose.r[2,:])
+        T_par_grasp_obj = grasp_parallel_table.gripper_transform(gripper=config['gripper']).inverse()
+        T_par_grasp_cb = T_par_grasp_obj.dot(T_obj_cb)
         T_par_fg_fcb = T_fg_grasp.dot(T_par_grasp_cb).dot(T_fcb_cb.inverse())
-        
+        #print T_par_grasp_cb.rotation.T
+        #T_par_grasp_stp = T_par_grasp_cb.dot(T_stp_cb.inverse())
+        #print T_par_grasp_stp.rotation.T
+
+        #T_obj_world = T_obj_cb.dot(T_cb_world)
+        #T_world_obj = T_obj_world.inverse()
+
         # want x axis negatively aligned with table normal
-        if T_par_fg_fcb.rotation[2,0] < 0: # aligned with table
-            grasp_parallel_table.approach_angle_ = grasp_parallel_table.approach_angle_ + np.pi
+        #if T_par_fg_fcb.rotation[0,2] < 0: # aligned with table
+        #    print 'flipping X'
+        #    grasp_parallel_table.approach_angle_ = grasp_parallel_table.approach_angle_ + np.pi
+
+        #print grasp_parallel_table.approach_angle_ 
+        
+        # want z axis positively aligned with chessboard x axis
+        #if T_par_fg_fcb.rotation[2,0] < 0: # aligned with robot
+        #    print 'flipping Z'
+        #    grasp_parallel_table.approach_angle_ = np.pi - grasp_parallel_table.approach_angle_
+
+        #print grasp_parallel_table.approach_angle_ 
 
         grasp_lifted_table = copy.copy(grasp_parallel_table)
-        grasp_lifted_table.approach_angle_ = grasp_parallel_table.approach_angle_ + np.pi / 8
-
+        grasp_lifted_table.approach_angle_ = grasp_parallel_table.approach_angle_ - 1 * np.pi / 16
         grasps_to_save = [grasp_lifted_table]        
 
         # save all grasps as matrices
         for j, g in enumerate(grasps_to_save):
-            T_grasp_cb = g.gripper_pose_stf().inverse().dot(T_obj_cb)
+            T_grasp_obj = g.gripper_transform(gripper=config['gripper'])
+            x_axis_obj = T_grasp_obj.inverse().rotation[:,0]
+            table_normal_obj = T_obj_stp.rotation[:,2]
+            #print T_world_obj.apply(x_axis_obj, direction=True).dot(T_world_obj.apply(table_normal_obj, direction=True))
+            #print T_obj_stp.inverse().apply(x_axis_obj, direction=True)
+            #print x_axis_obj
+            #print table_normal_obj
+            #IPython.embed()
+
+            T_grasp_cb = T_grasp_obj.dot(T_obj_cb)
             T_fg_fcb = T_fg_grasp.dot(T_grasp_cb).dot(T_fcb_cb.inverse())
             T_fg_world = T_fg_fcb.dot(T_fcb_world)
             T_fpg_fcb = T_fpg_fg.dot(T_fg_fcb)
             T_fpg_world = T_fpg_fcb.dot(T_fcb_world)
 
+            T_flg_fcb = T_fg_fcb.dot(T_lcb_fcb.inverse())
+            T_flg_world = T_flg_fcb.dot(T_fcb_world)
+            T_flg_fcb.to_frame = 'fanuc_lift_grasp'
+            T_flg_world.to_frame = 'fanuc_lift_grasp'
+
             # save poses
-            filename = 'grasp_%d_end_pose_%d.csv' %(i, j)
+            filename = 'grasp_%d_grasp_pose_%d.csv' %(grasp.grasp_id, j)
             T_fg_fcb.inverse().save_pose_csv(os.path.join(output_dir, filename))
-            filename = 'grasp_%d_mid_pose_%d.csv' %(i, j)
+            filename = 'grasp_%d_mid_pose_%d.csv' %(grasp.grasp_id, j)
             T_fpg_fcb.inverse().save_pose_csv(os.path.join(output_dir, filename))
+            filename = 'grasp_%d_lift_pose_%d.csv' %(grasp.grasp_id, j)
+            T_flg_fcb.inverse().save_pose_csv(os.path.join(output_dir, filename))
 
             # plot grasp
-            fig = plt.figure()
-            ax = Axes3D(fig)
-            plot_pose(T_fcb_world, alpha=alpha, ax=ax)
-            plot_pose(T_fg_world, alpha=alpha, ax=ax)
-            plot_pose(T_fpg_world, alpha=alpha, ax=ax)
-            plot_mesh(mesh, T_obj_cb)
-            
-            ax.set_xlim3d(-dim, dim)
-            ax.set_ylim3d(-dim, dim)
-            ax.set_zlim3d(-dim, dim)
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.set_zlabel('Z')
-            plt.show()
+            if config['debug']:
+                fig = plt.figure()
+                ax = Axes3D(fig)
+
+                #plot_pose(T_grasp_obj, alpha=alpha, ax=ax)
+                #plot_pose(T_obj_stp.inverse(), alpha=alpha, ax=ax)
+                #plot_pose(T_obj_stp, alpha=alpha, ax=ax)
+                plot_pose(T_fg_world, alpha=alpha, ax=ax)
+                plot_pose(T_fcb_world, alpha=alpha, ax=ax)
+                plot_pose(T_fg_world, alpha=alpha, ax=ax)
+                plot_pose(T_fpg_world, alpha=alpha, ax=ax)
+                plot_pose(T_flg_world, alpha=alpha, ax=ax)
+                plot_mesh(mesh, T_obj_world)
+                
+                ax.set_xlim3d(-dim, dim)
+                ax.set_ylim3d(-dim, dim)
+                ax.set_zlim3d(-dim, dim)
+                ax.set_xlabel('X')
+                ax.set_ylabel('Y')
+                ax.set_zlabel('Z')
+                plt.show()
+
