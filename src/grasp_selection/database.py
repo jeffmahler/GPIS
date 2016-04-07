@@ -25,6 +25,7 @@ INDEX_FILE = 'index.db'
 HDF5_EXT = '.hdf5'
 OBJ_EXT = '.obj'
 STL_EXT = '.stl'
+SDF_EXT = '.sdf'
 
 READ_ONLY_ACCESS = 'READ_ONLY'
 READ_WRITE_ACCESS = 'READ_WRITE'

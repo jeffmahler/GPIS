@@ -110,7 +110,8 @@ class SimilarityTransform3D:
 
     def save_pose_csv(self, filename):
         """ Save only the pose matrix to file """
-        np.savetxt(filename, np.array(self.pose.matrix), delimiter=',')
+        mat_to_save = np.array(self.pose.matrix)
+        np.savetxt(filename, mat_to_save, delimiter=',')
 
     @property
     def translation(self):
