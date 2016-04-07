@@ -2,9 +2,11 @@
 Encapsulates mesh for grasping operations
 Author: Jeff Mahler
 '''
+import copy
 import logging
 import IPython
 import numpy as np
+import Queue
 import os
 from PIL import Image, ImageDraw
 import sklearn.decomposition
@@ -12,6 +14,7 @@ import sys
 import tfx
 
 import camera_params as cp
+import colorsys
 import obj_file
 try:
     import mayavi.mlab as mv
@@ -54,6 +57,7 @@ class Mesh3D(object):
         self.density_ = density
         self.category_ = category
         self.component_ = component
+        self.colors_ = None
 
         # compute mesh properties
         self._compute_bb_center()
@@ -73,6 +77,11 @@ class Mesh3D(object):
         if self.normals_ is not None:
             return self.normals_
         return None #"Mesh does not have a list of normals."
+
+    def colors(self):
+        if self.colors_ is None:
+            return np.ones((len(self.vertices()), 3))
+        return self.colors_
 
     def centroid(self):
         self._compute_centroid()
@@ -123,7 +132,7 @@ class Mesh3D(object):
 
     @density.setter
     def category(self, c):
-        self.cateogry_ = c
+        self.category_ = c
 
     @scale.setter
     def scale(self, scale):
@@ -137,6 +146,9 @@ class Mesh3D(object):
 
     def set_normals(self, normals):
         self.normals_ = normals
+
+    def set_colors(self, colors):
+        self.colors_ = colors
 
     def set_metadata(self, metadata):
         self.metadata_ = metadata
@@ -156,6 +168,25 @@ class Mesh3D(object):
         min_vertices = np.min(vertex_array, axis=0)
         max_vertices = np.max(vertex_array, axis=0)
         return min_vertices, max_vertices
+
+    def bounding_box_mesh(self):
+        """Get the mesh bounding box as a mesh."""
+        min_vert, max_vert = self.bounding_box()
+        xs, ys, zs = zip(max_vert, min_vert)
+        vertices = []
+        for x in xs:
+            for y in ys:
+                for z in zs:
+                    vertices.append([x, y, z])
+        triangles = (np.array([
+            [5, 7, 3], [5, 3, 1],
+            [2, 4, 8], [2, 8, 6],
+            [6, 8, 7], [6, 7, 5],
+            [1, 3, 4], [1, 4, 2],
+            [6, 5, 1], [6, 1, 2],
+            [7, 8, 4], [7, 4, 3],
+        ]) - 1).tolist()
+        return Mesh3D(vertices, triangles)
 
     def _compute_bb_center(self):
         """ Get the bounding box center of the mesh  """
@@ -215,7 +246,7 @@ class Mesh3D(object):
         self.inertia_ = self.density_ * (np.trace(C) * np.eye(3) - C)
 
     def compute_normals(self):
-        """ Get normals from triangles cause fuck it"""
+        """ Get normals from triangles"""
         vertex_array = np.array(self.vertices_)
         tri_array = np.array(self.triangles_)
         self.normals_ = []
@@ -242,6 +273,41 @@ class Mesh3D(object):
         ip = (vertex_array - np.tile(hull_vertex, [vertex_array.shape[0], 1])).dot(n)
         if ip[0] > 0:
             self.normals_ = [[-n[0], -n[1], -n[2]] for n in self.normals_]
+
+    def tri_centers(self):
+        """ Return a list of the triangle centers as 3D points """
+        centers = []
+        for tri in self.triangles_:
+            v = np.array([self.vertices_[tri[0]], self.vertices_[tri[1]], self.vertices_[tri[2]]])
+            center = np.mean(v, axis=0)
+            centers.append(center.tolist())
+        return centers
+
+    def tri_normals(self):
+        """ Return a list of the triangle normals """
+        vertex_array = np.array(self.vertices_)
+        normals = []
+        for tri in self.triangles_:
+            v0 = vertex_array[tri[0],:]
+            v1 = vertex_array[tri[1],:]
+            v2 = vertex_array[tri[2],:]
+            n = np.cross(v1 - v0, v2 - v0)
+            n = n / np.linalg.norm(n)
+            normals.append(n.tolist())
+
+        # reverse normal based on alignment with convex hull
+        tri_centers = self.tri_centers()
+        hull = ss.ConvexHull(tri_centers)
+        hull_tris = hull.simplices.tolist()
+        hull_vertex_ind = hull_tris[0][0]
+        hull_vertex = tri_centers[hull_vertex_ind]
+        hull_vertex_normal = normals[hull_vertex_ind]
+        v = np.array(hull_vertex).reshape([1,3])
+        n = np.array(hull_vertex_normal)
+        ip = (np.array(tri_centers) - np.tile(hull_vertex, [np.array(tri_centers).shape[0], 1])).dot(n)
+        if ip[0] > 0:
+            normals = [[-n[0], -n[1], -n[2]] for n in normals]
+        return normals
 
     def get_total_volume(self):
         total_volume = 0
@@ -422,9 +488,67 @@ class Mesh3D(object):
             normals_array_rot = R.dot(normals_array.T)
             self.normals_ = normals_array_rot.tolist()
 
+    def copy(self):
+        # WARNING: this only copies vertices and triangles
+        vertices = list(self.vertices())
+        triangles = list(self.triangles())
+        return Mesh3D(vertices, triangles)
+
+    @staticmethod
+    def max_edge_length(tri, vertices):
+        v0 = np.array(vertices[tri[0]])
+        v1 = np.array(vertices[tri[1]])
+        v2 = np.array(vertices[tri[2]])
+        max_edge_len = max(np.linalg.norm(v1-v0), max(np.linalg.norm(v1-v0), np.linalg.norm(v2-v1)))
+        return max_edge_len
+
+    def subdivide(self, min_triangle_length = None):
+        '''Returns a copy of the current mesh but subdivided by one iteration'''
+        new_mesh = self.copy()
+        new_vertices = new_mesh.vertices()
+        old_triangles = new_mesh.triangles()
+        
+        new_triangles = []
+        triangle_index_mapping = {}
+        tri_queue = Queue.Queue()
+        
+        for j, triangle in enumerate(old_triangles):
+            tri_queue.put((j, triangle))
+            triangle_index_mapping[j]  = []
+
+        while not tri_queue.empty():
+            tri_index_pair = tri_queue.get()
+            j = tri_index_pair[0]
+            triangle = tri_index_pair[1]
+
+            if min_triangle_length is None or Mesh3D.max_edge_length(triangle, new_vertices) > min_triangle_length:
+                t_vertices = np.array([new_vertices[i] for i in triangle])
+                edge01 = 0.5 * (t_vertices[0,:] + t_vertices[1,:])
+                edge12 = 0.5 * (t_vertices[1,:] + t_vertices[2,:])
+                edge02 = 0.5 * (t_vertices[0,:] + t_vertices[2,:])
+
+                i_01 = len(new_vertices)
+                i_12 = len(new_vertices)+1
+                i_02 = len(new_vertices)+2
+                new_vertices.append(edge01)
+                new_vertices.append(edge12)
+                new_vertices.append(edge02)
+            
+                for triplet in [[triangle[0], i_01, i_02], [triangle[1], i_12, i_01], [triangle[2], i_02, i_12], [i_01, i_12, i_02]]:
+                    tri_queue.put((j, triplet))
+
+            else:
+                new_triangles.append(triangle)
+                triangle_index_mapping[j].append(len(new_triangles)-1)
+
+        new_mesh.set_vertices(new_vertices)
+        new_mesh.set_triangles(new_triangles)
+        return new_mesh, triangle_index_mapping
+
     def transform(self, tf):
         vertex_array = np.array(self.vertices_)
         vertex_array_tf = tf.apply(vertex_array.T)
+        # TODO: transform normals as well
         return Mesh3D(vertex_array_tf.T.tolist(), self.triangles_)
 
     def rescale_vertices(self, min_scale):
@@ -450,11 +574,24 @@ class Mesh3D(object):
         self.vertices_ = vertex_array.tolist()
         self._compute_centroid()
 
+    def rescale(self, scale_factor):
+        '''
+        Rescales the vertex coordinates by scale factor
+        Params:
+           scale_factor: (float) the scale factor
+        Returns:
+           Nothing. Modified the mesh in place (for now)
+        '''
+        vertex_array = np.array(self.vertices_)
+        scaled_vertices = scale_factor * vertex_array
+        self.vertices_ = scaled_vertices.tolist()
+
     def convex_hull(self):
         """ Returns the convex hull of a mesh as a new mesh """
         hull = ss.ConvexHull(self.vertices_)
         hull_tris = hull.simplices.tolist()
-        cvh_mesh = Mesh3D(self.vertices_, hull_tris, self.normals_)
+        # TODO do normals properly...
+        cvh_mesh = Mesh3D(self.vertices_, hull_tris)#, self.normals_)
         cvh_mesh.remove_unreferenced_vertices()
         return cvh_mesh
 
@@ -473,6 +610,19 @@ class Mesh3D(object):
                                      color=color)
         return surface
 
+    def visualize_segments(self, tri_labels, style='surface'):
+        """ Plots visualization """
+        vertex_array = np.array(self.vertices_)
+        tri_array = np.array(self.triangles_)
+        num_segments = np.max(tri_labels)+1
+        color_delta = 1.0 / num_segments
+        colors = []
+        for j in range(num_segments):
+            colors.append(colorsys.hsv_to_rgb(j*color_delta, 0.9, 0.9))
+            tris_segment = tri_array[np.where(tri_labels==j)[0],:]
+            surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], tris_segment, representation=style,
+                                         color=colors[-1])
+
     def create_json_metadata(self):
         return {
             'mass': self.mass,
@@ -483,7 +633,7 @@ class Mesh3D(object):
         """ Add mesh to hdf5 group """
         h.create_dataset('triangles', data=np.array(self.triangles_))
         h.create_dataset('vertices', data=np.array(self.vertices_))
-        if self.normals_:
+        if self.normals_ is not None:
             h.create_dataset('normals', data=np.array(self.normals_))
 
     """

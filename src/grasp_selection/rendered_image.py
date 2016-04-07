@@ -1,3 +1,4 @@
+import IPython
 import numpy as np
 import tfx
 
@@ -16,8 +17,16 @@ class RenderedImage:
         self.obj_key = obj_key
         self.descriptors = {}
 
-    def camera_to_object_transform(self):
-        """ Returns the transformation from camera to object when the object is in the given stable pose """
+        # HACK: to fix stable pose bug
+        if self.stable_pose is not None and np.abs(np.linalg.det(self.stable_pose.r) + 1) < 0.01:
+            self.stable_pose.r[1,:] = -self.stable_pose.r[1,:]
+
+    def object_to_stp_transform(self):
+        T_obj_obj_p = tfx.pose(self.stable_pose.r).matrix
+        return stf.SimilarityTransform3D(pose=tfx.pose(T_obj_obj_p), from_frame='obj', to_frame='stp')
+
+    def stp_to_camera_transform(self):
+        """ Returns the transformation from camera to the object stable pose """
         # setup variables
         camera_xyz_w = self.cam_pos
         camera_rot_w = self.cam_rot
@@ -45,9 +54,14 @@ class RenderedImage:
         camera_rot_obj_p = camera_rot_obj_p.T
             
         # form the full object to camera transform
-        T_obj_obj_p = tfx.pose(self.stable_pose.r).matrix
         T_obj_p_camera = tfx.pose(camera_rot_obj_p, z).matrix
+        return stf.SimilarityTransform3D(pose=tfx.pose(T_obj_p_camera), from_frame='stp', to_frame='camera')
+    
+    def camera_to_object_transform(self):
+        """ Returns the transformation from camera to object when the object is in the given stable pose """
+        # form the full object to camera transform
+        T_obj_p_camera = self.stp_to_camera_transform()
+        T_obj_obj_p = self.object_to_stp_transform()
         T_obj_camera = T_obj_p_camera.dot(T_obj_obj_p)
-
-        return stf.SimilarityTransform3D(pose=tfx.pose(T_obj_camera))
+        return T_obj_camera
 

@@ -6,7 +6,7 @@ cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
 shape_data_dir: /mnt/terastation/shape_data
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
-database_name: dexnet_db3_12_14_15.hdf5
+database_name: dexnet_db3_01_22_16.hdf5
 results_database_name: results.hdf5
 
 datasets:
@@ -22,6 +22,9 @@ datasets:
   KIT:
     start_index: 0
     end_index: 1000
+  SHREC14LSGTB:
+    start_index: 0
+    end_index: 10000
   YCB:
     start_index: 0
     end_index: 1000

@@ -21,6 +21,11 @@ if __name__ == '__main__':
     msh = ofile.read()
     cvh_msh = msh.convex_hull()
 
+    mv.figure(bgcolor=(1,1,1))
+    msh.visualize()
+    mv.show()
+    exit(0)
+
     min_prob = 0.01
     prob_mapping = stp.compute_stable_poses(msh)
     R_list = []
@@ -30,17 +35,30 @@ if __name__ == '__main__':
 
     #    m.num_connected_components()
     for R in R_list:
+        print 'Prob', R[0]
+
         tf = stf.SimilarityTransform3D(pose=tfx.pose(R[1]))
         m = msh.transform(tf)
             
         mv.figure()
         m.visualize()
-        mv.points3d(m.center_of_mass[0], m.center_of_mass[1], m.center_of_mass[2], scale_factor=0.01)
-        mv.points3d(m.vertex_mean_[0], m.vertex_mean_[1], m.vertex_mean_[2], scale_factor=0.01, color=(1,0,0))
-        mv.axes()
+        #mv.points3d(m.center_of_mass[0], m.center_of_mass[1], m.center_of_mass[2], scale_factor=0.01)
+        #mv.points3d(m.vertex_mean_[0], m.vertex_mean_[1], m.vertex_mean_[2], scale_factor=0.01, color=(1,0,0))
+
+        mn, mx = m.bounding_box()
+        d = max(mx[1] - mn[1], mx[0] - mn[0]) / 2
+        z = mn[2]
+        table_vertices = np.array([[d, d, z],
+                                   [d, -d, z],
+                                   [-d, d, z],
+                                   [-d, -d, z]])
+        table_tris = np.array([[0, 1, 2], [1, 2, 3]])
+        mv.triangular_mesh(table_vertices[:,0], table_vertices[:,1], table_vertices[:,2], table_tris, representation='surface', color=(0,0,0))
+
+        #mv.axes()
 #    mv.points3d(cvh_m.center_of_mass_[0], cvh_m.center_of_mass_[1], cvh_m.center_of_mass_[2], scale_factor=0.01)
 #    mv.points3d(cvh_m.vertex_mean_[0], cvh_m.vertex_mean_[1], cvh_m.vertex_mean_[2], scale_factor=0.01, color=(1,0,0))
-
+        """
         cvh_m = cvh_msh.transform(tf)
         mv.figure()
         cvh_m.visualize()
@@ -52,6 +70,7 @@ if __name__ == '__main__':
         mv.points3d(v[:,0], v[:,1], v[:,2], scale_factor=0.01, color=(0,1,0))
 
         mv.axes()
+        """
         mv.show()
 
         #IPython.embed()

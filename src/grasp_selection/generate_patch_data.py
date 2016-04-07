@@ -70,6 +70,7 @@ def load_patches(obj, obj_id, dataset, all_features, all_metrics, all_obj_ids, c
         # hack to get the surface normals
         grasp = grasp_map[grasp_id]
         success, contacts = grasp.close_fingers(obj)
+        normals_descriptor = np.zeros(6)
         if success and contacts[0].normal is not None and contacts[1].normal is not None: 
             normals_descriptor = np.r_[contacts[0].normal, contacts[1].normal]
         else:

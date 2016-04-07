@@ -70,7 +70,7 @@ class Contact3D(Contact):
         normal = self.graspable.sdf.transform_pt_grid_to_obj(normal, direction=True)
         self.normal_ = normal
 
-    def tangents(self, direction=None):
+    def tangents(self, direction=None, max_samples=1000):
         """Returns the direction vector and tangent vectors at a contact point.
         The direction vector defaults to the *inward-facing* normal vector at
         this contact.
@@ -99,8 +99,27 @@ class Contact3D(Contact):
         U, _, _ = np.linalg.svd(direction)
 
         # U[:, 1:] spans the tanget plane at the contact
-        t1, t2 = U[:, 1], U[:, 2]
-        return np.squeeze(direction), t1, t2
+        x, y = U[:, 1], U[:, 2]
+
+        # make sure t1 and t2 obey right hand rule
+        z_hat = np.cross(x, y)
+        if z_hat.dot(direction) < 0:
+            y = -y
+
+        # redefine tangent x axis to maximally align with the object y axis
+        max_ip = 0
+        max_a = 0
+        obj_y = np.array([0,1,0])
+        for i in range(max_samples+1):
+            a = -1 + i * (2.0 / max_samples)
+            v = a * x + np.sqrt(1 - a**2) * y
+            if v.dot(obj_y) > max_ip:
+                max_ip = v.dot(obj_y)
+                max_a = a
+        v = max_a * x + np.sqrt(1 - max_a**2) * y
+        w = np.cross(direction.ravel(), v)
+
+        return np.squeeze(direction), v, w
 
     def normal_force_magnitude(self):
         """ Returns the magnitude of the force that the contact would apply along the normal direction"""

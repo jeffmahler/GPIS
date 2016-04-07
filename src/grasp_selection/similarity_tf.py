@@ -49,6 +49,8 @@ class SimilarityTransform3D:
 
     def dot(self, other_tf):
         """ Compose this transform with another """
+        if other_tf.to_frame != self.from_frame:
+            raise ValueError('Output reference frame of right hand side must match input reference frame of left hand side')
         pose_tf = self.pose_.matrix.dot(other_tf.pose.matrix)
         scale_tf = self.scale_ * other_tf.scale
         return SimilarityTransform3D(pose=tfx.pose(pose_tf), scale=scale_tf, from_frame=other_tf.from_frame, to_frame=self.to_frame)
@@ -59,13 +61,14 @@ class SimilarityTransform3D:
         inv_pose.position = (1.0 / self.scale_) * inv_pose.position
         return SimilarityTransform3D(inv_pose, 1.0 / self.scale_, from_frame=self.to_frame, to_frame=self.from_frame)
 
-    def load(self, filename):
+    @staticmethod
+    def load(filename):
         """ Load the transform """
         f = open(filename, 'r')
         line_list = list(f)
-        self.from_frame_ = line_list[0][:-1]
-        self.to_frame_ = line_list[1][:-1]
-        self.scale_ = float(line_list[2][:-1])
+        from_frame= line_list[0][:-1]
+        to_frame = line_list[1][:-1]
+        scale = float(line_list[2][:-1])
 
         t_tokens = line_list[3][:-1].split()
         t = np.zeros(3)
@@ -88,7 +91,8 @@ class SimilarityTransform3D:
         R[2,0] = float(r_tokens[0])
         R[2,1] = float(r_tokens[1])
         R[2,2] = float(r_tokens[2])
-        self.pose_ = tfx.pose(R, t)
+        pose = tfx.pose(R, t)
+        return SimilarityTransform3D(pose=pose, scale=scale, from_frame=from_frame, to_frame=to_frame)
 
     def save(self, filename):
         """ Save the transform to a custom file format """
@@ -106,7 +110,8 @@ class SimilarityTransform3D:
 
     def save_pose_csv(self, filename):
         """ Save only the pose matrix to file """
-        np.savetxt(filename, np.array(self.pose.matrix), delimiter=',')
+        mat_to_save = np.array(self.pose.matrix)
+        np.savetxt(filename, mat_to_save, delimiter=',')
 
     @property
     def translation(self):

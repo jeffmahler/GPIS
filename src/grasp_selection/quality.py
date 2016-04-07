@@ -1,3 +1,7 @@
+"""
+Grasp quality metrics
+Author: Jeff Mahler and Brian Hou
+"""
 import logging
 import numpy as np
 try:
@@ -8,6 +12,7 @@ try:
     import cvxopt as cvx
 except:
     logging.warning('Failed to import cvx')
+import os
 import scipy.spatial as ss
 import sys
 import time
@@ -23,6 +28,9 @@ try:
 except:
     logging.warning('Failed to import mayavi')
 import IPython
+
+# TODO: find a way to log output?
+cvx.solvers.options['show_progress'] = False
 
 FRICTION_COEF = 0.5
 
@@ -86,6 +94,18 @@ class PointGraspMetrics3D:
             logging.debug('No normals')
             return 0#-np.inf
 
+        # normalize torques
+        rho = 1.0
+        if method == 'ferrari_canny_L1':
+            mn, mx = obj.mesh.bounding_box()
+            rho = np.min(mx)
+            torques = torques / rho
+
+        if params is None:
+            params = {}
+        params['rho'] = rho
+        params['friction_coef'] = friction_coef 
+
         if vis:
             ax = plt.gca()
             ax.set_xlim3d(0, obj.sdf.dims_[0])
@@ -101,7 +121,7 @@ class PointGraspMetrics3D:
         return quality
 
     @staticmethod
-    def grasp_matrix(forces, torques, normals, soft_fingers=False, params = None):
+    def grasp_matrix(forces, torques, normals, soft_fingers=False, finger_radius=0.005, params=None):
         num_forces = forces.shape[1]
         num_torques = torques.shape[1]
         if num_forces != num_torques:
@@ -109,9 +129,9 @@ class PointGraspMetrics3D:
 
         num_cols = num_forces
         if soft_fingers:
-            num_normals = 1
+            num_normals = 2
             if normals.ndim > 1:
-                num_normals = normals.shape[1]
+                num_normals = 2*normals.shape[1]
             num_cols = num_cols + num_normals
 
         G = np.zeros([6, num_cols])
@@ -120,7 +140,11 @@ class PointGraspMetrics3D:
             G[3:,i] = torques[:,i]
 
         if soft_fingers:
-            G[3:,-num_normals:] = normals
+            torsion = np.pi * finger_radius**2 * params['friction_coef'] * normals / params['rho']
+            pos_normal_i = -num_normals
+            neg_normal_i = -num_normals + num_normals / 2
+            G[3:,pos_normal_i:neg_normal_i] = torsion
+            G[3:,neg_normal_i:] = -torsion
         return G
 
     @staticmethod
@@ -151,7 +175,7 @@ class PointGraspMetrics3D:
         if params is not None:
             eps = params['eps']
 
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         min_norm = PointGraspMetrics3D.min_norm_vector_in_facet(G)
         return 1 * (min_norm < eps) # if greater than eps, 0 is outside of hull
 
@@ -164,8 +188,26 @@ class PointGraspMetrics3D:
         force_limit = params['force_limits']
         target_wrench = params['target_wrench']
 
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
-        return PointGraspMetrics.wrench_in_span(G, target_wrench, force_limit)
+        num_fingers = normals.shape[1]
+        num_wrenches_per_finger = forces.shape[1] / num_fingers
+        G = np.zeros([6,0])
+        for i in range(num_fingers):
+            start_i = num_wrenches_per_finger * i
+            end_i = num_wrenches_per_finger * (i + 1)
+            G_i = PointGraspMetrics3D.grasp_matrix(forces[:,start_i:end_i], torques[:,start_i:end_i], normals[:,i:i+1],
+                                                   soft_fingers, params=params)
+            G = np.c_[G, G_i]
+
+        """
+        force_limits = np.linspace(1.0, 300.0, num=1000)
+        dists = np.zeros(force_limits.shape)
+        for i in range(force_limits.shape[0]):
+            dists[i] = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limits[i], num_fingers)
+        plt.plot(force_limits, dists, linewidth=2.0, c='g')
+        plt.ylim([0,0.1])
+        plt.show()
+        """
+        return 1 * (PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers))
 
     @staticmethod
     def min_singular(forces, torques, normals, soft_fingers=False, params=None):
@@ -203,11 +245,11 @@ class PointGraspMetrics3D:
     def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
         """ The Ferrari-Canny L1 metric """
         eps = np.sqrt(1e-2)
-        if params is not None:
+        if params is not None and 'eps' in params.keys():
             eps = params['eps']
 
         # create grasp matrix
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         s = time.clock()
         hull = cvh.ConvexHull(G.T, joggle=True)
         e = time.clock()
@@ -225,33 +267,54 @@ class PointGraspMetrics3D:
 
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
+        closest_facet = None
         for v in hull.vertices:
             if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
                 facet = G[:, v]
                 dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
                 if dist < min_dist:
                     min_dist = dist
+                    closest_facet = facet
         return min_dist
 
     @staticmethod
-    def wrench_in_span(W, target_wrench, f):
+    def wrench_in_span(W, target_wrench, f, num_fingers=1):
         """ Check whether wrench W can be resisted by forces and torques in G with limit force f """
-        eps = 1e-10
+        eps = 0.05
+        alpha = 1e-10
         num_wrenches = W.shape[1]
 
         # quadratic and linear costs
-        P = W.T.dot(W)
-        q = -2 * target_wrench
+        #W = W[:3,:]
+        #target_wrench = target_wrench[:3]
+        P = W.T.dot(W) + alpha*np.eye(num_wrenches)
+        q = -W.T.dot(target_wrench)
 
         # inequalities
         lam_geq_zero = -1 * np.eye(num_wrenches)
-        force_constraint = np.ones(num_wrenches)
-        G = np.c_[lam_geq_zero, force_constraint]
-        h = zeros(num_wrenches+1)
-        h[num_wrenches] = f
+        
+        num_wrenches_per_finger = num_wrenches / num_fingers
+        force_constraint = np.zeros([num_fingers, num_wrenches])
+        for i in range(num_fingers):
+            start_i = num_wrenches_per_finger * i
+            end_i = num_wrenches_per_finger * (i + 1)
+            force_constraint[i, start_i:end_i] = np.ones(num_wrenches_per_finger)
 
+        G = np.r_[lam_geq_zero, force_constraint]
+        h = np.zeros(num_wrenches+num_fingers)
+        for i in range(num_fingers):
+            h[num_wrenches+i] = f
+
+        # convert to cvx and solve
+        P = cvx.matrix(P)
+        q = cvx.matrix(q)
+        G = cvx.matrix(G)
+        h = cvx.matrix(h)
         sol = cvx.solvers.qp(P, q, G, h)
-        min_dist = sol['primal objective']
+        v = np.array(sol['x'])
+        min_dist = np.linalg.norm(W.dot(v).ravel() - target_wrench)**2
+        
+        # add back in the target wrench
         return min_dist < eps
 
     @staticmethod
@@ -382,9 +445,6 @@ def test_quality_metrics(vis=True):
             #graspable.visualize()
             #mv.show()
 
-
-# TODO: find a way to log output?
-cvx.solvers.options['show_progress'] = False
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.ERROR)

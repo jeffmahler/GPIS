@@ -5,14 +5,17 @@ Author: Brian Hou
 
 from __future__ import print_function
 
+import colorsys
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d, Axes3D
 import IPython
 
 from mayavi import mlab
 
 import os
 import logging
+import math
 import pickle as pkl
 import random
 import sys
@@ -36,7 +39,11 @@ import random
 FRICTION_COEF = 0.5
 MAX_WIDTH = 0.1
 
-def load_vertex_contacts(graspable, vis=False):
+CONTACT_MODE_SDF = 0
+CONTACT_MODE_VERTICES = 1
+CONTACT_MODE_TRI_CENTERS = 2
+
+def load_vertex_contacts(graspable, mode=CONTACT_MODE_TRI_CENTERS, vis=False):
     """Create contact points from the mesh vertices and normals.
 
     graspable -- GraspableObject3D
@@ -49,12 +56,23 @@ def load_vertex_contacts(graspable, vis=False):
 
     vertex_contacts = []
     on_surface_count = 0
-    vertices, vals = graspable.sdf.surface_points(grid_basis=False)
+
+    # load vertices
+    normals = None
+    if mode == CONTACT_MODE_SDF:
+        vertices, vals = graspable.sdf.surface_points(grid_basis=False)
+    elif mode == CONTACT_MODE_VERTICES:
+        vertices = graspable.mesh.vertices()
+        normals = graspable.mesh.normals()
+    elif mode == CONTACT_MODE_TRI_CENTERS:
+        vertices = graspable.mesh.tri_centers()
+        normals = graspable.mesh.tri_normals()
+
     for i, vertex in enumerate(vertices):
-        if True:#graspable.mesh.normals() is None:
+        if mode == CONTACT_MODE_SDF or normals is None:
             contact = contacts.Contact3D(graspable, np.array(vertex))
         else:
-            normal = graspable.mesh.normals()[i] # outward facing normal
+            normal = np.array(normals[i]) # outward facing normal
             contact = contacts.Contact3D(graspable, np.array(vertex), -normal)
             contact.normal = normal
         contact.friction_cone() # friction cone is cached for later
@@ -69,7 +87,7 @@ def load_vertex_contacts(graspable, vis=False):
 
     # loading ~4100 contacts and computing their friction cones takes ~20 seconds
     logging.info('Loading contacts took %f seconds', time.time() - start_loading_contacts)
-    return vertex_contacts
+    return vertex_contacts, vertices, normals
 
 def filter_contacts(vertex_contacts, friction_coef=FRICTION_COEF, max_vertices=None):
     """Return the contacts that won't slip."""
@@ -261,7 +279,7 @@ def plot_mesh_with_qualities(graspable, contacts, fixed_index, valid_contacts,
 
 def plot_rays(graspable, grasps, qualities,
               max_rays=1000, max_width=float('inf'),
-              table_vertices=None, table_tris=None):
+              table_vertices=None, table_tris=None, low=0.000, high=0.006):
     """
     Visualizes grasp quality by plotting colored grasp axes.
 
@@ -293,7 +311,8 @@ def plot_rays(graspable, grasps, qualities,
         logging.warning('No valid lines to plot')
         return
 
-    low, high = min(line_qualities), max(line_qualities)
+    if low is None or high is None:
+        low, high = min(line_qualities), max(line_qualities)
     logging.info('Qualities are between %f and %f', low, high)
 
     # subsample rays
@@ -383,6 +402,8 @@ if __name__ == '__main__':
     database = db.Hdf5Database(database_filename, config)
     dataset = database[config['datasets'].keys()[0]]
 
+    mode = CONTACT_MODE_TRI_CENTERS
+
     for graspable in dataset:
         obj_name = graspable.key
 
@@ -392,8 +413,8 @@ if __name__ == '__main__':
         stable_poses = stp.StablePoseFile().read(stable_pose_filename)
 
         # antipodal pairs
-        all_contacts = load_vertex_contacts(graspable)
-        valid_indices, valid_contacts = filter_contacts(all_contacts, max_vertices=2500)  # for all grasps
+        all_contacts, all_vertices, all_normals = load_vertex_contacts(graspable, mode=mode)
+        valid_indices, valid_contacts = filter_contacts(all_contacts, max_vertices=config['max_vertices'])  # for all grasps
         grasps, index_pairs, qualities = compute_qualities(graspable, valid_indices, valid_contacts)
 
         # Save expensive computation
@@ -405,8 +426,147 @@ if __name__ == '__main__':
         np.save(indices_filename, np.array(index_pairs))
         np.save(quality_filename, np.array(qualities))
 
-        """
+        # organize grasps by segment
+        if config['use_segments']:
+            seg_filename = os.path.join(config['shape_data_dir'], config['datasets'].keys()[0], '%s_0.seg' %(obj_name))
+
+            # load segments
+            f = open(seg_filename, 'r')
+            triangle_labels = []
+            for line in f:
+                triangle_labels.append(int(line))
+            triangle_labels = np.array(triangle_labels)
+
+            # organize grasps by segment
+            vertex_labels = [[] for i in range(len(all_vertices))]
+
+            for i, tri in enumerate(graspable.mesh.triangles()):
+                if mode == CONTACT_MODE_TRI_CENTERS:
+                    vertex_labels[i].append(triangle_labels[i])
+                else:
+                    vertex_labels[tri[0]].append(triangle_labels[i])
+                    vertex_labels[tri[1]].append(triangle_labels[i])
+                    vertex_labels[tri[2]].append(triangle_labels[i])
+                
+            grasp_labels = []
+            for grasp, index_pair in zip(grasps, index_pairs):
+                labels_1 = set(vertex_labels[index_pair[0]])
+                labels_2 = set(vertex_labels[index_pair[1]])
+
+                g_labels = []
+                for l1 in labels_1:
+                    if l1 in labels_2:
+                        g_labels.append(l1)
+                grasp_labels.append(set(g_labels))
+
+            # plot joint histogram for segments
+            plt.figure(12)
+            qualities_arr = np.array(qualities)
+            hist, bins, _ = plt.hist(qualities_arr[qualities_arr > 0], bins=config['hist_num_bins'], range=(0.0, config['max_tau']))
+            plt.title('Object %s Quality' %(obj_name), fontsize=15)
+            plt.xlabel('Quality', fontsize=15)
+            plt.ylabel('Count', fontsize=15)
+            figname = 'obj_%s_hist.pdf' %(obj_name)
+            plt.savefig(os.path.join(config['out_dir'], figname), dpi=400)
+
+            hist = hist / np.sum(hist)
+            filename = 'obj_%s_hist.npy' %(obj_name)
+            np.save(os.path.join(config['out_dir'], filename), hist)
+            filename = 'obj_%s_hist_bins.npy' %(obj_name)
+            np.save(os.path.join(config['out_dir'], filename), bins)
+
+            # go through the human labelled segments
+            color_delta = 1.0 / (np.max(triangle_labels) + 1)
+            segment_labels = []
+            for label in set(triangle_labels):
+                grasps_label = []
+                qualities_label = []
+                color = colorsys.hsv_to_rgb(label*color_delta, 0.9, 0.9)
+                segment_labels.append('Label %d' %(label))
+
+                for grasp, quality, grasp_ls in zip(grasps, qualities, grasp_labels):
+                    if label in grasp_ls:
+                        grasps_label.append(grasp)
+                        qualities_label.append(quality)
+                        
+                # plot joint histogram for segments
+                plt.figure(10)
+                qualities_label = np.array(qualities_label)
+                plt.hist(qualities_label[qualities_label > 0], bins=config['hist_num_bins'], color=color, range=(0.0, config['max_tau']))
+
+                # plot single histogram of quality
+                plt.figure(11)
+                plt.clf()
+                hist, bins, _ = plt.hist(qualities_label[qualities_label > 0], bins=config['hist_num_bins'], range=(0.0, config['max_tau']))
+                plt.title('Label %d Quality' %(label), fontsize=15)
+                plt.xlabel('Quality', fontsize=15)
+                plt.ylabel('Count', fontsize=15)
+                figname = 'obj_%s_label_%d_hist.pdf' %(obj_name, label)
+                plt.savefig(os.path.join(config['out_dir'], figname), dpi=400)
+
+                # normalize hist for saving
+                hist = hist / np.sum(hist)
+                filename = 'obj_%s_label_%d_hist.npy' %(obj_name, label)
+                np.save(os.path.join(config['out_dir'], filename), hist)
+                filename = 'obj_%s_label_%d_hist_bins.npy' %(obj_name, label)
+                np.save(os.path.join(config['out_dir'], filename), bins)
+
+                # plot segmented region
+                one_vs_all_labels = np.zeros(triangle_labels.shape)
+                one_vs_all_labels[triangle_labels == label] = 0 
+                one_vs_all_labels[triangle_labels != label] = 1
+                mlab.clf()
+                graspable.mesh.visualize_segments(one_vs_all_labels.astype(np.int16))
+                figname = 'obj_%s_label_%d_mesh.png' %(obj_name, label)                
+                mlab.savefig(os.path.join(config['out_dir'], figname))
+
+                # plot grasps on segment
+                mlab.clf()
+                most_stable_pose = stable_poses[-1]
+                logging.info('About to plot rays with most stable pose.')
+                graspable.mesh.visualize_segments(one_vs_all_labels.astype(np.int16))
+                plot_rays(graspable, grasps_label, qualities_label, max_rays=500, low=0.0, high=config['max_tau'])
+                figname = 'obj_%s_label_%d_grasps.png' %(obj_name, label)                
+                mlab.savefig(os.path.join(config['out_dir'], figname))
+
+            # histogram of all grasp qualities
+            plt.figure(10)
+            plt.title('All Label Qualities', fontsize=15)
+            plt.xlabel('Quality', fontsize=15)
+            plt.ylabel('Count', fontsize=15)
+            plt.legend(segment_labels, loc='best')
+            figname = 'obj_%s_all_hist.pdf' %(obj_name)                
+            plt.savefig(os.path.join(config['out_dir'], figname), dpi=400)
+
+            # filter grasps by quality threshold
+            max_tau = config['max_tau']
+            tau_res = config['tau_res']
+            n_tau = int(math.ceil(max_tau / tau_res))
+            tau_vals = [j * tau_res for j in range(n_tau)]
+            for tau in tau_vals:
+                vertex_labels = [0 for j in range(len(all_vertices))]
+                triangle_labels = [0 for j in range(len(graspable.mesh.triangles()))]
+                for quality, index_pair in zip(qualities, index_pairs):
+                    if quality > tau:
+                        vertex_labels[index_pair[0]] = 1
+                        vertex_labels[index_pair[1]] = 1
+                for j, tri in enumerate(graspable.mesh.triangles()):
+                    if mode == CONTACT_MODE_TRI_CENTERS and vertex_labels[j] == 1:
+                        triangle_labels[j] = 1
+                    elif vertex_labels[tri[0]] == 1 or vertex_labels[tri[1]] == 1 or vertex_labels[tri[2]] == 1:
+                        triangle_labels[j] = 1
+                        
+                # visualize
+                logging.info('Segmentation with tau = %f' %(tau))
+                mlab.clf()
+                graspable.mesh.visualize_segments(np.array(triangle_labels))
+                figname = 'obj_%s_tau_%f_mesh.png' %(obj_name, tau)                
+                mlab.savefig(os.path.join(config['out_dir'], figname))
+
+        #IPython.embed()
+
         # sort by quality
+        """
         grasps_and_qualities = zip(grasps, qualities)
         grasps_and_qualities.sort(key = lambda x: x[1], reverse = True)
         grasps = [g[0] for g in grasps_and_qualities]
@@ -423,4 +583,3 @@ if __name__ == '__main__':
         IPython.embed()
         exit(0)
         """
-        

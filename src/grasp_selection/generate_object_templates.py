@@ -60,7 +60,7 @@ if __name__ == '__main__':
         plt.show()
 
         # slice the sdf
-        z_slice = int(np.ceil(x0_grid[2]))
+        z_slice = int(np.ceil(x0_grid[2])+1)
         sdf_slice = sdf_tf.data_[:,:,z_slice]
         surface_points = np.where(np.abs(sdf_slice) < sdf_tf.surface_thresh_)
 

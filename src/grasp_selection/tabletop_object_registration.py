@@ -28,6 +28,7 @@ import experiment_config as ec
 import feature_file as ff
 import feature_matcher as fm
 import image_processing as ip
+import mayavi_visualizer as mv
 import mesh
 import obj_file as objf
 import rendered_image as ri
@@ -38,14 +39,45 @@ import tfx
 
 class DatabaseRegistrationResult:
     """ Struct to hold relevant output of registering an object from Dex-Net to real data """
-    def __init__(self, tf_obj_camera, nearest_images, nearest_distances, registration_results, best_index, total_runtime):
-        self.tf_obj_camera = tf_obj_camera
+    def __init__(self, tf_camera_obj, nearest_images, nearest_distances, registration_results, best_index, total_runtime):
+        self.tf_camera_obj = tf_camera_obj
         self.nearest_images = nearest_images
         self.nearest_distances = nearest_distances
         self.best_index = best_index
         self.total_runtime = total_runtime
 
 class TabletopRegistrationSolver:
+    def __init__(self, logging_dir=None):
+        self.logging_dir_ = logging_dir
+
+    def log_to(self, logging_dir):
+        self.logging_dir_ = logging_dir
+
+    def _table_to_stp_transform(self, T_table_camera, x0_stp, x0_table, config):
+        """ Compute a transformation to align the table normal with the z axis """
+        # load table plane from calib
+        R_obj_table = np.eye(3)
+        calibration_dir = config['calibration_dir']
+        R_camera_table = np.load(os.path.join(calibration_dir, 'rotation_camera_cb.npy'))
+
+        # transform the table normal from camera to table basis
+        n_table = T_table_camera.apply(R_camera_table[:,2], direction=True)
+        table_tan_x_table = np.array([-n_table[1], n_table[0], 0])
+        table_tan_x_table = table_tan_x_table / np.linalg.norm(table_tan_x_table)
+        table_tan_y_table = np.cross(n_table, table_tan_x_table)
+        t0 = R_obj_table[:,0].dot(table_tan_x_table)
+        t1 = R_obj_table[:,0].dot(table_tan_y_table)
+        xp = t0*table_tan_x_table + t1*table_tan_y_table
+        xp = xp / np.linalg.norm(xp)
+        yp = np.cross(n_table, xp)
+        Rp = np.c_[xp, yp, n_table]
+
+        # zero out x-y vals of target, since we only want the z values to match
+        x0_table[0] = 0.0
+        x0_table[1] = 0.0
+        T_stp_table = stf.SimilarityTransform3D(pose=tfx.pose(Rp.T, -Rp.T.dot(x0_table)), from_frame='stp', to_frame='stp')        
+        return T_stp_table
+
     def _create_query_image(self, color_im, depth_im, config, debug=False):
         """ Creates the query image for the database indexer """
         # read in params
@@ -63,6 +95,7 @@ class TabletopRegistrationSolver:
         depth_im_median_filter_dim = config['depth_im_median_filter_dim'] # the dimension of the cropped depth image
         depth_im_erosion_filter_dim = config['depth_im_erosion_filter_dim'] # the dimension of the cropped depth image
         cache_im_filename = config['cache_im_filename']
+        calibration_dir = config['calibration_dir']
 
         # threshold the depths
         depth_im = ip.DepthImageProcessing.threshold_depth(depth_im, front_thresh=table_front_depth, rear_thresh=table_rear_depth)
@@ -74,6 +107,7 @@ class TabletopRegistrationSolver:
 
         # TODO: replace with table transform
         # detect chessboard
+        """
         corner_px = ip.ColorImageProcessing.find_chessboard(color_im, vis=debug)
         if corner_px is None:
             raise ValueError('Chessboard must be visible in color image')
@@ -83,6 +117,13 @@ class TabletopRegistrationSolver:
         # fit a plane to the chessboard corners
         point_cloud_plane = point_cloud[:, corner_ind]
         n, mean_point_plane = ip.PointCloudProcessing.fit_plane(point_cloud_plane)
+        """
+
+        # load the camera calibration matrices
+        R_camera_table = np.load(os.path.join(calibration_dir, 'rotation_camera_cb.npy'))
+        t_camera_table = np.load(os.path.join(calibration_dir, 'translation_camera_cb.npy'))
+        n = R_camera_table[:,2]
+        mean_point_plane = t_camera_table
 
         # threshold to find objects on the table
         mean_point_plane = mean_point_plane + table_surface_tol * n.reshape(3,1)
@@ -97,7 +138,11 @@ class TabletopRegistrationSolver:
             plt.imshow(depth_im_crop, cmap=plt.cm.Greys_r, interpolation='none')
             plt.axis('off')
             plt.title('Cropped raw depth image', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'cropped_depth_image.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
 
         # remove spurious points by finding the largest connected object
         binary_im = ip.DepthImageProcessing.depth_to_binary(depth_im_crop)
@@ -114,9 +159,13 @@ class TabletopRegistrationSolver:
         if debug:
             plt.figure()
             plt.imshow(depth_im_crop_tf, cmap=plt.cm.Greys_r, interpolation='none')
-            plt.axis('off')
+            plt.axis('off')                            
             plt.title('Cropped, centered, and filtered depth image', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'cropped_and_centered_depth_image.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
 
         # compute normals for registration
         camera_c_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], focal_length,
@@ -144,7 +193,11 @@ class TabletopRegistrationSolver:
             plt.imshow(grayscale_im_crop_tf_index, cmap=plt.cm.Greys_r, interpolation='none')
             plt.axis('off')
             plt.title('Grayscale image for indexing', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'query_binary_image.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
         return query_image, query_point_cloud, query_object_normals, camera_i_params, tf_camera_c_camera_p
 
     def _query_database(self, query_image, database_indexer, config, debug=False):
@@ -156,7 +209,7 @@ class TabletopRegistrationSolver:
         nearest_neighbors = database_indexer.k_nearest(query_image, k=num_nearest_neighbors)
         nearest_images = nearest_neighbors[0]
         nearest_distances = nearest_neighbors[1]    
-
+        
         # visualize nearest neighbors for debugging
         if debug:
             font_size = config['font_size']
@@ -172,12 +225,17 @@ class TabletopRegistrationSolver:
             for j, (image, distance) in enumerate(zip(nearest_images, nearest_distances)):
                 plt.subplot(2, num_nearest_neighbors, j+num_nearest_neighbors+1)
                 plt.imshow(image.image, cmap=plt.cm.Greys_r, interpolation='none')
-                plt.title('NEIGHBOR %d, DISTANCE = %f' %(j, distance), fontsize=font_size)
+                plt.title('NEIGHBOR %d (%d), DISTANCE = %f' %(j, image.id, distance), fontsize=font_size)
                 plt.axis('off')
-            plt.show()
+
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'query_nearest_neighbors.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
         return nearest_images, nearest_distances
 
-    def _find_best_transformation(self, query_point_cloud, query_normals, candidate_rendered_images, dataset, config, debug=False):
+    def _find_best_transformation(self, query_point_cloud, query_normals, candidate_rendered_images, dataset, T_camera_p_camera_c, config, debug=False):
         """ Finds the best transformation from the candidate set using Point to Plane Iterated closest point """
         # read params
         icp_sample_size = config['icp_sample_size']
@@ -186,53 +244,120 @@ class TabletopRegistrationSolver:
         feature_matcher_dist_thresh = config['feature_matcher_dist_thresh']
         feature_matcher_norm_thresh = config['feature_matcher_norm_thresh']
         num_registration_iters = config['num_registration_iters']
+        compute_total_cost = config['compute_total_registration_cost']
 
         # register from nearest images
         registration_results = []
         min_cost = np.inf
         best_reg = None
+        best_T_stp_stp_p = None
         best_index = -1
         for i, neighbor_image in enumerate(candidate_rendered_images):
             # load object mesh
             obj = dataset.graspable(neighbor_image.obj_key)
-            object_mesh = obj.mesh
+
+            # subdivide the mesh
+            object_mesh, _ = obj.mesh.subdivide(min_triangle_length=0.025)
+
+            # form transforms
+            T_stp_camera = neighbor_image.stp_to_camera_transform().inverse()
+            T_stp_obj = neighbor_image.object_to_stp_transform()
+            source_mesh_ref_point = T_stp_obj.apply(neighbor_image.stable_pose.x0)
 
             # get source object points
-            source_mesh_tf = neighbor_image.camera_to_object_transform()        
-            source_object_mesh = object_mesh.transform(source_mesh_tf)
+            source_object_mesh = object_mesh.transform(T_stp_obj)
+            mn, mx = source_object_mesh.bounding_box()
+            z = mn[2]
+            x0_stp = np.array([0,0,-z])
+
+            T_stp_obj = stf.SimilarityTransform3D(pose=tfx.pose(T_stp_obj.rotation, x0_stp),
+                                                  from_frame='obj', to_frame='stp')
+            source_object_mesh = object_mesh.transform(T_stp_obj)
             source_object_mesh.compute_normals()
             source_object_points = np.array(source_object_mesh.vertices())
             source_object_normals = np.array(source_object_mesh.normals())
-            
+
+            # match table normals
             target_object_points = ip.PointCloudProcessing.remove_zero_points(query_point_cloud).T
             target_object_normals = ip.NormalCloudProcessing.remove_zero_normals(query_normals).T
+            target_object_points = T_stp_camera.apply(target_object_points.T).T
+            target_object_normals = T_stp_camera.apply(target_object_normals.T, direction=True).T
+
+            calibration_dir = config['calibration_dir']
+            t_camera_table = np.load(os.path.join(calibration_dir, 'translation_camera_cb.npy'))
+            x0_table = T_stp_camera.apply(T_camera_p_camera_c.inverse().apply(t_camera_table))
+            x0_table[2] = x0_table[2] - config['chessboard_thickness'] 
+
+            #min_z_ind = np.where(target_object_points[:,2] == np.min(target_object_points[:,2]))[0][0]
+            #x0_lowest = target_object_points[min_z_ind,:].T
+            #IPython.embed()
+
+            T_stp_stp_p = self._table_to_stp_transform(T_stp_camera, -x0_stp, x0_table, config)
+            target_object_points = T_stp_stp_p.apply(target_object_points.T).T
+            target_object_normals = T_stp_stp_p.apply(target_object_normals.T, direction=True).T
+            x0_table2 = T_stp_stp_p.apply(x0_table)
 
             # display the points relative to one another
             if debug:
+                subsample_inds2 = np.arange(source_object_points.shape[0])[::20]
                 subsample_inds = np.arange(target_object_points.shape[0])[::20]
-                mlab.figure()
-                mlab.points3d(source_object_points[:,0], source_object_points[:,1], source_object_points[:,2], color=(1,0,0), scale_factor = 0.005)
+                T_table_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
+                mlab.figure()                
+                mlab.points3d(source_object_points[subsample_inds2,0], source_object_points[subsample_inds2,1], source_object_points[subsample_inds2,2], color=(1,0,0), scale_factor = 0.005)
                 mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
+                mlab.points3d(x0_table[0], x0_table[1], x0_table[2], color=(1, 1,0), scale_factor = 0.015)
+                mlab.points3d(x0_table2[0], x0_table2[1], x0_table2[2], color=(0, 1,1), scale_factor = 0.015)
+                mlab.points3d(0,0,0, color=(1, 1,1), scale_factor = 0.03)
+
+                """
+                t = 1e-2
+                pair = np.zeros([2,3])
+                for k in subsample_inds2.tolist():
+                    pair[0,:] = source_object_points[k,:]
+                    pair[1,:] = source_object_points[k,:] + t * source_object_normals[k,:]
+                    mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
+                """
+
+                T_obj_world = mv.MayaviVisualizer.plot_stable_pose(object_mesh, neighbor_image.stable_pose, T_table_world)
+                mlab.axes()
                 mlab.show()
 
             # point to plane ICP solver
             ppis = reg.PointToPlaneICPSolver(sample_size=icp_sample_size, gamma=icp_relative_point_plane_cost, mu=icp_regularization_lambda)
             ppfm = fm.PointToPlaneFeatureMatcher(dist_thresh=feature_matcher_dist_thresh, norm_thresh=feature_matcher_norm_thresh) 
-            registration = ppis.register(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters, vis=debug)
+            registration = ppis.register_2d(source_object_points, target_object_points, source_object_normals, target_object_normals, ppfm, num_iterations=num_registration_iters,
+                                            compute_total_cost=compute_total_cost, vis=debug)
             registration_results.append(registration)
 
             logging.info('Neighbor %d registration cost %f' %(i, registration.cost))
             if registration.cost < min_cost:
                 min_cost = registration.cost
                 best_reg = registration
-                best_tf_camera_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_reg.R, best_reg.t))
+                best_T_stp_camera = T_stp_stp_p.dot(T_stp_camera)
+                best_T_stp_obj = T_stp_obj
+                best_T_stp_stp_p = stf.SimilarityTransform3D(pose=tfx.pose(best_reg.R, best_reg.t), from_frame='stp', to_frame='stp')
                 best_index = i
 
         # compute best transformation from object to camera basis
-        best_tf_obj_camera = candidate_rendered_images[best_index].camera_to_object_transform()
-        best_tf_obj_camera_p = best_tf_camera_camera_p.pose.matrix.dot(best_tf_obj_camera.pose.matrix)
-        best_tf_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_tf_obj_camera_p))
-        return best_tf_obj_camera_p, registration_results, best_index
+        #best_T_obj_stp = candidate_rendered_images[best_index].object_to_stp_transform().inverse()
+        best_T_obj_camera = best_T_stp_obj.inverse().dot(best_T_stp_stp_p.inverse()).dot(best_T_stp_camera)
+
+        """
+        subsample_inds = np.arange(target_object_points.shape[0])[::20]
+        mlab.figure()                
+        target_object_points = ip.PointCloudProcessing.remove_zero_points(query_point_cloud).T
+        #target_object_points = best_T_obj_camera.apply(target_object_points.T).T
+        object_mesh_tf = object_mesh.transform(best_T_obj_camera.inverse())
+        source_object_points = np.array(object_mesh_tf.vertices())
+        mlab.points3d(source_object_points[:,0], source_object_points[:,1], source_object_points[:,2], color=(1,0,0), scale_factor = 0.005)
+        mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
+        mlab.show()
+        """
+
+        #best_tf_obj_camera = candidate_rendered_images[best_index].camera_to_object_transform()
+        #best_tf_obj_camera_p = best_tf_camera_camera_p.pose.matrix.dot(best_tf_obj_camera.pose.matrix)
+        #best_tf_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(best_tf_obj_camera_p))
+        return best_T_obj_camera.inverse(), registration_results, best_index
 
     def register(self, color_im, depth_im, dataset, database_indexer, config, debug=False):
         """
@@ -270,23 +395,24 @@ class TabletopRegistrationSolver:
         if color_im.shape[0] != depth_im.shape[0] or color_im.shape[1] != depth_im.shape[1]:
             raise ValueError('Color and depth images must have the same dimension')
 
+        debug_or_save = debug or (self.logging_dir_ is not None)
+
         # remove points beyond table
         ip_start = time.time()
-        query_image, query_point_cloud, query_normals, camera_c_params, tf_camera_c_camera_p = \
-            self._create_query_image(color_im, depth_im, config, debug=debug)
+        query_image, query_point_cloud, query_normals, camera_c_params, T_camera_p_camera_c = \
+            self._create_query_image(color_im, depth_im, config, debug=debug_or_save)
         ip_end = time.time()
 
         # index the database for similar objects
         query_start = time.time()
-        nearest_images, nearest_distances = self._query_database(query_image, database_indexer, config, debug=debug)
+        nearest_images, nearest_distances = self._query_database(query_image, database_indexer, config, debug=debug_or_save)
         query_end = time.time()
 
         # register to the candidates
         registration_start = time.time()
-        best_tf_obj_camera_c, registration_results, best_index = \
-            self._find_best_transformation(query_point_cloud, query_normals, nearest_images, dataset, config, debug=debug)
-        tf_obj_camera_p = tf_camera_c_camera_p.pose.matrix.dot(best_tf_obj_camera_c.pose.matrix)
-        tf_obj_camera_p = stf.SimilarityTransform3D(pose=tfx.pose(tf_obj_camera_p))
+        T_camera_c_obj, registration_results, best_index = \
+            self._find_best_transformation(query_point_cloud, query_normals, nearest_images, dataset, T_camera_p_camera_c, config, debug=debug)
+        T_camera_p_obj = T_camera_p_camera_c.dot(T_camera_c_obj)
         registration_end = time.time()
 
         # log runtime
@@ -304,7 +430,7 @@ class TabletopRegistrationSolver:
 
             best_object = dataset.graspable(nearest_images[best_index].obj_key)
             best_object_mesh = best_object.mesh
-            best_object_mesh_tf = best_object_mesh.transform(best_tf_obj_camera_c)
+            best_object_mesh_tf = best_object_mesh.transform(T_camera_c_obj)
             object_point_cloud = np.array(best_object_mesh_tf.vertices()).T
             object_mesh_proj_pixels, mesh_valid_ind = camera_c_params.project(object_point_cloud)
 
@@ -312,13 +438,35 @@ class TabletopRegistrationSolver:
             plt.imshow(query_image.image, cmap=plt.cm.Greys_r, interpolation='none')
             plt.scatter(object_mesh_proj_pixels[0,mesh_valid_ind], object_mesh_proj_pixels[1,mesh_valid_ind], s=80, c='r')
             plt.title('Projected object mesh pixels', fontsize=font_size)
-            plt.show()
+            if self.logging_dir_ is None:
+                plt.show()
+            else:
+                figname = 'projected_mesh.png'
+                plt.savefig(os.path.join(self.logging_dir_, figname))
 
         # construct and return output
-        return DatabaseRegistrationResult(tf_obj_camera_p, nearest_images, nearest_distances, registration_results, best_index, total_runtime)
+        return DatabaseRegistrationResult(T_camera_p_obj, nearest_images, nearest_distances, registration_results, best_index, total_runtime)
 
 class KnownObjectTabletopRegistrationSolver(TabletopRegistrationSolver):
-    def register(self, color_im, depth_im, object_key, dataset, config, debug=False):
+    def __init__(self, object_key, dataset, config, logging_dir=None):
+        TabletopRegistrationSolver.__init__(self, logging_dir)
+        self.object_key_ = object_key
+        self.dataset_ = dataset
+        self.cnn_indexer_ = dbi.CNN_Hdf5ObjectIndexer(object_key, dataset, config)
+        self.config_ = config
+
+    def register(self, color_im, depth_im, debug=False):
         """ Create a CNN object indexer for registration """
-        cnn_indexer = dbi.CNN_Hdf5ObjectIndexer(object_key, dataset, config)
-        return TabletopRegistrationSolver.register(self, color_im, depth_im, dataset, cnn_indexer, config['registration'], debug=debug)
+        return TabletopRegistrationSolver.register(self, color_im, depth_im, self.dataset_, self.cnn_indexer_, self.config_['registration'], debug=debug)
+
+class KnownObjectStablePoseTabletopRegistrationSolver(TabletopRegistrationSolver):
+    def __init__(self, object_key, stable_pose_id, dataset, config, logging_dir=None):
+        TabletopRegistrationSolver.__init__(self, logging_dir)
+        self.object_key_ = object_key
+        self.dataset_ = dataset
+        self.cnn_indexer_ = dbi.CNN_Hdf5ObjectStablePoseIndexer(object_key, stable_pose_id, dataset, config)
+        self.config_ = config
+
+    def register(self, color_im, depth_im, debug=False):
+        """ Create a CNN object indexer for registration """
+        return TabletopRegistrationSolver.register(self, color_im, depth_im, self.dataset_, self.cnn_indexer_, self.config_['registration'], debug=debug)

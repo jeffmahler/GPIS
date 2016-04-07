@@ -1,12 +1,15 @@
 # directories
 bin/*
 build/*
-cfg/weight_search/*
+cache/*
+cfg/*
+data/*
 feedback/*
-matlab/dependencies/*
+matlab/*
 lib/*
 images/*
 results/*
+weights/*
 
 # temp files
 *~

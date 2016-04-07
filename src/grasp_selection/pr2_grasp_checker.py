@@ -163,7 +163,7 @@ class OpenRaveGraspChecker(object):
 
         return T_gripper_obj, T_robot_world
         
-    def view_grasps(self, graspable, object_grasps, auto_step=False, close_fingers=False):
+    def view_grasps(self, graspable, object_grasps, auto_step=False, close_fingers=False, delay=1):
         """ Display all of the grasps """
         if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
@@ -178,7 +178,7 @@ class OpenRaveGraspChecker(object):
             in_collision = self.env.CheckCollision(self.robot, obj)
             if not in_collision:
                 if auto_step:
-                    time.sleep(0.25)
+                    time.sleep(delay)
                 else:
                     user_input = 'x'
                     while user_input != '':
@@ -212,8 +212,6 @@ class OpenRaveGraspChecker(object):
 
             if T_gripper_obj is None:
                 continue
-
-            print 'Q =', grasp.quality
 
             # only display grasps out of collision
             in_collision = self.env.CheckCollision(self.robot, obj)
@@ -332,10 +330,11 @@ def grasp_model_figure():
     axis = np.array([1, 0, 0]) 
     axis = axis / np.linalg.norm(axis)
     width = 0.1
-    grasp = g.ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
+    grasp = g.ParallelJawPtGrasp3D(g.ParallelJawPtGrasp3D.configuration_from_params(center, axis, width))
 
     rotated_grasps = grasp.transform(graspable.tf, 2.0 * np.pi / 20.0)
     print len(rotated_grasps)
+    grasp_checker.view_grasps(graspable, rotated_grasps, delay = 1)
     grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=False, close_fingers=True, delay=1)
 
 if __name__ == "__main__":

@@ -34,11 +34,11 @@ def plot_kernels(obj_key, k_mat, pfc_diff, all_neighbor_kernels=None, all_neighb
     plt.title('Correlations', fontsize=font_size)
     plt.legend(scatter_objs, labels)
 
-def plot_grasp_histogram(quality, num_bins=100, font_size=10):
+def plot_grasp_histogram(quality, num_bins=100, font_size=10, min_q=0, max_q=1):
     """
     Generates a plot of the histograms of grasps by probability of force closure
     """
-    bin_edges = np.linspace(0, 1, num_bins+1)
+    bin_edges = np.linspace(min_q, max_q, num_bins+1)
     plt.figure()
     n, bins, patches = plt.hist(quality, bin_edges)
     plt.xlabel('Probability of Success', fontsize=font_size)

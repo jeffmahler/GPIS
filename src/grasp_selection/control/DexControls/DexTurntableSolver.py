@@ -5,7 +5,7 @@ from random import random
 import matplotlib.pylab as plt
 class DexTurntableSolver:
 
-    DEFAULT_SAMPLE_SIZE = 1000
+    DEFAULT_SAMPLE_SIZE = 10000
 
     @staticmethod
     def solve(r, d, phi, n = DEFAULT_SAMPLE_SIZE):

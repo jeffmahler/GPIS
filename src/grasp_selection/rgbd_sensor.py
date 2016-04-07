@@ -78,6 +78,10 @@ class RgbdSensor(object):
         if self.color_stream_:
             self.color_stream_.stop()
 
+    def reset(self):
+        self.stop()
+        self.start()
+
     def get_depth_image(self):
         frame = self.depth_stream_.read_frame()
         raw_buf = frame.get_buffer_as_uint16()
@@ -108,7 +112,7 @@ if __name__ == '__main__':
     # params
     load = False
     save = False
-    debug = False
+    debug = True
     vis = True
     eps = 0.0025
     table_end_depth = 1.0
@@ -199,7 +203,7 @@ if __name__ == '__main__':
 
     if vis:
         # read out parameters
-        tf_obj_camera_p = reg_result.tf_obj_camera
+        tf_obj_camera_p = reg_result.tf_camera_obj
         obj = dataset.graspable(object_key)
         object_mesh = obj.mesh
         object_mesh_tf= object_mesh.transform(tf_obj_camera_p)
@@ -226,4 +230,6 @@ if __name__ == '__main__':
         mlab.points3d(grasp_points_tf[:,0], grasp_points_tf[:,1], grasp_points_tf[:,2], color=(0,0,1), scale_factor = 0.02)
         mlab.title('Object Mesh (Red) Overlayed \n on Point Cloud (Green)', size=font_size)
         mlab.show()
+
+        tf_obj_camera_p.save('data/calibration/spray_pose.stf')
     IPython.embed()

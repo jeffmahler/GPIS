@@ -5,6 +5,7 @@ Author: Jeff Mahler
 """
 
 from abc import ABCMeta, abstractmethod
+import copy
 import IPython
 import logging
 import matplotlib.pyplot as plt
@@ -15,12 +16,15 @@ import random
 import sys
 import time
 
+import openravepy as rave
 import scipy.stats as stats
 
 import experiment_config as ec
 import grasp
 import graspable_object
 from grasp import ParallelJawPtGrasp3D
+import grasp_collision_checker as gcc
+import gripper as gr
 import obj_file
 import sdf_file
 
@@ -40,18 +44,20 @@ class ExactGraspSampler(GraspSampler):
 
     def _configure(self, config):
         """Configures the grasp generator."""
-        self.grasp_width = config['grasp_width']
+        self.gripper = gr.RobotGripper.load(config['gripper'])
         self.friction_coef = config['friction_coef']
         self.num_cone_faces = config['num_cone_faces']
         self.num_samples = config['grasp_samples_per_surface_point']
         self.dir_prior = config['dir_prior']
         self.alpha_thresh = 2 * np.pi / config['alpha_thresh_div']
         self.rho_thresh = config['rho_thresh']
-        self.min_num_grasps = config['min_num_grasps']
-        self.max_num_grasps = config['max_num_grasps']
+        self.target_num_grasps = config['target_num_grasps']
+        if self.target_num_grasps is None:
+            self.target_num_grasps = config['min_num_grasps']
+
         self.min_num_collision_free = config['min_num_collision_free_grasps']
         self.min_contact_dist = config['min_contact_dist']
-        self.theta_res = 2 * np.pi * config['grasp_theta_res']
+        self.num_grasp_rots = config['num_grasp_rots']
         self.alpha_inc = config['alpha_inc']
         self.rho_inc = config['rho_inc']
         self.friction_inc = config['friction_inc']
@@ -60,20 +66,26 @@ class ExactGraspSampler(GraspSampler):
         else:
             self.max_num_surface_points_ = 100
 
-    def generate_grasps(self, graspable,
-                        target_num_grasps=None, grasp_gen_mult=3, max_iter=3,
+    def generate_grasps(self, graspable, target_num_grasps=None, grasp_gen_mult=3, max_iter=3,
                         check_collisions=False, vis=False, **kwargs):
         """Generates an exact number of grasps.
         Params:
             graspable - (GraspableObject3D) the object to grasp
             target_num_grasps - (int) number of grasps to return, defualts to
-                self.min_num_grasps
+                self.target_num_grasps
             grasp_gen_mult - (int) number of additional grasps to generate
             max_iter - (int) number of attempts to return an exact number of
                 grasps before giving up
         """
+        # setup collision checking
+        if check_collisions:
+            rave.raveSetDebugLevel(rave.DebugLevel.Error)
+            collision_checker = gcc.OpenRaveGraspChecker(self.gripper, view=False)
+            collision_checker.set_object(graspable)
+
+        # get num grasps 
         if target_num_grasps is None:
-            target_num_grasps = self.min_num_grasps
+            target_num_grasps = self.target_num_grasps
         num_grasps_remaining = target_num_grasps
 
         grasps = []
@@ -83,7 +95,23 @@ class ExactGraspSampler(GraspSampler):
             num_grasps_generate = grasp_gen_mult * num_grasps_remaining
             new_grasps = self._generate_grasps(graspable, num_grasps_generate,
                                                check_collisions, vis, **kwargs)
-            grasps += new_grasps
+
+            # prune grasps in collision
+            coll_free_grasps = []
+            if check_collisions:
+                logging.info('Checking collisions')
+                for grasp in new_grasps:
+                    # construct a set of rotated grasps
+                    for i in range(self.num_grasp_rots):
+                        rotated_grasp = copy.copy(grasp)
+                        rotated_grasp.set_approach_angle(2 * i * np.pi / self.num_grasp_rots)
+                        if not collision_checker.in_collision(rotated_grasp):
+                            coll_free_grasps.append(rotated_grasp)
+                            break
+            else:
+                coll_free_grasps = new_grasps
+
+            grasps += coll_free_grasps
             logging.info('%d/%d grasps found after iteration %d.',
                          len(grasps), target_num_grasps, k)
 
@@ -97,6 +125,45 @@ class ExactGraspSampler(GraspSampler):
                          len(grasps), target_num_grasps)
             grasps = grasps[:target_num_grasps]
         logging.info('Found %d grasps.', len(grasps))
+
+        return grasps
+
+class UniformGraspSampler(ExactGraspSampler):
+    def _generate_grasps(self, graspable, num_grasps,
+                         check_collisions=False, vis=False, max_num_samples=1000):
+        """
+        Returns a list of candidate grasps for graspable object using uniform point pairs from the SDF
+        Params:
+            graspable - (GraspableObject3D) the object to grasp
+            num_grasps - (int) the number of grasps to generate
+        Returns:
+            list of ParallelJawPtGrasp3D objects
+        """
+        # get all surface points
+        surface_points, _ = graspable.sdf.surface_points(grid_basis=False)
+        num_surface = surface_points.shape[0]
+        i = 0
+        grasps = []
+
+        # get all grasps
+        while len(grasps) < num_grasps and i < max_num_samples:
+            # get candidate contacts
+            indices = np.random.choice(num_surface, size=2, replace=False)
+            c0 = surface_points[indices[0], :]
+            c1 = surface_points[indices[1], :]
+            
+            # compute centers and axes
+            grasp_center = ParallelJawPtGrasp3D.grasp_center_from_endpoints(c0, c1)
+            grasp_axis = ParallelJawPtGrasp3D.grasp_axis_from_endpoints(c0, c1)
+            g = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_center,
+                                                                                    grasp_axis,
+                                                                                    self.gripper.max_width))
+            # keep grasps if the fingers close
+            success, contacts = g.close_fingers(graspable)
+            if success:
+                grasps.append(g)
+            i += 1
+
         return grasps
 
 class GaussianGraspSampler(ExactGraspSampler):
@@ -134,7 +201,7 @@ class GaussianGraspSampler(ExactGraspSampler):
         # convert to grasp objects
         grasps = []
         for i in range(num_grasps):
-            grasp = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_centers[i,:], grasp_dirs[i,:], self.grasp_width))
+            grasp = ParallelJawPtGrasp3D(ParallelJawPtGrasp3D.configuration_from_params(grasp_centers[i,:], grasp_dirs[i,:], self.gripper.max_width))
             contacts_found, contacts = grasp.close_fingers(graspable)
 
             # add grasp if it has valid contacts
@@ -165,21 +232,6 @@ class GaussianGraspSampler(ExactGraspSampler):
             ax.set_ylim3d(0, graspable.sdf.dims_[1])
             ax.set_zlim3d(0, graspable.sdf.dims_[2])
             plt.show()
-
-        # optionally use openrave to check collisionsx
-        if check_collisions:
-            rave.raveSetDebugLevel(rave.DebugLevel.Error)
-            grasp_checker = pgc.OpenRaveGraspChecker(view=vis)
-
-            # loop through grasps
-            collision_free_grasps = []
-            for grasp in grasps:
-                rotated_grasps = grasp.transform(graspable.tf, self.theta_res)
-                rotated_grasps = grasp_checker.prune_grasps_in_collision(graspable, rotated_grasps, auto_step=True, delay=0.0)
-                if len(rotated_grasps) > 0:
-                    collision_free_grasps.append(grasp)
-
-            grasps = collision_free_grasps
 
         return grasps
 

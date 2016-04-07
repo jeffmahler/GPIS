@@ -1,5 +1,6 @@
 import copy
 import itertools as it
+import logging
 import numpy as np
 import os
 import sys
@@ -214,6 +215,10 @@ class GraspQualityRV(rvs.RandomVariable):
         q = pgq.PointGraspMetrics3D.grasp_quality(grasp_sample, obj_sample, self.quality_metric_, friction_coef = friction_coef_sample,
                                                   num_cone_faces = self.num_cone_faces_, soft_fingers = self.soft_fingers_,
                                                   params = params_rv_sample)
+        quality_time = time.clock()
+
+        #logging.info('Took %f sec to compute quality' %(quality_time - friction_time))
+
         self.sample_count_ = self.sample_count_ + 1
         return q
 
@@ -284,10 +289,8 @@ class RobustGraspQuality:
                              snapshot_rate = snapshot_rate)
 
         # convert to estimated prob success
+        # TODO: return variances?
         final_model = ua_result.models[-1]
         mn_q = final_model.means
-        if not compute_variance:
-            return mn_q[0]
-        var_q = models.BetaBernoulliModel.sample_variance(final_model.alphas, final_model.betas)
-        return mn_q, var_q
+        return mn_q[0]
         
