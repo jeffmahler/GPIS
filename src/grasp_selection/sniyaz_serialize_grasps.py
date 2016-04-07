@@ -12,24 +12,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
 
-import antipodal_grasp_sampler as ags
 import database as db
-import discrete_adaptive_samplers as das
 import experiment_config as ec
-import feature_functions as ff
-import grasp_sampler as gs
-import json_serialization as jsons
-import kernels
-import models
-import objectives
-import pfc
-import pr2_grasp_checker as pgc
-import random_variables as rvs
-import robust_grasp_quality as rgq
-import termination_conditions as tc
 
-
-
+print("faff")
 
 np.random.seed(100)
 parser = argparse.ArgumentParser()
@@ -61,9 +47,6 @@ for dataset_name in config['datasets'].keys():
     # label each object in the dataset with grasps
     for obj in dataset:
         obj_grasp = dataset.grasp_data(obj.key, "zeke")
-
-
-
 
 
 
