@@ -14,8 +14,7 @@ import scipy.stats
 
 import database as db
 import experiment_config as ec
-
-print("faff")
+import gripper
 
 if __name__ == '__main__':
 
@@ -35,6 +34,8 @@ if __name__ == '__main__':
     output_db_filename = os.path.join(args.output_dest, config['results_database_name'])
     output_db = db.Hdf5Database(output_db_filename, config, access_level=db.WRITE_ACCESS)
 
+    zeke_gripper = gripper.RobotGripper.load("zeke")
+
     for dataset_name in config['datasets'].keys():
         dataset = database.dataset(dataset_name)
 
@@ -48,7 +49,11 @@ if __name__ == '__main__':
 
         # label each object in the dataset with grasps
         for obj in dataset:
-            obj_grasp = dataset.grasp_data(obj.key)
+            obj_grasps = dataset.grasps(obj.key, "zeke")
+            for grasp in obj_grasps:
+                gripper_pose = grasp.gripper_transform(zeke_gripper)
+                print(gripper_pose)
+
 
 
 
