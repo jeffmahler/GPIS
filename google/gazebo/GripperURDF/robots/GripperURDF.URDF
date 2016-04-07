@@ -1,0 +1,159 @@
+<robot
+  name="GripperURDF">
+  <link
+    name="base">
+    <inertial>
+      <origin
+        xyz="-0.0350275963710342 -0.0140902078826457 0.020398457673035"
+        rpy="0 0 0" />
+      <mass
+        value="0.335975637124264" />
+      <inertia
+        ixx="0.00035164096991688"
+        ixy="-1.87901229353083E-20"
+        ixz="2.98644895941601E-05"
+        iyy="0.000276154354455192"
+        iyz="-1.35904308781477E-06"
+        izz="0.000446088143847476" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://GripperURDF/meshes/base.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://GripperURDF/meshes/base.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="f1">
+    <inertial>
+      <origin
+        xyz="0.00428784097103253 0.0477993967691396 0.029297929373817"
+        rpy="0 0 0" />
+      <mass
+        value="0.0534008838042191" />
+      <inertia
+        ixx="1.61183677526193E-05"
+        ixy="1.23591150705981E-06"
+        ixz="-5.7935143724958E-07"
+        iyy="1.41097437987006E-05"
+        iyz="-1.25183645568183E-06"
+        izz="2.17987191167531E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://GripperURDF/meshes/f1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://GripperURDF/meshes/f1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="slide1"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base" />
+    <child
+      link="f1" />
+    <axis 
+      xyz="1 0 0" />
+    <limit
+      effort="50"
+      velocity="0.06"
+      lower="0" 
+      upper="0.045" />
+  </joint>
+  <link
+    name="f2">
+    <inertial>
+      <origin
+        xyz="0.0042878409741225 -0.076997516016323 0.0279856509695257"
+        rpy="0 0 0" />
+      <mass
+        value="0.0534008838067077" />
+      <inertia
+        ixx="1.61183677530301E-05"
+        ixy="-1.23591150516639E-06"
+        ixz="5.79351436628602E-07"
+        iyy="1.41097438090891E-05"
+        iyz="-1.25183645580142E-06"
+        izz="2.17987191274768E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://GripperURDF/meshes/f2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://GripperURDF/meshes/f2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="slide2"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base" />
+    <child
+      link="f2" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      effort="50"
+      velocity="0.06"
+      lower="-0.045"
+      upper="0" />
+  </joint>
+</robot>
