@@ -264,7 +264,7 @@ class MayaRenderer(object):
 			radius += radial_increment
 		return rendered_images
 
-	def render(self, graspable, dataset, render_mode='color', rot=np.eye(3), save_images=False, extra_key=''):
+	def render(self, graspable, dataset, render_mode='color', rot=np.eye(3), save_images=False, extra_key='', obj_filename=None):
 		""" Renders the graspable according to the class config """
 		# form key
 		key = graspable.key + extra_key
@@ -274,8 +274,9 @@ class MayaRenderer(object):
 				os.mkdir(render_dir)
 
 		# generate obj file and create scene
-		obj_file_name = dataset.obj_mesh_filename(graspable.key)
-		import_success = self.create_scene_with_mesh(obj_file_name, rot)
+		if obj_filename is None:
+			obj_filename = dataset.obj_mesh_filename(graspable.key)
+		import_success = self.create_scene_with_mesh(obj_filename, rot)
 
 		# render the images
 		rendered_images = []
@@ -312,6 +313,10 @@ if __name__ == '__main__':
 			stable_poses = dataset.stable_poses(obj.key)
 			for i, stable_pose in enumerate(stable_poses):
 				if stable_pose.p > config['maya']['min_prob']:
+					# HACK: to fix stable pose bug
+					if np.abs(np.linalg.det(stable_pose.r) + 1.0) < 0.01: 
+						stable_pose.r[1,:] = -stable_pose.r[1,:]
+
 					rendered_images = renderer.render(obj, dataset, render_mode=render_mode, rot=stable_pose.r, extra_key='_stp_%d'%(i), save_images=save_images)
 					dataset.store_rendered_images(obj.key, rendered_images, stable_pose_id=stable_pose.id, image_type=render_mode)
 	
