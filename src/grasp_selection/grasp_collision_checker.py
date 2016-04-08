@@ -143,6 +143,9 @@ class OpenRaveGraspChecker(object):
         
     def in_collision(self, grasp):
         """ Check collision of grasp with current objects """
+        if isinstance(grasp, g.ParallelJawPtGrasp3D):
+            grasp = grasp.gripper_transform(self.gripper_)
+
         if self.obj_ is None:
             logging.warning('Cannot use fast collision check without preloaded object')
             return False
@@ -150,7 +153,7 @@ class OpenRaveGraspChecker(object):
         if self.env.GetViewer() is None and self.view_:
             self.env.SetViewer('qtcoin')
 
-        self.move_to_pregrasp(grasp.gripper_transform(self.gripper_))
+        self.move_to_pregrasp(grasp)
         return self.env.CheckCollision(self.gripper_obj_, self.obj_)
 
     def collision_between(self, graspable, grasp):

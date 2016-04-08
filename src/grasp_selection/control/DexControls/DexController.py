@@ -73,14 +73,21 @@ class DexController:
         #for debugging plot
         self._latest_pose = target_pose.copy()
         self._latest_angles = deepcopy(angles)
-        
+
         #transform target_pose to table
         logging.info('Rotation table to grasp pose')
         target_obj_angle = aligned_obj_angle - original_obj_angle
-        if target_obj_angle <= -turntable_state.table_rot:
-            target_obj_angle += 2*pi
+        target_turntable_angle = target_obj_angle + turntable_state.table_rot
 
-        target_table_state = TurntableState().set_table_rot(target_obj_angle + turntable_state.table_rot)
+        # check valid angles
+        if target_turntable_angle <= TurntableState.MIN_STATE().table_rot or \
+                target_turntable_angle > TurntableState.MAX_STATE().table_rot:
+            target_turntable_angle = target_turntable_angle - TurntableState.THETA
+            target_turntable_angle = target_turntable_angle % (2*pi)
+            target_turntable_angle = target_turntable_angle + TurntableState.THETA
+            
+        logging.info('Rotating table to %f' %(target_turntable_angle))
+        target_table_state = TurntableState().set_table_rot(target_turntable_angle)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
         
         #wait til completed
@@ -130,7 +137,7 @@ class DexController:
         u_x = array([x_axis_grasp[0], x_axis_grasp[2]])
         v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
 
-        psi = _angle_2d(u_x, v_x)
+        psi = _angle_2d(v_x, u_x)
         logging.info('Psi: %f' %psi)
         
         #gamma is angle between the y-axis of the grasp in world frame and the table's xy plane
@@ -237,6 +244,7 @@ def test_state_sequence():
     target_state.set_arm_ext(ZekeState.ZEKE_ARM_ORIGIN_OFFSET - ZekeState.ZEKE_ARM_TO_GRIPPER_TIP_LENGTH)
     target_state.set_arm_rot(ZekeState.PHI + np.pi)
     target_state.set_gripper_grip(0.037)
+    target_state.set_gripper_rot(4.26)
     print 'Target'
     print target_state
 
@@ -244,15 +252,16 @@ def test_state_sequence():
     t._table.reset()
     t._robot.gotoState(target_state)
 
-    IPython.embed()
-
     target_state.set_arm_elev(0.1)
     t._robot.gotoState(target_state)
 
-    target_state.set_arm_rot(ZekeState.PHI + 7 * np.pi / 8)
+    target_state.set_gripper_rot(3.14)
     t._robot.gotoState(target_state)
 
-    target_state.set_gripper_rot(3.14)
+    target_state.set_gripper_rot(4.26)
+    t._robot.gotoState(target_state)
+
+    target_state.set_arm_rot(ZekeState.PHI + 7 * np.pi / 8)
     t._robot.gotoState(target_state)
 
     current_state = t._robot.getState()
@@ -302,4 +311,6 @@ def test_grip():
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    t = test_state_sequence()
+    test_grip()
+    #t = test_state()
+    #t = test_state_sequence()

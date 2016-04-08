@@ -23,7 +23,7 @@ class DexRobotZeke:
     RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi, 0.036]),
                     "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi, None]),
                     "OBJECT_RESET" : ZekeState([3 * pi / 2 + ZekeState.PHI, 0.01, 0.02, ZekeState.THETA + pi, None]),
-                    #"OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.22, 0.02, ZekeState.THETA + pi, 0.00]),
+                    #"OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.25, 0.02, ZekeState.THETA + pi, 0.00]),
                     "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None]), 
                     "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None]),
                     "ZEKE_RESET_CLEAR_TABLE" : ZekeState([3 * pi /2 + + ZekeState.PHI, None, None, None, None])}
@@ -136,6 +136,7 @@ class DexRobotZeke:
             target_theta = target_theta - 2 * np.pi
 
         # snap grasp height to valid range
+        print 'Delta h', delta_h_wrist_fingers
         target_elev = target_pose.position.z - ZekeState.DELTA_Z - delta_h_wrist_fingers
         if target_elev < 0.0:
             logging.info('Snapping to valid height') 

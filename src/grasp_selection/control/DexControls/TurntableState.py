@@ -9,15 +9,15 @@ class TurntableState:
                 
     @staticmethod
     def INIT_STATE():
-        return TurntableState([0.4819])
+        return TurntableState([TurntableState.THETA])
 
     @staticmethod
     def MIN_STATE():
-        return TurntableState([0.4819])
+        return TurntableState([TurntableState.THETA])
         
     @staticmethod
     def MAX_STATE():
-        return TurntableState([0.4819 + 2 * pi])
+        return TurntableState([TurntableState.THETA + 2 * pi])
         
     @staticmethod
     def is_rot(i):

@@ -74,9 +74,9 @@ def vis_corrs(source_points, target_points, matches, source_normals=None, target
 
     if source_normals is not None:
         t = 1e-2
-        num_source = 200#source_points.shape[0]
+        subsample_inds = np.random.choice(source_points.shape[0], size=200).tolist()
         pair = np.zeros([2,3])
-        for i in range(num_source):
+        for i in subsample_inds:
             pair[0,:] = source_points[i,:]
             pair[1,:] = source_points[i,:] + t * source_normals[i,:]
             mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
@@ -466,8 +466,8 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         target_mean_point = np.mean(target_points, axis=0)
         R_sol = np.eye(3)
         t_sol = np.zeros([3, 1]) #init with diff between means
-        t_sol[:,0] = target_mean_point - source_mean_point
-        t_sol[2,0] = 0
+        #t_sol[:,0] = target_mean_point - source_mean_point
+        #t_sol[2,0] = 0
 
         if vis:
             vis_corrs(orig_source_points, target_points, None, plot_lines=False)                    

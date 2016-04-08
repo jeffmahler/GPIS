@@ -81,7 +81,7 @@ class MayaviVisualizer:
         mv.points3d(point_cloud_tf[:,0], point_cloud_tf[:,1], point_cloud_tf[:,2], color=color, scale_factor=scale)
 
     @staticmethod
-    def plot_grasp(grasp, T_obj_world, plot_approach=False, alpha=0.5, tube_radius=0.005, endpoint_color=(0,1,0), endpoint_scale=0.01, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1),
+    def plot_grasp(grasp, T_obj_world, plot_approach=False, alpha=0.5, tube_radius=0.002, endpoint_color=(0,1,0), endpoint_scale=0.004, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1),
                    stp=None):
         g1, g2 = grasp.endpoints()
         center = grasp.center
@@ -90,7 +90,7 @@ class MayaviVisualizer:
         center_tf = T_obj_world.inverse().apply(center)
         grasp_axis_tf = np.array([g1_tf, g2_tf])
 
-        T_gripper_obj = grasp.gripper_transform(gripper='zeke')
+        T_gripper_obj = grasp.gripper_transform(gripper=ZEKE_GRIPPER)
         palm_axis = T_gripper_obj.inverse().rotation[:,1]
 
         axis_tf = np.array([g1_tf, g2_tf])
@@ -137,20 +137,20 @@ def test_zeke_gripper():
     R_mesh_gripper = np.array([[0, -1, 0],
                                [1, 0, 0],
                                [0, 0, 1]])
-    t_mesh_gripper = np.array([0.092, 0.0, 0.011])
+    t_mesh_gripper = np.array([0.085, 0.0, 0.011])
     T_mesh_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_mesh_gripper, t_mesh_gripper),
                                                from_frame='gripper', to_frame='mesh')
     T_gripper_world = T_mesh_gripper.inverse().dot(T_mesh_world)
     T_grasp_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_grasp_gripper), from_frame='gripper', to_frame='grasp')
 
-    T_mesh_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/T_mesh_gripper.stf')
-    T_grasp_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/T_grasp_gripper.stf')
+    #T_mesh_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/T_mesh_gripper.stf')
+    #T_grasp_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/T_grasp_gripper.stf')
 
     gripper_params = {}
     gripper_params['min_width'] = 0.0
     gripper_params['max_width'] = 0.082
-    f = open('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/params.json', 'w')
-    json.dump(gripper_params, f)
+    #f = open('/home/jmahler/jeff_working/GPIS/data/grippers/zeke/params.json', 'w')
+    #json.dump(gripper_params, f)
 
     MayaviVisualizer.plot_pose(T_mesh_world, alpha=0.05, tube_radius=0.0025, center_scale=0.005)
     MayaviVisualizer.plot_pose(T_gripper_world, alpha=0.05, tube_radius=0.0025, center_scale=0.005)
@@ -197,4 +197,4 @@ def test_fanuc_gripper():
 
 if __name__ == '__main__':
     test_zeke_gripper()
-    test_fanuc_gripper()
+    #test_fanuc_gripper()

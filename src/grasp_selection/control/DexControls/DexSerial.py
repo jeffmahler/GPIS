@@ -295,7 +295,7 @@ class DexSerialInterface:
                 
         if self._target_state is None:
             self._target_state = self.getState()
-        
+
         if rot_speed > DexConstants.MAX_ROT_SPEED or tra_speed > DexConstants.MAX_TRA_SPEED:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))

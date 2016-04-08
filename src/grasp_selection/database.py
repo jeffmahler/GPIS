@@ -320,6 +320,10 @@ class Hdf5Dataset(Dataset):
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
 
+    def update_mesh(self, key, mesh):
+        """ Updates the mesh for the given key """
+        hfact.Hdf5ObjectFactory.write_mesh_3d(mesh, self.mesh_data(key), force_overwrite=True)
+
     def obj_mesh_filename(self, key, scale=1.0):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))

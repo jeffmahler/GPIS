@@ -8,8 +8,10 @@ import IPython
 import numpy as np
 import Queue
 import os
+import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 import sklearn.decomposition
+import skimage.draw
 import sys
 import tfx
 
@@ -378,7 +380,77 @@ class Mesh3D(object):
             # fill in area on image
             img_draw.polygon([tuple(verts_proj[:,0]), tuple(verts_proj[:,1]), tuple(verts_proj[:,2])], fill=255)
         return fill_img
-    
+
+    def project_depth(self, camera_params):
+        '''
+        Project the triangles of the mesh into a binary image which is 1 if the mesh is
+        visible at that point in the image and 0 otherwise.
+        The image is assumed to be taken from a camera with specified params at
+        a given relative pose to the mesh.
+        Params:
+           camera_params: CameraParams object
+           camera_pose: 4x4 pose matrix (camera in mesh basis)
+        Returns:
+           PIL binary image (1 = mesh projects to point, 0 = does not)
+        '''
+        vertex_array = np.array(self.vertices_)
+        verts_proj, valid = camera_params.project(vertex_array.T)
+        
+        height = camera_params.height()
+        width = camera_params.width()
+        depth_im = np.zeros([height, width])
+        
+        for t in self.triangles_:
+            # get pixels and depths
+            u0 = verts_proj[:,t[0]]
+            u1 = verts_proj[:,t[1]]
+            u2 = verts_proj[:,t[2]]
+            d0 = vertex_array[t[0],2]
+            d1 = vertex_array[t[1],2]
+            d2 = vertex_array[t[2],2]
+
+            # precompute barycentric coord quantities
+            v0 = u1 - u0
+            v1 = u2 - u0
+            d00 = v0.dot(v0)
+            d01 = v0.dot(v1)
+            d11 = v1.dot(v1)
+            denom = d00 * d11 - d01 * d01
+
+            # compute pixels withing the projected triangle
+            pixels = skimage.draw.polygon(np.array([u0[1], u1[1], u2[1]]),
+                                          np.array([u0[0], u1[0], u2[0]]))                                         
+            num_pixels = pixels[0].shape[0]
+
+            # interpolate depth for each pixel
+            for i in range(num_pixels):
+                u = np.array([pixels[1][i], pixels[0][i]])
+                if u[0] >= 0 and u[0] < width and u[1] >= 0 and u[1] < height:
+                    # compute barycentric coords
+                    v2 = u - u0 
+                    d20 = v2.dot(v0)
+                    d21 = v2.dot(v1)
+                    b = (d11 * d20 - d01 * d21) / denom
+                    c = (d00 * d21 - d01 * d20) / denom
+                    a = 1.0 - b - c
+
+                    # interpolate depth
+                    d = a * d0 + b * d1 + c * d2
+
+                    # assign depth if closer than current value
+                    if depth_im[u[1], u[0]] == 0 or d < depth_im[u[1], u[0]]:
+                        depth_im[u[1], u[0]] = d
+        
+        return depth_im
+        """
+        plt.imshow(depth_im, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.axis('off')
+        plt.show()
+
+        IPython.embed()
+        exit(0)
+        """
+
     def remove_unreferenced_vertices(self):
         '''
         Clean out vertices (and normals) not referenced by any triangles.
