@@ -150,54 +150,54 @@ if __name__ == '__main__':
     ###########################
     ##### Plotting things #####
     ###########################
+    if config['debug']:
+        # plot and display corner detection on camera image
+        plt.scatter(corner_px_round[:,0], corner_px_round[:,1])
+        plt.show()
 
-    # plot and display corner detection on camera image
-    plt.scatter(corner_px_round[:,0], corner_px_round[:,1])
-    plt.show()
+        # separate vector into components for easier plotting
+        mpx, mpy, mpz = translation
 
-    # separate vector into components for easier plotting
-    mpx, mpy, mpz = translation
+        # axis vectors scaled down for better visibility
+        xdraw = proj_orient / config['scale_amt']
+        ydraw =  yaxis / config['scale_amt']
+        zdraw = n / config['scale_amt']
 
-    # axis vectors scaled down for better visibility
-    xdraw = proj_orient / config['scale_amt']
-    ydraw =  yaxis / config['scale_amt']
-    zdraw = n / config['scale_amt']
+        # plot chessboard corners in camera basis
+        ax = Axes3D(plt.figure())
+        ax.scatter(points_3d_plane[0,:], points_3d_plane[1,:], points_3d_plane[2,:])
 
-    # plot chessboard corners in camera basis
-    ax = Axes3D(plt.figure())
-    ax.scatter(points_3d_plane[0,:], points_3d_plane[1,:], points_3d_plane[2,:])
+        # plot axis vectors
+        t = translation
+        ax.plot([t[0],t[0]+xdraw[0]], [t[1],t[1]+xdraw[1]], zs=[t[2],t[2]+xdraw[2]], color='r')
+        ax.plot([t[0],t[0]+ydraw[0]], [t[1],t[1]+ydraw[1]], zs=[t[2],t[2]+ydraw[2]], color='g')
+        ax.plot([t[0],t[0]+zdraw[0]], [t[1],t[1]+zdraw[1]], zs=[t[2],t[2]+zdraw[2]], color='b')
 
-    # plot axis vectors
-    t = translation
-    ax.plot([t[0],t[0]+xdraw[0]], [t[1],t[1]+xdraw[1]], zs=[t[2],t[2]+xdraw[2]], color='r')
-    ax.plot([t[0],t[0]+ydraw[0]], [t[1],t[1]+ydraw[1]], zs=[t[2],t[2]+ydraw[2]], color='g')
-    ax.plot([t[0],t[0]+zdraw[0]], [t[1],t[1]+zdraw[1]], zs=[t[2],t[2]+zdraw[2]], color='b')
+        # display point plot in camera perspective
+        plt.show()
 
-    # display point plot in camera perspective
-    plt.show()
+        # rotate axis vectors to new basis
+        xdraw = np.dot(rotation, proj_orient) / config['scale_amt'] 
+        ydraw = np.dot(rotation, yaxis) / config['scale_amt']
+        zdraw = np.dot(rotation, n) / config['scale_amt']
 
-    # rotate axis vectors to new basis
-    xdraw = np.dot(rotation, proj_orient) / config['scale_amt'] 
-    ydraw = np.dot(rotation, yaxis) / config['scale_amt']
-    zdraw = np.dot(rotation, n) / config['scale_amt']
+        # plot chessboard corners in world basis
+        translate_matrix = np.hstack(tuple([translation for i in range(points_3d_plane.shape[1])]))
+        transformed_points = np.dot(rotation, points_3d_plane - translate_matrix)
+        ax = Axes3D(plt.figure())
+        ax.scatter(transformed_points[0,:], transformed_points[1,:], transformed_points[2,:])
 
-    # plot chessboard corners in world basis
-    translate_matrix = np.hstack(tuple([translation for i in range(points_3d_plane.shape[1])]))
-    transformed_points = np.dot(rotation, points_3d_plane - translate_matrix)
-    ax = Axes3D(plt.figure())
-    ax.scatter(transformed_points[0,:], transformed_points[1,:], transformed_points[2,:])
+        # plot axis vectors
+        ax.plot([0,xdraw[0]], [0,xdraw[1]], zs=[0,xdraw[2]], color='r')
+        ax.plot([0,ydraw[0]], [0,ydraw[1]], zs=[0,ydraw[2]], color='g')
+        ax.plot([0,zdraw[0]], [0,zdraw[1]], zs=[0,zdraw[2]], color='b')
 
-    # plot axis vectors
-    ax.plot([0,xdraw[0]], [0,xdraw[1]], zs=[0,xdraw[2]], color='r')
-    ax.plot([0,ydraw[0]], [0,ydraw[1]], zs=[0,ydraw[2]], color='g')
-    ax.plot([0,zdraw[0]], [0,zdraw[1]], zs=[0,zdraw[2]], color='b')
+        # plot camera position in world basis
+        camera = np.dot(rotation, -translation)
+        ax.scatter(camera[0,0], camera[1,0], camera[2,0], color='y')
 
-    # plot camera position in world basis
-    camera = np.dot(rotation, -translation)
-    ax.scatter(camera[0,0], camera[1,0], camera[2,0], color='y')
-
-    # display 3D point plot in world coordinates
-    ax.set_xlim(-5.0/config['scale_amt'],5.0/config['scale_amt'])
-    ax.set_ylim(-5.0/config['scale_amt'],5.0/config['scale_amt'])
-    ax.set_zlim(-5.0/config['scale_amt'],5.0/config['scale_amt'])
-    plt.show()
+        # display 3D point plot in world coordinates
+        ax.set_xlim(-5.0/config['scale_amt'],5.0/config['scale_amt'])
+        ax.set_ylim(-5.0/config['scale_amt'],5.0/config['scale_amt'])
+        ax.set_zlim(-5.0/config['scale_amt'],5.0/config['scale_amt'])
+        plt.show()

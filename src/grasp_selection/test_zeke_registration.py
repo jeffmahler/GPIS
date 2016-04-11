@@ -188,13 +188,15 @@ if __name__ == '__main__':
     exit(0)
     """
 
+    """
     T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
     for stable_pose in stable_poses:
         print 'Stable pose', stable_pose.id
         mv.figure()
-        mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world)
+        mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world, d=0.15)
         mv.show()
     exit(0)
+    """
 
     stable_pose = stable_poses[config['stable_pose_index']]
     

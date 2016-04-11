@@ -8,7 +8,7 @@ sx: 6
 sy: 9
 
 # Angle of the table to the world reference in degrees
-table_angle: 27.5
+table_angle: 27
 
 # Rotation and translation save directory
 save_dir: 'data/calibration/'
@@ -17,7 +17,10 @@ save_dir: 'data/calibration/'
 num_images: 1
 
 # Number of separate calibrations to average
-num_avg: 10
+num_avg: 20
 
 # Figure plotting
 scale_amt: 10.0
+
+# Debugging on or off
+debug: 0

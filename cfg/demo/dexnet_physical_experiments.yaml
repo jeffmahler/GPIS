@@ -1,0 +1,164 @@
+# Core parameters ####################################################
+# !include partials/paths_rll4_jeff.yaml
+root_dir:     /home/jmahler/jeff_working/GPIS/
+cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
+
+# DB generation params
+shape_data_dir: /mnt/terastation/shape_data
+database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
+database_cache_dir: *id_database_dir
+database_name: physical_experiment_render_db.hdf5
+results_database_name: results.hdf5
+
+datasets:
+  dexnet_physical_experiments:
+    start_index: 0
+    end_index: 40
+
+# Grasp-specific params
+object_name: pipe_connector
+stable_pose_index: 6
+
+load_object: 0
+debug: 0
+
+num_grasp_trials: 10
+num_grasps_to_sample: 1
+grasp_metric: pfc_f_0.100000_tg_0.005000_rg_0.100000_to_0.005000_ro_0.100000
+lift_height: 0.2
+
+use_stable_poses: 1
+image_type: segmask
+
+max_iter: 60
+snapshot_rate: 1
+min_triangle_length: 0.025
+gripper: zeke
+
+# Plotting params
+alpha: 0.05
+center_scale: 0.0075
+tube_radius: 0.0025
+table_extent: 0.5
+num_grasp_views: 8
+cam_dist: 1.00
+
+# Params
+min_dim: 0.09
+sdf_dim: 50
+sdf_padding: 5
+density: 2000.0
+gripper_size: 0.1
+mass_thresh: 0.01
+default_mass: 1.0
+
+# Registration configuration
+registration:
+  table_front_depth: 0.0
+  table_rear_depth:  0.9
+  table_surface_tol: 0.005
+
+  focal_length: 525
+  index_im_dim: 256
+  depth_im_crop_dim: 400
+  depth_im_median_filter_dim: 9
+  depth_im_erosion_filter_dim: 3
+  
+  cache_im_filename: data/cnn_grayscale_image.jpg
+  calibration_dir: data/calibration
+  chessboard_thickness: 0.004
+
+  num_nearest_neighbors: 3
+  icp_sample_size: 500
+  icp_relative_point_plane_cost: 100
+  icp_regularization_lambda: 0.01
+  feature_matcher_dist_thresh: 0.025
+  feature_matcher_norm_thresh: 0.75
+  num_registration_iters: 5
+  compute_total_registration_cost: 1
+
+  font_size: 15
+
+# Caffe configuration
+caffe:
+  caffe_tools: '/home/jmahler/Libraries/caffe/build/tools/'
+  config_dir: '/home/jmahler/mel/GPIS_data/caffe_data/'
+  caffe_model: 'caffenet.caffemodel'
+  caffe_finetuning_model: 'alexnet.caffemodel'
+  deploy_file: 'deploy_conv5.prototxt'
+  mean_file: 'mean.npy'
+
+  portion_training: 1.00
+  deploy_mode: 'gpu'
+  batch_size: 10
+  pooling_method: 'mean'
+
+  rendered_image_ext: '.jpg'
+  rendered_image_dir: '/home/jmahler/mel/GPIS_data/rendered_sets/all'
+
+  images_per_object: 50
+  raw_scale: 255
+  image_dim_x: 256
+  image_dim_y: 256
+
+# Convex decomposition
+cvx_decomp:
+  hacd_cmd_template: 'hacd %s %d %d %d %d %d %d %d'
+  min_num_clusters: 10
+  max_concavity: 100
+  invert_input_faces: 0
+  extra_dist_points: 1
+  add_faces_points: 1
+  connected_components_dist: 30
+  target_num_triangles: 10000
+
+dataset_counts: data/counts.txt
+num_trials: 0
+sleep_time: 10
+
+priors_dataset: keys_10000_train_and_val
+priors_feature_names:
+  - nearest_features_1000_train_and_val
+
+!include partials/experiment_params.yaml
+
+# GCE parameters #####################################################
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+disk_type:      &id_disk_type      PERSISTENT
+num_processes: 8
+project:        nth-clone-620
+bucket:          dex-net-results-2 # TODO
+compute:
+  project:        &id_project        nth-clone-620
+  bucket:         &id_bucket         dex-net-results-2 # TODO
+  api_version:    v1
+  machine_type:   n1-standard-1
+  disk_size_gb: 2048
+  zones:
+    - asia-east1-a
+    - us-central1-a
+    - europe-west1-b
+  instance_quota: 200
+  startup_script: scripts/cm_startup.sh # TODO
+  image_project:  *id_project
+  image:          dex-net-image
+  data_disks:
+    - dex-net-data-2-big-asia
+    - dex-net-data-2-big
+    - dex-net-data-2-big-europe
+  service_email:  default
+  network:        default
+  run_script:     src/grasp_selection/correlated_bandits_priors.py
+  results_script: src/grasp_selection/compile_bandit_prior_results.py
+  update_script: src/grasp_selection/compile_bandit_prior_results.py
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+# Notification parameters ############################################
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgicallab
+notify_email:   &id_notify_email    jmahl42@gmail.com
