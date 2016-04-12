@@ -31,21 +31,12 @@ if __name__ == '__main__':
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config)
 
-    output_db_filename = os.path.join(args.output_dest, config['results_database_name'])
-    output_db = db.Hdf5Database(output_db_filename, config, access_level=db.WRITE_ACCESS)
 
     zeke_gripper = gripper.RobotGripper.load("zeke")
 
     for dataset_name in config['datasets'].keys():
         dataset = database.dataset(dataset_name)
 
-        # make dataset output directory
-        dest = os.path.join(args.output_dest, dataset.name)
-        try:
-            os.makedirs(dest)
-        except os.error:
-            pass
-        output_ds = output_db.create_dataset(dataset_name)
 
         # label each object in the dataset with grasps
   
@@ -55,12 +46,7 @@ if __name__ == '__main__':
             print(gripper_pose)
 
 
-
-
-
-
     database.close()
-    output_db.close()
 
 
 
