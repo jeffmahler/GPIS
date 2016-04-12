@@ -1,0 +1,99 @@
+# Core parameters ####################################################
+# !include partials/paths_rll4_jeff.yaml
+cache_dir: /home/jmahler/jeff_working/GPIS/data/gcs
+
+# DB generation params
+database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
+database_cache_dir: /home/brian
+database_name: google_db.hdf5
+results_database_name: results.hdf5
+log_dir: /home/jmahler/jeff_working/GPIS/data/logs
+
+# Dataset info
+max_chunk_size: 1
+datasets:
+  google:
+    start_index: 0
+    end_index: 1000
+
+# Params
+min_dim: 0.09
+sdf_dim: 50
+sdf_padding: 5
+density: 2000.0
+gripper_size: 0.1
+mass_thresh: 0.01
+default_mass: 1.0
+pfc_num_samples: 100
+eq_num_samples: 100
+
+# Random params
+dataset_counts: data/counts.txt
+num_trials: 0
+sleep_time: 10
+
+priors_dataset: keys_10000_train_and_val
+priors_feature_names:
+  - nearest_features_1000_train_and_val
+
+bandit_snapshot_rate: 100
+use_soft_fingers: 1
+prompt: 1
+
+# Window weights
+inf:   &id_inf       100000000000000000000.0
+zero:  &id_zero      0.0
+weight_proj_win:     1.0
+weight_grad_x:       1.0
+weight_grad_y:       1.0
+weight_curvature:    1.0
+weight_grasp_center: 1.0
+weight_grasp_axis:   1.0
+weight_grasp_angle:  1.0
+weight_gravity:      1.0
+
+# GCE parameters #####################################################
+client_secrets: &id_client_secrets client_secrets.json
+oauth_storage:  &id_oauth_storage  oauth2.dat
+disk_type:      &id_disk_type      PERSISTENT
+num_processes: 8
+compute:
+  project:        &id_project        nth-clone-620
+  bucket:         &id_bucket         dex-net-v3 
+  api_version:    v1
+  machine_type:   n1-standard-1
+  disk_size_gb: 2048
+  zones:
+    - us-central1-c
+#    - asia-east1-a
+#    - europe-west1-b
+#    - us-east1-c
+  instance_quota: 500
+  startup_script: scripts/generic_startup.sh
+  image_project:  *id_project
+  image:          dex-net-image-4
+  data_disks:
+    - dex-net-data-hdf5-us-central
+#    - dex-net-data-hdf5-asia
+#    - dex-net-data-hdf5-europe
+#    - dex-net-data-hdf5-us-east
+  data_disk_modes:
+    - READ_ONLY
+#    - READ_ONLY
+#    - READ_ONLY
+#    - READ_ONLY
+  service_email:  default
+  network:        default
+  run_script:     src/grasp_selection/label_objects_with_grasps.py
+  update_script:  src/grasp_selection/update_grasps.py
+  scopes:
+    - https://www.googleapis.com/auth/compute
+    - https://www.googleapis.com/auth/devstorage.full_control
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/devstorage.read_write
+
+# Notification parameters ############################################
+gmail_user:     &id_gmail_user      RavenDebridement
+gmail_password: &id_gmail_password  surgicallab
+notify_email:   &id_notify_email    jmahl42@gmail.com
+  
