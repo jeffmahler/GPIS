@@ -12,6 +12,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
 
+import experiment_config as ec
+np.random.seed(100)
+parser = argparse.ArgumentParser()
+parser.add_argument('config')
+parser.add_argument('output_dest')
+args = parser.parse_args()
+config = ec.ExperimentConfig(args.config)
+database_filename = os.path.join(config['database_dir'], config['database_name'])
+print(database_filename)
+print(config['datasets'].keys())
+
 import database as db
 import experiment_config as ec
 import gripper
@@ -31,8 +42,8 @@ if __name__ == '__main__':
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config)
 
-    output_db_filename = os.path.join(args.output_dest, config['results_database_name'])
-    output_db = db.Hdf5Database(output_db_filename, config, access_level=db.WRITE_ACCESS)
+    # output_db_filename = os.path.join(args.output_dest, config['results_database_name'])
+    # output_db = db.Hdf5Database(output_db_filename, config, access_level=db.WRITE_ACCESS)
 
     zeke_gripper = gripper.RobotGripper.load("zeke")
 
@@ -48,11 +59,11 @@ if __name__ == '__main__':
         output_ds = output_db.create_dataset(dataset_name)
 
         # label each object in the dataset with grasps
-        for obj in dataset:
-            obj_grasps = dataset.grasps(obj.key, "zeke")
-            for grasp in obj_grasps:
-                gripper_pose = grasp.gripper_transform(zeke_gripper)
-                print(gripper_pose)
+  
+        obj_grasps = dataset.grasps(obj.key, "zeke")
+        for grasp in obj_grasps:
+            gripper_pose = grasp.gripper_transform(zeke_gripper)
+            print(gripper_pose)
 
 
 
