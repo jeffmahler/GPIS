@@ -4,7 +4,7 @@ cache_dir: /home/jmahler/jeff_working/GPIS/data/gcs
 
 # DB generation params
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
-database_cache_dir: /home/brian
+database_cache_dir: /mnt/terastation/shape_data/MASTER_DB_v3
 database_name: google_db.hdf5
 results_database_name: results.hdf5
 log_dir: /home/jmahler/jeff_working/GPIS/data/logs
