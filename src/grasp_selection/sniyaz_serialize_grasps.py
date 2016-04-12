@@ -12,17 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
 
-import experiment_config as ec
-np.random.seed(100)
-parser = argparse.ArgumentParser()
-parser.add_argument('config')
-parser.add_argument('output_dest')
-args = parser.parse_args()
-config = ec.ExperimentConfig(args.config)
-database_filename = os.path.join(config['database_dir'], config['database_name'])
-print(database_filename)
-print(config['datasets'].keys())
-
 import database as db
 import experiment_config as ec
 import gripper
