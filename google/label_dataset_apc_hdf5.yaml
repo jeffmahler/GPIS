@@ -1,9 +1,11 @@
 # Core parameters ####################################################
 # !include partials/paths_rll4_jeff.yaml
+!include partials/paths_gce.yaml
 cache_dir: /home/jmahler/jeff_working/GPIS/data/gcs
 
 # DB generation params
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
+database_cache_dir: /home/brian
 database_name: google_db.hdf5
 results_database_name: results.hdf5
 log_dir: /home/jmahler/jeff_working/GPIS/data/logs
@@ -12,6 +14,8 @@ log_dir: /home/jmahler/jeff_working/GPIS/data/logs
 max_chunk_size: 1
 datasets:
   google:
+    start_index: 0
+    end_index: 1000
 
 # Params
 min_dim: 0.09
@@ -37,7 +41,10 @@ bandit_snapshot_rate: 100
 use_soft_fingers: 1
 prompt: 1
 
+!include partials/experiment_params.yaml
+
 # Window weights
+!include partials/window_params.yaml
 inf:   &id_inf       100000000000000000000.0
 zero:  &id_zero      0.0
 weight_proj_win:     1.0
