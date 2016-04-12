@@ -40,10 +40,10 @@ if __name__ == '__main__':
 
         # label each object in the dataset with grasps
   
-        obj_grasps = dataset.grasps("textured-0008192", "zeke")
+        obj_grasps = dataset.grasps("textured-0008192", "pr2")
         for grasp in obj_grasps:
             gripper_pose = grasp.gripper_transform(zeke_gripper)
-            print(gripper_pose)
+            print(gripper_pose.pose.matrix)
 
 
     database.close()
