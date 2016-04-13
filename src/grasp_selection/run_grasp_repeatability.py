@@ -177,7 +177,6 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
             mv.clf()
             mvis.MayaviVisualizer.plot_table(T_table_world, d=table_extent)
             mvis.MayaviVisualizer.plot_pose(T_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
-            #mvis.MayaviVisualizer.plot_pose(T_gripper_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
             mvis.MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
             mvis.MayaviVisualizer.plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
             mvis.MayaviVisualizer.plot_mesh(object_mesh, T_obj_world, color=(1,0,0))
@@ -393,8 +392,6 @@ if __name__ == '__main__':
     for grasp in grasps:
         if grasp.grasp_id in grasp_ids:
             grasps_to_execute.append(grasp.grasp_aligned_with_stable_pose(stable_pose))
-
-    grasps_to_execute = grasps_to_execute[:1]
 
     # plot grasps
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 

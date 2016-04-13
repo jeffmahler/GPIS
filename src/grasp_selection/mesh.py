@@ -555,7 +555,7 @@ class Mesh3D(object):
         self.vertices_ = vertex_array_rot.tolist()
         self.center_vertices_bb()
 
-        if self.normals_:
+        if self.normals_ is not None:
             normals_array = np.array(self.normals_)
             normals_array_rot = R.dot(normals_array.T)
             self.normals_ = normals_array_rot.tolist()
