@@ -65,7 +65,7 @@ class DexController:
 
         #reset izzy to clear-table-rotation position
         logging.info('Reseting table rotation')
-        self._table.reset()
+        #self._table.reset()
         self._robot.reset_clear_table()
         #wait til completed
         turntable_state = self._table.getState()
@@ -311,6 +311,6 @@ def test_grip():
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    test_grip()
+    #test_grip()
     #t = test_state()
-    #t = test_state_sequence()
+    t = test_state_sequence()

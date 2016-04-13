@@ -28,6 +28,7 @@ from DexConstants import DexConstants
 from DexController import DexController
 from DexRobotZeke import DexRobotZeke
 from ZekeState import ZekeState
+from TurntableState import TurntableState
 
 import camera_params as cp
 import database as db
@@ -50,94 +51,6 @@ def gen_experiment_id(n=10):
     chrs = 'abcdefghijklmnopqrstuvwxyz'
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
-
-def compute_grasp_set(dataset, object_name, stable_pose, num_grasps, gripper,
-                      approach_dist = 0.2, delta_approach=0.01, rotate_threshold=np.pi/8.0,
-                      metric='pfc_f_0.200000_tg_0.020000_rg_0.020000_to_0.020000_ro_0.020000'):
-    """ Add the best grasp according to PFC as well as num_grasps-1 uniformly at random from the remaining set """
-    grasp_set = []
-    grasp_set_metrics = []
-
-    # get sorted list of grasps to ensure that we get the top grasp
-    graspable = dataset.graspable(object_name)
-    graspable.model_name_ = dataset.obj_mesh_filename(object_name)
-    grasps = dataset.grasps(object_name, gripper=gripper.name)
-    #grasps = grasps[:250] # TODO: hardcoded for antipodal only 
-    grasp_metrics = dataset.grasp_metrics(object_name, grasps, gripper=gripper.name)
-    grasp_metrics = [grasp_metrics[i][metric] for i in grasp_metrics.keys()]
-    num_total_grasps = len(grasps)
-
-    # sort
-    grasps_and_metrics = zip(grasps, grasp_metrics)
-    grasps_and_metrics.sort(key = lambda x: x[1])
-    grasps = [gm[0] for gm in grasps_and_metrics]
-    grasp_metrics = [gm[1] for gm in grasps_and_metrics]
-
-    # prune by collisions
-    rave.raveSetDebugLevel(rave.DebugLevel.Error)
-    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=False)
-    collision_checker.set_object(graspable)
-
-    # grab grasps by quantile
-    i = len(grasps)-1
-    delta_i = 5#int(float(len(grasps)) / num_grasps)
-    while len(grasp_set) < num_grasps and i >= 0:
-        logging.info('Sampling quantile %d' %(len(grasp_set)))
-        quantile_i = copy.copy(i)
-        grasp_candidate = grasps[i].grasp_aligned_with_stable_pose(stable_pose)
-
-        # check wrist rotation
-        psi = grasp_candidate.angle_with_table(stable_pose)
-        rotated_from_table = (psi > rotate_threshold)
-
-        # check collisions along approach sequence
-        grasp_pose = grasp_candidate.gripper_transform(gripper)
-        collides_along_approach = False
-        cur_approach = 0
-        grasp_approach_axis = grasp_pose.inverse().rotation[:,1]
-            
-        # check entire sequence
-        while cur_approach <= approach_dist:
-            grasp_approach_pose = copy.copy(grasp_pose.inverse())
-            grasp_approach_pose.pose_ = tfx.pose(grasp_pose.inverse().rotation, grasp_pose.inverse().translation + cur_approach * grasp_approach_axis)
-            
-            if collision_checker.in_collision(grasp_approach_pose.inverse()):
-                collides_along_approach = True
-                break
-            cur_approach += delta_approach
-
-        while gripper.collides_with_table(grasp_candidate, stable_pose) or collides_along_approach \
-                or rotated_from_table:
-            # get the next grasp
-            i -= 1
-            grasp_candidate = grasps[i].grasp_aligned_with_stable_pose(stable_pose)
-
-            # TODO: remove table check
-            psi = grasp_candidate.angle_with_table(stable_pose)
-
-            # check collisions along approach sequence
-            grasp_pose = grasp_candidate.gripper_transform(gripper)
-            rotated_from_table = (psi > rotate_threshold)
-            collides_along_approach = False
-            cur_approach = 0
-            grasp_approach_axis = grasp_pose.inverse().rotation[:,1]
-
-            # check entire sequence
-            while cur_approach <= approach_dist:
-                grasp_approach_pose = copy.copy(grasp_pose.inverse())
-                grasp_approach_pose.pose_ = tfx.pose(grasp_pose.inverse().rotation, grasp_pose.inverse().translation + cur_approach * grasp_approach_axis)
-            
-                if collision_checker.in_collision(grasp_approach_pose.inverse()):
-                    collides_along_approach = True
-                    break
-                cur_approach += delta_approach
-
-        # add to sequence
-        grasp_set.append(grasp_candidate)
-        grasp_set_metrics.append(grasp_metrics[i])
-        i = max(0, min(i-1, quantile_i - delta_i))
-
-    return grasp_set
 
 # Grasp execution main function
 def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset, registration_solver, ctrl, camera, config):
@@ -185,6 +98,13 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
         
                 # prompt for object placement
                 yesno = raw_input('Place object. Hit [ENTER] when done')
+
+                # rotate table a random amount
+                table_state = ctrl._table.getState()
+                table_rotation = 2 * np.pi * np.random.rand() - np.pi
+                table_state.set_table_rot(table_rotation + table_state.table_rot)
+                logging.info('Rotating table by %f' %(table_rotation))
+                ctrl._table.gotoState(table_state)
 
                 # retrieve object pose from camera
                 logging.info('Registering object')
@@ -252,19 +172,6 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
             T_gripper_obj = grasp.gripper_transform(gripper=gripper)
             T_gripper_world = T_gripper_obj.dot(T_obj_world)
 
-            # check gripper alignment (SPECIFIC TO THE SPRAY!)
-            """
-            gripper_y_axis_world = T_gripper_world.rotation[1,:]
-            obj_y_axis_world = T_obj_world.rotation[0,:]
-            if gripper_y_axis_world.dot(obj_y_axis_world) < 0:
-                logging.info('Flipping grasp')
-                R_gripper_p_gripper = np.array([[-1, 0, 0],
-                                                [0, -1, 0],
-                                                [0, 0, 1]])
-                T_gripper_p_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R_gripper_p_gripper, np.zeros(3)), from_frame='gripper', to_frame='gripper')
-                T_gripper_world = T_gripper_p_gripper.dot(T_gripper_world)
-            """
-
             # visualize the robot's understanding of the world
             logging.info('Displaying robot world state')
             mv.clf()
@@ -276,15 +183,14 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
             mvis.MayaviVisualizer.plot_mesh(object_mesh, T_obj_world, color=(1,0,0))
             mvis.MayaviVisualizer.plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
             mvis.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper)
-            mvis.MayaviVisualizer.plot_point_cloud(points_3d, T_world_camera, color=(0,1,0), scale=0.0025)
-            mv.view(focalpoint=(0,0,0))
-            mv.show()
+            #mvis.MayaviVisualizer.plot_point_cloud(points_3d, T_world_camera, color=(0,1,0), scale=0.0025)
+            #mv.view(focalpoint=(0,0,0))
+            #mv.show()
 
             delta_view = 360.0 / num_grasp_views
-            mv.view(distance=cam_dist)
             for j in range(num_grasp_views):
                 az = j * delta_view
-                mv.view(azimuth=az)
+                mv.view(azimuth=az, focalpoint=(0,0,0), distance=cam_dist)
                 figname = 'estimated_scene_view_%d.png' %(j)                
                 mv.savefig(os.path.join(logging_dir, figname))
 
@@ -383,6 +289,7 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
             success_dict = {'trial': i, 'success': grasp_successes[i], 'lift': grasp_lifts[i], 
                             'force': sensors.gripper_force,
                             'grip_width': current_state.gripper_grip,
+                            'table_rotation': table_rotation,
                             'duration': trial_duration}
             if i == 0:
                 success_filename = os.path.join(grasp_dir, 'grasp_output.csv')
@@ -398,7 +305,7 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
         
         # check for skip
         human_input = raw_input('Continue with grasp?')
-        if human_input.lower() == 'yes':
+        if human_input.lower() == 'no':
             logging.info('Skipping grasp')
             break
 
@@ -413,10 +320,12 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
     return grasp_successes, grasp_lifts
 
 if __name__ == '__main__':
-    # TODO: remove for actual experiments
-    np.random.seed(101)
-    random.seed(101)
+    test = False
+    if test:
+        np.random.seed(100)
+        random.seed(100)
 
+    # read params
     logging.getLogger().setLevel(logging.INFO)
     config_filename = sys.argv[1]
     output_dir = sys.argv[2]
@@ -431,7 +340,7 @@ if __name__ == '__main__':
     snapshot_rate = config['snapshot_rate']
 
     # init viewer
-    #mv.figure(size=(1000, 1000), bgcolor=(0.8, 0.8, 0.8))
+    mv.figure(size=(1000, 1000), bgcolor=(0.8, 0.8, 0.8))
 
     # open database and dataset
     database = db.Hdf5Database(database_filename, config)
@@ -451,8 +360,17 @@ if __name__ == '__main__':
     logging.getLogger().addHandler(hdlr) 
 
     # copy over config file
+    dexconstants_filename = 'src/grasp_selection/control/DexControls/DexConstants.py'
+    zekestate_filename = 'src/grasp_selection/control/DexControls/ZekeState.py'
+    turntablestate_filename = 'src/grasp_selection/control/DexControls/TurntableState.py'
     config_path, config_fileroot = os.path.split(config_filename)
+    dexconstants_path, dexconstants_fileroot = os.path.split(dexconstants_filename)
+    zekestate_path, zekestate_fileroot = os.path.split(zekestate_filename)
+    turntablestate_path, turntablestate_fileroot = os.path.split(turntablestate_filename)
     shutil.copyfile(config_filename, os.path.join(experiment_dir, config_fileroot))
+    shutil.copyfile(dexconstants_filename, os.path.join(experiment_dir, dexconstants_fileroot))
+    shutil.copyfile(zekestate_filename, os.path.join(experiment_dir, zekestate_fileroot))
+    shutil.copyfile(turntablestate_filename, os.path.join(experiment_dir, turntablestate_fileroot))
     logging.info('RUNNING EXPERIMENT %s' %(experiment_id))
 
     # read the grasp metrics and features
@@ -466,10 +384,17 @@ if __name__ == '__main__':
     if np.abs(np.linalg.det(stable_pose.r) + 1) < 0.01:
         stable_pose.r[1,:] = -stable_pose.r[1,:]
 
-    # compute the list of grasps to execute (TODO: update this section)
-    grasps_to_execute = compute_grasp_set(ds, object_name, stable_pose, config['num_grasps_to_sample'],
-                                          gripper, metric=config['grasp_metric'])
-    #grasps_to_execute = grasps_to_execute[4:5]
+    # load the list of grasps to execute
+    candidate_grasp_dir = os.path.join(config['grasp_candidate_dir'], ds.name)
+    grasp_id_filename = os.path.join(candidate_grasp_dir,
+                                     '%s_%s_%s_grasp_ids.npy' %(object_name, stable_pose.id, config['gripper']))
+    grasp_ids = np.load(grasp_id_filename)
+    grasps_to_execute = []
+    for grasp in grasps:
+        if grasp.grasp_id in grasp_ids:
+            grasps_to_execute.append(grasp.grasp_aligned_with_stable_pose(stable_pose))
+
+    grasps_to_execute = grasps_to_execute[:1]
 
     # plot grasps
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
