@@ -1,0 +1,34 @@
+syntax = "proto2";
+// A three-dimensional vector.
+message Vector3D {
+    // X position.
+    required double x = 1;
+    // Y position.
+    required double y = 2;
+    // Z position.
+    required double z = 3;
+}
+
+// A rotation quaternion.
+message Quaternion {
+    // X value.
+    required double x = 1;
+    // Y value.
+    required double y = 2;
+    // Z value.
+    required double z = 3;
+    // W value.
+    required double w = 4;
+}
+
+// The pose itself as a combination of translation and rotation.
+message Pose3D {
+    optional string object_id = 1;
+    required Vector3D translation = 2;
+    required Quaternion rotation = 3;
+}
+
+// The poses of all objects in the simulation.
+message ObjectPoses {
+    repeated Pose3D poses = 1;
+}
