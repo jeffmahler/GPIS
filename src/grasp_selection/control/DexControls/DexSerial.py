@@ -82,6 +82,8 @@ class _DexSerial(Process):
                 elif type == "State":
                     self._current_state = data
                     self._updated_state = True
+                elif type == "*":
+                    self._sendArbitraryRequest(data)
 
     def _isValidState(self, state):
         for i in range(self._State.NUM_STATES):
@@ -93,6 +95,14 @@ class _DexSerial(Process):
             if abs(state.state[i] - self._current_state.state[i]) > bound:
                 return False
         return True          
+
+    def _sendArbitraryRequest(self, msg):
+        Logger.log("Sent Arbitrary Message", msg, self._State.NAME)
+
+        if DexConstants.DEBUG:
+            return
+            
+        self.ser.write(msg)
 
     def _sendSingleStateRequest(self, state):
         Logger.log("Sent State", state, self._State.NAME)
@@ -263,6 +273,9 @@ class DexSerialInterface:
         
     def _queueLabel(self, label):
         self._states_q.put({"Type" : "Label", "Data" : label})
+
+    def queueArbitraryRequest(self, data):
+        self._states_q.put({"Type": "*", "Data": data})
         
     def maintainState(self, s):
         num_pauses = s / DexConstants.INTERP_TIME_STEP
@@ -282,7 +295,7 @@ class DexSerialInterface:
                 
         if self._target_state is None:
             self._target_state = self.getState()
-        
+
         if rot_speed > DexConstants.MAX_ROT_SPEED or tra_speed > DexConstants.MAX_TRA_SPEED:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))

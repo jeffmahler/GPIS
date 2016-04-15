@@ -6,9 +6,12 @@ import copy
 import logging
 import IPython
 import numpy as np
+import Queue
 import os
+import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 import sklearn.decomposition
+import skimage.draw
 import sys
 import tfx
 
@@ -377,7 +380,77 @@ class Mesh3D(object):
             # fill in area on image
             img_draw.polygon([tuple(verts_proj[:,0]), tuple(verts_proj[:,1]), tuple(verts_proj[:,2])], fill=255)
         return fill_img
-    
+
+    def project_depth(self, camera_params):
+        '''
+        Project the triangles of the mesh into a binary image which is 1 if the mesh is
+        visible at that point in the image and 0 otherwise.
+        The image is assumed to be taken from a camera with specified params at
+        a given relative pose to the mesh.
+        Params:
+           camera_params: CameraParams object
+           camera_pose: 4x4 pose matrix (camera in mesh basis)
+        Returns:
+           PIL binary image (1 = mesh projects to point, 0 = does not)
+        '''
+        vertex_array = np.array(self.vertices_)
+        verts_proj, valid = camera_params.project(vertex_array.T)
+        
+        height = camera_params.height()
+        width = camera_params.width()
+        depth_im = np.zeros([height, width])
+        
+        for t in self.triangles_:
+            # get pixels and depths
+            u0 = verts_proj[:,t[0]]
+            u1 = verts_proj[:,t[1]]
+            u2 = verts_proj[:,t[2]]
+            d0 = vertex_array[t[0],2]
+            d1 = vertex_array[t[1],2]
+            d2 = vertex_array[t[2],2]
+
+            # precompute barycentric coord quantities
+            v0 = u1 - u0
+            v1 = u2 - u0
+            d00 = v0.dot(v0)
+            d01 = v0.dot(v1)
+            d11 = v1.dot(v1)
+            denom = d00 * d11 - d01 * d01
+
+            # compute pixels withing the projected triangle
+            pixels = skimage.draw.polygon(np.array([u0[1], u1[1], u2[1]]),
+                                          np.array([u0[0], u1[0], u2[0]]))                                         
+            num_pixels = pixels[0].shape[0]
+
+            # interpolate depth for each pixel
+            for i in range(num_pixels):
+                u = np.array([pixels[1][i], pixels[0][i]])
+                if u[0] >= 0 and u[0] < width and u[1] >= 0 and u[1] < height:
+                    # compute barycentric coords
+                    v2 = u - u0 
+                    d20 = v2.dot(v0)
+                    d21 = v2.dot(v1)
+                    b = (d11 * d20 - d01 * d21) / denom
+                    c = (d00 * d21 - d01 * d20) / denom
+                    a = 1.0 - b - c
+
+                    # interpolate depth
+                    d = a * d0 + b * d1 + c * d2
+
+                    # assign depth if closer than current value
+                    if depth_im[u[1], u[0]] == 0 or d < depth_im[u[1], u[0]]:
+                        depth_im[u[1], u[0]] = d
+        
+        return depth_im
+        """
+        plt.imshow(depth_im, cmap=plt.cm.Greys_r, interpolation='none')
+        plt.axis('off')
+        plt.show()
+
+        IPython.embed()
+        exit(0)
+        """
+
     def remove_unreferenced_vertices(self):
         '''
         Clean out vertices (and normals) not referenced by any triangles.
@@ -482,7 +555,7 @@ class Mesh3D(object):
         self.vertices_ = vertex_array_rot.tolist()
         self.center_vertices_bb()
 
-        if self.normals_:
+        if self.normals_ is not None:
             normals_array = np.array(self.normals_)
             normals_array_rot = R.dot(normals_array.T)
             self.normals_ = normals_array_rot.tolist()
@@ -492,6 +565,57 @@ class Mesh3D(object):
         vertices = list(self.vertices())
         triangles = list(self.triangles())
         return Mesh3D(vertices, triangles)
+
+    @staticmethod
+    def max_edge_length(tri, vertices):
+        v0 = np.array(vertices[tri[0]])
+        v1 = np.array(vertices[tri[1]])
+        v2 = np.array(vertices[tri[2]])
+        max_edge_len = max(np.linalg.norm(v1-v0), max(np.linalg.norm(v1-v0), np.linalg.norm(v2-v1)))
+        return max_edge_len
+
+    def subdivide(self, min_triangle_length = None):
+        '''Returns a copy of the current mesh but subdivided by one iteration'''
+        new_mesh = self.copy()
+        new_vertices = new_mesh.vertices()
+        old_triangles = new_mesh.triangles()
+        
+        new_triangles = []
+        triangle_index_mapping = {}
+        tri_queue = Queue.Queue()
+        
+        for j, triangle in enumerate(old_triangles):
+            tri_queue.put((j, triangle))
+            triangle_index_mapping[j]  = []
+
+        while not tri_queue.empty():
+            tri_index_pair = tri_queue.get()
+            j = tri_index_pair[0]
+            triangle = tri_index_pair[1]
+
+            if min_triangle_length is None or Mesh3D.max_edge_length(triangle, new_vertices) > min_triangle_length:
+                t_vertices = np.array([new_vertices[i] for i in triangle])
+                edge01 = 0.5 * (t_vertices[0,:] + t_vertices[1,:])
+                edge12 = 0.5 * (t_vertices[1,:] + t_vertices[2,:])
+                edge02 = 0.5 * (t_vertices[0,:] + t_vertices[2,:])
+
+                i_01 = len(new_vertices)
+                i_12 = len(new_vertices)+1
+                i_02 = len(new_vertices)+2
+                new_vertices.append(edge01)
+                new_vertices.append(edge12)
+                new_vertices.append(edge02)
+            
+                for triplet in [[triangle[0], i_01, i_02], [triangle[1], i_12, i_01], [triangle[2], i_02, i_12], [i_01, i_12, i_02]]:
+                    tri_queue.put((j, triplet))
+
+            else:
+                new_triangles.append(triangle)
+                triangle_index_mapping[j].append(len(new_triangles)-1)
+
+        new_mesh.set_vertices(new_vertices)
+        new_mesh.set_triangles(new_triangles)
+        return new_mesh, triangle_index_mapping
 
     def transform(self, tf):
         vertex_array = np.array(self.vertices_)

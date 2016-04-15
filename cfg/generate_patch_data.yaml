@@ -6,7 +6,7 @@ cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
 shape_data_dir: /mnt/terastation/shape_data
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
-database_name: dexnet_db3_01_22_16.hdf5
+database_name: dexnet_db3_04_05_16.hdf5
 results_database_name: results.hdf5
 
 datasets:
@@ -30,6 +30,8 @@ datasets:
     end_index: 1000
 
 # Params
+gripper: zeke
+
 min_dim: 0.09
 sdf_dim: 50
 sdf_padding: 5

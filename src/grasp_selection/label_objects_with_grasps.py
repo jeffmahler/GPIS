@@ -14,7 +14,11 @@ import time
 import IPython
 import matplotlib.pyplot as plt
 try:
+<<<<<<< HEAD
     import mayavi.mlab as mv
+=======
+    import mayavi.mlab as mlab
+>>>>>>> zeke_experiments
 except:
     logging.warning('Failed to import mayavi')
 import numpy as np
@@ -31,7 +35,6 @@ import gripper as gr
 import json_serialization as jsons
 import kernels
 import models
-import mayavi_visualizer as mv
 import objectives
 import pfc
 import pr2_grasp_checker as pgc
@@ -46,10 +49,12 @@ GRAVITY_ACCEL = 9.81
 
 def label_grasps(obj, dataset, output_ds, config):
     gripper_name = config['gripper']
+    start_time = time.time()
     
     # sample grasps
     if config['sample_grasps']:
         logging.info('Generating new grasps')
+        sample_start_time = time.time()
 
         if config['check_collisions']:
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
@@ -62,6 +67,7 @@ def label_grasps(obj, dataset, output_ds, config):
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'],
                 max_iter=config['max_grasp_sampling_iters'])
+            grasp_sms = [0] * len(grasps)
 
             # pad with gaussian grasps
             num_grasps = len(grasps)
@@ -76,25 +82,41 @@ def label_grasps(obj, dataset, output_ds, config):
                     obj, target_num_grasps=target_num_grasps,
                     check_collisions=config['check_collisions'],
                     max_iter=config['max_grasp_sampling_iters'])
+
                 grasps.extend(gaussian_grasps)
+                grasp_sms.extend([1] * len(gaussian_grasps))
+        elif config['grasp_sampler'] == 'anti_uniform':
+            # half uniform and half antipodal sampling
+            num_grasps_sample = config['target_num_grasps'] / 2
+
+            antipodal_sampler = ags.AntipodalGraspSampler(config)
+            antipodal_grasps = antipodal_sampler.generate_grasps(
+                obj, target_num_grasps=num_grasps_sample,
+                check_collisions=config['check_collisions'],
+                max_iter=config['max_grasp_sampling_iters'])
+            grasp_sms = [0] * len(antipodal_grasps)
+
+            uniform_sampler = gs.UniformGraspSampler(config)
+            uniform_grasps = uniform_sampler.generate_grasps(
+                obj, target_num_grasps=num_grasps_sample,
+                check_collisions=config['check_collisions'],
+                max_iter=config['max_grasp_sampling_iters'])
+
+            grasps = antipodal_grasps + uniform_grasps
+            logging.info('Num antipodal %d' %(len(antipodal_grasps)))
+            logging.info('Num uniform %d' %(len(uniform_grasps)))
+            grasp_sms.extend([2] * len(uniform_grasps))
         else:
             # gaussian sampling
             logging.info('Using Gaussian grasp sampling')
             sampler = gs.GaussianGraspSampler(config)
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'])
+            grasp_sms.extend([1] * len(grasps))
 
         sample_end = time.clock()
         sample_duration = sample_end - sample_start
         logging.info('Grasp candidate generation took %f sec' %(sample_duration))
-
-        if config['vis']:
-            for grasp in grasps:
-                T_obj_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='obj')
-                mlab.figure()
-                mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world, style='surface')
-                mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, color=(1,1,1))
-                mlab.show()
 
         if not grasps or len(grasps) == 0:
             logging.info('No grasps found for %s' %(obj.key))
@@ -103,38 +125,41 @@ def label_grasps(obj, dataset, output_ds, config):
         # store the grasps
         output_ds.store_grasps(obj.key, grasps, gripper=gripper_name)
 
+        sample_stop_time = time.time()
+        logging.info('Sampling %d grasps took %f sec.' %(len(grasps), sample_stop_time - sample_start_time))
+
     # load all grasps to get ids
     grasps = output_ds.grasps(obj.key, gripper=gripper_name)
 
-    # extract features (disabled for now)
+    # extract features
     if config['extract_features']:
         logging.info('Extracting features')
+        feature_start_time = time.time()
+
         feature_extractor = ff.GraspableFeatureExtractor(obj, config)
         all_features = feature_extractor.compute_all_features(grasps)
         raw_feature_dict = {}
-        for g, f in zip(grasps, all_features):
+        for g, f, s in zip(grasps, all_features, grasp_sms):
             if f is not None:
                 raw_feature_dict[g.grasp_id] = f.features()
-
-            # vis patches
-            """
-            T_world_obj = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3)), from_frame='obj', to_frame='world')
-            T_obj_world = T_world_obj.inverse()
-            mlab.figure(bgcolor=(1,1,1), size=(1200, 1200))
-            mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world, style='surface')
-            mv.MayaviVisualizer.plot_patches(f, T_obj_world=T_obj_world)
-            mlab.show()
-            """
-
+                raw_feature_dict[g.grasp_id].append(ff.GraspFeature('sampling_method', 'sampling_method', s))
+                
         # store features
         output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
+
+        feature_stop_time = time.time()
+        logging.info('Feature extraction for %d grasps took %f sec.' %(len(grasps), feature_stop_time - feature_start_time))
 
     # compute grasp metrics
     if config['compute_grasp_metrics']:
         logging.info('Computing grasp metrics')
+        quality_start_time = time.time()
 
         # stable poses
-        stable_poses = dataset.stable_poses(obj.key, min_p=config['stp_min_p'])
+        if config['ppc_stp_ids']:
+            stable_poses = [dataset.stable_pose(obj.key, config['ppc_stp_ids'][obj.key])]
+        else:
+            stable_poses = dataset.stable_poses(obj.key, min_p=config['stp_min_p'])
 
         #convert stable poses to wrenches
         stable_pose_wrenches = []
@@ -205,7 +230,6 @@ def label_grasps(obj, dataset, output_ds, config):
            
         # compute robust quality metrics
         uncertainty_configs = [low_u_config, med_u_config, high_u_config]
-        quality_start_time = time.time()
         logging.info('Computing robust quality')
 
         # iterate through levels of uncertainty
@@ -248,7 +272,7 @@ def label_grasps(obj, dataset, output_ds, config):
                         grasp_metrics[grasp.grasp_id][vpc_tag] = vpc
                 
                 # expected ferrari canny
-                logging.info('Computing ferrari canny')
+                logging.info('Computing expected ferrari canny')
                 if 'ferrari_canny_L1' in config['robust_metrics']:
                     eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='ferrari_canny_L1',
                                                                  num_samples=config['eq_num_samples'])
@@ -260,10 +284,11 @@ def label_grasps(obj, dataset, output_ds, config):
         # store grasp metrics
         output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
 
-        IPython.embed()
+    # report total time
+    stop_time = time.time()
+    logging.info('Labelling for %d grasps took %f sec in total.' %(len(grasps), stop_time - start_time))
 
 if __name__ == '__main__':
-    np.random.seed(100)
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
     parser.add_argument('output_dest')
@@ -273,6 +298,7 @@ if __name__ == '__main__':
 
     # read config file
     config = ec.ExperimentConfig(args.config)
+
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     if config['write_in_place']:
         logging.info('Writing back to original dataset')
@@ -300,16 +326,19 @@ if __name__ == '__main__':
         # label each object in the dataset with grasps
         for obj in dataset:
             logging.info('Labelling object {} with grasps'.format(obj.key))
-            
+
             # create the graspable if necessary
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
-            
-            if True:#try:
+            elif config['delete_existing_grasps']:
+                logging.warning('Deleting existing grasps for object {}'.format(obj.key))
+                output_ds.delete_grasps(obj.key, gripper=config['gripper'])
+
+            try:
                 label_grasps(obj, dataset, output_ds, config)
-            #except Exception as e:
-            #    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-            #    logging.warning(str(e))
+            except Exception as e:
+                logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                logging.warning(str(e))
 
     database.close()
 

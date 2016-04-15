@@ -30,7 +30,7 @@ class RobotGripper():
         for key, value in params.iteritems():
             setattr(self, key, value)
 
-    def collides_with_table(self, grasp, stable_pose):
+    def collides_with_table(self, grasp, stable_pose, clearance=0.0):
         """ Checks whether or not the gripper collides with the table in the stable pose """
         # transform mesh into object pose to check collisions with table
         T_gripper_obj = grasp.gripper_transform(self)
@@ -45,7 +45,7 @@ class RobotGripper():
         collision = False
         for vertex in mesh_tf.vertices():
             v = np.array(vertex)
-            if n.dot(v - x0) < 0:
+            if n.dot(v - x0) < clearance:
                 collision = True
         return collision
 

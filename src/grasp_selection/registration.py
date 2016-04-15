@@ -74,9 +74,9 @@ def vis_corrs(source_points, target_points, matches, source_normals=None, target
 
     if source_normals is not None:
         t = 1e-2
-        num_source = 200#source_points.shape[0]
+        subsample_inds = np.random.choice(source_points.shape[0], size=200).tolist()
         pair = np.zeros([2,3])
-        for i in range(num_source):
+        for i in subsample_inds:
             pair[0,:] = source_points[i,:]
             pair[1,:] = source_points[i,:] + t * source_normals[i,:]
             mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
@@ -90,6 +90,7 @@ def vis_corrs(source_points, target_points, matches, source_normals=None, target
             pair[1,:] = target_points[i,:] + t * target_normals[i,:]
             mlab.plot3d(pair[:,0], pair[:,1], pair[:,2], color=(0,0,1), line_width=0.1, tube_radius=None)        
 
+    mlab.axes()
     mlab.show()
 
 def icp_mesh_point_cloud(mesh, point_cloud, num_iterations):
@@ -465,7 +466,11 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
         target_mean_point = np.mean(target_points, axis=0)
         R_sol = np.eye(3)
         t_sol = np.zeros([3, 1]) #init with diff between means
-        t_sol[:,0] = target_mean_point - source_mean_point
+        #t_sol[:,0] = target_mean_point - source_mean_point
+        #t_sol[2,0] = 0
+
+        if vis:
+            vis_corrs(orig_source_points, target_points, None, plot_lines=False)                    
 
         # iterate through
         for i in range(num_iterations):
@@ -528,9 +533,18 @@ class PointToPlaneICPSolver(IterativeRegistrationSolver):
 
         total_cost = 0
         if compute_total_cost:
+            # subsample points
+            subsample_inds = np.random.choice(orig_source_points.shape[0], size=self.sample_size_)
+            source_points = orig_source_points[subsample_inds,:]
+            source_normals = orig_source_normals[subsample_inds,:]
+
+            # transform source points
+            source_points = (R_sol.dot(source_points.T) + np.tile(t_sol, [1, source_points.shape[0]])).T
+            source_normals = (R_sol.dot(source_normals.T)).T
+
             # rematch all points to get the final cost
-            source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
-            source_normals = (R_sol.dot(orig_source_normals.T)).T
+            #source_points = (R_sol.dot(orig_source_points.T) + np.tile(t_sol, [1, orig_source_points.shape[0]])).T
+            #source_normals = (R_sol.dot(orig_source_normals.T)).T
 
             corrs = matcher.match(source_points, target_points, source_normals, target_normals)
             valid_corrs = np.where(corrs.index_map != -1)[0]

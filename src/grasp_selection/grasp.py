@@ -13,8 +13,12 @@ except:
 import numpy as np
 from numpy.linalg import inv, norm
 import IPython
+import sys
 import time
 
+sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection/control/DexControls/')
+
+from DexNumericSolvers import DexNumericSolvers
 import contacts
 import graspable_object as go
 import sdf_file as sf
@@ -130,6 +134,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         if self.unrotated_full_axis_ is None:
             grasp_axis_y = self.axis
             grasp_axis_x = np.array([grasp_axis_y[1], -grasp_axis_y[0], 0])
+            if norm(grasp_axis_x) == 0:
+                grasp_axis_x = np.array([grasp_axis_y[2], 0, -grasp_axis_y[0]])
             grasp_axis_x = grasp_axis_x / norm(grasp_axis_x)
             grasp_axis_z = np.cross(grasp_axis_x, grasp_axis_y)
             
@@ -151,7 +157,42 @@ class ParallelJawPtGrasp3D(PointGrasp):
             R_grip_robot = gripper.T_grasp_gripper.rotation
         R = R_grip_p_grip.dot(R_grip_robot)
         t = self.center
-        return stf.SimilarityTransform3D(pose=tfx.pose(R, t), from_frame='gripper', to_frame='obj').inverse()
+        try:
+            return stf.SimilarityTransform3D(pose=tfx.pose(R, t), from_frame='gripper', to_frame='obj').inverse()
+        except:
+            pose = tfx.pose(R,t)
+            print 'R', R
+            print 't', t
+            IPython.embed()
+
+    def angle_with_table(self, stable_pose):
+       def _angle_2d(u, v):
+            u_norm = u / norm(u)
+            R = np.array([[u_norm[0], u_norm[1]],
+                          [-u_norm[1], u_norm[0]]])
+            vp = R.dot(v)
+
+            #returns angle between 2 vectors in degrees
+            theta = DexNumericSolvers.get_cartesian_angle(vp[0], vp[1])
+            return theta
+
+       grasp_axes_obj = self.rotated_full_axis
+       R_stp_obj = stable_pose.r
+       grasp_axes_stp = R_stp_obj.dot(grasp_axes_obj)
+       y_axis_stp = grasp_axes_stp[:,1]
+       y_axis_stp_proj = y_axis_stp.copy()
+       y_axis_stp_proj[2] = 0
+       y_axis_stp = grasp_axes_stp.T.dot(y_axis_stp)
+       y_axis_stp_proj = grasp_axes_stp.T.dot(y_axis_stp_proj)
+
+       u_x = np.array([y_axis_stp[1], y_axis_stp[2]])
+       v_x = np.array([y_axis_stp_proj[1], y_axis_stp_proj[2]])
+       psi = _angle_2d(v_x, u_x)
+
+       if psi > np.pi:
+           psi = 2 * np.pi - psi
+
+       return psi
         
     def set_approach_angle(self, angle):
         self.approach_angle_ = angle
@@ -336,7 +377,6 @@ class ParallelJawPtGrasp3D(PointGrasp):
                     # contact not yet found if next sdf value is smaller
                     if pt_zc is None or np.abs(sdf_after) < np.abs(sdf_here):
                         contact_found = False
-
             i = i+1
 
         # visualization
@@ -459,6 +499,43 @@ class ParallelJawPtGrasp3D(PointGrasp):
         new_grasp = deepcopy(self)
         new_grasp.set_approach_angle(theta)
         return new_grasp
+
+    def _angle_aligned_with_table(self, stable_pose):
+        '''
+        Returns the y-axis rotation angle that'd allow the current pose to align with stable pose
+        '''    
+        def _argmax(f, a, b, n):
+            #finds the argmax x of f(x) in the range [a, b) with n samples
+            delta = (b - a) / n
+            max_y = f(a)
+            max_x = a
+            for i in range(1, n):
+                x = i * delta
+                y = f(x)
+                if y >= max_y:
+                    max_y = y
+                    max_x = x
+            return max_x
+    
+        def _get_matrix_product_x_axis(grasp_axis, normal):
+            def matrix_product(theta):
+                R = ParallelJawPtGrasp3D._get_rotation_matrix_y(theta)
+                grasp_axis_rotated = np.dot(R, grasp_axis)
+                return np.dot(normal, grasp_axis_rotated)
+            return matrix_product
+    
+        stable_pose_normal = stable_pose.r[2]
+        theta = _argmax(_get_matrix_product_x_axis(np.array([1,0,0]), np.dot(inv(self.unrotated_full_axis), -stable_pose_normal)), 0, 2*np.pi, 1000)        
+        return theta
+
+    def grasp_aligned_with_table_normal(self, stable_pose):
+        '''
+        Returns the grasp with approach_angle set appropriately to align with stable pose
+        '''
+        theta = self._angle_aligned_with_table(stable_pose)
+        new_grasp = deepcopy(self)
+        new_grasp.set_approach_angle(theta)        
+        return new_grasp
         
     def collides_with_stable_pose(self, stable_pose, debug = []):
         '''
@@ -526,8 +603,8 @@ class ParallelJawPtGrasp3D(PointGrasp):
         # get line of action
         line_of_action1 = ParallelJawPtGrasp3D.create_line_of_action(grasp_c1_grid, grasp_axis_grid, grasp_width_grid, obj, num_samples,
                                                                      min_width=min_grasp_width_grid, convert_grid = False)
-        line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2, -grasp_axis_grid, grasp_width_grid, obj, num_samples,
-                                                                     min_width=min_grasp_width_grid, convert_grid = False)
+        line_of_action2 = ParallelJawPtGrasp3D.create_line_of_action(g2, -grasp_axis_grid, 2*grasp_width_grid, obj, num_samples,
+                                                                     min_width=0, convert_grid = False)
         if vis:
             obj.sdf.scatter()
             ax = plt.gca(projection = '3d')
@@ -543,7 +620,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.set_ylim3d(0, obj.sdf.dims_[1])
             ax.set_zlim3d(0, obj.sdf.dims_[2])
             plt.draw()
-        if not contact1_found or not contact2_found:
+        if not contact1_found or not contact2_found or np.linalg.norm(c1.point - c2.point) < min_grasp_width_grid:
             logging.debug('No contacts found for grasp')
             return None, None
 
