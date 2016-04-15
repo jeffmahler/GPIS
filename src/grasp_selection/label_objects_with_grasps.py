@@ -152,8 +152,8 @@ def label_grasps(obj, dataset, output_ds, config):
         quality_start_time = time.time()
 
         # stable poses
-        if config['ppc_stp_id']:
-            stable_poses = [dataset.stable_pose(obj.key, config['ppc_stp_id'])]
+        if config['ppc_stp_ids']:
+            stable_poses = [dataset.stable_pose(obj.key, config['ppc_stp_ids'][obj.key])]
         else:
             stable_poses = dataset.stable_poses(obj.key, min_p=config['stp_min_p'])
 
@@ -285,7 +285,6 @@ def label_grasps(obj, dataset, output_ds, config):
     logging.info('Labelling for %d grasps took %f sec in total.' %(len(grasps), stop_time - start_time))
 
 if __name__ == '__main__':
-    np.random.seed(100)
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
     parser.add_argument('output_dest')
@@ -295,6 +294,7 @@ if __name__ == '__main__':
 
     # read config file
     config = ec.ExperimentConfig(args.config)
+
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     if config['write_in_place']:
         logging.info('Writing back to original dataset')

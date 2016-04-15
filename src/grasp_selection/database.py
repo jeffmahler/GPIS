@@ -396,12 +396,12 @@ class Hdf5Dataset(Dataset):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """
         return hfact.Hdf5ObjectFactory.write_grasp_metrics(grasp_metric_dict, self.grasp_data(key, gripper), force_overwrite)
 
-    def grasp_features(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None):
+    def grasp_features(self, key, grasps, gripper='pr2', stable_pose_id=None, task_id=None, feature_names=None):
         """ Returns the list of grasps for the given graspable, optionally associated with the given stable pose """
         if gripper not in self.grasp_data(key).keys():
             logging.warning('Gripper type %s not found. Returning empty list' %(gripper))
             return {}
-        return hfact.Hdf5ObjectFactory.grasp_features(grasps, self.grasp_data(key, gripper))        
+        return hfact.Hdf5ObjectFactory.grasp_features(grasps, self.grasp_data(key, gripper), feature_names)
 
     def store_grasp_features(self, key, grasp_feature_dict, gripper='pr2', stable_pose_id=None, task_id=None, force_overwrite=False):
         """ Add grasp metrics in list |metrics| to the data associated with |grasps| """

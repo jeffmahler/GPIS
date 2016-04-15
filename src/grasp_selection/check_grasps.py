@@ -215,7 +215,9 @@ if __name__ == '__main__':
         dataset = database.dataset(dataset_name)
 
         # check each object in the dataset with grasps
-        for obj in dataset:
+        obj = dataset['pipe_connector']
+        if True:
+        #for obj in dataset:
             logging.info('Displaying grasps for object {}'.format(obj.key))
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
 

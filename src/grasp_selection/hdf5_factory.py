@@ -17,6 +17,7 @@ import h5py
 import IPython
 import logging
 import numpy as np
+import random
 import tfx
 
 # data keys for easy access
@@ -210,27 +211,29 @@ class Hdf5ObjectFactory(object):
             data[stp_key].create_group(db.RENDERED_IMAGES_KEY)
 
     @staticmethod
-    def grasps(data):
+    def grasps(data, num_grasps_sample=10):
         """ Return a list of grasp objects from the data provided in the HDF5 dictionary """
         # need to read in a bunch of grasps but also need to know what kind of grasp it is
         grasps = []
         num_grasps = data.attrs[NUM_GRASPS_KEY]
-        for i in range(num_grasps):
+        grasp_indices = np.arange(num_grasps).tolist()
+        for i in grasp_indices:
             # get the grasp data y'all
             grasp_key = GRASP_KEY + '_' + str(i)
-            if grasp_key in data.keys():
-                grasp_id =      data[grasp_key].attrs[GRASP_ID_KEY]            
-                grasp_type =    data[grasp_key].attrs[GRASP_TYPE_KEY]
-                configuration = data[grasp_key].attrs[GRASP_CONFIGURATION_KEY]
-                frame =         data[grasp_key].attrs[GRASP_RF_KEY]            
-                timestamp =     data[grasp_key].attrs[GRASP_TIMESTAMP_KEY]            
+            try:
+                grasp_data = data[grasp_key]
+                grasp_id =      grasp_data.attrs[GRASP_ID_KEY]            
+                grasp_type =    grasp_data.attrs[GRASP_TYPE_KEY]
+                configuration = grasp_data.attrs[GRASP_CONFIGURATION_KEY]
+                frame =         grasp_data.attrs[GRASP_RF_KEY]            
+                timestamp =     grasp_data.attrs[GRASP_TIMESTAMP_KEY]            
                 
                 # create object based on type
                 g = None
                 if grasp_type == 'ParallelJawPtGrasp3D':
                     g = grasp.ParallelJawPtGrasp3D(configuration=configuration, frame=frame, timestamp=timestamp, grasp_id=grasp_id)
                 grasps.append(g)
-            else:
+            except:
                 logging.debug('Grasp %s is corrupt. Skipping' %(grasp_key))
 
         return grasps
@@ -282,10 +285,12 @@ class Hdf5ObjectFactory(object):
             grasp_id = grasp.grasp_id
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
             grasp_metrics[grasp_id] = {}
-            if grasp_key in data.keys():
+            try:
                 grasp_metric_data = data[grasp_key][GRASP_METRICS_KEY]                
                 for metric_name in grasp_metric_data.attrs.keys():
                     grasp_metrics[grasp_id][metric_name] = grasp_metric_data.attrs[metric_name]
+            except:
+                logging.warning('Metrics for grasp %s are corrupt. Skipping' %(grasp_key))
         return grasp_metrics
 
     @staticmethod
@@ -307,18 +312,23 @@ class Hdf5ObjectFactory(object):
         return True
 
     @staticmethod
-    def grasp_features(grasps, data):
+    def grasp_features(grasps, data, feature_names):
         """ Read grasp features from database into a dictionary """
         features = {}
         for grasp in grasps:
             grasp_id = grasp.grasp_id
             grasp_key = GRASP_KEY + '_' + str(grasp_id)
             features[grasp_id] = []
-            if grasp_key in data.keys():
+            try:
                 grasp_feature_data = data[grasp_key][GRASP_FEATURES_KEY] 
-                for feature_name in grasp_feature_data.keys():
-                    features[grasp_id].append(ff.GraspFeature(feature_name, grasp_feature_data[feature_name].attrs[GRASP_FEATURE_TYPE_KEY],
-                                                              grasp_feature_data[feature_name].attrs[GRASP_FEATURE_VECTOR_KEY]))
+                if feature_names is None:
+                    feature_names = grasp_feature_data.keys()
+                for feature_name in feature_names:
+                    feature_name_data = grasp_feature_data[feature_name]
+                    features[grasp_id].append(ff.GraspFeature(feature_name, feature_name_data.attrs[GRASP_FEATURE_TYPE_KEY],
+                                                              feature_name_data.attrs[GRASP_FEATURE_VECTOR_KEY]))
+            except Exception as e:
+                logging.warning('Features for grasp %s are corrupt. Skipping.' %(grasp_key))
         return features
 
     @staticmethod
