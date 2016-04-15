@@ -16,7 +16,7 @@ datasets:
     end_index: 40
 
 # Grasp-specific params
-object_name: vase
+object_name: climbing_hold
 stable_pose_index: 2
 
 load_object: 0
@@ -25,6 +25,7 @@ grasp_candidate_dir: data/grasp_candidates
 
 num_grasp_trials: 10
 num_grasps_to_sample: 1
+start_grasp_id: 0
 grasp_metric: pfc_f_0.100000_tg_0.005000_rg_0.100000_to_0.005000_ro_0.100000
 lift_height: 0.2
 

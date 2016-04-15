@@ -390,7 +390,7 @@ if __name__ == '__main__':
     grasp_ids = np.load(grasp_id_filename)
     grasps_to_execute = []
     for grasp in grasps:
-        if grasp.grasp_id in grasp_ids:
+        if grasp.grasp_id in grasp_ids and grasp.grasp_id >= config['start_grasp_id']:
             grasps_to_execute.append(grasp.grasp_aligned_with_stable_pose(stable_pose))
 
     # plot grasps
