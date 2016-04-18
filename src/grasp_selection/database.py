@@ -320,6 +320,7 @@ class Hdf5Dataset(Dataset):
         # add the attributes
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
+        self.object_keys_.append(key)
 
     def update_mesh(self, key, mesh):
         """ Updates the mesh for the given key """
