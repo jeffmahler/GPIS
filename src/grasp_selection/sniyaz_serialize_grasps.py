@@ -17,7 +17,10 @@ import experiment_config as ec
 import gripper
 
 import sys
-sys.path.insert(0, "../../google/proto/")
+script_path = os.path.realpath(__file__)
+script_directory = os.path.dirname(script_path)
+library_directory = os.path.normpath(os.path.join(script_directory, "../../google/proto"))
+sys.path.insert(0, library_directory)
 import objectposes_pb2
 
 if __name__ == '__main__':
@@ -38,6 +41,7 @@ if __name__ == '__main__':
     output_directory = args.output_dest
 
     zeke_gripper = gripper.RobotGripper.load("zeke")
+    proto_poses = objectposes_pb2.ObjectPoses()
 
     for dataset_name in config['datasets'].keys():
         dataset = database.dataset(dataset_name)
@@ -48,9 +52,10 @@ if __name__ == '__main__':
         obj_grasps = dataset.grasps("textured-0008192", "pr2")
         for grasp in obj_grasps:
             gripper_pose = grasp.gripper_transform(zeke_gripper)
-            quaternion = gripper_pose.pose.rotation.quaternion()
+            quaternion = gripper_pose.pose.rotation.quaternion
             translation = gripper_pose.translation
-
+            proto_grasp = proto_poses.poses.add()
+           
             #All of the crap for protobuff
             proto_translation = objectposes_pb2.Vector3D()
             proto_translation.x = translation[0]
@@ -63,11 +68,8 @@ if __name__ == '__main__':
             proto_quaternion.z = quaternion[2]
             proto_quaternion.w = quaternion[3]
 
-            proto_grasp = objectposes_pb2.Pose3D()
-            proto_grasp.translation = proto_translation
-            proto_grasp.quaternion = proto_quaternion
-
-            print(proto_grasp)
+            proto_grasp.translation.CopyFrom(proto_translation)
+            proto_grasp.rotation.CopyFrom(proto_quaternion)
             
             # pose_filename = os.path.join(output_dest + "pose_"+ str(i) + ".txt")
             # save_file = open(pose_filename, 'w')
@@ -78,7 +80,3 @@ if __name__ == '__main__':
     database.close()
 
 
-
-
-objectposes_pb2.Vector3D()
-proto_translation.
