@@ -77,7 +77,7 @@ if __name__ == '__main__':
             # save_file.close()
 
 
-    to_write = proto.poses.SerializeToString()
+    to_write = proto_poses.SerializeToString()
     output_file = open(os.path.join(args.output_dest, "proto_grasp.txt"), "wb")
     output_file.write(to_write)
     output_file.close()
