@@ -321,6 +321,10 @@ class Hdf5Dataset(Dataset):
         self.object(key).attrs.create(CATEGORY_KEY, category)
         self.object(key).attrs.create(MASS_KEY, mass)
 
+    def update_mesh(self, key, mesh):
+        """ Updates the mesh for the given key """
+        hfact.Hdf5ObjectFactory.write_mesh_3d(mesh, self.mesh_data(key), force_overwrite=True)
+
     def obj_mesh_filename(self, key, scale=1.0):
         """ Writes an obj file in the database "cache"  directory and returns the path to the file """
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
@@ -362,6 +366,14 @@ class Hdf5Dataset(Dataset):
         sorted_grasps = [g[0] for g in grasps_and_metrics]
         sorted_metrics = [g[1] for g in grasps_and_metrics]
         return sorted_grasps, sorted_metrics
+
+    def delete_grasps(self, key, gripper='pr2', stable_pose_id=None):
+        """ Deletes a set of grasps associated with the given gripper """
+        if gripper not in self.grasp_data(key).keys():
+            logging.warning('Gripper type %s not found. Nothing to delete' %(gripper))
+            return False
+        del self.grasp_data(key)[gripper]
+        return True
 
     def store_grasps(self, key, grasps, gripper='pr2', stable_pose_id=None, force_overwrite=False):
         """ Associates grasps in list |grasps| with the given object. Optionally associates the grasps with a single stable pose """

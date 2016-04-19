@@ -37,6 +37,10 @@ class DexRobotTurntable:
         
     def getState(self):
         return self._turntable.getState()
+
+    def reset_fishing(self):
+        self._turntable.queueArbitraryRequest('r')
+        sleep(DexConstants.RESET_FISHING_DELAY)
         
     def reset_fishing(self):
         self._turntable.queueArbitraryRequest('r')

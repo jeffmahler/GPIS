@@ -127,12 +127,23 @@ class Hdf5ObjectFactory(object):
         return mesh.Mesh3D(vertices.tolist(), triangles.tolist(), normals=normals, metadata=metadata, pose=pose, scale=scale, density=density)
 
     @staticmethod
-    def write_mesh_3d(mesh, data):
+    def write_mesh_3d(mesh, data, force_overwrite=False):
         """ Writes mesh object to HDF5 data provided in |data| """
+        if MESH_VERTICES_KEY in data.keys() or MESH_TRIANGLES_KEY in data.keys():
+            if not force_overwrite:
+                logging.warning('Mesh already exists and force overwrite not specified. Aborting')
+                return False
+
+            del data[MESH_VERTICES_KEY]
+            del data[MESH_TRIANGLES_KEY]
+            if mesh.normals() is not None:
+                del data[MESH_NORMALS_KEY]
+
         data.create_dataset(MESH_VERTICES_KEY, data=np.array(mesh.vertices()))
         data.create_dataset(MESH_TRIANGLES_KEY, data=np.array(mesh.triangles()))
         if mesh.normals() is not None:
             data.create_dataset(MESH_NORMALS_KEY, data=np.array(mesh.normals()))
+        return True
 
     @staticmethod
     def local_features(data):

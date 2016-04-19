@@ -16,5 +16,8 @@ save_dir: 'data/calibration/'
 # Number of depth images
 num_images: 1
 
+# Number of separate calibrations to average
+num_avg: 10
+
 # Figure plotting
 scale_amt: 10.0

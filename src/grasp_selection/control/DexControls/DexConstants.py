@@ -8,16 +8,16 @@ class DexConstants:
     DEBUG = False
     PRINT_STATES = False
     LOGGING = True
-    
-    ZEKE_COMM = "/dev/ttyACM3"
-    TABLE_COMM = "COM3" #"/dev/ttyACM2"
+
+    ZEKE_COMM = "/dev/ttyACM1"
+    TABLE_COMM = "/dev/ttyACM0"
     IZZY_COMM = "/dev/ttyACM2"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01
 
-    INIT_DELAY = 3 #magic 3 seconds initial wait for serial connection to stablize
+    INIT_DELAY = 4 #magic 3 seconds initial wait for serial connection to stablize
     PAUSE_DELAY = 0.01
-    
+
     RESET_FISHING_DELAY = 13
     
     ROBOT_OP_TIMEOUT = 2

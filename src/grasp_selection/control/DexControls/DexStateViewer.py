@@ -67,9 +67,10 @@ class DexStateViewer:
         viewer.monitor(period)
         
     @staticmethod
-    def viewTable(period = 10, comm = DexConstants.TABLE_COMM):
+    def viewTable(period = 300, comm = DexConstants.TABLE_COMM):
         viewer = DexStateViewer(TurntableState, comm)
         viewer.monitor(period)
 
 if __name__ == '__main__':
     DexStateViewer.viewZeke()
+    #DexStateViewer.viewTable()

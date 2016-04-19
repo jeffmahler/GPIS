@@ -34,6 +34,7 @@ import discrete_adaptive_samplers as das
 import experiment_config as ec
 import mab_single_object_objective as msoo
 import mayavi_visualizer as mvis
+import obj_file
 import quality
 import rgbd_sensor as rs
 import similarity_tf as stf
@@ -73,7 +74,7 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     # get point cloud (for debugging only)
     camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], fx=config['registration']['focal_length'])
     points_3d = camera_params.deproject(depth_im)
-    subsample_inds = np.arange(points_3d.shape[1])[::20]
+    subsample_inds = np.arange(points_3d.shape[1])[::10]
     points_3d = points_3d[:,subsample_inds]
 
     # register
@@ -130,6 +131,8 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     mvis.MayaviVisualizer.plot_pose(T_camera_world, alpha=alpha, tube_radius=tube_radius, center_scale=center_scale)
     mvis.MayaviVisualizer.plot_mesh(object_mesh, T_obj_world)
     mvis.MayaviVisualizer.plot_point_cloud(cb_points_camera, T_world_camera, color=(1,1,0))
+    mvis.MayaviVisualizer.plot_point_cloud(points_3d, T_world_camera, color=(0,1,0), scale=0.0025)
+    mv.view(focalpoint=(0,0,0))
     mv.show()
             
 if __name__ == '__main__':
@@ -150,7 +153,7 @@ if __name__ == '__main__':
     snapshot_rate = config['snapshot_rate']
 
     # open database and dataset
-    database = db.Hdf5Database(database_filename, config)
+    database = db.Hdf5Database(database_filename, config)#, access_level=db.READ_WRITE_ACCESS)
     ds = database.dataset(dataset_name)
 
     # setup output directories and logging (TODO: make experiment wrapper class in future)
@@ -175,13 +178,23 @@ if __name__ == '__main__':
     stable_poses = ds.stable_poses(object_name)
 
     """
+    filename = '/mnt/terastation/shape_data/dexnet_physical_experiments/pipe_connector_dec.obj'
+    of = obj_file.ObjFile(filename)
+    object_mesh = of.read()
+
+    #object_mesh, _ = graspable.mesh.subdivide(min_triangle_length=config['min_triangle_length'])
+    ds.update_mesh(object_name, object_mesh)
+    database.close()
+    exit(0)
+    """
+
     T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
     for stable_pose in stable_poses:
         print 'Stable pose', stable_pose.id
         mv.figure()
         mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world)
         mv.show()
-    """
+    exit(0)
 
     stable_pose = stable_poses[config['stable_pose_index']]
     
