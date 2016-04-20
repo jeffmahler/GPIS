@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 
 import logging
 
+import IPython
+
 class DexRobotTurntable:
     '''
     Abstraction for a robot profile. Contains all information specific
@@ -55,7 +57,7 @@ class DexRobotTurntable:
             if rot < TurntableState.MIN_STATE().table_rot:
                 return TurntableState.MIN_STATE().table_rot
             return rot
-                
+
         target_state.set_table_rot(_boundTurntableRot(target_state.table_rot))
         self._turntable.gotoState(target_state, rot_speed, tra_speed, name, block=block)
         self._target_state = target_state.copy()

@@ -169,7 +169,7 @@ if __name__ == '__main__':
                         mesh_processor = mp.MeshProcessor(filename)
 
                         config['obj_scale'] = dataset.scale
-                        config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeAbsolute
+                        config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeRelative
                         if dataset.synthetic:
                             config['obj_scale'] = config['gripper_size']
                             config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeDiag

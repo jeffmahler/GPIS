@@ -127,23 +127,24 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
     grasps = output_ds.grasps(obj.key, gripper=gripper_name)
 
     # extract features
+    feature_start_time = time.time()
+    all_features = [None] * len(grasps)
     if config['extract_features']:
         logging.info('Extracting features')
-        feature_start_time = time.time()
-
         feature_extractor = ff.GraspableFeatureExtractor(obj, config)
         all_features = feature_extractor.compute_all_features(grasps)
-        raw_feature_dict = {}
-        for g, f, s in zip(grasps, all_features, grasp_sms):
-            if f is not None:
-                raw_feature_dict[g.grasp_id] = f.features()
-                raw_feature_dict[g.grasp_id].append(ff.GraspFeature('sampling_method', 'sampling_method', s))
-                
-        # store features
-        output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
 
-        feature_stop_time = time.time()
-        logging.info('Feature extraction for %d grasps took %f sec.' %(len(grasps), feature_stop_time - feature_start_time))
+    raw_feature_dict = {}
+    for g, f, s in zip(grasps, all_features, grasp_sms):
+        raw_feature_dict[g.grasp_id] = [ff.GraspFeature('sampling_method', 'sampling_method', s)]
+        if f is not None:
+            raw_feature_dict[g.grasp_id].append(f.features())
+                
+    # store features
+    output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
+
+    feature_stop_time = time.time()
+    logging.info('Feature extraction for %d grasps took %f sec.' %(len(grasps), feature_stop_time - feature_start_time))
 
     # compute grasp metrics
     if config['compute_grasp_metrics']:
@@ -325,11 +326,15 @@ if __name__ == '__main__':
 
             for gripper_name in config['grippers']:
                 logging.info('Labelling object {} with grasps for gripper {}'.format(obj.key, gripper_name))
+                grasps = dataset.grasps(obj.key, gripper=gripper_name)
 
                 # create the graspable if necessary
                 if config['delete_existing_grasps']:
                     logging.warning('Deleting existing grasps for object {}'.format(obj.key))
                     output_ds.delete_grasps(obj.key, gripper=gripper_name)
+                elif config['skip_labeled_objects'] and len(grasps) > 0:
+                    logging.info('Object %s already has grasps. Skipping...' %(obj.key)) 
+                    continue
 
                 try:
                     label_grasps(obj, dataset, output_ds, gripper_name, config)

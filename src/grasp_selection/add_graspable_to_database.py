@@ -24,6 +24,7 @@ import stable_poses
 ILLEGAL_DATASETS = ['BigBIRD', 'Cat50_ModelDatabase',
                     'KIT', 'MeshSegBenchmark', 'ModelNet40', 'NTU3D',
                     'PrincetonShapeBenchmark', 'SHREC14LSGTB', 'YCB']
+UNSPEC_KEY = 'unspecified'
 
 # read in params
 if __name__ == '__main__':
@@ -33,6 +34,7 @@ if __name__ == '__main__':
     parser.add_argument('--synthetic', default=1)    
     parser.add_argument('--category', default='unknown')    
     parser.add_argument('--scale', default=1.0)    
+    parser.add_argument('--key', default=UNSPEC_KEY)    
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
@@ -42,12 +44,13 @@ if __name__ == '__main__':
 
     # filesystem params
     mesh_filename = args.mesh_file
-    dataset_name = config['gen_dataset']
+    dataset_name = config['datasets'].keys()[0]
     shape_db_root_folder = config['shape_data_dir']
     dest_root_folder = config['database_dir']
     synthetic = int(args.synthetic)
     category = args.category
     scale = float(args.scale)
+    key = args.key
 
     if dataset_name in ILLEGAL_DATASETS:
         raise ValueError('Cannot add a graspable to dataset %s' %(dataset_name))
@@ -66,14 +69,15 @@ if __name__ == '__main__':
     # parse filename
     file_path, file_name = os.path.split(mesh_filename)
     file_root, file_ext = os.path.splitext(file_name)
-    key = file_root
+    if key == UNSPEC_KEY:
+        key = file_root
 
     # grab the models with a given format and filtered by the given filter (fresh clean for each file)
     mesh_processor = mp.MeshProcessor(mesh_filename)
 
     # generate a graspable
-    config['scale'] = scale
-    config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeAbsolute
+    config['obj_scale'] = scale
+    config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeRelative
     if synthetic == 1:
         config['obj_scale'] = config['gripper_size']
         config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeDiag

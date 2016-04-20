@@ -68,7 +68,7 @@ def show_stable_poses(obj, dataset, config, delay=0.1, num_views=16):
         mlab.clf()
         mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface')
 
-        mlab.title('%s' %(stable_pose.id), color=(0,0,0))
+        #mlab.title('%s' %(stable_pose.id), color=(0,0,0))
         for j in range(num_views):
             az = j * delta_view
             mlab.view(az)

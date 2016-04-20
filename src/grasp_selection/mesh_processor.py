@@ -27,7 +27,7 @@ class MeshProcessor:
     RescalingTypeMin = 0
     RescalingTypeMed = 1
     RescalingTypeMax = 2
-    RescalingTypeAbsolute = 3
+    RescalingTypeRelative = 3
     RescalingTypeDiag = 4
     
     def __init__(self, filename):
@@ -114,13 +114,12 @@ class MeshProcessor:
         logging.info('MeshlabServer Command: %s' %(meshlabserver_cmd))
 
         if not os.path.exists(self.obj_filename):
-            logging.info('Meshlab conversion failed for %s' %(self.obj_filename))
-            return
+            raise ValueError('Meshlab conversion failed for %s' %(self.obj_filename))
         
         # read mesh from obj file
         of = obj_file.ObjFile(self.obj_filename)
         self.mesh_ = of.read()
-        return self.mesh_
+        return self.mesh_ 
 
     def clean_mesh(self, scale, rescaling_type):
         """ Runs all cleaning ops at once """
@@ -239,7 +238,7 @@ class MeshProcessor:
         elif rescaling_type == MeshProcessor.RescalingTypeMax:
             dim = np.where(vertex_extent == np.max(vertex_extent))[0][0]
             relative_scale = vertex_extent[dim]
-        elif rescaling_type == MeshProcessor.RescalingTypeAbsolute:
+        elif rescaling_type == MeshProcessor.RescalingTypeRelative:
             relative_scale = 1.0
         elif rescaling_type == MeshProcessor.RescalingTypeDiag:
             diag = np.linalg.norm(vertex_extent)

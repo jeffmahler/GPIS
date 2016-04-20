@@ -64,7 +64,7 @@ class DexController:
         logging.info('Aligned Theta %f' %aligned_obj_angle)
 
         #reset izzy to clear-table-rotation position
-        logging.info('Reseting table rotation')
+        #logging.info('Reseting table rotation')
         #self._table.reset()
         self._robot.reset_clear_table()
         #wait til completed
@@ -89,7 +89,7 @@ class DexController:
         logging.info('Rotating table to %f' %(target_turntable_angle))
         target_table_state = TurntableState().set_table_rot(target_turntable_angle)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
-        
+
         #wait til completed
         #transform target_pose to izzy 
         logging.info('Moving robot to grasp pose')

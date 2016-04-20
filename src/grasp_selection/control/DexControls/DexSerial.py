@@ -64,7 +64,7 @@ class _DexSerial(Process):
                 self._flags["reading"] = False
 
             if self._sensor_read_q is None:
-                Logger.log("goddamn", self._current_state, self._State.NAME)
+                Logger.log("empty sensor", self._current_state, self._State.NAME)
 
             #sending the current state
             if self._updated_state:

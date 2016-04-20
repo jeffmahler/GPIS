@@ -2,25 +2,20 @@
 root_dir:     /home/jmahler/jeff_working/GPIS
 cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
 
-# DB generation params
-gen_dataset: amazon_picking_challenge
-gen_dataset_start: 0
-
+# DB params
 shape_data_dir: /mnt/terastation/shape_data
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
-database_name: apc_test_db.hdf5
-results_database_name: results.hdf5
+database_name: physical_experiment_master_db.hdf5
 
 datasets:
-  amazon_picking_challenge:
+  dexnet_physical_experiments:
     start_index: 0
     end_index: 10000
 
 # Object gen params
 sdf_dim: 50
 sdf_padding: 5
-obj_scale: 0.09
 gripper_size: 0.1
 mass_thresh: 0.01
 default_mass: 1.0

@@ -192,9 +192,6 @@ if __name__ == '__main__':
 
         # generate grasps for each object in the dataset
         for obj in dataset:
-            if obj.key == 'pipe_connector':
-                continue
-
             # read in object params
             object_key = obj.key
             if config['ppc_stp_ids']:
@@ -204,6 +201,13 @@ if __name__ == '__main__':
                 stable_poses = dataset.stable_poses(object_key)
                 stable_pose = stable_poses[0]
                 stp_id = stable_pose.id
+
+            # check for existing candidates
+            grasp_ids_filename = os.path.join(candidate_output_dir,
+                '%s_%s_%s_grasp_ids.npy' %(object_key, stp_id, config['gripper']))                                              
+            if os.path.exists(grasp_ids_filename):
+                logging.warning('Candidate grasps already exist for object %s in stable pose %s for gripper %s. Skipping...' %(object_key, stp_id, config['gripper']))
+                continue
 
             # generate candidate grasps
             logging.info('Computing candidate grasps for object {}'.format(object_key))
@@ -241,10 +245,9 @@ if __name__ == '__main__':
                 for j in range(num_grasp_views):
                     az = j * delta_view
                     mv.view(az)
+                    time.sleep(0.5)
 
             # save candidate grasp ids
-            grasp_ids_filename = os.path.join(candidate_output_dir,
-                '%s_%s_%s_grasp_ids.npy' %(object_key, stp_id, config['gripper']))                                              
             np.save(grasp_ids_filename, candidate_grasp_ids)
             
     database.close()

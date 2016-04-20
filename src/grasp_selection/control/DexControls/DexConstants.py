@@ -9,8 +9,8 @@ class DexConstants:
     PRINT_STATES = False
     LOGGING = True
 
-    ZEKE_COMM = "/dev/ttyACM0"
-    TABLE_COMM = "/dev/ttyACM1"
+    ZEKE_COMM = "/dev/ttyACM1"
+    TABLE_COMM = "/dev/ttyACM0"
     IZZY_COMM = "/dev/ttyACM2"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01
