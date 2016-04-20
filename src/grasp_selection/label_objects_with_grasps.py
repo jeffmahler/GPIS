@@ -45,6 +45,7 @@ GRAVITY_ACCEL = 9.81
 
 def label_grasps(obj, dataset, output_ds, gripper_name, config):
     start_time = time.time()
+    gripper = gr.RobotGripper.load(gripper_name)
     
     # sample grasps
     if config['sample_grasps']:
@@ -58,7 +59,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         if config['grasp_sampler'] == 'antipodal':
             # antipodal sampling
             logging.info('Using antipodal grasp sampling')
-            sampler = ags.AntipodalGraspSampler(config)
+            sampler = ags.AntipodalGraspSampler(gripper, config)
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'],
                 max_iter=config['max_grasp_sampling_iters'])
@@ -72,7 +73,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
 
             if num_grasps < min_num_grasps:
                 target_num_grasps = min_num_grasps - num_grasps
-                gaussian_sampler = gs.GaussianGraspSampler(config)
+                gaussian_sampler = gs.GaussianGraspSampler(gripper, config)
                 gaussian_grasps = gaussian_sampler.generate_grasps(
                     obj, target_num_grasps=target_num_grasps,
                     check_collisions=config['check_collisions'],
@@ -84,14 +85,14 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
             # half uniform and half antipodal sampling
             num_grasps_sample = config['target_num_grasps'] / 2
 
-            antipodal_sampler = ags.AntipodalGraspSampler(config)
+            antipodal_sampler = ags.AntipodalGraspSampler(gripper, config)
             antipodal_grasps = antipodal_sampler.generate_grasps(
                 obj, target_num_grasps=num_grasps_sample,
                 check_collisions=config['check_collisions'],
                 max_iter=config['max_grasp_sampling_iters'])
             grasp_sms = [0] * len(antipodal_grasps)
 
-            uniform_sampler = gs.UniformGraspSampler(config)
+            uniform_sampler = gs.UniformGraspSampler(gripper, config)
             uniform_grasps = uniform_sampler.generate_grasps(
                 obj, target_num_grasps=num_grasps_sample,
                 check_collisions=config['check_collisions'],
@@ -104,7 +105,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         else:
             # gaussian sampling
             logging.info('Using Gaussian grasp sampling')
-            sampler = gs.GaussianGraspSampler(config)
+            sampler = gs.GaussianGraspSampler(gripper, config)
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'])
             grasp_sms.extend([1] * len(grasps))

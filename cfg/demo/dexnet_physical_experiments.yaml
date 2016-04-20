@@ -7,8 +7,7 @@ cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
 shape_data_dir: /mnt/terastation/shape_data
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
-database_name: physical_experiment_render_db.hdf5
-results_database_name: results.hdf5
+database_name: physical_experiment_reg_db.hdf5
 
 datasets:
   dexnet_physical_experiments:
@@ -18,14 +17,14 @@ datasets:
 # Grasp-specific params
 object_name: climbing_hold
 stable_pose_index: 2
+start_grasp_id: 0
 
-load_object: 0
 debug: 0
+load_object: 0
 grasp_candidate_dir: data/grasp_candidates
 
 num_grasp_trials: 10
 num_grasps_to_sample: 1
-start_grasp_id: 0
 grasp_metric: pfc_f_0.100000_tg_0.005000_rg_0.100000_to_0.005000_ro_0.100000
 lift_height: 0.2
 
@@ -44,6 +43,7 @@ tube_radius: 0.0025
 table_extent: 0.5
 num_grasp_views: 8
 cam_dist: 1.5
+num_avg_images: 10
 
 # Params
 min_dim: 0.09

@@ -60,6 +60,7 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     lift_height = config['lift_height']
     num_grasp_views = config['num_grasp_views']
     cam_dist = config['cam_dist']
+    num_avg_images = config['num_avg_images']
 
     logging_dir = config['experiment_dir']        
     if not os.path.exists(logging_dir):
@@ -68,9 +69,17 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
 
     # retrieve object pose from camera
     logging.info('Registering object')
-    depth_im = camera.get_depth_image()
-    color_im = camera.get_color_image()
-                
+    depth_im = np.zeros([camera.height, camera.width])
+    counts = np.zeros([camera.height, camera.width])
+    for i in range(num_avg_images):
+        new_depth_im = camera.get_depth_image()
+        color_im = camera.get_color_image()
+
+        depth_im = depth_im + new_depth_im
+        counts = counts + np.array(new_depth_im > 0.0)
+
+    depth_im[depth_im > 0] = depth_im[depth_im > 0] / counts[depth_im > 0]
+
     # get point cloud (for debugging only)
     camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], fx=config['registration']['focal_length'])
     points_3d = camera_params.deproject(depth_im)
@@ -188,7 +197,6 @@ if __name__ == '__main__':
     database.close()
     exit(0)
     """
-
     """
     T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
     for stable_pose in stable_poses:
@@ -198,7 +206,6 @@ if __name__ == '__main__':
         mv.show()
     exit(0)
     """
-
     stable_pose = stable_poses[config['stable_pose_index']]
     
     # HACK to fix a y-axis orientation bug in the stable pose code

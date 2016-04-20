@@ -222,7 +222,7 @@ class TabletopRegistrationSolver:
             for j, (image, distance) in enumerate(zip(nearest_images, nearest_distances)):
                 plt.subplot(2, num_nearest_neighbors, j+num_nearest_neighbors+1)
                 plt.imshow(image.image, cmap=plt.cm.Greys_r, interpolation='none')
-                plt.title('NEIGHBOR %d (%d), DISTANCE = %f' %(j, image.id, distance), fontsize=font_size)
+                plt.title('N %d (%d), DIST = %.2f' %(j, image.id, distance), fontsize=10)
                 plt.axis('off')
 
             if self.logging_dir_ is None:
@@ -271,6 +271,9 @@ class TabletopRegistrationSolver:
             source_object_mesh = object_mesh.transform(T_stp_obj)
             source_object_points = np.array(source_object_mesh.vertices())
 
+            min_z_ind = np.where(source_object_points[:,2] == np.min(source_object_points[:,2]))[0][0]
+            source_x0_lowest = source_object_points[min_z_ind,:].T # lowest point in table frame
+
             # match table normals
             logging.info('Matching table normals')
             target_object_points = ip.PointCloudProcessing.remove_zero_points(query_point_cloud).T
@@ -290,6 +293,8 @@ class TabletopRegistrationSolver:
             camera_params = cp.CameraParams(index_im_dim, index_im_dim, focal_length,
                                             cx=index_im_dim/2.0, cy=index_im_dim/2.0)
             source_depth_im = cam_object_mesh.project_depth(camera_params)
+
+            # project points
             source_object_normals, source_object_points = \
                 ip.DepthImageProcessing.compute_normals(source_depth_im, camera_params)
             source_object_points = ip.PointCloudProcessing.remove_zero_points(source_object_points).T
@@ -299,16 +304,12 @@ class TabletopRegistrationSolver:
 
             # align the lowest and closest points to the camera
             logging.info('Aligning lowest and closest')
-            min_z_ind = np.where(target_object_points[:,2] == np.min(target_object_points[:,2]))[0][0]
-            target_x0_highest = target_object_points[min_z_ind,:].T
-            min_z_ind = np.where(source_object_points[:,2] == np.min(source_object_points[:,2]))[0][0]
-            source_x0_highest = source_object_points[min_z_ind,:].T
-
             calibration_dir = config['calibration_dir']
             t_camera_table = np.load(os.path.join(calibration_dir, 'translation_camera_cb.npy'))
-            table_x0 = T_stp_camera.apply(T_camera_p_camera_c.inverse().apply(t_camera_table))
+            table_x0 = T_stp_stp_p.dot(T_stp_camera).apply(T_camera_p_camera_c.inverse().apply(t_camera_table))
             table_x0[2] = table_x0[2] - config['chessboard_thickness']
 
+            # align points closest to the camera
             camera_optical_axis = -T_stp_camera.rotation[:,2]
             source_ip = source_object_points.dot(camera_optical_axis)
             closest_ind = np.where(source_ip == np.max(source_ip))[0]
@@ -319,7 +320,7 @@ class TabletopRegistrationSolver:
             target_x0_closest = target_object_points[closest_ind[0],:]
 
             t_stp_stp_p = source_x0_closest - target_x0_closest
-            t_stp_stp_p[2] = source_x0_highest[2] - min(target_x0_highest[2] - config['table_surface_tol'], table_x0[2])
+            t_stp_stp_p[2] = source_x0_lowest[2] - table_x0[2]
 
             T_align_closest = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), t_stp_stp_p), from_frame='stp', to_frame='stp')
             target_object_points = T_align_closest.apply(target_object_points.T).T
@@ -328,18 +329,21 @@ class TabletopRegistrationSolver:
 
             # display the points relative to one another
             if debug:
-                subsample_inds3 = np.arange(orig_source_object_points.shape[0])[::10]
-                subsample_inds2 = np.arange(source_object_points.shape[0])[::10]
-                subsample_inds = np.arange(target_object_points.shape[0])[::10]
+                #subsample_inds3 = np.arange(orig_source_object_points.shape[0])[::10]
+                subsample_inds2 = np.arange(source_object_points.shape[0])[::1]
+                subsample_inds = np.arange(target_object_points.shape[0])[::1]
+                table_x0 = T_align_closest.apply(table_x0)
+
                 T_table_world = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
                 mlab.figure()                
                 #mlab.points3d(orig_source_object_points[subsample_inds3,0], orig_source_object_points[subsample_inds3,1], orig_source_object_points[subsample_inds3,2], color=(1,0,1), scale_factor = 0.005)
                 mlab.points3d(source_object_points[subsample_inds2,0], source_object_points[subsample_inds2,1], source_object_points[subsample_inds2,2], color=(1,0,0), scale_factor = 0.005)
                 mlab.points3d(target_object_points[subsample_inds,0], target_object_points[subsample_inds,1], target_object_points[subsample_inds,2], color=(0, 1,0), scale_factor = 0.005)
-                #mlab.points3d(x0_table[0], x0_table[1], x0_table[2], color=(1,1,0), scale_factor = 0.015)
-                #mlab.points3d(source_x0_closest[0], source_x0_closest[1], source_x0_closest[2], color=(1,0,1), scale_factor = 0.025)
-                #mlab.points3d(target_x0_closest[0], target_x0_closest[1], target_x0_closest[2], color=(0,0,1), scale_factor = 0.025)
-                mlab.points3d(0,0,0, color=(1, 1,1), scale_factor = 0.03)
+
+                mlab.points3d(table_x0[0], table_x0[1], table_x0[2], color=(1,1,0), scale_factor = 0.015)
+                mlab.points3d(source_x0_lowest[0], source_x0_lowest[1], source_x0_lowest[2], color=(1,0,1), scale_factor = 0.015)
+
+                mlab.points3d(0,0,0, color=(1,1,1), scale_factor = 0.03)
 
                 cam_axis_line = np.array([np.zeros(3), -0.2 * T_stp_camera.rotation[:,2]])
                 mlab.plot3d(cam_axis_line[:,0], cam_axis_line[:,1], cam_axis_line[:,2], color=(1,1,1), tube_radius=0.0025)

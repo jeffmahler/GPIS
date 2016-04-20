@@ -278,10 +278,8 @@ class PointGraspMetrics3D:
         return min_dist
 
     @staticmethod
-    def wrench_in_span(W, target_wrench, f, num_fingers=1):
+    def wrench_in_span(W, target_wrench, f, num_fingers=1, eps = 0.05, alpha = 1e-10):
         """ Check whether wrench W can be exerted by forces and torques in G with limit force f """
-        eps = 0.05
-        alpha = 1e-10
         num_wrenches = W.shape[1]
 
         # quadratic and linear costs

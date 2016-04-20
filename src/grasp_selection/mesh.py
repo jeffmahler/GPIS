@@ -410,24 +410,28 @@ class Mesh3D(object):
             d2 = vertex_array[t[2],2]
 
             # precompute barycentric coord quantities
-            v0 = u1 - u0
-            v1 = u2 - u0
+            v0 = (u1 - u0).astype(np.float32)
+            v1 = (u2 - u0).astype(np.float32)
             d00 = v0.dot(v0)
             d01 = v0.dot(v1)
             d11 = v1.dot(v1)
             denom = d00 * d11 - d01 * d01
+            if denom == 0.0:
+                continue
 
             # compute pixels withing the projected triangle
             pixels = skimage.draw.polygon(np.array([u0[1], u1[1], u2[1]]),
                                           np.array([u0[0], u1[0], u2[0]]))                                         
-            num_pixels = pixels[0].shape[0]
+            rows = np.r_[pixels[0], u0[1], u1[1], u2[1]]
+            columns = np.r_[pixels[1], u0[0], u1[0], u2[0]]
+            num_pixels = rows.shape[0]
 
             # interpolate depth for each pixel
             for i in range(num_pixels):
-                u = np.array([pixels[1][i], pixels[0][i]])
+                u = np.array([columns[i], rows[i]])
                 if u[0] >= 0 and u[0] < width and u[1] >= 0 and u[1] < height:
                     # compute barycentric coords
-                    v2 = u - u0 
+                    v2 = (u - u0).astype(np.float32)
                     d20 = v2.dot(v0)
                     d21 = v2.dot(v1)
                     b = (d11 * d20 - d01 * d21) / denom
@@ -441,15 +445,14 @@ class Mesh3D(object):
                     if depth_im[u[1], u[0]] == 0 or d < depth_im[u[1], u[0]]:
                         depth_im[u[1], u[0]] = d
         
-        return depth_im
         """
+        plt.figure()
         plt.imshow(depth_im, cmap=plt.cm.Greys_r, interpolation='none')
         plt.axis('off')
         plt.show()
-
-        IPython.embed()
-        exit(0)
         """
+
+        return depth_im
 
     def remove_unreferenced_vertices(self):
         '''

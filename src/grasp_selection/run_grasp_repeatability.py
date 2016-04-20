@@ -63,6 +63,7 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
     lift_height = config['lift_height']
     num_grasp_views = config['num_grasp_views']
     cam_dist = config['cam_dist']
+    num_avg_images = config['num_avg_images']
 
     # check collisions
     logging.info('Checking grasp collisions with table')
@@ -108,8 +109,15 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
 
                 # retrieve object pose from camera
                 logging.info('Registering object')
-                depth_im = camera.get_depth_image()
-                color_im = camera.get_color_image()
+                depth_im = np.zeros([camera.height, camera.width])
+                counts = np.zeros([camera.height, camera.width])
+                for i in range(num_avg_images):
+                    new_depth_im = camera.get_depth_image()
+                    color_im = camera.get_color_image()
+
+                    depth_im = depth_im + new_depth_im
+                    counts = counts + np.array(new_depth_im > 0.0)
+                depth_im[depth_im > 0] = depth_im[depth_im > 0] / counts[depth_im > 0]
                 
                 # get point cloud (for debugging only)
                 camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], fx=config['registration']['focal_length'])
