@@ -99,7 +99,7 @@ class ExactGraspSampler(GraspSampler):
             # prune grasps in collision
             coll_free_grasps = []
             if check_collisions:
-                logging.info('Checking collisions')
+                logging.info('Checking collisions fopr %d candidates' %(len(new_grasps)))
                 for grasp in new_grasps:
                     # construct a set of rotated grasps
                     for i in range(self.num_grasp_rots):

@@ -2,6 +2,7 @@
 Class to encapsulate robot grippers
 Author: Jeff
 """
+import IPython
 import json
 import numpy as np
 import obj_file

@@ -54,7 +54,7 @@ def generate_candidate_grasps(grasps, grasp_metrics, num_candidates=10):
     grasps = grasps[:num_candidates]
     return grasps
 
-def show_stable_poses(obj, dataset, config, delay=0.5, num_views=16):
+def show_stable_poses(obj, dataset, config, delay=0.1, num_views=16):
     # load grasps and stable poses
     stable_poses = dataset.stable_poses(obj.key)
     grasps = dataset.grasps(obj.key, gripper=config['gripper'])
@@ -126,8 +126,9 @@ def show_grasps_on_stable_pose(obj, dataset, config, stable_pose_id='pose_0', de
 
             # plot
             mlab.clf()
-            T_obj_world = mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface')
-            mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(1,1,1))
+            T_obj_world = mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface',
+                                                               color=(0.4,0.4,0.4))
+            mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(0.65,0.65,0.65))
 
             for j in range(num_grasp_views):
                 az = j * delta_view
@@ -215,14 +216,14 @@ if __name__ == '__main__':
         dataset = database.dataset(dataset_name)
 
         # check each object in the dataset with grasps
-        obj = dataset['pipe_connector']
+        obj = dataset['mount1']
         if True:
         #for obj in dataset:
             logging.info('Displaying grasps for object {}'.format(obj.key))
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
 
-            #show_stable_poses(obj, dataset, config)
-            show_grasps_on_stable_pose(obj, dataset, config, config['ppc_stp_ids'][obj.key])
+            show_stable_poses(obj, dataset, config)
+            #show_grasps_on_stable_pose(obj, dataset, config, config['ppc_stp_ids'][obj.key])
 
     database.close()
 

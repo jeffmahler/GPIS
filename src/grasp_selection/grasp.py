@@ -620,7 +620,7 @@ class ParallelJawPtGrasp3D(PointGrasp):
             ax.set_ylim3d(0, obj.sdf.dims_[1])
             ax.set_zlim3d(0, obj.sdf.dims_[2])
             plt.draw()
-        if not contact1_found or not contact2_found or np.linalg.norm(c1.point - c2.point) < min_grasp_width_grid:
+        if not contact1_found or not contact2_found or np.linalg.norm(c1.point - c2.point) < min_grasp_width_world:
             logging.debug('No contacts found for grasp')
             return None, None
 

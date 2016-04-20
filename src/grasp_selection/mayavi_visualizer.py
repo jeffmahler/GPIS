@@ -223,8 +223,8 @@ def test_baxter_gripper():
     T_grasp_gripper.save('/home/jmahler/jeff_working/GPIS/data/grippers/baxter/T_grasp_gripper.stf')
 
     gripper_params = {}
-    gripper_params['min_width'] = 0.00
-    gripper_params['max_width'] = 0.06
+    gripper_params['min_width'] = 0.026
+    gripper_params['max_width'] = 0.060
     f = open('/home/jmahler/jeff_working/GPIS/data/grippers/baxter/params.json', 'w')
     json.dump(gripper_params, f)
 

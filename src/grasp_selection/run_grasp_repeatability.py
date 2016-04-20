@@ -426,15 +426,9 @@ if __name__ == '__main__':
         try:
             logging.info('Evaluating grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps_to_execute)))
 
-            # also compute deterministic metrics
-            fc = quality.PointGraspMetrics3D.grasp_quality(grasp, graspable, method='force_closure')
-            eps = quality.PointGraspMetrics3D.grasp_quality(grasp, graspable, method='ferrari_canny_L1')
-
             # output metrics in database
             grasp_q = grasp_metrics[grasp.grasp_id]
             grasp_q['grasp_id'] = grasp.grasp_id
-            grasp_q['force_closure'] = fc
-            grasp_q['ferrari_canny_l1'] = eps
 
             for metric in grasp_q.keys():
                 logging.info('Quality according to %s: %f' %(metric, grasp_q[metric]))

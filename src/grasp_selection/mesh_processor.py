@@ -255,7 +255,11 @@ class MeshProcessor:
         
     def generate_sdf(self, dim, padding):
         """ Converts mesh to an sdf object """
-        # first create the SDF using binary tools
+        # write the mesh to file
+        of = obj_file.ObjFile(self.obj_filename)
+        of.write(self.mesh_)
+
+        # create the SDF using binary tools
         sdfgen_cmd = '/home/jmahler/Libraries/SDFGen/bin/SDFGen \"%s\" %d %d' %(self.obj_filename, dim, padding)
         os.system(sdfgen_cmd)
         logging.info('SDF Command: %s' %(sdfgen_cmd))

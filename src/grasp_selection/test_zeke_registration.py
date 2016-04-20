@@ -77,13 +77,6 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     subsample_inds = np.arange(points_3d.shape[1])[::10]
     points_3d = points_3d[:,subsample_inds]
 
-    # register
-    reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), debug=debug)
-    T_camera_obj = reg_result.tf_camera_obj
-    T_camera_obj.from_frame = 'obj'
-    T_camera_obj.to_frame = 'camera'
-    T_obj_camera = T_camera_obj.inverse()    
-
     # save depth and color images
     min_d = np.min(depth_im)
     max_d = np.max(depth_im)
@@ -91,9 +84,17 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     depth_im2 = Image.fromarray(depth_im2.astype(np.uint8))
     filename = 'depth.png'
     depth_im2.save(os.path.join(logging_dir, filename))
+
     color_im2 = Image.fromarray(color_im)
     filename = 'color.png'
     color_im2.save(os.path.join(logging_dir, filename))
+
+    # register
+    reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), debug=debug)
+    T_camera_obj = reg_result.tf_camera_obj
+    T_camera_obj.from_frame = 'obj'
+    T_camera_obj.to_frame = 'camera'
+    T_obj_camera = T_camera_obj.inverse()    
 
     # transform the mesh to the stable pose to get a z offset from the table
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 

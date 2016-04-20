@@ -43,8 +43,7 @@ import tfx
 
 GRAVITY_ACCEL = 9.81
 
-def label_grasps(obj, dataset, output_ds, config):
-    gripper_name = config['gripper']
+def label_grasps(obj, dataset, output_ds, gripper_name, config):
     start_time = time.time()
     
     # sample grasps
@@ -321,20 +320,22 @@ if __name__ == '__main__':
 
         # label each object in the dataset with grasps
         for obj in dataset:
-            logging.info('Labelling object {} with grasps'.format(obj.key))
-
-            # create the graspable if necessary
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
-            elif config['delete_existing_grasps']:
-                logging.warning('Deleting existing grasps for object {}'.format(obj.key))
-                output_ds.delete_grasps(obj.key, gripper=config['gripper'])
 
-            try:
-                label_grasps(obj, dataset, output_ds, config)
-            except Exception as e:
-                logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-                logging.warning(str(e))
+            for gripper_name in config['grippers']:
+                logging.info('Labelling object {} with grasps for gripper {}'.format(obj.key, gripper_name))
+
+                # create the graspable if necessary
+                if config['delete_existing_grasps']:
+                    logging.warning('Deleting existing grasps for object {}'.format(obj.key))
+                    output_ds.delete_grasps(obj.key, gripper=gripper_name)
+
+                try:
+                    label_grasps(obj, dataset, output_ds, gripper_name, config)
+                except Exception as e:
+                    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                    logging.warning(str(e))
 
     database.close()
 
