@@ -3,6 +3,7 @@ import csv
 import os
 from fnmatch import fnmatch
 import pickle
+import IPython
 
 def csv_to_dict_lists(csv_file_name, to_type=None):
     dict_lists = {}
@@ -30,7 +31,7 @@ def parse_experiments(experiments_path, obj_mapping_file, output_file):
                 obj_ids[name].append(id)
             else:
                 obj_ids[name] = [id]
-                
+
     #data dict 
     #[object name][grasps][grasp id][grasp_output|actual_states|target_states][CSV HEADERS]
     #[object name][grasp_metric_results][CSV HEADERS]
@@ -62,7 +63,8 @@ def parse_experiments(experiments_path, obj_mapping_file, output_file):
                 if fnmatch(folder, 'grasp_*'):
                     grasp_folders.append(folder)
 
-            data_dict[obj_name]['grasps'] = {}
+            if 'grasps' not in data_dict[obj_name]:
+                data_dict[obj_name]['grasps'] = {}
             for grasp_folder in grasp_folders:
                 grasp_id = int(grasp_folder[6:])
                 data_dict[obj_name]['grasps'][grasp_id] = {}
