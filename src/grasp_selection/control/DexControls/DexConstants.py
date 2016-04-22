@@ -9,7 +9,7 @@ class DexConstants:
     PRINT_STATES = False
     LOGGING = True
 
-    ZEKE_COMM = "/dev/ttyACM1"
+    ZEKE_COMM = "/dev/ttyACM2"
     TABLE_COMM = "/dev/ttyACM0"
     IZZY_COMM = "/dev/ttyACM2"
     BAUDRATE = 115200
@@ -40,7 +40,7 @@ class DexConstants:
     ROLL_THRESH = 0.4
     GRIPPER_CLOSE_FORCE_THRESH = 400.0
     GRIPPER_CLOSE_EPS = 0.001
-    GRIPPER_CLOSE_TIMEOUT = 3.0
+    GRIPPER_CLOSE_TIMEOUT = 5.0
 
     #DEFAULT_GRIPPER_EULER = rotation_euler(0, pi/2, 0, 'sxyz')
     

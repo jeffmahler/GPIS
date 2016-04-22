@@ -299,7 +299,7 @@ class DexSerialInterface:
         if rot_speed > DexConstants.MAX_ROT_SPEED or tra_speed > DexConstants.MAX_TRA_SPEED:
             raise Exception("Rotation or translational speed too fast.\nMax: {0} rad/sec, {1} m/sec\nGot: {2} rad/sec, {3} m/sec ".format(
                                     DexConstants.MAX_ROT_SPEED, DexConstants.MAX_TRA_SPEED, rot_speed, tra_speed))
-        
+       
         for i in range(len(target_state.state)):
             if target_state.state[i] is None:
                 target_state.state[i] = self._target_state.state[i]
@@ -310,7 +310,6 @@ class DexSerialInterface:
                                                                     speeds_ids, 
                                                                     speeds, 
                                                                     DexConstants.INTERP_TIME_STEP)
-        #states_vals = [target_state.copy().state[::]]
 
         self._queueLabel(name)
         for state_val in states_vals:
@@ -333,9 +332,6 @@ class DexSerialInterface:
                 cur_state = np.array(self.getState().state)
                 duration = duration + time_delta
 
-                #print
-                #print 'Cur', cur_state
-                #print 'Target', states_vals[-1]
             print 'Target State', target_state
             print 'Current State', cur_state
             print 'Prev Diff', np.linalg.norm(cur_state - prev_state)

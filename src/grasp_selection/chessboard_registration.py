@@ -35,6 +35,7 @@ if __name__ == '__main__':
     sx = config['sx']
     sy = config['sy']
     load = config['load']
+    chessboard_thickness = config['chessboard_thickness']
 
     # repeat registration multiple times and average results
     R = np.zeros([3,3])
@@ -90,6 +91,7 @@ if __name__ == '__main__':
     n = np.array([w[0], w[1], -1])
     n = n / np.linalg.norm(n)
     mean_point_plane = np.mean(points_3d_plane, axis=1)
+    mean_point_plane = mean_point_plane - chessboard_thickness * n
     mean_point_plane = np.reshape(mean_point_plane, [3, 1])
 
     # find x-axis of the chessboard coordinates on the fitted plane

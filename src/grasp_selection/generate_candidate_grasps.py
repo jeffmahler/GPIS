@@ -60,6 +60,7 @@ def collides_along_approach(grasp_candidate, gripper, collision_checker,
             collides = True
             break
         cur_approach += delta_approach
+        time.sleep(0.25)
     return collides
 
 def generate_candidate_grasps(object_name, dataset, stable_pose,
@@ -83,7 +84,7 @@ def generate_candidate_grasps(object_name, dataset, stable_pose,
 
     # prune by collisions
     rave.raveSetDebugLevel(rave.DebugLevel.Error)
-    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=False)
+    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=True)
     collision_checker.set_object(graspable)
 
     # add the top quality grasps for each metric
@@ -171,6 +172,7 @@ if __name__ == '__main__':
     # read in config
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
+    parser.add_argument('gripper')
     args = parser.parse_args()
     logging.getLogger().setLevel(logging.INFO)
 
@@ -178,7 +180,8 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_ONLY_ACCESS)
-    gripper = gr.RobotGripper.load(config['gripper'])
+
+    gripper = gr.RobotGripper.load(args.gripper)
 
     # generate candidate grasps for each dataset
     for dataset_name in config['datasets'].keys():
@@ -204,9 +207,9 @@ if __name__ == '__main__':
 
             # check for existing candidates
             grasp_ids_filename = os.path.join(candidate_output_dir,
-                '%s_%s_%s_grasp_ids.npy' %(object_key, stp_id, config['gripper']))                                              
+                '%s_%s_%s_grasp_ids.npy' %(object_key, stp_id, gripper.name))                                              
             if os.path.exists(grasp_ids_filename):
-                logging.warning('Candidate grasps already exist for object %s in stable pose %s for gripper %s. Skipping...' %(object_key, stp_id, config['gripper']))
+                logging.warning('Candidate grasps already exist for object %s in stable pose %s for gripper %s. Skipping...' %(object_key, stp_id, gripper.name))
                 continue
 
             # generate candidate grasps

@@ -22,7 +22,7 @@ class DexRobotZeke:
     
     RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi, 0.036]),
                     "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi, None]),
-                    "OBJECT_RESET" : ZekeState([3 * pi / 2 + ZekeState.PHI, 0.01, 0.02, ZekeState.THETA + pi, None]),
+                    "OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi, 0.065]),
                     #"OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.25, 0.02, ZekeState.THETA + pi, 0.00]),
                     "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None]), 
                     "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None]),
@@ -68,7 +68,7 @@ class DexRobotZeke:
     def grip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         state = self._target_state.copy()
         state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
-        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping", block=False)
+        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping", block=True)
         
         sensor_vals = self.getSensors()
         current_state = self.getState()
@@ -80,9 +80,6 @@ class DexRobotZeke:
             sensor_vals = self.getSensors()
             current_state = self.getState()
             duration = duration + 0.1
-
-        print sensor_vals
-        print 'Duration', duration
 
         self.gotoState(current_state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
         

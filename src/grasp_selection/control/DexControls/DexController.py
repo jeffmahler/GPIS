@@ -286,6 +286,10 @@ def test_grasp():
 
     return t
 
+def test_fishing_reset():
+    t = DexController()
+    t._table.reset_fishing()
+
 def test_grip():
     t = DexController()
 
@@ -299,6 +303,7 @@ def test_grip():
 
     print 'Gripping'
     t._robot.grip()
+
     """
 
     current_state, _ = t.getState()
@@ -311,6 +316,7 @@ def test_grip():
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
+    test_fishing_reset()
     #test_grip()
     #t = test_state()
-    t = test_state_sequence()
+    #t = test_state_sequence()

@@ -7,7 +7,7 @@ cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
 shape_data_dir: /mnt/terastation/shape_data
 database_dir: &id_database_dir /mnt/terastation/shape_data/MASTER_DB_v3
 database_cache_dir: *id_database_dir
-database_name: physical_experiment_reg_db.hdf5
+database_name: physical_experiment_master_db.hdf5
 
 datasets:
   dexnet_physical_experiments:
@@ -15,7 +15,7 @@ datasets:
     end_index: 40
 
 # Grasp-specific params
-object_name: climbing_hold
+object_name: vase
 stable_pose_index: 2
 start_grasp_id: 0
 
@@ -65,10 +65,10 @@ registration:
   depth_im_crop_dim: 400
   depth_im_median_filter_dim: 9
   depth_im_erosion_filter_dim: 3
+  area_thresh: 2000
   
   cache_im_filename: data/cnn_grayscale_image.jpg
   calibration_dir: data/calibration
-  chessboard_thickness: 0.004
 
   num_nearest_neighbors: 3
   icp_sample_size: 500

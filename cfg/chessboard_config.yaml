@@ -19,6 +19,9 @@ num_images: 1
 # Number of separate calibrations to average
 num_avg: 20
 
+# Thickness of chessboard
+chessboard_thickness: 0.004
+
 # Figure plotting
 scale_amt: 10.0
 
