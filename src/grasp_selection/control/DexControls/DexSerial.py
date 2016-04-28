@@ -4,6 +4,10 @@ from DexConstants import DexConstants
 from DexNumericSolvers import DexNumericSolvers
 from DexSensorReadings import DexSensorReadings
 from Logger import Logger
+import signal
+import platform
+import os
+from pickle import dump, load
 
 import copy
 import logging
@@ -34,9 +38,38 @@ class _DexSerial(Process):
             "pausing" : False,
             "reading" : False,
         }
-
+        
+        self._PID_FILE = '.DEX_SERIAL_PID_{0}'.format(self._comm).replace('/','_')
+        
+    def _check_running(self):
+        if os.path.isfile(self._PID_FILE):
+            with open(self._PID_FILE, 'rb') as f:
+                info = load(f)
+            pid = info['pid']
+            self._try_kill_pid(pid)                
+        
+    def _try_kill_pid(self, pid):
+        if platform.system() == 'Windows':
+            os.system('Taskkill /PID {0} /F'.format(pid))
+        else:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                print 'Killed exisiting DexSerial Process {0}'.format(pid)
+            except Exception:
+                pass
+        
+    def _register_running(self):
+        with open(self._PID_FILE, 'wb') as f:
+            info = {
+                'pid': self.pid
+            }
+            dump(info, f)
+        
     def run(self):
+        self._check_running()
+        self._register_running()
         self._current_state = self._State.INIT_STATE()
+        self._current_sensors = DexSensorReadings()
         
         #Main run function that constantly sends the current state to the robot
         if not DexConstants.DEBUG:
@@ -222,7 +255,7 @@ class DexSerialInterface:
                                       sensor_read_q=self._sensor_read_q)
         
     def start(self):
-        self._dex_serial.start()
+        self._dex_serial.start()        
         if not DexConstants.DEBUG:
             time.sleep(DexConstants.INIT_DELAY)
         
