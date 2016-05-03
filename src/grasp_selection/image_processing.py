@@ -108,6 +108,9 @@ class DepthImageProcessing:
     def image_shift_to_transform(source_depth_im, target_depth_im, camera_params, diff_px):
         """ Converts 2D pixel shift transformation between two depth images into a 3D transformation """
         nonzero_source_depth_px = np.where(source_depth_im > 0)
+        if nonzero_source_depth_px[0].shape[0] == 0:
+            return stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='camera', to_frame='camera')
+
         source_px = np.array([nonzero_source_depth_px[0][0], nonzero_source_depth_px[1][0]])
         source_depth = source_depth_im[source_px[0], source_px[1]]
         target_px = source_px + diff_px

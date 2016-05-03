@@ -26,6 +26,7 @@ import feature_functions as ff
 import grasp_collision_checker as gcc
 import gripper as gr
 import grasp_sampler as gs
+import grasp as grasp_module
 import json_serialization as jsons
 import kernels
 import mayavi_visualizer as mvis
@@ -75,16 +76,20 @@ def generate_candidate_grasps(object_name, dataset, stable_pose,
     delta_approach = config['delta_approach']
     rotate_threshold = config['rotate_threshold']
     table_clearance = config['table_clearance']
+    dist_thresh = config['grasp_dist_thresh']
 
     # get sorted list of grasps to ensure that we get the top grasp
     graspable = dataset.graspable(object_name)
     graspable.model_name_ = dataset.obj_mesh_filename(object_name)
     grasps = dataset.grasps(object_name, gripper=gripper.name)
     all_grasp_metrics = dataset.grasp_metrics(object_name, grasps, gripper=gripper.name)
+    mn, mx = graspable.mesh.bounding_box()
+    alpha = 1.0 / np.max(mx-mn)
+    print alpha
 
     # prune by collisions
     rave.raveSetDebugLevel(rave.DebugLevel.Error)
-    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=True)
+    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=False)
     collision_checker.set_object(graspable)
 
     # add the top quality grasps for each metric
@@ -114,10 +119,18 @@ def generate_candidate_grasps(object_name, dataset, stable_pose,
         psi = grasp_candidate.angle_with_table(stable_pose)
         rotated_from_table = (psi > rotate_threshold)
 
+        # check distances
+        min_dist = np.inf
+        for g in grasp_set:
+            dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+            if dist < min_dist:
+                min_dist = dist
+
         # check collisions
         while gripper.collides_with_table(grasp_candidate, stable_pose, table_clearance) \
                 or collides_along_approach(grasp_candidate, gripper, collision_checker, approach_dist, delta_approach) \
-                or rotated_from_table or grasp_candidate.grasp_id in grasp_set_ids:
+                or rotated_from_table or grasp_candidate.grasp_id in grasp_set_ids \
+                or min_dist < dist_thresh:
             # get the next grasp
             i -= 1
             if i < 0:
@@ -127,6 +140,13 @@ def generate_candidate_grasps(object_name, dataset, stable_pose,
             # check wrist rotation
             psi = grasp_candidate.angle_with_table(stable_pose)
             rotated_from_table = (psi > rotate_threshold)
+
+            # check distances
+            min_dist = np.inf
+            for g in grasp_set:
+                dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+                if dist < min_dist:
+                    min_dist = dist
 
         # add to sequence
         if i >= 0:
@@ -146,10 +166,18 @@ def generate_candidate_grasps(object_name, dataset, stable_pose,
         psi = grasp_candidate.angle_with_table(stable_pose)
         rotated_from_table = (psi > rotate_threshold)
 
+        # check distances
+        min_dist = np.inf
+        for g in grasp_set:
+            dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+            if dist < min_dist:
+                min_dist = dist
+
         # check collisions
         while gripper.collides_with_table(grasp_candidate, stable_pose) \
                 or collides_along_approach(grasp_candidate, gripper, collision_checker, approach_dist, delta_approach) \
-                or rotated_from_table or grasp_candidate.grasp_id in grasp_set_ids:
+                or rotated_from_table or grasp_candidate.grasp_id in grasp_set_ids \
+                or min_dist < dist_thresh:
             # get the next grasp
             i += 1
             if i >= len(grasps):
@@ -159,6 +187,13 @@ def generate_candidate_grasps(object_name, dataset, stable_pose,
             # check wrist rotation
             psi = grasp_candidate.angle_with_table(stable_pose)
             rotated_from_table = (psi > rotate_threshold)
+
+            # check distances
+            min_dist = np.inf
+            for g in grasp_set:
+                dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+                if dist < min_dist:
+                    min_dist = dist
 
         # add to sequence
         if i < len(grasps):

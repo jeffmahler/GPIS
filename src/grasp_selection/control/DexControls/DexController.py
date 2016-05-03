@@ -66,7 +66,7 @@ class DexController:
         #reset izzy to clear-table-rotation position
         #logging.info('Reseting table rotation')
         #self._table.reset()
-        self._robot.reset_clear_table()
+        #self._robot.reset_clear_table()
         #wait til completed
         turntable_state = self._table.getState()
         
@@ -227,6 +227,7 @@ def test_state():
     target_state = ZekeState()
     target_state.set_arm_ext(ZekeState.ZEKE_ARM_ORIGIN_OFFSET - ZekeState.ZEKE_ARM_TO_GRIPPER_TIP_LENGTH)
     target_state.set_arm_rot(ZekeState.PHI + np.pi)
+    target_state.set_gripper_rot(4.26)
     target_state.set_gripper_grip(0.037)
     print 'Target'
     print target_state
@@ -316,7 +317,7 @@ def test_grip():
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    test_fishing_reset()
+    #test_fishing_reset()
     #test_grip()
-    #t = test_state()
+    t = test_state()
     #t = test_state_sequence()

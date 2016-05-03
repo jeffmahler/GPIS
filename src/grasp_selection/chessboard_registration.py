@@ -41,7 +41,8 @@ if __name__ == '__main__':
     R = np.zeros([3,3])
     t = np.zeros([3,1])
     points_3d_plane = np.zeros([3, sx*sy])
-    for k in range(config['num_avg']):
+    k = 0
+    while k < config['num_avg']:
         if load:
             f = open('data/test/rgbd/depth_im.npy', 'r')
             depth_im = np.load(f)
@@ -77,10 +78,14 @@ if __name__ == '__main__':
         # get round chessboard ind
         corner_px_round = np.round(corner_px).astype(np.uint16)
         corner_ind = ip.ij_to_linear(corner_px_round[:,0], corner_px_round[:,1], s.width_)
+        if corner_ind.shape[0] != sx*sy:
+            print 'Did not find all corners. Discarding...'
+            continue
 
         # average 3d points
         points_3d_plane = (k * points_3d_plane + points_3d[:, corner_ind]) / (k + 1)
         print('Iter: %d' %(k))
+        k += 1
 
     # fit a plane to the chessboard corners
     X = np.c_[points_3d_plane[:2,:].T, np.ones(points_3d_plane.shape[1])]

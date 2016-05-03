@@ -48,7 +48,7 @@ class MayaviVisualizer:
         mv.text3d(t[0], t[1], t[2], ' %s' %T_frame_world.to_frame.upper(), scale=0.01)
 
     @staticmethod
-    def plot_mesh(mesh, T_mesh_world, style='wireframe', color=(0.5,0.5,0.5)):
+    def plot_mesh(mesh, T_mesh_world=stf.SimilarityTransform3D(from_frame='world', to_frame='mesh'), style='wireframe', color=(0.5,0.5,0.5)):
         mesh_tf = mesh.transform(T_mesh_world.inverse())
         mesh_tf.visualize(style=style, color=color)
 
@@ -203,6 +203,7 @@ def test_baxter_gripper():
     gripper_mesh = of.read()
 
     gripper_mesh.center_vertices_bb()
+    #gripper_mesh.rescale(0.9) # to make fingertips at the wide 0.67 distance 
     oof = objf.ObjFile(mesh_filename)
     oof.write(gripper_mesh)
     

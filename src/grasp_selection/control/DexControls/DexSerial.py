@@ -106,7 +106,7 @@ class _DexSerial(Process):
 
     def _sendSingleStateRequest(self, state):
         Logger.log("Sent State", state, self._State.NAME)
-   
+
         if DexConstants.DEBUG:
             self._current_state = state
             return
@@ -332,10 +332,12 @@ class DexSerialInterface:
                 cur_state = np.array(self.getState().state)
                 duration = duration + time_delta
 
+            """
             print 'Target State', target_state
             print 'Current State', cur_state
             print 'Prev Diff', np.linalg.norm(cur_state - prev_state)
             print 'Target Diff', np.linalg.norm(cur_state - np.array(states_vals[-1]))
             print 'Duration', duration
+            """
 
         self._target_state = target_state.copy()

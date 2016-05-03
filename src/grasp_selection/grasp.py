@@ -630,6 +630,12 @@ class ParallelJawPtGrasp3D(PointGrasp):
         configuration = ParallelJawPtGrasp3D.configuration_from_params(grasp_center, grasp_axis, grasp_width_world, grasp_angle, jaw_width_world)
         return ParallelJawPtGrasp3D(configuration), c2 # relative to object
 
+    @staticmethod
+    def distance(g1, g2, alpha=1.0):
+        center_dist = np.linalg.norm(g2.center - g2.center)
+        axis_dist = (2.0 / np.pi) * np.arccos(np.abs(g1.axis.dot(g2.axis)))
+        return alpha * center_dist + axis_dist
+
     def visualize(self, obj, arrow_len=0.01, line_width=20.0):
         """ Display point grasp as arrows on the contact points of the mesh """
         contacts_found, contacts = self.close_fingers(obj)
