@@ -440,7 +440,6 @@ if __name__ == '__main__':
     for grasp in grasps:
         if grasp.grasp_id in grasp_ids and grasp.grasp_id >= config['start_grasp_id']:
             grasps_to_execute.append(grasp.grasp_aligned_with_stable_pose(stable_pose))
-            break
 
     # plot grasps
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
@@ -516,22 +515,3 @@ if __name__ == '__main__':
             raise e
 
     ctrl.stop()
-
-    # run bandits to debug
-    """
-    objective = msoo.MABSingleObjectObjective(graspable, stable_pose, ds, ctrl, camera,
-                                              registration_solver, experiment_dir, config)
-    ts = das.ThompsonSampling(objective, grasps_to_execute)
-    logging.info('Running Thompson sampling.')
-
-    tc_list = [
-        tc.MaxIterTerminationCondition(max_iter),
-        ]
-    ts_result = ts.solve(termination_condition=tc.OrTerminationCondition(tc_list), snapshot_rate=snapshot_rate)
-    ctrl.stop()
-
-    # save bandit results
-    f = open(os.path.join(experiment_dir, 'results.pkl'), 'w')
-    pkl.dump(ts_result, f)
-    exit(0)
-    """
