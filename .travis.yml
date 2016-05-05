@@ -14,9 +14,10 @@ before_install:
   - sudo apt-get install -y gcc python-dev
   - sudo apt-get install -y gfortran libblas-dev liblapack-dev
   - pip install --upgrade pip wheel # get pip >= 7, which caches built packages
-  - pip install catkin_pkg
+  - pip --version
 
 install:
+  - pip install catkin_pkg cython
   - pip install -r requirements.txt
 
 script:
