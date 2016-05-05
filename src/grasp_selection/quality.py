@@ -5,10 +5,6 @@ Author: Jeff Mahler and Brian Hou
 import logging
 import numpy as np
 try:
-    import pyhull.convex_hull as cvh
-except:
-    logging.warning('Failed to import pyhull')
-try:
     import cvxopt as cvx
     # TODO: find a way to log output?
     cvx.solvers.options['show_progress'] = False
@@ -250,10 +246,11 @@ class PointGraspMetrics3D:
         # create grasp matrix
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         s = time.clock()
-        hull = cvh.ConvexHull(G.T, joggle=True)
+        # not sure if option i is necessary
+        hull = ss.ConvexHull(G.T, qhull_options='i QJ Pp')
         e = time.clock()
 
-        if len(hull.vertices) == 0:
+        if len(hull.simplices) == 0:
             logging.warning('Convex hull could not be computed')
             return 0.0
 
@@ -267,7 +264,7 @@ class PointGraspMetrics3D:
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
         closest_facet = None
-        for v in hull.vertices:
+        for v in hull.simplices:
             if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
                 facet = G[:, v]
                 dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
