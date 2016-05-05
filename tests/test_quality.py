@@ -41,15 +41,25 @@ class QualityTestCase(unittest.TestCase):
             g = grasp.ParallelJawPtGrasp3D(grasp_params)
             self.grasps.append(g)
 
+        # Correct qualities (computed May 5, 2016)
+        self.qualities = [
+            1, 1, 6.80665061287e-05, 5.76402644453e-04, 1.84470257215e-05, 9.54811239773e-04,
+            0, 1, 2.68551467014e-18, 2.29491652057e-19, 9.66415730627e-19, 1.39966489883e-04,
+            0, 0, 0, 0, 0, 0
+        ]
+        self.qualities = [round(q, 10) for q in self.qualities]
+
     def test_quality_metrics(self, vis=False):
         metrics = ['force_closure', 'force_closure_qp', 'min_singular',
                    'wrench_volume', 'grasp_isotropy', 'ferrari_canny_L1']
+        qualities = []
         for i, g in enumerate(self.grasps):
-            print('Evaluating grasp {}'.format(i))
+            # print('Evaluating grasp {}'.format(i))
             for metric in metrics:
                 q = quality.PointGraspMetrics3D.grasp_quality(
                     g, self.graspable, metric, soft_fingers=True)
-                print('Grasp quality according to {}: {}'.format(metric, q))
+                # print('Grasp quality according to {}: {}'.format(metric, q))
+                qualities.append(q)
 
             if vis:
                 cf, contacts = g.close_fingers(self.graspable, vis=True)
@@ -57,3 +67,6 @@ class QualityTestCase(unittest.TestCase):
                     contact.plot_friction_cone(color='y', scale=-2.0)
                 plt.show()
                 IPython.embed()
+
+        qualities = [round(q, 10) for q in qualities]
+        self.assertEqual(self.qualities, qualities)
