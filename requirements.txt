@@ -8,5 +8,4 @@ PyYAML==3.11
 scipy==0.16.1
 scikit-image==0.12.3
 scikit-learn==0.16.1
-catkin_pkg==0.2.10
 -e hg+https://hg@bitbucket.org/benkehoe/tfx/#egg=tfx
