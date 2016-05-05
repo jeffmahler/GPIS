@@ -1,10 +1,10 @@
-h5py==2.5.0
-ipython==3.1.0
-matplotlib==1.4.3
-NearPy==0.2.2
-numpy==1.10.1
-Pillow==3.0.0
-PyYAML==3.11
+# h5py==2.5.0
+# ipython==3.1.0
+# matplotlib==1.4.3
+# NearPy==0.2.2
+# numpy==1.10.1
+# Pillow==3.0.0
+# PyYAML==3.11
 scipy==0.16.1
-scikit-image==0.12.3
-scikit-learn==0.16.1
+# scikit-image==0.12.3
+# scikit-learn==0.16.1
