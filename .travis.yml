@@ -1,7 +1,16 @@
 language: python
+
 python:
   - 2.7
+
 branches:
   only:
     - dev
+
+install:
+  - pip install -r requirements.txt
+
 script: nosetests tests
+
+# Travis notes for ROS and numpy
+# https://github.com/felixduvallet/travis-numpy-debugging/blob/master/.travis.yml
