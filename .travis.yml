@@ -12,7 +12,7 @@ cache: pip
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y libhdf5-serial-dev python-dev
-  - sudo apt-get install -y gfortran libblas-dev liblapack-dev
+  - sudo apt-get install -y gfortran libblas-dev liblapack-dev # scipy things
   - pip install --upgrade pip wheel # get pip >= 7, which caches built packages
   - pip --version
 
