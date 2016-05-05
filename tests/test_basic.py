@@ -13,6 +13,10 @@ class ImportTestCase(unittest.TestCase):
         import numpy
         import scipy
 
+        print()
+        print('[numpy]', numpy.version.version)
+        print('[scipy]', scipy.version.version)
+
     def test_imaging(self):
         import PIL
         import skimage
