@@ -8,7 +8,7 @@ class BasicTestCase(unittest.TestCase):
 
 class ImportTestCase(unittest.TestCase):
     def test_core(self):
-        import ipython
+        import IPython
         import matplotlib
         import numpy
         import scipy
