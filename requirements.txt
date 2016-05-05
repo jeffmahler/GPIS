@@ -6,6 +6,7 @@ NearPy==0.2.2
 numpy==1.10.1
 Pillow==3.0.0
 PyYAML==3.11
+pyhull==1.5.4
 scipy==0.16.1
 scikit-image==0.12.3
 scikit-learn==0.16.1
