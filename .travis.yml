@@ -9,14 +9,19 @@ branches:
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y python-numpy python-scipy
-  - python -c "import numpy; print(numpy.version.version)"
-  - python -c "import scipy; print(scipy.version.version)"
+  - sudo apt-get install -y gfortran libblas-dev liblapack-dev
+  # - sudo apt-get install -y python-numpy python-scipy
+  # - python -c "import numpy; print(numpy.version.version)"
+  # - python -c "import scipy; print(scipy.version.version)"
 
 install:
   - pip install -r requirements.txt
 
-script: nosetests -s tests
+script:
+  - nosetests -s tests
+
+notifications:
+  email: false
 
 # Travis notes for ROS and numpy
 # https://github.com/felixduvallet/travis-numpy-debugging/blob/master/.travis.yml
