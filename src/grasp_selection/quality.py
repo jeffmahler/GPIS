@@ -10,6 +10,8 @@ except:
     logging.warning('Failed to import pyhull')
 try:
     import cvxopt as cvx
+    # TODO: find a way to log output?
+    cvx.solvers.options['show_progress'] = False
 except:
     logging.warning('Failed to import cvx')
 import os
@@ -28,9 +30,6 @@ try:
 except:
     logging.warning('Failed to import mayavi')
 import IPython
-
-# TODO: find a way to log output?
-cvx.solvers.options['show_progress'] = False
 
 FRICTION_COEF = 0.5
 
