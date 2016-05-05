@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import unittest
 
 class BasicTestCase(unittest.TestCase):
@@ -7,4 +9,5 @@ class BasicTestCase(unittest.TestCase):
 class DependencyTestCase(unittest.TestCase):
     def test_numpy(self):
         import numpy
-        print(numpy.version.version)
+        print()
+        print('[numpy]', numpy.version.version)
