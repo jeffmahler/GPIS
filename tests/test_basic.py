@@ -13,15 +13,13 @@ class ImportTestCase(unittest.TestCase):
         import numpy
         import scipy
 
-    def test_imaging(self):
         import PIL
+        import catkin_pkg
+        import cvxopt
+        import h5py
+        import nearpy
         import skimage
         import sklearn
-
-    def test_experiments(self):
-        import h5py
-        import yaml
-
-    def test_misc(self):
-        import nearpy
         import sklearn
+        import tfx
+        import yaml
