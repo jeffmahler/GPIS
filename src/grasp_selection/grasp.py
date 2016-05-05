@@ -16,7 +16,7 @@ import IPython
 import sys
 import time
 
-sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection/control/DexControls/')
+sys.path.append('src/grasp_selection/control/DexControls/')
 
 from DexNumericSolvers import DexNumericSolvers
 import contacts

@@ -1,0 +1,30 @@
+language: python
+
+python:
+  - 2.7_with_system_site_packages
+
+branches:
+  only:
+    - dev
+
+cache: pip
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libhdf5-serial-dev python-dev
+  - sudo apt-get install -y gfortran libblas-dev liblapack-dev # scipy things
+  - pip install --upgrade pip wheel # get pip >= 7, which caches built packages
+  - pip --version
+
+install:
+  - pip install catkin_pkg
+  - pip install -r requirements.txt
+
+script:
+  - nosetests -s tests
+
+notifications:
+  email: false
+
+# Travis notes for ROS and numpy
+# https://github.com/felixduvallet/travis-numpy-debugging/blob/master/.travis.yml

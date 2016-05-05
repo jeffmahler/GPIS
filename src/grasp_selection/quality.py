@@ -5,11 +5,9 @@ Author: Jeff Mahler and Brian Hou
 import logging
 import numpy as np
 try:
-    import pyhull.convex_hull as cvh
-except:
-    logging.warning('Failed to import pyhull')
-try:
     import cvxopt as cvx
+    # TODO: find a way to log output?
+    cvx.solvers.options['show_progress'] = False
 except:
     logging.warning('Failed to import cvx')
 import os
@@ -28,9 +26,6 @@ try:
 except:
     logging.warning('Failed to import mayavi')
 import IPython
-
-# TODO: find a way to log output?
-cvx.solvers.options['show_progress'] = False
 
 FRICTION_COEF = 0.5
 
@@ -172,7 +167,7 @@ class PointGraspMetrics3D:
     def force_closure_qp(forces, torques, normals, soft_fingers=False, params=None):
         """ Force closure """
         eps = np.sqrt(1e-2)
-        if params is not None:
+        if params is not None and 'eps' in params:
             eps = params['eps']
 
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
@@ -212,7 +207,7 @@ class PointGraspMetrics3D:
     @staticmethod
     def min_singular(forces, torques, normals, soft_fingers=False, params=None):
         """ Min singular value of grasp matrix - measure of wrench that grasp is "weakest" at resisting """
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         _, S, _ = np.linalg.svd(G)
         min_sig = S[5]
         return min_sig
@@ -221,10 +216,10 @@ class PointGraspMetrics3D:
     def wrench_volume(forces, torques, normals, soft_fingers=False, params=None):
         """ Volume of grasp matrix singular values - score of all wrenches that the grasp can resist """
         k = 1
-        if params is not None:
+        if params is not None and 'k' in params:
             k = params['k']
 
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         _, S, _ = np.linalg.svd(G)
         sig = S
         return k * np.sqrt(np.prod(sig))
@@ -232,7 +227,7 @@ class PointGraspMetrics3D:
     @staticmethod
     def grasp_isotropy(forces, torques, normals, soft_fingers=False, params=None):
         """ Condition number of grasp matrix - ratio of "weakest" wrench that the grasp can exert to the "strongest" one """
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         _, S, _ = np.linalg.svd(G)
         max_sig = S[0]
         min_sig = S[5]
@@ -251,10 +246,11 @@ class PointGraspMetrics3D:
         # create grasp matrix
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         s = time.clock()
-        hull = cvh.ConvexHull(G.T, joggle=True)
+        # not sure if option i is necessary
+        hull = ss.ConvexHull(G.T, qhull_options='i QJ Pp')
         e = time.clock()
 
-        if len(hull.vertices) == 0:
+        if len(hull.simplices) == 0:
             logging.warning('Convex hull could not be computed')
             return 0.0
 
@@ -268,7 +264,7 @@ class PointGraspMetrics3D:
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
         closest_facet = None
-        for v in hull.vertices:
+        for v in hull.simplices:
             if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
                 facet = G[:, v]
                 dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)

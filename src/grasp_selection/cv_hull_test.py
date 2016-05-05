@@ -6,8 +6,6 @@ import stable_poses as stp
 import similarity_tf as stf
 import tfx
 
-import pyhull
-import pyhull.convex_hull as cvh
 import os
 import sys
 
