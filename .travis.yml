@@ -10,7 +10,7 @@ branches:
 install:
   - pip install -r requirements.txt
 
-script: nosetests tests
+script: nosetests -s tests
 
 # Travis notes for ROS and numpy
 # https://github.com/felixduvallet/travis-numpy-debugging/blob/master/.travis.yml
