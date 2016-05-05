@@ -11,13 +11,13 @@ cache: pip
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y build-essential libhdf5-serial-dev python-dev
+  - sudo apt-get install -y libhdf5-serial-dev python-dev
   - sudo apt-get install -y gfortran libblas-dev liblapack-dev
   - pip install --upgrade pip wheel # get pip >= 7, which caches built packages
   - pip --version
 
 install:
-  - pip install catkin_pkg cython
+  - pip install catkin_pkg
   - pip install -r requirements.txt
 
 script:
