@@ -411,3 +411,73 @@ class CCBPLogLikelihood(Objective):
         if alphas.shape[0] != self.N_:
             raise ValueError('Must supply same number of datapoints as true P')
 
+# FINITE DIFFERENCE CLASSES
+class FiniteDiffableObjective(Objective):
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def num_outputs(self):
+        """ Returns the number of outputs """
+        pass
+
+class FiniteDiffableVariable:
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def num_dimensions(self):
+        """ Returns the dimensionality of the variable """
+        pass
+
+    @abstractmethod
+    def add(self, delta, i):
+        """ Adds delta to the specified dimension """
+        pass
+
+class RidgeRegressionObjective(FiniteDiffableObjective):
+    def __init__(self, func, Z, Y, alpha=0, params=None):
+        self.f_ = func #eval function
+        self.Z_ = Z #inputs
+        self.Y_ = Y #targets
+        self.alpha_ = alpha
+        self.params_ = params
+
+    def evaluate(self, x):
+        """ L2 loss on the supplied objective """
+        self.check_valid_input(x)
+
+        loss = 0#self.alpha_ * np.linalg.norm(x)
+        for z_i, y_i in zip(self.Z_, self.Y_):
+            f = self.f_(z_i, x, self.params_)
+            loss += (f - y_i)**2
+        return loss
+
+    def num_outputs(self):
+        return 1
+
+    def check_valid_input(self, x):
+        pass
+
+class FiniteDiffObjective(DifferentiableObjective):
+    def __init__(self, objective, delta=1e-2):
+        if not isinstance(objective, FiniteDiffableObjective):
+            raise ValueError('Must provide finite differentiable objective')
+        self.f_ = objective
+        self.delta_ = delta
+
+    def check_valid_input(self):
+        if not isinstance(x, FiniteDiffableVariable):
+            raise ValueError('Must provide optimizable variable')
+
+    def gradient(self, x):
+        self.check_valid_input(x)
+
+        df_dx = np.zeros([self.f_.num_outputs(), x.num_dimensions()])
+        for i in theta.num_variables:
+            x_i_p = x.add( delta, i)
+            x_i_m = x.add(-delta, i)
+            df_dx[:,i] = (self.f_(x_i_p) - self.f_(x_i_m)) / (2 * self.delta_)
+
+        return df_dx
+
+    def hessian(self, x):
+        raise NotImplementedError

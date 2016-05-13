@@ -66,11 +66,51 @@ class PointGrasp(Grasp):
         pass
 
     #NOTE: implementation of close_fingers must return success, array of contacts (one per column)    
-    
-class ParallelJawPtGrasp3D(PointGrasp):
 
-    _GRIPPER_BOUNDING_BOX = {"half_height":0.019, "half_length":0.055, "half_width": 0.087}
-    #_GRIPPER_BOUNDING_BOX = {"half_height":0.01, "half_length":0.02, "half_width": 0.02}
+class SoftHandGrasp(Grasp):
+    def __init__(self, configuration, grasp_id=None):
+        center, palm_axis = SoftHandGrasp.params_from_configuration(configuration)
+        self.center = center
+        self.palm_axis = palm_axis
+        self.grasp_id = grasp_id
+
+    def gripper_transform(self, gripper=None):
+        """ Returns the transformation from the object frame to the gripper frame as a similarity transform 3D object """
+        t_obj_gripper = self.center
+        y_obj_gripper = self.palm_axis
+        x_obj_gripper = np.array([y_obj_gripper[1], -y_obj_gripper[0], 0])
+        if norm(x_obj_gripper) == 0:
+            x_obj_gripper = np.array([y_obj_gripper[2], 0, -y_obj_gripper[0]])
+        x_obj_gripper = x_obj_gripper / np.linalg.norm(x_obj_gripper)
+        z_obj_gripper = np.cross(x_obj_gripper, y_obj_gripper)
+        R_obj_gripper = np.c_[x_obj_gripper, np.c_[y_obj_gripper, z_obj_gripper]]
+        return stf.SimilarityTransform3D(pose=tfx.pose(R_obj_gripper, t_obj_gripper),
+                                         from_frame='gripper', to_frame='obj').inverse()
+
+    def configuration(self):
+        return self.T_obj_gripper_
+
+    @staticmethod
+    def params_from_configuration(configuration):
+        if not isinstance(configuration, np.ndarray) or (configuration.shape[0] != 9 and configuration.shape[0] != 6):
+            raise ValueError('Configuration must be numpy ndarray of size 6')
+        return configuration[:3], configuration[3:]
+
+    @staticmethod
+    def configuration_from_params(center, palm_axis):
+        configuration = np.zeros(6)
+        configuration[:3] = center
+        configuration[3:] = palm_axis
+        return configuration
+
+    def close_fingers(obj):
+        """ Not valid for softhand right now """
+        return None
+
+    def frame(self):
+        return 'obj'
+
+class ParallelJawPtGrasp3D(PointGrasp):
 
     def __init__(self, configuration, frame='object', timestamp=None, grasp_id=None):
         """

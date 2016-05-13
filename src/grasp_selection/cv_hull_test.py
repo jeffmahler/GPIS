@@ -21,11 +21,6 @@ if __name__ == '__main__':
     msh = ofile.read()
     cvh_msh = msh.convex_hull()
 
-    mv.figure(bgcolor=(1,1,1))
-    msh.visualize()
-    mv.show()
-    exit(0)
-
     min_prob = 0.01
     prob_mapping = stp.compute_stable_poses(msh)
     R_list = []
@@ -33,12 +28,18 @@ if __name__ == '__main__':
         if p >= min_prob:# and face[0] == 161 and face[1] == 16 and face[2] == 67:
             R_list.append([p, stp.compute_basis([cvh_msh.vertices()[i] for i in face], msh), face])
 
+    file_root, file_ext = os.path.splitext(filename)
+    file_dir, file_root = os.path.split(file_root)
     #    m.num_connected_components()
-    for R in R_list:
+    for k, R in enumerate(R_list):
         print 'Prob', R[0]
 
         tf = stf.SimilarityTransform3D(pose=tfx.pose(R[1]))
         m = msh.transform(tf)
+        m.compute_normals()
+
+        ofile = of.ObjFile(os.path.join(file_dir, file_root + '_pose_%d.obj' %(k))) 
+        ofile.write(m)
             
         mv.figure()
         m.visualize()

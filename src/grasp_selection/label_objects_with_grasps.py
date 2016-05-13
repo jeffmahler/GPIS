@@ -30,6 +30,7 @@ import grasp_sampler as gs
 import gripper as gr
 import json_serialization as jsons
 import kernels
+import mayavi_visualizer as mv
 import models
 import objectives
 import pfc
@@ -56,7 +57,18 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
 
         sample_start = time.clock()
-        if config['grasp_sampler'] == 'antipodal':
+        if config['grasp_sampler'] == 'softhand':
+            sampler = gs.SoftHandGraspSampler(config)            
+            grasps = sampler.generate_grasps(obj, config['target_num_grasps'])
+
+            mlab.figure()
+            mv.MayaviVisualizer.plot_mesh(obj.mesh)
+            for grasp in grasps:
+                mv.MayaviVisualizer.plot_pose(grasp.gripper_transform(), alpha=0.05)
+            mlab.show()
+            exit(0)
+
+        elif config['grasp_sampler'] == 'antipodal':
             # antipodal sampling
             logging.info('Using antipodal grasp sampling')
             sampler = ags.AntipodalGraspSampler(gripper, config)
@@ -337,11 +349,11 @@ if __name__ == '__main__':
                     logging.info('Object %s already has grasps. Skipping...' %(obj.key)) 
                     continue
 
-                try:
+                if True:#try:
                     label_grasps(obj, dataset, output_ds, gripper_name, config)
-                except Exception as e:
-                    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-                    logging.warning(str(e))
+                #except Exception as e:
+                #    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                #    logging.warning(str(e))
 
     database.close()
 

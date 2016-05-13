@@ -22,7 +22,7 @@ import scipy.stats as stats
 import experiment_config as ec
 import grasp
 import graspable_object
-from grasp import ParallelJawPtGrasp3D
+from grasp import ParallelJawPtGrasp3D, SoftHandGrasp
 import grasp_collision_checker as gcc
 import gripper as gr
 import obj_file
@@ -37,6 +37,50 @@ class GraspSampler:
         Create a list of candidate grasps for the object specified in graspable
         """
         pass
+
+class SoftHandGraspSampler(GraspSampler):
+    def __init__(self, config):
+        self._configure(config)
+
+    def _configure(self, config):
+        self.min_triangle_length = config['min_triangle_length']
+        self.min_obj_clearance = config['min_obj_clearance']
+        self.max_obj_clearance = config['max_obj_clearance']
+        self.max_normal_dev = config['max_normal_dev']
+
+    def generate_grasps(self, graspable, target_num_grasps):
+        obj_mesh, _ = graspable.mesh.subdivide(self.min_triangle_length)
+        tri_centers = obj_mesh.tri_centers()
+        tri_normals = obj_mesh.tri_normals()
+        tris = zip(tri_centers, tri_normals)
+        random.shuffle(tris)
+
+        grasps = []
+        i = 0
+        while len(grasps) < target_num_grasps and i < len(tris):
+            cur_tri_center = np.array(tris[i][0])
+            cur_tri_normal = np.array(tris[i][1])
+
+            dist = self.min_obj_clearance + (self.max_obj_clearance - self.min_obj_clearance) * np.random.rand()
+            grasp_center = cur_tri_center + dist * cur_tri_normal
+
+            U, _, _ = np.linalg.svd(-cur_tri_normal.reshape(3,1))
+            tan_x = U[:,1]
+            tan_y = U[:,2]
+            if np.cross(tan_x, tan_y).dot(-cur_tri_normal) < 0:
+                tan_y = -tan_y
+            theta = 2 * np.pi * np.random.rand()
+            v = np.cos(theta) * tan_x + np.sin(theta) * tan_y
+            d = self.max_normal_dev * np.random.rand()            
+
+            palm_axis = -cur_tri_normal + d * v
+            palm_axis = palm_axis / np.linalg.norm(palm_axis)
+
+            grasps.append(SoftHandGrasp(SoftHandGrasp.configuration_from_params(grasp_center, palm_axis)))
+
+            i = i+1
+
+        return grasps
 
 class ExactGraspSampler(GraspSampler):
     def __init__(self, gripper, config):

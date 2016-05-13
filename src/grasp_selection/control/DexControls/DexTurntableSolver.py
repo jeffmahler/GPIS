@@ -10,6 +10,10 @@ class DexTurntableSolver:
     @staticmethod
     def solve(r, d, phi, n = DEFAULT_SAMPLE_SIZE):
         return DexTurntableSolver._argmax(DexTurntableSolver._getInnerProductNormed(r, d, phi), 0, 2*pi, n)
+
+    @staticmethod
+    def solve_softhand(r, d, phi, n = DEFAULT_SAMPLE_SIZE):
+        return DexTurntableSolver._argmin(DexTurntableSolver._getAbsInnerProductNormed(r, d, phi), 0, 2*pi, n)
             
     @staticmethod
     def _getInnerProductNormed(r, d, phi):
@@ -17,6 +21,16 @@ class DexTurntableSolver:
             a = [r*cos(theta) - d, r*sin(theta)]
             g = [cos(theta + phi), sin(theta + phi)]
             return dot(a, g) / norm(a)
+        return innerProductNormed
+
+    @staticmethod
+    def _getAbsInnerProductNormed(r, d, phi):
+        def absInnerProductNormed(theta):
+            a = [r*cos(theta) - d, r*sin(theta)]
+            g = [cos(theta + phi), sin(theta + phi)]
+            if g[1] > 0:
+                return np.inf
+            return np.abs(dot(a, g)) / norm(a)
         return innerProductNormed
             
     @staticmethod
@@ -33,6 +47,21 @@ class DexTurntableSolver:
                 max_x = x
                 
         return max_x
+
+    @staticmethod
+    def _argmin(f, a, b, n):
+        #finds the argmax x of f(x) in the range [a, b) with n samples
+        delta = (b - a) / n
+        min_y = f(a)
+        min_x = a
+        for i in range(1, n):
+            x = i * delta
+            y = f(x)
+            if y < min_y:
+                min_y = y
+                min_x = x
+                
+        return min_x
         
     @staticmethod
     def _plot_function(f, a, b, n):

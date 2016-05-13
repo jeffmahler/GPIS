@@ -10,6 +10,7 @@ from numpy.linalg import norm
 from time import sleep
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from pneumaticbox import io, api
 
 import IPython
 import logging
@@ -19,10 +20,12 @@ class DexRobotZeke:
     '''
     Abstraction for a robot profile for Zeke
     '''
+    PNEUMATIC_BOX_ADDRESS = 'beagle12.local'
+    SOFTHAND_SYNERGY = [0.25, 0.4, 0.4, 0.6, 0.3, 0.3]
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi, 0.036]),
-                    "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi, None]),
-                    "OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi, 0.065]),
+    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi/2, 0.036]),
+                    "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi/2, None]),
+                    "OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi/2, 0.065]),
                     #"OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.25, 0.02, ZekeState.THETA + pi, 0.00]),
                     "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None]), 
                     "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None]),
@@ -38,8 +41,51 @@ class DexRobotZeke:
         self._ser_int= DexSerialInterface(ZekeState, comm, baudrate, timeout, read_sensors=True)      
         self._ser_int.start()
         self._target_state = self.getState()
+        self._setup_channels()
+              
         Logger.clear(ZekeState.NAME)
     
+    def _setup_channels(self):
+        # init variables
+        self.airserver = io.Airserver(TCP_IP=DexRobotZeke.PNEUMATIC_BOX_ADDRESS,
+                                      doReset=False)
+        self.channels = np.array([2, 3, 4, 5, 6, 7]) # max partition, two thumb chambers are connected
+        self.sensors  = np.array([0, 1, 2, 3, 4, 5])
+        
+        assert(self.channels.size == self.sensors.size)
+        
+        self.watchdog_levels = np.array([90, 90, 85, 90, 90, 90, 90, 90])
+        self.limiter_levels = np.array([60, 60, 55, 60, 60, 60, 60, 60])-10 #offset by 10kPa as the valves take some time to turn off
+        
+        # Configure all channels for Threshold controller
+        for i in self.channels:
+            self.airserver.submit(api.MsgConfigurationControllerThreshold(i))
+        
+        # Configure pressure watchdogs for all channels, additionally configure pressure limiter that only limit channel pressure
+        for i, s in zip(self.channels, self.sensors):
+            msg_watchdog = api.MsgConfigurationWatchdogPressure(i, id_offset = 20, max_pressure=self.watchdog_levels[i])
+            msg_limiter = api.MsgConfigurationControllerPressureLimiter(i, id_offset = 60, limit=self.limiter_levels[i])
+
+            msg_limiter.signal_to_watch = api.BLOCK_SIGNALS_SENSOR + s
+            msg_watchdog.signal_to_watch = api.BLOCK_SIGNALS_SENSOR + s
+
+            self.airserver.submit([msg_watchdog, msg_limiter])
+
+        # Activate the threshold controllers
+        self.airserver.submit(map(api.MsgControllerActivate, self.channels))
+
+        # Activate watchdogs and pressure limiter controllers
+        self.airserver.submit(map(api.MsgControllerActivate, self.channels + 20))
+        self.airserver.submit(map(api.MsgControllerActivate, self.channels + 60))
+
+    def _command_softhand(self, signed_delta):
+        if not type(signed_delta) is list:
+            signed_delta = [signed_delta] * len(self.channels)
+        assert (len(signed_delta) == len(self.channels))
+        valve_open = [api.MsgSignalEvent(api.BLOCK_SIGNALS_CLIENT + i, inflate_or_deflate, 0.0) for i, inflate_or_deflate in zip(self.channels.tolist(), np.sign(signed_delta))]
+        valve_close  = [api.MsgSignalEvent(api.BLOCK_SIGNALS_CLIENT + i, 0.0, delta) for i, delta in zip(self.channels.tolist(), np.abs(signed_delta))]
+        self.airserver.submit(valve_open + valve_close)
+
     def reset(self, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
         #self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_SAFE_RESET"], rot_speed, tra_speed, "Reset Gripper Safe")
         self.gotoState(DexRobotZeke.RESET_STATES["GRIPPER_RESET"], rot_speed, tra_speed, "Gripper Reset")
@@ -66,29 +112,12 @@ class DexRobotZeke:
         return sensor_vals
         
     def grip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
-        state = self._target_state.copy()
-        state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
-        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping", block=True)
-        
-        """
-        sensor_vals = self.getSensors()
-        current_state = self.getState()
-        duration = 0.0
-        while (sensor_vals is None or sensor_vals.gripper_force < DexConstants.GRIPPER_CLOSE_FORCE_THRESH) and \
-                current_state.gripper_grip > ZekeState.MIN_STATE().gripper_grip + DexConstants.GRIPPER_CLOSE_EPS and \
-                duration < DexConstants.GRIPPER_CLOSE_TIMEOUT:
-            sleep(0.1)
-            sensor_vals = self.getSensors()
-            current_state = self.getState()
-            duration = duration + 0.1
-
-        self.gotoState(current_state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Gripping")
-        """
+        self._command_softhand(DexRobotZeke.SOFTHAND_SYNERGY)
+        sleep(1.0)
 
     def unGrip(self, tra_speed = DexConstants.DEFAULT_TRA_SPEED):
-        state = self._target_state.copy()
-        state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
-        self.gotoState(state, DexConstants.DEFAULT_ROT_SPEED, tra_speed, "Ungripping")
+        self._command_softhand(-1.0)
+        sleep(1.0)
                     
     @staticmethod
     def pose_to_state(target_pose, prev_state, angles = None):

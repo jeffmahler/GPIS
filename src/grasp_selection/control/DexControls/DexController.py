@@ -55,7 +55,7 @@ class DexController:
 
         #change target pose to appropriate approach pose
         logging.info('Modifying grasp pose for table rotation')
-        self._set_approach_pose(target_pose, angles)
+        self._set_approach_pose(target_pose, angles.yaw)
         
         print 'After', target_pose.position
         aligned_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
@@ -63,10 +63,6 @@ class DexController:
         logging.info('Orig Theta: %f' %original_obj_angle)
         logging.info('Aligned Theta %f' %aligned_obj_angle)
 
-        #reset izzy to clear-table-rotation position
-        #logging.info('Reseting table rotation')
-        #self._table.reset()
-        #self._robot.reset_clear_table()
         #wait til completed
         turntable_state = self._table.getState()
         
@@ -149,13 +145,11 @@ class DexController:
         logging.info('Gamma: %f' %gamma)
         return original_pose, DexAngles(phi, psi, gamma)
         
-    def _set_approach_pose(self, target_pose, angles):
+    def _set_approach_pose(self, target_pose, phi):
         pos = [target_pose.position.x, target_pose.position.y]
         r = norm(pos)
-        #ANGLES using yaw
-        phi = angles.yaw
         d = ZekeState.ZEKE_ARM_ORIGIN_OFFSET
-        theta = DexTurntableSolver.solve(r, d, phi)
+        theta = DexTurntableSolver.solve_softhand(r, d, phi)
         
         target_pose.position.x = r * cos(theta)
         target_pose.position.y = r * sin(theta)
@@ -227,8 +221,7 @@ def test_state():
     target_state = ZekeState()
     target_state.set_arm_ext(ZekeState.ZEKE_ARM_ORIGIN_OFFSET - ZekeState.ZEKE_ARM_TO_GRIPPER_TIP_LENGTH)
     target_state.set_arm_rot(ZekeState.PHI + np.pi)
-    target_state.set_gripper_rot(4.26)
-    target_state.set_gripper_grip(0.037)
+    target_state.set_gripper_rot(ZekeState.THETA + 3 * np.pi / 2)
     print 'Target'
     print target_state
 
@@ -344,20 +337,19 @@ def fake_grasp():
 def test_grip():
     t = DexController()
 
+    print 'Gripping'
+    t._robot.grip()
+
+    sleep(1)    
+    
     print 'Ungripping'
     t._robot.unGrip()
 
-    sleep(1)    
-
-    print 'Gripping'
-    t._robot.grip()
-    
-
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    test_fishing_reset()
+    #test_fishing_reset()
     #test_table()
     #test_grip()
     #fake_grasp()
-    #t = test_state()
+    t = test_state()
     #t = test_state_sequence()

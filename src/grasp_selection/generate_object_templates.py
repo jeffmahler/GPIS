@@ -28,7 +28,8 @@ if __name__ == '__main__':
     dataset = database.dataset(config['datasets'].keys()[0])
 
     # get obj
-    for obj in dataset:
+    obj = dataset['nozzle']
+    if True:#for obj in dataset:
         object_key = obj.key
         logging.info('Generating templates for object %s' %(object_key))
         sdf = obj.sdf
@@ -55,7 +56,7 @@ if __name__ == '__main__':
 
             # visualize
             logging.info('Stable pose %s' %(stable_pose.id))
-            if False:
+            if True:
                 ax = plt.gca(projection = '3d')
                 ax.scatter(x0_grid[0], x0_grid[1], x0_grid[2], c='m', s=120)
                 ax.scatter(com_grid[0], com_grid[1], com_grid[2], c='y', s=150)

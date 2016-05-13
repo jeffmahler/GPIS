@@ -93,16 +93,16 @@ def show_grasps(obj, dataset, config):
         #time.sleep(1)
         mlab.show()
 
-def show_grasps_on_stable_pose(obj, dataset, config, stable_pose_id='pose_0', delay=0.1,
-                               num_grasp_views=8):
+def show_grasps_on_stable_pose(obj, dataset, gripper, config, stable_pose_id='pose_0', delay=0.2,
+                               num_grasp_views=8, save=True):
     # load grasps and stable poses
     stable_pose = dataset.stable_pose(obj.key, stable_pose_id)
-    grasps = dataset.grasps(obj.key, gripper=config['gripper'])
-    grasp_metrics = dataset.grasp_metrics(obj.key, grasps, gripper=config['gripper'])
-    
+    grasps = dataset.grasps(obj.key, gripper=gripper.name)
+    grasp_metrics = dataset.grasp_metrics(obj.key, grasps, gripper=gripper.name)
+
     # plot grasps on stable poses 
     T_table_world = stf.SimilarityTransform3D(tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
-    gripper = gr.RobotGripper.load(config['gripper'])
+    gripper = gr.RobotGripper.load(gripper.name)
 
     # collision checking
     rave.raveSetDebugLevel(rave.DebugLevel.Error)
@@ -110,13 +110,13 @@ def show_grasps_on_stable_pose(obj, dataset, config, stable_pose_id='pose_0', de
     collision_checker.set_object(obj)
 
     # plot each grasp
-    mlab.figure(bgcolor=(0.5,0.5,0.5), size=(1000,1000))
+    mlab.figure(bgcolor=(1,1,1), size=(1000,1000))
     random.shuffle(grasps)
     delta_view = 360.0 / num_grasp_views
     for i, grasp in enumerate(grasps):
         # check collisions and plot if none
         grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
-        if not gripper.collides_with_table(grasp, stable_pose) and not collision_checker.in_collision(grasp):
+        if True:#not gripper.collides_with_table(grasp, stable_pose) and not collision_checker.in_collision(grasp):
             # show metrics
             logging.info('Displaying grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps)))
             metrics = grasp_metrics[grasp.grasp_id]
@@ -128,12 +128,16 @@ def show_grasps_on_stable_pose(obj, dataset, config, stable_pose_id='pose_0', de
             mlab.clf()
             T_obj_world = mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface',
                                                                color=(0.4,0.4,0.4))
-            mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(0.65,0.65,0.65))
+            #mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(0.65,0.65,0.65))
+            mv.MayaviVisualizer.plot_grasp(grasp, T_obj_world, alpha=0.1, endpoint_scale=0.0075)
+                                           
 
             for j in range(num_grasp_views):
                 az = j * delta_view
                 mlab.view(az)
                 time.sleep(delay)
+                if save:
+                    mlab.savefig(os.path.join(config['visualization_dir'], 'obj_%s_grasp_%d_gripper_%s_view_%d.png' %(obj.key, grasp.grasp_id, gripper.name, j)))
 
 def show_grasps_by_metric(obj, dataset, config):
     # load grasps and stable poses
@@ -211,19 +215,18 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_ONLY_ACCESS)
+    gripper = gr.RobotGripper.load(config['grippers'][1])
 
     for dataset_name in config['datasets'].keys():
         dataset = database.dataset(dataset_name)
 
         # check each object in the dataset with grasps
-        obj = dataset['mount1']
-        if True:
-        #for obj in dataset:
+        for obj in dataset:
             logging.info('Displaying grasps for object {}'.format(obj.key))
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
 
-            show_stable_poses(obj, dataset, config)
-            #show_grasps_on_stable_pose(obj, dataset, config, config['ppc_stp_ids'][obj.key])
+            #show_stable_poses(obj, dataset, config)
+            show_grasps_on_stable_pose(obj, dataset, gripper, config, config['ppc_stp_ids'][obj.key])
 
     database.close()
 

@@ -11,7 +11,7 @@ class ZekeState:
     WRIST_TO_FINGER_RADIUS = 0.006 # the radius of the fingers from the center of wrist rotation
     
     ZEKE_ARM_ORIGIN_OFFSET = 0.59
-    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.41
+    ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.36
     
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     
