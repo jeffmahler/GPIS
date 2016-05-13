@@ -33,7 +33,7 @@ class DexConstants:
     INTERP_MAX_RAD = MAX_ROT_SPEED * INTERP_TIME_STEP 
     INTERP_MAX_M = MAX_TRA_SPEED * INTERP_TIME_STEP 
 
-    DEFAULT_ROT_SPEED = pi/6 #30 degrees per second
+    DEFAULT_ROT_SPEED = pi/4 #30 degrees per second
     DEFAULT_TRA_SPEED = 0.04 #4cm per second (roughly 5 secs for 1 ft)
     
     MAX_ELEVATION = 0.3

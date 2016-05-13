@@ -14,13 +14,16 @@ from mpl_toolkits.mplot3d import proj3d
 import mayavi.mlab as mv
 import numpy as np
 import pickle as pkl
-import openravepy as rave
 import random
 from random import choice
 import os
+import select
 import shutil
+import signal
 import sys
 sys.path.append("src/grasp_selection/control/DexControls")
+import thread
+import threading
 import time
 
 from DexAngles import DexAngles
@@ -34,7 +37,6 @@ import camera_params as cp
 import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
-import grasp_collision_checker as gcc
 import gripper as gr
 import mab_single_object_objective as msoo
 import mayavi_visualizer as mvis
@@ -45,12 +47,38 @@ import tabletop_object_registration as tor
 import termination_conditions as tc
 import tfx
 
+pause_event = threading.Event()
+kill_event = threading.Event()
+
 # Experiment tag generator for saving output
 def gen_experiment_id(n=10):
     """ Random string for naming """
     chrs = 'abcdefghijklmnopqrstuvwxyz'
     inds = np.random.randint(0,len(chrs), size=n)
     return ''.join([chrs[i] for i in inds])
+
+# Looks for pause
+def check_pause():
+    while True:
+        if kill_event.is_set():
+            exit(0)
+
+        i, o, e = select.select( [sys.stdin], [], [], 1.0)
+        if i:
+            #ch = raw_input()
+            ch = sys.stdin.readline().strip()
+            if pause_event.is_set() and ch == '':
+                logging.info('Pausing... Hit [ENTER] to resume')
+                pause_event.clear()
+            elif not pause_event.is_set() and ch == '':
+                logging.info('Resuming... Hit [ENTER] to pause')
+                pause_event.set()            
+            time.sleep(0.5)
+
+# custom exit function
+def exit_experiment(signal=0, frame=None):
+    kill_event.set()
+    exit(0)
 
 # Grasp execution main function
 def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset, registration_solver, ctrl, camera, config):
@@ -106,8 +134,10 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
                 ctrl.reset_object()
         
                 if hardware_reset == 1:
+                    logging.info('Checking pause')
+                    pause_event.wait()
+                    logging.info('Performing hardware reset')
                     ctrl._table.reset_fishing()
-                    time.sleep(1.0) # to prevent blurring
                 else:
                     # prompt for object placement
                     yesno = raw_input('Place object. Hit [ENTER] when done')
@@ -298,6 +328,8 @@ def test_grasp_physical_success(graspable, grasp, gripper, stable_pose, dataset,
 
             # save results of trial
             grasp_trial_dict = {}
+            grasp_trial_dict['object'] = graspable.key
+            grasp_trial_dict['grasp_id'] = grasp.grasp_id
             grasp_trial_dict['trial'] = i
             target_state_dict = target_state.to_dict()
             for key, val in target_state_dict.iteritems():
@@ -372,13 +404,14 @@ if __name__ == '__main__':
     max_iter = config['max_iter']
     snapshot_rate = config['snapshot_rate']
 
-    # init viewer
-    mv.figure(size=(1000, 1000), bgcolor=(0.8, 0.8, 0.8))
+    # setup graceful exit
+    signal.signal(signal.SIGINT, exit_experiment)
 
-    # open database and dataset
-    database = db.Hdf5Database(database_filename, config)
-    ds = database.dataset(dataset_name)
-    gripper = gr.RobotGripper.load(config['gripper'])
+    # init pause thread
+    if config['hardware_reset'] == 1:
+        pause_thread = threading.Thread(name='pause_thread', target=check_pause, args=())    
+        pause_event.set()
+        pause_thread.start()
 
     # setup output directories and logging (TODO: make experiment wrapper class in future)
     experiment_id = 'single_grasp_experiment_%s' %(gen_experiment_id())
@@ -388,10 +421,19 @@ if __name__ == '__main__':
     config['output_dir'] = output_dir
     config['experiment_dir'] = experiment_dir
     experiment_log = os.path.join(experiment_dir, experiment_id +'.log')
+
+    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
     hdlr = logging.FileHandler(experiment_log)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     hdlr.setFormatter(formatter)
     logging.getLogger().addHandler(hdlr) 
+    stderr = logging.StreamHandler()
+    stderr.setFormatter(formatter)
+    logging.getLogger().addHandler(stderr) 
+
+    # open database and dataset
+    database = db.Hdf5Database(database_filename, config)
+    ds = database.dataset(dataset_name)
+    gripper = gr.RobotGripper.load(config['gripper'])
 
     # add to master csv
     experiment_id_dict = {'experiment_id': experiment_id, 'use': 0}
@@ -441,6 +483,9 @@ if __name__ == '__main__':
         if grasp.grasp_id in grasp_ids and grasp.grasp_id >= config['start_grasp_id']:
             grasps_to_execute.append(grasp.grasp_aligned_with_stable_pose(stable_pose))
 
+    # init viewer
+    mv.figure(size=(1000, 1000), bgcolor=(0.8, 0.8, 0.8))
+
     # plot grasps
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
     T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
@@ -465,13 +510,13 @@ if __name__ == '__main__':
     registration_solver = tor.KnownObjectStablePoseTabletopRegistrationSolver(object_name, stable_pose.id, ds, config)
 
     # init hardware
-    logging.info('Initializing Camera')
-    camera = rs.RgbdSensor()
-    ctrl = DexController()
+    try:
+        logging.info('Initializing Camera')
+        camera = rs.RgbdSensor()
+        ctrl = DexController()
 
-    # execute each grasp
-    for i, grasp in enumerate(grasps_to_execute):
-        try:
+        # execute each grasp
+        for i, grasp in enumerate(grasps_to_execute):
             logging.info('Evaluating grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps_to_execute)))
 
             # output metrics in database
@@ -509,9 +554,11 @@ if __name__ == '__main__':
                 writer.writeheader()
             writer.writerow(grasp_q)
             output_f.flush()
-        except Exception as e:
-            # TODO: handle more gracefully
-            ctrl.stop()
-            raise e
+    except Exception as e:
+        # TODO: handle more gracefully
+        ctrl.stop()
+        kill_event.set()
+        raise e
 
     ctrl.stop()
+    exit_experiment()

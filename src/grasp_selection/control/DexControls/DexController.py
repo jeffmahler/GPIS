@@ -291,6 +291,10 @@ def test_fishing_reset():
     t = DexController()
     t._table.reset_fishing()
 
+def test_table():
+    t = DexController()
+    t._table.gotoState(TurntableState().set_table_rot(3.14))
+
 def test_grip():
     t = DexController()
 
@@ -315,9 +319,45 @@ def test_grip():
     sleep(10)
     """
 
+def fake_grasp():
+    t = DexController()
+
+    print 'Ungripping'
+    t._robot.unGrip()
+
+    target_state = ZekeState([3.42, 0.10, 0.18, None, ZekeState.MAX_STATE().gripper_grip])
+    t._robot.gotoState(target_state)
+    sleep(1)    
+
+    print 'Gripping'
+    t._robot.grip()
+
+    current_state, _ = t.getState()
+    high_state = current_state.copy().set_arm_elev(0.2)
+    high_state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
+
+    t._robot.gotoState(high_state)
+    sleep(10)
+    
+    t._robot.unGrip()
+
+def test_grip():
+    t = DexController()
+
+    print 'Ungripping'
+    t._robot.unGrip()
+
+    sleep(1)    
+
+    print 'Gripping'
+    t._robot.grip()
+    
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    #test_fishing_reset()
+    test_fishing_reset()
+    #test_table()
     #test_grip()
-    t = test_state()
+    #fake_grasp()
+    #t = test_state()
     #t = test_state_sequence()

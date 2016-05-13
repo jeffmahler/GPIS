@@ -15,8 +15,8 @@ datasets:
     end_index: 40
 
 # Grasp-specific params
-object_name: pipe_connector
-stable_pose_index: 6
+object_name: part1
+stable_pose_index: 3
 start_grasp_id: 0
 hardware_reset: 1
 
