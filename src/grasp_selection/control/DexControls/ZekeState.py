@@ -12,6 +12,8 @@ class ZekeState:
     
     ZEKE_ARM_ORIGIN_OFFSET = 0.59
     ZEKE_ARM_TO_GRIPPER_TIP_LENGTH = 0.36
+
+    ZEKE_PALM_TO_TIP_LENGTH = 0.03
     
     # Rotation, Elevation, Extension, Wrist rotation, Grippers, Turntable
     

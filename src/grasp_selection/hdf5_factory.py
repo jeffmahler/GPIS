@@ -232,6 +232,8 @@ class Hdf5ObjectFactory(object):
                 g = None
                 if grasp_type == 'ParallelJawPtGrasp3D':
                     g = grasp.ParallelJawPtGrasp3D(configuration=configuration, frame=frame, timestamp=timestamp, grasp_id=grasp_id)
+                elif grasp_type == 'SoftHandGrasp':
+                    g = grasp.SoftHandGrasp(configuration=configuration, grasp_id=grasp_id)
                 grasps.append(g)
             except:
                 logging.debug('Grasp %s is corrupt. Skipping' %(grasp_key))

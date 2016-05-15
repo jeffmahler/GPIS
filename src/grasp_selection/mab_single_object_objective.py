@@ -71,7 +71,7 @@ class MABSingleObjectObjective(Objective):
         grasp_success = 0
         self.camera.reset()
 
-        if True: #try:
+        if True:try:
             # move arm out of the way
             logging.info('Moving arm out of the way')
             self.registration_solver.log_to(self.logging_dir)

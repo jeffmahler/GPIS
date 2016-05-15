@@ -28,6 +28,7 @@ class _DexSerial(Process):
         self._sensor_read_q = sensor_read_q
         
         self._updated_state = False
+        self._current_sensors = DexSensorReadings()
 
         self._flags = {
             "stopping" : False,
@@ -37,6 +38,7 @@ class _DexSerial(Process):
 
     def run(self):
         self._current_state = self._State.INIT_STATE()
+        self._current_sensors = DexSensorReadings()
         
         #Main run function that constantly sends the current state to the robot
         if not DexConstants.DEBUG:

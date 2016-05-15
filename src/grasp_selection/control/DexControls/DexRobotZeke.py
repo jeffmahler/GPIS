@@ -21,11 +21,11 @@ class DexRobotZeke:
     Abstraction for a robot profile for Zeke
     '''
     PNEUMATIC_BOX_ADDRESS = 'beagle12.local'
-    SOFTHAND_SYNERGY = [0.25, 0.4, 0.4, 0.6, 0.3, 0.3]
+    SOFTHAND_SYNERGY = [0.4, 0.6, 0.2, 0.8, 0.3, 0.2]
     
-    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi/2, 0.036]),
-                    "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + pi/2, None]),
-                    "OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + pi/2, 0.065]),
+    RESET_STATES = {"GRIPPER_SAFE_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + 3 * pi/2, 0.036]),
+                    "GRIPPER_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.05, 0.02, ZekeState.THETA + 3 * pi/2, None]),
+                    "OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.1, 0.02, ZekeState.THETA + 3 * pi/2, 0.065]),
                     #"OBJECT_RESET" : ZekeState([np.pi + ZekeState.PHI, 0.25, 0.02, ZekeState.THETA + pi, 0.00]),
                     "ZEKE_RESET_SHUTTER_FREE" : ZekeState([None, 0.01, None, None, None]), 
                     "ZEKE_RESET" : ZekeState([None, None, 0.01, None, None]),
@@ -126,7 +126,7 @@ class DexRobotZeke:
         '''
         if target_pose.frame is not DexConstants.ZEKE_LOCAL_FRAME:
             raise Exception("Given target_pose is not in ZEKE LOCAL frame")
-                
+
         # calculate finger position and arm rotation about z axis
         x = target_pose.position.x
         y = target_pose.position.y
@@ -139,12 +139,13 @@ class DexRobotZeke:
             raise ValueError('Use of deprecated tb angles')
         else:
             # TODO: update Zeke with kinematics - this angle should really be computed from the pose in Zeke itself, NOT in the controller
-            psi = angles.psi
-            if psi < pi/2:
-                psi = psi + pi
-            elif psi > 3*pi/2:
-                psi = psi - pi
-            
+            psi = angles.pitch - np.pi / 2
+            if psi < 0:
+                psi = psi + 2 * np.pi
+            elif psi > 2*np.pi:
+                psi = psi - 2 * np.pi                
+            print psi + ZekeState.THETA
+
         delta_h_wrist_fingers = ZekeState.WRIST_TO_FINGER_RADIUS * np.cos(psi) # the differential height of the fingers due to the wrist rotation
         delta_xy_wrist_fingers = ZekeState.WRIST_TO_FINGER_RADIUS * -np.sin(psi) # the differential xy pos of the fingers due to the wrist rotation
         
@@ -165,7 +166,7 @@ class DexRobotZeke:
 
         # snap grasp height to valid range
         print 'Delta h', delta_h_wrist_fingers
-        target_elev = target_pose.position.z - ZekeState.DELTA_Z - delta_h_wrist_fingers
+        target_elev = target_pose.position.z# - ZekeState.DELTA_Z - delta_h_wrist_fingers
         if target_elev < 0.0:
             logging.info('Snapping to valid height') 
             target_elev = 0.0
@@ -233,14 +234,20 @@ class DexRobotZeke:
             gamma = target_pose.rotation.tb_angles.roll_rad
         else:
             gamma = angles.roll
-        if abs(gamma) >= DexConstants.ROLL_THRESH:
-            raise Exception("Can't perform rotation about x-axis on Zeke's gripper: "  + str(target_pose.rotation.euler))
+        #if abs(gamma) >= DexConstants.ROLL_THRESH:
+        #    raise Exception("Can't perform rotation about x-axis on Zeke's gripper: "  + str(target_pose.rotation.euler))
             
         target_state = DexRobotZeke.pose_to_state(target_pose, self._target_state, angles)
 
         logging.info('Target state: %s' %(str(target_state)))
 
-        aim_state = target_state.copy().set_arm_ext(ZekeState.MIN_STATE().arm_ext)
+        aim_state = target_state.copy().set_arm_ext(target_state.arm_ext)
+        pitch = angles.pitch % (2 * np.pi)
+        logging.info('Pitch %f' %pitch)
+        if pitch > np.pi / 2 and pitch < 3 * np.pi / 2 :
+            aim_state.set_arm_rot(ZekeState.PHI + 10*np.pi / 8)
+        else:
+            aim_state.set_arm_rot(ZekeState.PHI + 6*np.pi / 8)            
         aim_state.set_gripper_grip(ZekeState.MAX_STATE().gripper_grip)
         
         #logging.info('Opening grippers')
@@ -250,7 +257,7 @@ class DexRobotZeke:
         self.gotoState(aim_state, rot_speed, tra_speed, name + "_aim")
 
         logging.info('Moving gripper to goal state: %s' %(str(target_state)))
-        self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
+        self.gotoState(target_state, rot_speed / 3.0, tra_speed / 3.0, name + "_grasp")
 
         logging.info('Closing grippers')
         self.grip()

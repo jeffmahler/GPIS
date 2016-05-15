@@ -69,14 +69,14 @@ class PointGrasp(Grasp):
 
 class SoftHandGrasp(Grasp):
     def __init__(self, configuration, grasp_id=None):
-        center, palm_axis = SoftHandGrasp.params_from_configuration(configuration)
+        center, palm_axis, approach_angle = SoftHandGrasp.params_from_configuration(configuration)
         self.center = center
         self.palm_axis = palm_axis
+        self.approach_angle = approach_angle
         self.grasp_id = grasp_id
 
-    def gripper_transform(self, gripper=None):
-        """ Returns the transformation from the object frame to the gripper frame as a similarity transform 3D object """
-        t_obj_gripper = self.center
+    @property
+    def standard_orientation(self):
         y_obj_gripper = self.palm_axis
         x_obj_gripper = np.array([y_obj_gripper[1], -y_obj_gripper[0], 0])
         if norm(x_obj_gripper) == 0:
@@ -84,29 +84,82 @@ class SoftHandGrasp(Grasp):
         x_obj_gripper = x_obj_gripper / np.linalg.norm(x_obj_gripper)
         z_obj_gripper = np.cross(x_obj_gripper, y_obj_gripper)
         R_obj_gripper = np.c_[x_obj_gripper, np.c_[y_obj_gripper, z_obj_gripper]]
+        return R_obj_gripper
+
+    def rotated_orientation(self, theta):
+        cos_t = np.cos(theta)
+        sin_t = np.sin(theta)
+        R = np.c_[[cos_t, 0, sin_t], np.c_[[0, 1, 0], [-sin_t, 0, cos_t]]]
+        return self.standard_orientation.dot(R)
+
+    def gripper_transform(self, gripper=None):
+        """ Returns the transformation from the object frame to the gripper frame as a similarity transform 3D object """
+        t_obj_gripper = self.center
+        R_obj_gripper = self.rotated_orientation(self.approach_angle)
         return stf.SimilarityTransform3D(pose=tfx.pose(R_obj_gripper, t_obj_gripper),
                                          from_frame='gripper', to_frame='obj').inverse()
 
+    def _angle_aligned_with_stable_pose(self, stable_pose):
+        '''
+        Returns the y-axis rotation angle that'd allow the current pose to align with stable pose
+        '''    
+        def _argmin(f, a, b, n):
+            #finds the argmax x of f(x) in the range [a, b) with n samples
+            delta = (b - a) / n
+            min_y = f(a)
+            min_x = a
+            for i in range(1, n):
+                x = i * delta
+                y = f(x)
+                if y <= min_y:
+                    min_y = y
+                    min_x = x
+            return min_x
+    
+        def _get_matrix_product(axis, normal):
+            def matrix_product(theta):
+                cos_t = np.cos(theta)
+                sin_t = np.sin(theta)
+                R = np.c_[[cos_t, 0, sin_t], np.c_[[0, 1, 0], [-sin_t, 0, cos_t]]]
+                axis_rotated = np.dot(R, axis)
+                return abs(np.dot(normal, axis_rotated))
+            return matrix_product
+    
+        stable_pose_normal = stable_pose.r[2,:]
+        
+        theta = _argmin(_get_matrix_product(np.array([0,0,1]), np.dot(inv(self.standard_orientation), stable_pose_normal)), 0, 2*np.pi, 1000)
+        return theta
+
+    def parallel_table(self, stable_pose):
+        """ Rotates grasp so that fingertip axis (Z) is parallel to the table """
+        theta = self._angle_aligned_with_stable_pose(stable_pose)
+        new_grasp = deepcopy(self)
+        new_grasp.approach_angle = theta
+        return new_grasp        
+
+    @property
     def configuration(self):
-        return self.T_obj_gripper_
+        return SoftHandGrasp.configuration_from_params(self.center, self.palm_axis, self.approach_angle)
 
     @staticmethod
     def params_from_configuration(configuration):
-        if not isinstance(configuration, np.ndarray) or (configuration.shape[0] != 9 and configuration.shape[0] != 6):
-            raise ValueError('Configuration must be numpy ndarray of size 6')
-        return configuration[:3], configuration[3:]
+        if not isinstance(configuration, np.ndarray) or configuration.shape[0] != 7:
+            raise ValueError('Configuration must be numpy ndarray of size 7')
+        return configuration[:3], configuration[3:6], configuration[6]
 
     @staticmethod
-    def configuration_from_params(center, palm_axis):
-        configuration = np.zeros(6)
+    def configuration_from_params(center, palm_axis, approach_angle=0):
+        configuration = np.zeros(7)
         configuration[:3] = center
-        configuration[3:] = palm_axis
+        configuration[3:6] = palm_axis
+        configuration[6] = approach_angle
         return configuration
 
     def close_fingers(obj):
         """ Not valid for softhand right now """
         return None
 
+    @property
     def frame(self):
         return 'obj'
 

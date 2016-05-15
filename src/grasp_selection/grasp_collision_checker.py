@@ -8,10 +8,6 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
-try:
-    import mayavi.mlab as mv
-except:
-    logging.warning('Failed to import mayavi')
 import numpy as np
 
 import openravepy as rave
@@ -143,7 +139,7 @@ class OpenRaveGraspChecker(object):
         
     def in_collision(self, grasp):
         """ Check collision of grasp with current objects """
-        if isinstance(grasp, g.ParallelJawPtGrasp3D):
+        if isinstance(grasp, g.Grasp):
             grasp = grasp.gripper_transform(self.gripper_)
 
         if self.obj_ is None:
@@ -183,10 +179,6 @@ def test_grasp_collision(gripper_name):
     of = obj_file.ObjFile(mesh_name)
     m = of.read()
 
-    #m.visualize()
-    #mv.axes()
-    #mv.show()
-
     clean_mesh_name = 'data/test/meshes/flashlight.obj'
     mc = mesh_cleaner.MeshCleaner(m)
     mc.rescale_vertices(0.07)
@@ -217,8 +209,15 @@ def test_grasp_collision(gripper_name):
     logging.getLogger().setLevel(logging.INFO)
     grasp_checker.view_grasps(graspable, rotated_grasps, auto_step=False, delay=1)
 
+def test_viewer(gripper_name):
+    gripper = gr.RobotGripper.load(gripper_name)
+    rave.raveSetDebugLevel(rave.DebugLevel.Error)
+    collision_checker = OpenRaveGraspChecker(gripper, view=True)
+    IPython.embed()
+
 if __name__ == "__main__":
     gripper_name = "zeke"
     if len(sys.argv) == 2:
         gripper_name = sys.argv[1]
-    test_grasp_collision(gripper_name)
+    #test_grasp_collision(gripper_name)
+    test_viewer(gripper_name)

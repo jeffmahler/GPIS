@@ -3,6 +3,7 @@ from DexNumericSolvers import DexNumericSolvers
 from numpy.linalg import norm
 from random import random
 import matplotlib.pylab as plt
+import numpy as np
 class DexTurntableSolver:
 
     DEFAULT_SAMPLE_SIZE = 10000
@@ -12,8 +13,8 @@ class DexTurntableSolver:
         return DexTurntableSolver._argmax(DexTurntableSolver._getInnerProductNormed(r, d, phi), 0, 2*pi, n)
 
     @staticmethod
-    def solve_softhand(r, d, phi, n = DEFAULT_SAMPLE_SIZE):
-        return DexTurntableSolver._argmin(DexTurntableSolver._getAbsInnerProductNormed(r, d, phi), 0, 2*pi, n)
+    def solve_softhand(r, d, phi, ip, n = DEFAULT_SAMPLE_SIZE):
+        return DexTurntableSolver._argmin(DexTurntableSolver._getAbsInnerProductNormed(r, d, phi, ip), 0, 2*pi, n)
             
     @staticmethod
     def _getInnerProductNormed(r, d, phi):
@@ -24,14 +25,16 @@ class DexTurntableSolver:
         return innerProductNormed
 
     @staticmethod
-    def _getAbsInnerProductNormed(r, d, phi):
+    def _getAbsInnerProductNormed(r, d, phi, ip):
         def absInnerProductNormed(theta):
             a = [r*cos(theta) - d, r*sin(theta)]
             g = [cos(theta + phi), sin(theta + phi)]
-            if g[1] > 0:
+            if g[1] > 0 and ip > 0:
+                return np.inf
+            elif g[1] <= 0 and ip < 0:
                 return np.inf
             return np.abs(dot(a, g)) / norm(a)
-        return innerProductNormed
+        return absInnerProductNormed
             
     @staticmethod
     def _argmax(f, a, b, n):

@@ -60,13 +60,21 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         if config['grasp_sampler'] == 'softhand':
             sampler = gs.SoftHandGraspSampler(config)            
             grasps = sampler.generate_grasps(obj, config['target_num_grasps'])
+            grasp_sms = [100] * len(grasps)
 
+            """
             mlab.figure()
             mv.MayaviVisualizer.plot_mesh(obj.mesh)
             for grasp in grasps:
-                mv.MayaviVisualizer.plot_pose(grasp.gripper_transform(), alpha=0.05)
+                if config['ppc_stp_ids']:
+                    stable_pose = dataset.stable_pose(obj.key, config['ppc_stp_ids'][obj.key])
+                    grasp_aligned = grasp.parallel_table(stable_pose)
+                    mv.MayaviVisualizer.plot_pose(grasp_aligned.gripper_transform(), alpha=0.05)
+                else:
+                    mv.MayaviVisualizer.plot_pose(grasp.gripper_transform(), alpha=0.05)                    
             mlab.show()
             exit(0)
+            """
 
         elif config['grasp_sampler'] == 'antipodal':
             # antipodal sampling

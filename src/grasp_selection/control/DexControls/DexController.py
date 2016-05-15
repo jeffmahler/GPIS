@@ -55,7 +55,7 @@ class DexController:
 
         #change target pose to appropriate approach pose
         logging.info('Modifying grasp pose for table rotation')
-        self._set_approach_pose(target_pose, angles.yaw)
+        self._set_approach_pose(target_pose, angles)
         
         print 'After', target_pose.position
         aligned_obj_angle = DexNumericSolvers.get_cartesian_angle(target_pose.position.x, target_pose.position.y)
@@ -98,6 +98,9 @@ class DexController:
         original_pose = stf.pose
         translation = original_pose.position
         rotation = array(original_pose.rotation.matrix)
+
+        print rotation
+        print translation
         
         def _angle_2d(u, v):
             u_norm = u / norm(u)
@@ -123,18 +126,24 @@ class DexController:
         logging.info('Phi: %f' %phi)
         
         #psi is angle between x-axis of the grasp in world frame and the table's xy plane    
-        x_axis_grasp = ravel(rotation[:,0])
+        x_axis_grasp = ravel(rotation[:,1])
         proj_x_axis_grasp = x_axis_grasp.copy()
         proj_x_axis_grasp[2] = 0
         #psi = _angle_3d(x_axis_grasp, proj_x_axis_grasp) + pi / 2
         proj_x_axis_grasp = dot(rotation.T, proj_x_axis_grasp).ravel()
         x_axis_grasp = dot(rotation.T, x_axis_grasp).ravel()
 
-        u_x = array([x_axis_grasp[0], x_axis_grasp[2]])
-        v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[2]])
+        u_x = array([x_axis_grasp[0], x_axis_grasp[1]])
+        v_x = array([proj_x_axis_grasp[0], proj_x_axis_grasp[1]])
 
         psi = _angle_2d(v_x, u_x)
+
+        # align with grasp direction
+        if rotation[2,0] > 0:
+            psi = psi - np.pi
+
         logging.info('Psi: %f' %psi)
+        logging.info('Rot: %f' %rotation[2,0])
         
         #gamma is angle between the y-axis of the grasp in world frame and the table's xy plane
         y_axis_grasp = ravel(rotation[:,1])
@@ -145,11 +154,14 @@ class DexController:
         logging.info('Gamma: %f' %gamma)
         return original_pose, DexAngles(phi, psi, gamma)
         
-    def _set_approach_pose(self, target_pose, phi):
+    def _set_approach_pose(self, target_pose, angles):
         pos = [target_pose.position.x, target_pose.position.y]
+        rotation = array(target_pose.rotation.matrix)
         r = norm(pos)
         d = ZekeState.ZEKE_ARM_ORIGIN_OFFSET
-        theta = DexTurntableSolver.solve_softhand(r, d, phi)
+        psi = angles.pitch
+        phi = angles.yaw
+        theta = DexTurntableSolver.solve_softhand(r, d, phi, rotation[2,0])
         
         target_pose.position.x = r * cos(theta)
         target_pose.position.y = r * sin(theta)
@@ -345,11 +357,43 @@ def test_grip():
     print 'Ungripping'
     t._robot.unGrip()
 
+def test_grasp():
+    ctrl = DexController()
+    ctrl._robot.unGrip()
+
+    R = np.array([[ 0.003546,    0.55663814,  0.83074785],
+                  [ 0.00192935,  0.8307478,  -0.55664573],
+                  [-0.99999204,  0.00357687,  0.00187217]])
+    t = np.array([0.026, -0.045,  0.120])
+
+    #R = np.array([[ 0.00565445, -0.6364741,   0.77127733],
+    #              [ 0.00211228, -0.77128036, -0.63649263],
+    #              [ 0.99998198,  0.00522846, -0.00301656]])
+    #t = np.array([0.149,  0.090,  0.146])
+
+    #R = np.array([[ -5.87353641e-01,  -1.06098258e-01,   8.02345742e-01],
+    #              [ -7.89643671e-01,  -1.42205866e-01,  -5.96859467e-01],
+    #              [  1.77424334e-01,  -9.84134609e-01,  -2.54721036e-04]])
+    #t = np.array([0.105,  0.036,  0.184])
+
+    #R = np.array([[-0.63415528,  0.61522917, -0.46833858],
+    #              [ 0.33746137, -0.32475156, -0.88354743],
+    #              [-0.69567749, -0.71835258, -0.00167324]])
+    #t = np.array([-0.027,  0.014,  0.122])
+
+    T_world_gripper = stf.SimilarityTransform3D(pose=tfx.pose(R, t),
+                                                from_frame="gripper",
+                                                to_frame="world")
+    ctrl.do_grasp(T_world_gripper)
+
+    ctrl._robot.unGrip()
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     #test_fishing_reset()
     #test_table()
     #test_grip()
     #fake_grasp()
-    t = test_state()
+    #t = test_state()
+    test_grasp()
     #t = test_state_sequence()
