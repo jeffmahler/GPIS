@@ -482,6 +482,8 @@ if __name__ == '__main__':
     for grasp in grasps:
         if grasp.grasp_id in grasp_ids and grasp.grasp_id >= config['start_grasp_id']:
             grasps_to_execute.append(grasp.grasp_aligned_with_stable_pose(stable_pose))
+            if len(grasps_to_execute) >= 3:
+                break
 
     # init viewer
     mv.figure(size=(1000, 1000), bgcolor=(0.8, 0.8, 0.8))

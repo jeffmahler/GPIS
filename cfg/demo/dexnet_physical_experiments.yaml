@@ -15,8 +15,8 @@ datasets:
     end_index: 40
 
 # Grasp-specific params
-object_name: part1
-stable_pose_index: 3
+object_name: vase
+stable_pose_index: 2
 start_grasp_id: 0
 hardware_reset: 1
 
@@ -24,7 +24,7 @@ debug: 0
 load_object: 0
 grasp_candidate_dir: data/grasp_candidates
 
-num_grasp_trials: 10
+num_grasp_trials: 3
 num_grasps_to_sample: 1
 lift_height: 0.175
 

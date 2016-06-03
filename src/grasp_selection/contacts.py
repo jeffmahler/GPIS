@@ -58,9 +58,7 @@ class Contact3D(Contact):
             return None
 
         # Use Hessian to compute outward facing normal
-        curvature = self.graspable.sdf.curvature(as_grid)
-        U, _, _ = np.linalg.svd(curvature)
-        normal = U[:, 0]
+        normal, _ = self.graspable.sdf.surface_normal(as_grid)
 
         # flip normal to point outward if in_direction is defined
         if self.in_direction_ is not None and np.dot(self.in_direction_, normal) > 0:
@@ -463,12 +461,8 @@ class Contact3D(Contact):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def plot_friction_cone(self, color='r', scale=1.0):
+    def plot_friction_cone(self, color='y', scale=1.0):
         success, cone, in_normal = self.friction_cone()
-
-        if not success:
-            logging.warning('Friction cone does not exist')
-            return
 
         ax = plt.gca(projection='3d')
         self.graspable.sdf.scatter() # object
@@ -476,7 +470,8 @@ class Contact3D(Contact):
         nx, ny, nz = self.graspable.sdf.transform_pt_obj_to_grid(in_normal, direction=True)
         ax.scatter([x], [y], [z], c=color, s=60) # contact
         ax.scatter([x - nx], [y - ny], [z - nz], c=color, s=60) # normal
-        ax.scatter(x + scale*cone[0], y + scale*cone[1], z + scale*cone[2], c=color, s=40) # cone
+        if success:
+            ax.scatter(x + scale*cone[0], y + scale*cone[1], z + scale*cone[2], c=color, s=40) # cone
 
         ax.set_xlim3d(0, self.graspable.sdf.dims_[0])
         ax.set_ylim3d(0, self.graspable.sdf.dims_[1])

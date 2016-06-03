@@ -369,11 +369,11 @@ class Sdf3D(Sdf):
         max_dim = np.max(max_pts - min_pts)
         return max_dim
 
-    def curvature(self, coords, delta=1.0):
+    def curvature(self, coords, delta=0.001):
         """
         Returns an approximation to the local SDF curvature (Hessian) at the
         given coordinate in GRID BASIS
-        Params: numpy 9 array
+        Params: numpy 3 array
         Returns:
             float: the approximate hessian (interpolated)
         """
@@ -394,12 +394,75 @@ class Sdf3D(Sdf):
         grad_z_down = self.gradient(coords_z_down)
 
         # finite differences
-        curvature_x = (grad_x_up - grad_x_down) / (2 * delta)
-        curvature_y = (grad_y_up - grad_y_down) / (2 * delta)
-        curvature_z = (grad_z_up - grad_z_down) / (2 * delta)
+        curvature_x = (grad_x_up - grad_x_down) / (4 * delta)
+        curvature_y = (grad_y_up - grad_y_down) / (4 * delta)
+        curvature_z = (grad_z_up - grad_z_down) / (4 * delta)
         # print curvature_x
         curvature = np.c_[curvature_x, np.c_[curvature_y, curvature_z]]
+        curvature = curvature + curvature.T
         return curvature
+
+    def surface_normal(self, coords, delta=1.0):
+        """
+        Returns the sdf surface normal at the given coordinates by
+        computing the tangent plane using SDF interpolation
+        Params: numpy 3 array
+        Returns:
+            float: the surface normal at the given coords (interpolated)
+        """
+        if len(coords) != 3:
+            raise IndexError('Indexing must be 3 dimensional')
+
+        # log warning if out of bounds access
+        if self.is_out_of_bounds(coords):
+            logging.debug('Out of bounds access. Snapping to SDF dims')
+
+        # snap to grid dims
+        coords[0] = max(0, min(coords[0], self.dims_[0] - 1))
+        coords[1] = max(0, min(coords[1], self.dims_[1] - 1))
+        coords[2] = max(0, min(coords[2], self.dims_[2] - 1))
+        index_coords = np.zeros(3)
+
+        # check points on surface
+        sdf_val = self[coords]
+        if np.abs(sdf_val) >= self.surface_thresh_:
+            logging.warning('Cannot compute normal. Point must be on surface')
+            return None
+
+        # collect all surface points within the delta sphere
+        X = []
+        d = np.zeros(3)
+        dx = -delta
+        while dx <= delta:
+            dy = -delta
+            while dy <= delta:
+                dz = -delta
+                while dz <= delta:
+                    d = np.array([dx, dy, dz])
+                    if dx != 0 or dy != 0 or dz != 0:
+                        d = delta * d / np.linalg.norm(d)
+                    index_coords[0] = coords[0] + d[0]
+                    index_coords[1] = coords[1] + d[1]
+                    index_coords[2] = coords[2] + d[2]
+                    sdf_val = self[index_coords]
+                    if np.abs(sdf_val) < self.surface_thresh_:
+                        X.append([index_coords[0], index_coords[1], index_coords[2], sdf_val])
+                    dz += delta
+                dy += delta
+            dx += delta
+                        
+        # fit a plane to the surface points
+        X.sort(key = lambda x: x[3])
+        X = np.array(X)[:,:3]
+        X = X[:3,:] # take only the 9 'best' surface points for tangent plane calculation
+        A = X - np.mean(X, axis=0)
+        try:
+            U, S, V = np.linalg.svd(A.T)
+            n = U[:,2]
+        except:
+            logging.warning('Tangent plane does not exist. Returning None.')
+            return None
+        return n, X
 
     def surface_points(self, grid_basis=True):
         """

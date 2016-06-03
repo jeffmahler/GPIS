@@ -105,7 +105,7 @@ class MayaviVisualizer:
             mv.plot3d(palm_axis_tf[:,0], palm_axis_tf[:,1], palm_axis_tf[:,2], color=palm_axis_color, tube_radius=tube_radius)
 
     @staticmethod
-    def plot_gripper(grasp, T_obj_world, gripper=None, color=(0.5,0.5,0.5)):
+    def plot_gripper(grasp, T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'), gripper=None, color=(0.5,0.5,0.5)):
         if gripper is None:
             gripper = FANUC_GRIPPER
         T_gripper_obj = grasp.gripper_transform(gripper)

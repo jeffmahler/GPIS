@@ -68,7 +68,10 @@ class PointGraspMetrics3D:
         for i in range(num_contacts):
             contact = contacts[i]
             if vis:
-                contact.plot_friction_cone()
+                if i == 0:
+                    contact.plot_friction_cone(color='y')
+                else:
+                    contact.plot_friction_cone(color='c')
 
             # get contact forces
             force_success, contact_forces, contact_outward_normal = contact.friction_cone(num_cone_faces, friction_coef)
@@ -98,7 +101,7 @@ class PointGraspMetrics3D:
         rho = 1.0
         if method == 'ferrari_canny_L1':
             mn, mx = obj.mesh.bounding_box()
-            rho = np.min(mx)
+            rho = np.median(mx)
             torques = torques / rho
 
         if params is None:
@@ -145,6 +148,7 @@ class PointGraspMetrics3D:
             neg_normal_i = -num_normals + num_normals / 2
             G[3:,pos_normal_i:neg_normal_i] = torsion
             G[3:,neg_normal_i:] = -torsion
+
         return G
 
     @staticmethod
@@ -242,9 +246,8 @@ class PointGraspMetrics3D:
         return isotropy
 
     @staticmethod
-    def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
+    def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None, eps=1e-3):
         """ The Ferrari-Canny L1 metric """
-        eps = np.sqrt(1e-2)
         if params is not None and 'eps' in params.keys():
             eps = params['eps']
 
@@ -259,10 +262,15 @@ class PointGraspMetrics3D:
             return 0.0
 
         # determine whether or not zero is in the convex hull
-        min_norm_in_hull = PointGraspMetrics3D.min_norm_vector_in_facet(G)
+        min_norm_in_hull, v = PointGraspMetrics3D.min_norm_vector_in_facet(G)
 
         # if norm is greater than 0 then forces are outside of hull
         if min_norm_in_hull > eps:
+            logging.debug('Zero not in convex hull')
+            return 0.0
+
+        if np.sum(v > 1e-4) <= G.shape[0]:
+            logging.debug('Zero not in interior of convex hull')
             return 0.0
 
         # find minimum norm vector across all facets of convex hull
@@ -271,20 +279,19 @@ class PointGraspMetrics3D:
         for v in hull.vertices:
             if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
                 facet = G[:, v]
-                dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
+                dist, _ = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
                 if dist < min_dist:
                     min_dist = dist
                     closest_facet = facet
+
         return min_dist
 
     @staticmethod
-    def wrench_in_span(W, target_wrench, f, num_fingers=1, eps = 0.05, alpha = 1e-10):
+    def wrench_in_span(W, target_wrench, f, num_fingers=1, eps = 0.05, alpha = 1e-8):
         """ Check whether wrench W can be exerted by forces and torques in G with limit force f """
         num_wrenches = W.shape[1]
 
         # quadratic and linear costs
-        #W = W[:3,:]
-        #target_wrench = target_wrench[:3]
         P = W.T.dot(W) + alpha*np.eye(num_wrenches)
         q = -W.T.dot(target_wrench)
 
@@ -310,14 +317,15 @@ class PointGraspMetrics3D:
         h = cvx.matrix(h)
         sol = cvx.solvers.qp(P, q, G, h)
         v = np.array(sol['x'])
+        print 'NORM', np.linalg.norm(v)
+
         min_dist = np.linalg.norm(W.dot(v).ravel() - target_wrench)**2
-        
+
         # add back in the target wrench
         return min_dist < eps
 
     @staticmethod
-    def min_norm_vector_in_facet(facet):
-        eps = 1e-10
+    def min_norm_vector_in_facet(facet, eps=1e-10):
         dim = facet.shape[1] # num vertices in facet
 
         # create alpha weights for vertices of facet
@@ -333,9 +341,10 @@ class PointGraspMetrics3D:
         b = cvx.matrix(np.ones(1))         # combinations of vertices
 
         sol = cvx.solvers.qp(P, q, G, h, A, b)
-
+        v = np.array(sol['x'])
         min_norm = np.sqrt(sol['primal objective'])
-        return abs(min_norm)
+
+        return abs(min_norm), v
 
 def test_gurobi_qp():
     import gurobipy as gb
@@ -451,3 +460,4 @@ if __name__ == '__main__':
     # test_cvxopt_qp()
     # test_ferrari_canny_L1_synthetic()
     test_quality_metrics(vis=True)
+

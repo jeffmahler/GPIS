@@ -46,6 +46,7 @@ GRAVITY_ACCEL = 9.81
 def label_grasps(obj, dataset, output_ds, gripper_name, config):
     start_time = time.time()
     gripper = gr.RobotGripper.load(gripper_name)
+    grasp_sms = None
     
     # sample grasps
     if config['sample_grasps']:
@@ -108,7 +109,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
             sampler = gs.GaussianGraspSampler(gripper, config)
             grasps = sampler.generate_grasps(
                 obj, check_collisions=config['check_collisions'])
-            grasp_sms.extend([1] * len(grasps))
+            grasp_sms = [1] * len(grasps)
 
         sample_end = time.clock()
         sample_duration = sample_end - sample_start
@@ -130,6 +131,9 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
     # extract features
     feature_start_time = time.time()
     all_features = [None] * len(grasps)
+    if grasp_sms is None:
+        grasp_sms = [None] * len(grasps)
+
     if config['extract_features']:
         logging.info('Extracting features')
         feature_extractor = ff.GraspableFeatureExtractor(obj, config)
@@ -137,7 +141,8 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
 
     raw_feature_dict = {}
     for g, f, s in zip(grasps, all_features, grasp_sms):
-        raw_feature_dict[g.grasp_id] = [ff.GraspFeature('sampling_method', 'sampling_method', s)]
+        if s is not None:
+            raw_feature_dict[g.grasp_id] = [ff.GraspFeature('sampling_method', 'sampling_method', s)]
         if f is not None:
             raw_feature_dict[g.grasp_id].append(f.features())
                 
@@ -212,7 +217,6 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                 grasp_metrics[grasp.grasp_id]['force_closure'] = \
                     quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'force_closure', friction_coef=config['friction_coef'],
                                                               num_cone_faces=config['num_cone_faces'], soft_fingers=True)
-
             
             # compute partial closure for each stable pose
             if 'partial_closure' in config['deterministic_metrics']:
@@ -224,6 +228,8 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                     grasp_metrics[grasp.grasp_id][pc_tag] = \
                         quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'partial_closure', friction_coef=config['friction_coef'],
                                                                   num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
+
+                    logging.info('Partial closure: %d' %(grasp_metrics[grasp.grasp_id][pc_tag]))
            
         # compute robust quality metrics
         uncertainty_configs = [low_u_config, med_u_config, high_u_config]
@@ -279,7 +285,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         logging.info('Quality computation for %d grasps took %f sec.' %(len(grasps), quality_stop_time - quality_start_time))
 
         # store grasp metrics
-        output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
+        #output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
 
     # report total time
     stop_time = time.time()
@@ -321,7 +327,9 @@ if __name__ == '__main__':
             output_ds = output_db.create_dataset(dataset_name)
 
         # label each object in the dataset with grasps
-        for obj in dataset:
+        obj = dataset['pipe_connector']
+        if True:
+        #for obj in dataset:
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
 
