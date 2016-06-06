@@ -8,8 +8,9 @@ class DexConstants:
     DEBUG = True
     PRINT_STATES = False
     LOGGING = True
+    READ_FORCE_SENSORS = False
 
-    ZEKE_COMM = "/dev/ttyACM1"
+    ZEKE_COMM = "COM3"#"/dev/ttyACM1"
     TABLE_COMM = "/dev/ttyACM0"
     IZZY_COMM = "/dev/ttyACM2"
     BAUDRATE = 115200

@@ -35,7 +35,7 @@ class DexRobotZeke:
                             frame=DexConstants.WORLD_FRAME)
 
     def __init__(self, comm = DexConstants.ZEKE_COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
-        self._ser_int= DexSerialInterface(ZekeState, comm, baudrate, timeout, read_sensors=True)      
+        self._ser_int= DexSerialInterface(ZekeState, comm, baudrate, timeout, read_sensors=DexConstants.READ_FORCE_SENSORS)      
         self._ser_int.start()
         self._target_state = self.getState()
         Logger.clear(ZekeState.NAME)

@@ -233,7 +233,7 @@ class _DexSerial(Process):
         
 class DexSerialInterface:
     
-    def __init__(self, State, comm, baudrate=115200, timeout=.01, read_sensors=False):
+    def __init__(self, State, comm, baudrate=115200, timeout=.01, read_sensors=DexConstants.READ_FORCE_SENSORS):
         self._comm = comm
         self._baudrate = baudrate
         self._timeout = timeout

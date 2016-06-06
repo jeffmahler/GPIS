@@ -8,7 +8,7 @@ from DexSensorReadings import DexSensorReadings
 
 class DexStateViewer:
 
-    def __init__(self, State, comm, baudrate=115200, timeout=.01, print_sensors=False):
+    def __init__(self, State, comm, baudrate=115200, timeout=.01, print_sensors=DexConstants.READ_FORCE_SENSORS):
         self.ser = Serial(comm, baudrate)
         #self.ser.setTimeout(timeout)
         self._State = State
@@ -58,12 +58,12 @@ class DexStateViewer:
 
     @staticmethod
     def viewZeke(period = 300, comm = DexConstants.ZEKE_COMM):
-        viewer = DexStateViewer(ZekeState, comm, print_sensors=True)
+        viewer = DexStateViewer(ZekeState, comm, print_sensors=False)
         viewer.monitor(period)
         
     @staticmethod
     def viewIzzy(period = 300, comm = DexConstants.IZZY_COMM):
-        viewer = DexStateViewer(IzzyState, comm, print_sensors=True)
+        viewer = DexStateViewer(IzzyState, comm, print_sensors=False)
         viewer.monitor(period)
         
     @staticmethod
