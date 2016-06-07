@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 import itertools as it
 import logging
 import numpy as np
-import scipy.ndimage.filters as spfilt
+from skimage.restoration import denoise_bilateral
 
 import IPython
 import matplotlib.pyplot as plt
@@ -316,7 +316,7 @@ class Contact3D(Contact):
 
             # apply gaussian filter to window (should be narrow bandwidth)
             if sigma > 0.0:
-                window = spfilt.gaussian_filter(window, sigma)
+                window = denoise_bilateral(window, sigma_spatial=sigma)
             if compute_weighted_covariance:
                 if cov_weight > 0:
                     return window, cov / cov_weight
