@@ -5,19 +5,19 @@ TODO: Use stable poses and extract mesh categories
 
 Author: Jeff Mahler
 """
+import argparse
 import IPython
 import logging
 import matplotlib.pyplot as plt
 import os
 import shutil
 import sys
-sys.path.append('src/grasp_selection/feature_vectors')
 
+import category_map as catmap
 import database as db
 import experiment_config as ec
 from mesh_file import MeshFile
 from mesh_cleaner import MeshCleaner
-import mesh_database as mdb
 import mesh_processor as mp
 import obj_file
 import stable_poses
@@ -42,34 +42,65 @@ class DatasetConfig:
     def category(self, key):
         """ Returns the category for a given key """
         if self.cat_db_:
-            return self.cat_db_.object_category_for_key(key)
+            return self.cat_db_.category(key)
         return ''
 
 # Global array of all datasets and params
-DATASETS = [
-    DatasetConfig(name='amazon_picking_challenge', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
-    DatasetConfig(name='aselab', extension='.obj', scale=1.0, synthetic=False),
-    DatasetConfig(name='autodesk', extension='.off', synthetic=True),
-#    DatasetConfig(name='Archive3D', extension='.3DS'),
-    DatasetConfig(name='BigBIRD', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase()),
-    DatasetConfig(name='Cat50_ModelDatabase', extension='.obj', cat_db=mdb.Cat50ObjectDatabase('/mnt/terastation/shape_data/Cat50_ModelDatabase')),
-    DatasetConfig(name='google', extension='.obj', synthetic=True),
-    DatasetConfig(name='inventor_small', extension='.wrl', synthetic=True),
-    DatasetConfig(name='KIT', extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False),
-    DatasetConfig(name='MeshSegBenchmark', extension='.off', synthetic=True),
-    DatasetConfig(name='ModelNet40', extension='.off', cat_db=mdb.ModelNet40ObjectDatabase('/mnt/terastation/shape_data/MASTER_DB_v2/ModelNet40/index.db')),
-    DatasetConfig(name='NTU3D', extension='.obj'),
-    DatasetConfig(name='PrincetonShapeBenchmark', extension='.off'),
-    DatasetConfig(name='SHREC14LSGTB', extension='.off', cat_db=mdb.SHRECObjectDatabase('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla')),
-    DatasetConfig(name='siemens', extension='.stl', synthetic=True),
-    DatasetConfig(name='segments_small', extension='.off', synthetic=True),
-    DatasetConfig(name='surgical', extension='.obj'),
-    DatasetConfig(name='YCB', extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=mdb.BerkeleyObjectDatabase())
-]
+class DatasetConfigFactory:
+    @staticmethod
+    def available_datasets():
+        return ['amazon_picking_challenge', 'aselab', 'autodesk', 'BigBIRD', 'Cat50_ModelDatabase',
+                'dexnet_physical_experiments',
+                'google', 'inventor_small', 'KIT', 'MeshSegBenchmark', 'ModelNet40', 'NTU3D',
+                'PrincetonShapeBenchmark', 'SHREC14LSGTB', 'siemens', 'segments_small',
+                'surgical', 'YCB']
+
+    @staticmethod
+    def config(name):
+        if name not in DatasetConfigFactory.available_datasets():
+            return None
+
+        if name == 'amazon_picking_challenge':
+            return DatasetConfig(name=name, extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=catmap.BerkeleyCategoryMap())
+        elif name == 'aselab':
+            return DatasetConfig(name=name, extension='.obj', scale=1.0, synthetic=False)
+        elif name == 'autodesk':
+            return DatasetConfig(name=name, extension='.off', synthetic=True)
+        elif name == 'BigBIRD':
+            return DatasetConfig(name=name, extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=catmap.BerkeleyCategoryMap())
+        elif name == 'Cat50_ModelDatabase':
+            return DatasetConfig(name=name, extension='.obj', cat_db=catmap.Cat50CategoryMap('/mnt/terastation/shape_data/Cat50_ModelDatabase'))
+        elif name == 'dexnet_physical_experiments':
+            return DatasetConfig(name=name, extension='.obj', synthetic=False)
+        elif name == 'google':
+            return DatasetConfig(name=name, extension='.obj', synthetic=True)
+        elif name == 'inventor_small':
+            return DatasetConfig(name=name, extension='.wrl', synthetic=True)
+        elif name == 'KIT':
+            return DatasetConfig(name=name, extension='.obj', name_filter='800_tex', scale=1e-3, synthetic=False)
+        elif name == 'MeshSegBenchmark':
+            return DatasetConfig(name=name, extension='.off', synthetic=True)
+        elif name == 'ModelNet40':
+            return DatasetConfig(name=name, extension='.off', cat_db=catmap.ModelNet40CategoryMap('/mnt/terastation/shape_data/MASTER_DB_v2/ModelNet40/index.db'))
+        elif name == 'NTU3D':
+            return DatasetConfig(name=name, extension='.obj')
+        elif name == 'PrincetonShapeBenchmark':
+            return DatasetConfig(name=name, extension='.off')
+        elif name == 'SHREC14LSGTB':
+            return DatasetConfig(name=name, extension='.off', cat_db=catmap.SHRECCategoryMap('/mnt/terastation/shape_data/SHREC14LSGTB/SHREC14LSGTB.cla'))
+        elif name == 'siemens':
+            return DatasetConfig(name=name, extension='.stl', synthetic=True)
+        elif name == 'segments_small':
+            return DatasetConfig(name=name, extension='.off', synthetic=True)
+        elif name == 'surgical':
+            return DatasetConfig(name=name, extension='.obj')
+        elif name == 'YCB':
+            return DatasetConfig(name=name, extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=catmap.BerkeleyCategoryMap())
+        else:
+            return None
 
 # read in params
 if __name__ == '__main__':
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('config', default='cfg/generate_database.yaml')
     args = parser.parse_args()
@@ -84,28 +115,13 @@ if __name__ == '__main__':
     shape_db_root_folder = config['shape_data_dir']
     dest_root_folder = config['database_dir']
 
-    # numeric params
-    min_dim = config['min_dim']
-    dim = config['sdf_dim']
-    padding = config['sdf_padding']
-    min_prob = config['stp_min_prob']
-    density = config['density']
-    gripper_size = config['gripper_size']
-
-    dataset_start = 0
     # get indices of dataset configurations
-    dataset_names = [d.name for d in DATASETS]
-    print dataset_names
-    if dataset != 'all' and dataset in dataset_names:
-        # get the indices of the dataset
-        dataset_inds = [dataset_names.index(dataset)]
-    # get all indices
-    elif dataset == 'all':
-        dataset_inds = range(len(DATASETS))
-        dataset_start = config['gen_dataset_start']
-        if dataset_start == None:
-            dataset_start = 0
+    dataset_start = 0
+    if dataset != 'all':
+        dataset_configs = [DatasetConfigFactory.config(dataset)]
     else:
+        dataset_configs = [DatasetConfigFactory.config(name) for name in DatasetConfigFactory.available_datasets()]
+    if dataset_configs[0] is None:
         raise Exception('Invalid dataset!')
 
     # create dest folder if doesn't exist
@@ -116,17 +132,15 @@ if __name__ == '__main__':
     exceptions = []
 
     # open up the database
+    config['datasets'] = {}
+    #[config['datasets'].update({c.name: []}) for c in dataset_configs]
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
 
     # loop through datasets and cleanup
-    for j in range(dataset_start, len(dataset_inds)):
-        # clear filenames list
+    for dataset in dataset_configs:
+        # setup next dataset
         all_filenames = []
-
-        # get next dataset
-        i = dataset_inds[j]
-        dataset = DATASETS[i]
         data_folder = os.path.join(shape_db_root_folder, dataset.name)
         data_list = os.listdir(data_folder)
         logging.info('Processing dataset %s' %(dataset.name))
@@ -152,69 +166,38 @@ if __name__ == '__main__':
                 fullpath_file_root = os.path.join(root, file_root)
 
                 # grab the models with a given format and filtered by the given filter (fresh clean for each file)
-                if file_ext == dataset.extension and filename.find(dataset.name_filter) > -1 and filename.find('clean') == -1 and filename.find('dec') == -1:
-                    # optionally rename by category
-                    if dataset.fix_names:
-                        category = dataset.category(root)
-                    else:
-                        category = dataset.category(file_root)
-
-                    if dataset.fix_names:
-                        target_filename = os.path.join(target_dir, category)
-                    else:
-                        target_filename = os.path.join(target_dir, file_root)
-
+                if file_ext == dataset.extension and filename.find(dataset.name_filter) > -1 and filename.find('clean') == -1\
+                        and filename.find('dec') == -1 and filename.find('proc') == -1:
                     try:
-                        # convert to obj
-                        obj_filename = '%s.obj' %(fullpath_file_root)
-                        decimation_script = None
-                        if config['decimate_models']:
-                            decimation_script = os.path.join(config['root_dir'], 'scripts/decimation.mlx')
-                        mesh = MeshFile.extract_mesh(filename, obj_filename, decimation_script)
-                        mesh.set_density(4000.0)
+                        mesh_processor = mp.MeshProcessor(filename)
 
-                        # clean up mesh triangles
-                        mesh_processor = mp.MeshProcessor(mesh, obj_filename)
-                        print 'Cleaning mesh'
-                        mesh_processor.clean()
-                    
-                        # scale mesh to meters
-                        print 'Rescaling mesh'
-                        mesh_processor.rescale_vertices(dataset.scale, rescaling_type=MeshCleaner.RescalingTypeAbsolute)
-
-                        # rescale synthetic meshes to fit within the gripper
+                        config['obj_scale'] = dataset.scale
+                        config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeRelative
                         if dataset.synthetic:
-                            mesh_processor.rescale_vertices(gripper_size, rescaling_type=MeshCleaner.RescalingTypeDiag)
-                        # get convex pieces (NOT WORKING WELL...)                        
-                        #convex_pieces = mesh_processor.convex_pieces(config['cvx_decomp'])
+                            config['obj_scale'] = config['gripper_size']
+                            config['obj_rescaling_type'] = mp.MeshProcessor.RescalingTypeDiag
 
-                        # set metadata (mass + category)
-                        mesh = mesh_processor.mesh
-                        mass = mesh.mass
+                        mesh_processor.generate_graspable(config)
+
+                        # extract category
+                        if dataset.fix_names:
+                            category = dataset.category(root)
+                            key = category
+                        else:
+                            category = dataset.category(file_root)
+                            key = file_root
+
+                        # mesh mass
+                        mass = mesh_processor.mesh.mass
                         if mass < config['mass_thresh']:
                             mass = config['default_mass']
 
-                        # get the extra info
-                        print 'Converting to SDF'
-                        sdf = mesh_processor.convert_sdf(dim, padding)
-                        print 'Computing stable poses'
-                        stable_poses = mesh_processor.stable_poses(min_prob)
-                        print 'Extracting shot features'
-                        shot_features = mesh_processor.extract_shot()
-
                         # write to database
-                        print 'Creating graspable'
-                        if dataset.fix_names:
-                            key = category
-                        else:
-                            key = file_root
-                        dataset_handle.create_graspable(key, mesh, sdf, shot_features, stable_poses, category=category, mass=mass)
-
-                        # TODO: remove, for testing purposes only
-                        #g = dataset_handle.read_datum(key)
-                        #g.sdf.scatter()
-                        #plt.show()
-
+                        logging.info('Creating graspable')
+                        dataset_handle.create_graspable(key, mesh_processor.mesh, mesh_processor.sdf,
+                                                        mesh_processor.shot_features,
+                                                        mesh_processor.stable_poses,
+                                                        category=category, mass=mass)
                     except Exception as e:
                         exceptions.append('Dataset: %s,  Model: %s, Exception: %s' % (dataset.name, filename, str(e))) 
                 

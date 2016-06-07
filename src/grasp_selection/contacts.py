@@ -58,9 +58,7 @@ class Contact3D(Contact):
             return None
 
         # Use Hessian to compute outward facing normal
-        curvature = self.graspable.sdf.curvature(as_grid)
-        U, _, _ = np.linalg.svd(curvature)
-        normal = U[:, 0]
+        normal, _ = self.graspable.sdf.surface_normal(as_grid)
 
         # flip normal to point outward if in_direction is defined
         if self.in_direction_ is not None and np.dot(self.in_direction_, normal) > 0:
@@ -106,17 +104,20 @@ class Contact3D(Contact):
         if z_hat.dot(direction) < 0:
             y = -y
 
-        # redefine tangent x axis to maximally align with the object y axis
+        # redefine tangent x axis to automatically align with the object y axis
         max_ip = 0
-        max_a = 0
+        max_theta = 0
         obj_y = np.array([0,1,0])
-        for i in range(max_samples+1):
-            a = -1 + i * (2.0 / max_samples)
-            v = a * x + np.sqrt(1 - a**2) * y
+        theta = 0
+        d_theta = 2 * np.pi / float(max_samples)
+        for i in range(max_samples):
+            v = np.cos(theta) * x + np.sin(theta) * y
             if v.dot(obj_y) > max_ip:
                 max_ip = v.dot(obj_y)
-                max_a = a
-        v = max_a * x + np.sqrt(1 - max_a**2) * y
+                max_theta = theta
+            theta = theta + d_theta
+
+        v = np.cos(theta) * x + np.sin(theta) * y
         w = np.cross(direction.ravel(), v)
 
         return np.squeeze(direction), v, w
@@ -463,12 +464,8 @@ class Contact3D(Contact):
 
         return SurfaceWindow(proj_window, grad_win, hess_x, hess_y, gauss_curvature)
 
-    def plot_friction_cone(self, color='r', scale=1.0):
+    def plot_friction_cone(self, color='y', scale=1.0):
         success, cone, in_normal = self.friction_cone()
-
-        if not success:
-            logging.warning('Friction cone does not exist')
-            return
 
         ax = plt.gca(projection='3d')
         self.graspable.sdf.scatter() # object
@@ -476,7 +473,8 @@ class Contact3D(Contact):
         nx, ny, nz = self.graspable.sdf.transform_pt_obj_to_grid(in_normal, direction=True)
         ax.scatter([x], [y], [z], c=color, s=60) # contact
         ax.scatter([x - nx], [y - ny], [z - nz], c=color, s=60) # normal
-        ax.scatter(x + scale*cone[0], y + scale*cone[1], z + scale*cone[2], c=color, s=40) # cone
+        if success:
+            ax.scatter(x + scale*cone[0], y + scale*cone[1], z + scale*cone[2], c=color, s=40) # cone
 
         ax.set_xlim3d(0, self.graspable.sdf.dims_[0])
         ax.set_ylim3d(0, self.graspable.sdf.dims_[1])

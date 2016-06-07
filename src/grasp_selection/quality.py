@@ -5,9 +5,11 @@ Author: Jeff Mahler and Brian Hou
 import logging
 import numpy as np
 try:
+    import pyhull.convex_hull as cvh
+except:
+    logging.warning('Failed to import pyhull')
+try:
     import cvxopt as cvx
-    # TODO: find a way to log output?
-    cvx.solvers.options['show_progress'] = False
 except:
     logging.warning('Failed to import cvx')
 import os
@@ -21,11 +23,15 @@ import obj_file
 import sdf_file
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 try:
     import mayavi.mlab as mv
 except:
     logging.warning('Failed to import mayavi')
 import IPython
+
+# TODO: find a way to log output?
+cvx.solvers.options['show_progress'] = False
 
 FRICTION_COEF = 0.5
 
@@ -63,7 +69,10 @@ class PointGraspMetrics3D:
         for i in range(num_contacts):
             contact = contacts[i]
             if vis:
-                contact.plot_friction_cone()
+                if i == 0:
+                    contact.plot_friction_cone(color='y')
+                else:
+                    contact.plot_friction_cone(color='c')
 
             # get contact forces
             force_success, contact_forces, contact_outward_normal = contact.friction_cone(num_cone_faces, friction_coef)
@@ -93,7 +102,7 @@ class PointGraspMetrics3D:
         rho = 1.0
         if method == 'ferrari_canny_L1':
             mn, mx = obj.mesh.bounding_box()
-            rho = np.min(mx)
+            rho = np.median(mx)
             torques = torques / rho
 
         if params is None:
@@ -140,6 +149,7 @@ class PointGraspMetrics3D:
             neg_normal_i = -num_normals + num_normals / 2
             G[3:,pos_normal_i:neg_normal_i] = torsion
             G[3:,neg_normal_i:] = -torsion
+
         return G
 
     @staticmethod
@@ -167,7 +177,7 @@ class PointGraspMetrics3D:
     def force_closure_qp(forces, torques, normals, soft_fingers=False, params=None):
         """ Force closure """
         eps = np.sqrt(1e-2)
-        if params is not None and 'eps' in params:
+        if params is not None:
             eps = params['eps']
 
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
@@ -183,6 +193,7 @@ class PointGraspMetrics3D:
         force_limit = params['force_limits']
         target_wrench = params['target_wrench']
 
+        # reorganize the grasp matrix for easier constraint enforcement in optimization
         num_fingers = normals.shape[1]
         num_wrenches_per_finger = forces.shape[1] / num_fingers
         G = np.zeros([6,0])
@@ -193,21 +204,40 @@ class PointGraspMetrics3D:
                                                    soft_fingers, params=params)
             G = np.c_[G, G_i]
 
-        """
-        force_limits = np.linspace(1.0, 300.0, num=1000)
-        dists = np.zeros(force_limits.shape)
-        for i in range(force_limits.shape[0]):
-            dists[i] = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limits[i], num_fingers)
-        plt.plot(force_limits, dists, linewidth=2.0, c='g')
-        plt.ylim([0,0.1])
-        plt.show()
-        """
-        return 1 * (PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers))
+        wrench_resisted, _ = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers)
+        return 1 * wrench_resisted
+
+    @staticmethod
+    def wrench_resist_ratio(forces, torques, normals, soft_fingers=False, params=None):
+        """ Partial closure: whether or not the forces and torques can resist a specific wrench givien in the params"""
+        force_limit = None
+        if params is None:
+            return 0
+        force_limit = params['force_limits']
+        target_wrench = params['target_wrench']
+
+        # reorganize the grasp matrix for easier constraint enforcement in optimization
+        num_fingers = normals.shape[1]
+        num_wrenches_per_finger = forces.shape[1] / num_fingers
+        G = np.zeros([6,0])
+        for i in range(num_fingers):
+            start_i = num_wrenches_per_finger * i
+            end_i = num_wrenches_per_finger * (i + 1)
+            G_i = PointGraspMetrics3D.grasp_matrix(forces[:,start_i:end_i], torques[:,start_i:end_i], normals[:,i:i+1],
+                                                   soft_fingers, params=params)
+            G = np.c_[G, G_i]
+
+        # compute metric from finger force norm
+        Q = 0
+        wrench_resisted, finger_force_norm = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers)
+        if wrench_resisted:
+            Q = 1.0 / finger_force_norm - 1.0 / (2 * force_limit)
+        return Q
 
     @staticmethod
     def min_singular(forces, torques, normals, soft_fingers=False, params=None):
         """ Min singular value of grasp matrix - measure of wrench that grasp is "weakest" at resisting """
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         _, S, _ = np.linalg.svd(G)
         min_sig = S[5]
         return min_sig
@@ -216,10 +246,10 @@ class PointGraspMetrics3D:
     def wrench_volume(forces, torques, normals, soft_fingers=False, params=None):
         """ Volume of grasp matrix singular values - score of all wrenches that the grasp can resist """
         k = 1
-        if params is not None and 'k' in params:
+        if params is not None:
             k = params['k']
 
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         _, S, _ = np.linalg.svd(G)
         sig = S
         return k * np.sqrt(np.prod(sig))
@@ -227,7 +257,7 @@ class PointGraspMetrics3D:
     @staticmethod
     def grasp_isotropy(forces, torques, normals, soft_fingers=False, params=None):
         """ Condition number of grasp matrix - ratio of "weakest" wrench that the grasp can exert to the "strongest" one """
-        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
+        G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers)
         _, S, _ = np.linalg.svd(G)
         max_sig = S[0]
         min_sig = S[5]
@@ -237,52 +267,68 @@ class PointGraspMetrics3D:
         return isotropy
 
     @staticmethod
-    def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None):
+    def ferrari_canny_L1(forces, torques, normals, soft_fingers=False, params=None, eps=1e-3):
         """ The Ferrari-Canny L1 metric """
-        eps = np.sqrt(1e-2)
         if params is not None and 'eps' in params.keys():
             eps = params['eps']
 
         # create grasp matrix
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         s = time.clock()
-        # not sure if option i is necessary
-        hull = ss.ConvexHull(G.T, qhull_options='i QJ Pp')
+        hull = cvh.ConvexHull(G.T)
+        # TODO: suppress ridiculous amount of output for perfectly valid input to qhull
         e = time.clock()
+        
+        debug = False
+        if debug:
+            fig = plt.figure()
+            torques = G[3:,:].T
+            ax = Axes3D(fig)
+            ax.scatter(torques[:,0], torques[:,1], torques[:,2], c='b', s=50)
+            ax.scatter(0, 0, 0, c='k', s=80)
+            ax.set_xlim3d(-1.5, 1.5)
+            ax.set_ylim3d(-1.5, 1.5)
+            ax.set_zlim3d(-1.5, 1.5)
+            ax.set_xlabel('tx')
+            ax.set_ylabel('ty')
+            ax.set_zlabel('tz')
+            plt.show()
 
-        if len(hull.simplices) == 0:
+        if len(hull.vertices) == 0:
             logging.warning('Convex hull could not be computed')
             return 0.0
 
         # determine whether or not zero is in the convex hull
-        min_norm_in_hull = PointGraspMetrics3D.min_norm_vector_in_facet(G)
+        min_norm_in_hull, v = PointGraspMetrics3D.min_norm_vector_in_facet(G)
 
         # if norm is greater than 0 then forces are outside of hull
         if min_norm_in_hull > eps:
+            logging.debug('Zero not in convex hull')
+            return 0.0
+
+        if np.sum(v > 1e-4) <= G.shape[0]:
+            logging.debug('Zero not in interior of convex hull')
             return 0.0
 
         # find minimum norm vector across all facets of convex hull
         min_dist = sys.float_info.max
         closest_facet = None
-        for v in hull.simplices:
+        for v in hull.vertices:
             if np.max(np.array(v)) < G.shape[1]: # because of some occasional odd behavior from pyhull
                 facet = G[:, v]
-                dist = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
+                dist, _ = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
                 if dist < min_dist:
                     min_dist = dist
                     closest_facet = facet
+
         return min_dist
 
     @staticmethod
-    def wrench_in_span(W, target_wrench, f, num_fingers=1):
-        """ Check whether wrench W can be resisted by forces and torques in G with limit force f """
-        eps = 0.05
-        alpha = 1e-10
+    def wrench_in_span(W, target_wrench, f, num_fingers=1, eps = 1e-4, alpha = 1e-8):
+        """ Check whether wrench W can be exerted by forces and torques in G with limit force f """
         num_wrenches = W.shape[1]
 
         # quadratic and linear costs
-        #W = W[:3,:]
-        #target_wrench = target_wrench[:3]
         P = W.T.dot(W) + alpha*np.eye(num_wrenches)
         q = -W.T.dot(target_wrench)
 
@@ -308,14 +354,14 @@ class PointGraspMetrics3D:
         h = cvx.matrix(h)
         sol = cvx.solvers.qp(P, q, G, h)
         v = np.array(sol['x'])
+
         min_dist = np.linalg.norm(W.dot(v).ravel() - target_wrench)**2
-        
+
         # add back in the target wrench
-        return min_dist < eps
+        return min_dist < eps, np.linalg.norm(v)
 
     @staticmethod
-    def min_norm_vector_in_facet(facet):
-        eps = 1e-10
+    def min_norm_vector_in_facet(facet, eps=1e-10):
         dim = facet.shape[1] # num vertices in facet
 
         # create alpha weights for vertices of facet
@@ -331,9 +377,10 @@ class PointGraspMetrics3D:
         b = cvx.matrix(np.ones(1))         # combinations of vertices
 
         sol = cvx.solvers.qp(P, q, G, h, A, b)
-
+        v = np.array(sol['x'])
         min_norm = np.sqrt(sol['primal objective'])
-        return abs(min_norm)
+
+        return abs(min_norm), v
 
 def test_gurobi_qp():
     import gurobipy as gb
@@ -449,3 +496,4 @@ if __name__ == '__main__':
     # test_cvxopt_qp()
     # test_ferrari_canny_L1_synthetic()
     test_quality_metrics(vis=True)
+

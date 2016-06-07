@@ -64,9 +64,9 @@ class DexController:
         logging.info('Aligned Theta %f' %aligned_obj_angle)
 
         #reset izzy to clear-table-rotation position
-        logging.info('Reseting table rotation')
-        self._table.reset()
-        self._robot.reset_clear_table()
+        #logging.info('Reseting table rotation')
+        #self._table.reset()
+        #self._robot.reset_clear_table()
         #wait til completed
         turntable_state = self._table.getState()
         
@@ -89,7 +89,7 @@ class DexController:
         logging.info('Rotating table to %f' %(target_turntable_angle))
         target_table_state = TurntableState().set_table_rot(target_turntable_angle)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
-        
+
         #wait til completed
         #transform target_pose to izzy 
         logging.info('Moving robot to grasp pose')
@@ -227,6 +227,7 @@ def test_state():
     target_state = ZekeState()
     target_state.set_arm_ext(ZekeState.ZEKE_ARM_ORIGIN_OFFSET - ZekeState.ZEKE_ARM_TO_GRIPPER_TIP_LENGTH)
     target_state.set_arm_rot(ZekeState.PHI + np.pi)
+    target_state.set_gripper_rot(4.26)
     target_state.set_gripper_grip(0.037)
     print 'Target'
     print target_state
@@ -286,6 +287,14 @@ def test_grasp():
 
     return t
 
+def test_fishing_reset():
+    t = DexController()
+    t._table.reset_fishing()
+
+def test_table():
+    t = DexController()
+    t._table.gotoState(TurntableState().set_table_rot(3.14))
+
 def test_grip():
     t = DexController()
 
@@ -299,6 +308,7 @@ def test_grip():
 
     print 'Gripping'
     t._robot.grip()
+
     """
 
     current_state, _ = t.getState()
@@ -309,8 +319,45 @@ def test_grip():
     sleep(10)
     """
 
+def fake_grasp():
+    t = DexController()
+
+    print 'Ungripping'
+    t._robot.unGrip()
+
+    target_state = ZekeState([3.42, 0.10, 0.18, None, ZekeState.MAX_STATE().gripper_grip])
+    t._robot.gotoState(target_state)
+    sleep(1)    
+
+    print 'Gripping'
+    t._robot.grip()
+
+    current_state, _ = t.getState()
+    high_state = current_state.copy().set_arm_elev(0.2)
+    high_state.set_gripper_grip(ZekeState.MIN_STATE().gripper_grip)
+
+    t._robot.gotoState(high_state)
+    sleep(10)
+    
+    t._robot.unGrip()
+
+def test_grip():
+    t = DexController()
+
+    print 'Ungripping'
+    t._robot.unGrip()
+
+    sleep(1)    
+
+    print 'Gripping'
+    t._robot.grip()
+    
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
-    test_grip()
+    test_fishing_reset()
+    #test_table()
+    #test_grip()
+    #fake_grasp()
     #t = test_state()
     #t = test_state_sequence()

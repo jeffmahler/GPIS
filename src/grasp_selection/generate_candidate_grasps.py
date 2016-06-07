@@ -7,13 +7,14 @@ import copy
 import logging
 import pickle as pkl
 import os
+import openravepy as rave
 import random
 import string
 import time
 
 import IPython
 import matplotlib.pyplot as plt
-import mayavi.mlab as mlab
+import mayavi.mlab as mv
 import numpy as np
 import scipy.stats
 
@@ -22,11 +23,13 @@ import database as db
 import discrete_adaptive_samplers as das
 import experiment_config as ec
 import feature_functions as ff
+import grasp_collision_checker as gcc
 import gripper as gr
 import grasp_sampler as gs
+import grasp as grasp_module
 import json_serialization as jsons
 import kernels
-import mayavi_visualizer as mv
+import mayavi_visualizer as mvis
 import models
 import objectives
 import obj_file
@@ -40,163 +43,249 @@ import similarity_tf as stf
 import termination_conditions as tc
 import tfx
 
-from grasp_collision_checker import OpenRaveGraspChecker
-
-def in_collision(grasp_checker, grasp, gripper, stable_pose):
-    grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
-    grasp_mirrored = copy.deepcopy(grasp)
-    grasp_mirrored.set_approach_angle(grasp_mirrored.approach_angle - np.pi)
-
-    if gripper.collides_with_table(grasp, stable_pose) or gripper.collides_with_table(grasp_mirrored, stable_pose):
-        return True
-
-    if grasp_checker.in_collision(grasp) or grasp_checker.in_collision(grasp_mirrored):
-        return True
+def collides_along_approach(grasp_candidate, gripper, collision_checker,
+                            approach_dist, delta_approach):
+    # check collisions along approach sequence
+    grasp_pose = grasp_candidate.gripper_transform(gripper)
+    collides = False
+    cur_approach = 0
+    grasp_approach_axis = grasp_pose.inverse().rotation[:,1]
+    
+    # check entire sequence
+    while cur_approach <= approach_dist:
+        grasp_approach_pose = copy.copy(grasp_pose.inverse())
+        grasp_approach_pose.pose_ = tfx.pose(grasp_pose.inverse().rotation,
+                                             grasp_pose.inverse().translation + cur_approach * grasp_approach_axis)
         
-    return False
+        if collision_checker.in_collision(grasp_approach_pose.inverse()):
+            collides = True
+            break
+        cur_approach += delta_approach
+        time.sleep(0.25)
+    return collides
 
-def generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps, config, grasp_checker, gripper, grasp_set=[]):
-    # load grasps and metrics
-    sorted_grasps, sorted_metrics = dataset.sorted_grasps(obj.key, metric=metric, gripper=config['gripper'])
-    grasp_ids = [g.grasp_id for g in grasp_set]
-    
-    # load obj into grasp checker
-    grasp_checker.set_object(obj)
+def generate_candidate_grasps(object_name, dataset, stable_pose,
+                              num_grasps, gripper, config):
+    """ Add the best grasp according to PFC as well as num_grasps-1 uniformly at random from the remaining set """
+    grasp_set = []
+    grasp_set_ids = []
+    grasp_set_metrics = []
 
-    # keep only the collision-free grasps
-    cf_grasps = []
-    cf_metrics = []
-    for grasp, metric in zip(sorted_grasps, sorted_metrics):
-        if not in_collision(grasp_checker, grasp, gripper, stable_pose):
-            cf_grasps.append(grasp)
-            cf_metrics.append(metric)
-    
-    # get the quantiles
-    num_cf_grasps = len(cf_grasps)
-    delta_i = float(num_cf_grasps) / num_grasps
-    delta_i = max(delta_i, 1)
-    for i in range(num_cf_grasps):
-        j = int(i * delta_i)
-        grasp = cf_grasps[j]
-        while grasp.grasp_id in grasp_ids and j < num_cf_grasps:
-            grasp = cf_grasps[j]
-            j += 1
-        grasp_set.add(grasp)
+    # read params
+    approach_dist = config['approach_dist']
+    delta_approach = config['delta_approach']
+    rotate_threshold = config['rotate_threshold']
+    table_clearance = config['table_clearance']
+    dist_thresh = config['grasp_dist_thresh']
 
-    return grasp_set
+    # get sorted list of grasps to ensure that we get the top grasp
+    graspable = dataset.graspable(object_name)
+    graspable.model_name_ = dataset.obj_mesh_filename(object_name)
+    grasps = dataset.grasps(object_name, gripper=gripper.name)
+    all_grasp_metrics = dataset.grasp_metrics(object_name, grasps, gripper=gripper.name)
+    mn, mx = graspable.mesh.bounding_box()
+    alpha = 1.0 / np.max(mx-mn)
+    print alpha
 
-def generate_candidate_grasps_random(obj, stable_pose, dataset, num_grasps, config, grasp_checker, gripper, grasp_set=[]):
-    # load grasps
-    grasps = dataset.grasps(obj.key, gripper=config['gripper'])
-    grasp_ids = [g.grasp_id for g in grasp_set]
+    # prune by collisions
+    rave.raveSetDebugLevel(rave.DebugLevel.Error)
+    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=False)
+    collision_checker.set_object(graspable)
 
-    # load gripper
-    grasp_checker.set_object(obj)
-    
-    # keep only the collision-free grasps
-    cf_grasps = []
-    cf_metrics = []
-    for grasp in grasps:
-        if not in_collision(grasp_checker, grasp, gripper, stable_pose):
-            cf_grasps.append(grasp)
-    
-    # randomly sample grasps
-    num_cf_grasps = len(cf_grasps)
-    indices = np.arange(num_cf_grasps).tolist()
-    random.shuffle(indices)
-    i = 0
-    j = 0
-    while i < num_grasps and j < num_cf_grasps:
-        grasp = cf_grasps[j]
-        if grasp.grasp_id not in grasp_ids:
-            grasp_set.add(grasp)
-            i = i+1
-        j = j+1
-    return grasp_set
-
-def generate_candidate_grasps_quantile_random(obj, stable_pose, dataset, config):
-    metrics = config['metrics'].keys()
-    num_grasps_per_metric = config['num_grasps_per_metric']
-    num_random_grasps = config['num_random_grasps']
-    
-    min_q_vals = []
-    max_q_vals = []
-    for i in range(len(metrics)):
-        min_q = config['metrics'][metrics[i]]['min_q']
-        max_q = config['metrics'][metrics[i]]['max_q']
-        min_q_vals.append(min_q)
-        max_q_vals.append(max_q)
-        if metrics[i].find('ppc') != -1:
-            metrics[i] = metrics[i] %(stable_pose.id)
-  
-    gripper = gr.RobotGripper.load(config['gripper'])
-    grasp_checker = OpenRaveGraspChecker(gripper, view=False)
-
-    # add quantiles for each desired metric
-    grasp_set = set()
+    # add the top quality grasps for each metric
+    metrics = config['candidate_grasp_metrics']
     for metric in metrics:
-        grasp_set = generate_candidate_grasps_quantile(obj, stable_pose, dataset, metric, num_grasps_per_metric, config, grasp_checker, gripper, grasp_set=grasp_set)
-    grasp_set = generate_candidate_grasps_random(obj, stable_pose, dataset, num_random_grasps, config, grasp_checker, gripper, grasp_set=grasp_set)
+        # generate metric tag
+        if metric == 'efc':
+            metric = db.generate_metric_tag('efcny_L1', config)
+        elif metric == 'pfc':
+            metric = db.generate_metric_tag('pfc', config)
+        elif metric == 'ppc':
+            metric = db.generate_metric_tag('ppc_%s' %(stable_pose.id), config)
 
-    # plot a histogram for each metric
-    logging.info("Found %d collision-free grasps" % len(grasp_set))
-    grasp_metrics = dataset.grasp_metrics(obj.key, grasp_set, gripper=config['gripper'])
-    for metric, min_q, max_q in zip(metrics, min_q_vals, max_q_vals):
-        metric_vals = [grasp_metrics[g.grasp_id][metric] for g in grasp_set]
-        plotting.plot_grasp_histogram(metric_vals, num_bins=config['num_bins'], min_q=min_q, max_q=max_q)
-        figname = 'obj_%s_metric_%s_histogram.pdf' %(obj.key, metric)
-        plt.savefig(os.path.join(config['output_dir'], figname), dpi=config['dpi'])
-    
-    grasp_ids = np.array([g.grasp_id for g in grasp_set])
-    id_filename = 'obj_%s_%s_grasp_ids.npy' %(obj.key, stable_pose.id)
-    np.save(os.path.join(config['output_dir'], id_filename), grasp_ids)
-    
-    # display grasps
-    T_table_world = stf.SimilarityTransform3D(tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
-    mlab.figure(bgcolor=(0.5,0.5,0.5), size=(1000,1000))
-    delta_view = 360.0 / config['num_views']
-    for i, grasp in enumerate(grasp_set):
-        print i
-        logging.info('Displaying grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasp_set)))
+        # sort grasps by the current metric
+        grasp_metrics = [all_grasp_metrics[g.grasp_id][metric] for g in grasps]
+        grasps_and_metrics = zip(grasps, grasp_metrics)
+        grasps_and_metrics.sort(key = lambda x: x[1])
+        grasps = [gm[0] for gm in grasps_and_metrics]
+        grasp_metrics = [gm[1] for gm in grasps_and_metrics]
 
-        for metric in metrics:
-            logging.info('Metric %s = %.5f' %(metric.rjust(75), grasp_metrics[grasp.grasp_id][metric]))
-        logging.info('')
+        # add grasps by quantile
+        logging.info('Adding best grasp for metric %s' %(metric))
+        i = len(grasps) - 1
+        grasp_candidate = grasps[i].grasp_aligned_with_stable_pose(stable_pose)
 
-        mlab.clf()
-        T_obj_world = mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface')
-        mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(1,1,1))
+        # check wrist rotation
+        psi = grasp_candidate.angle_with_table(stable_pose)
+        rotated_from_table = (psi > rotate_threshold)
 
-        for j in range(config['num_views']):
-            az = j * delta_view
-            mlab.view(az)
-            time.sleep(config['view_delay'])
+        # check distances
+        min_dist = np.inf
+        for g in grasp_set:
+            dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+            if dist < min_dist:
+                min_dist = dist
+
+        # check collisions
+        while gripper.collides_with_table(grasp_candidate, stable_pose, table_clearance) \
+                or collides_along_approach(grasp_candidate, gripper, collision_checker, approach_dist, delta_approach) \
+                or rotated_from_table or grasp_candidate.grasp_id in grasp_set_ids \
+                or min_dist < dist_thresh:
+            # get the next grasp
+            i -= 1
+            if i < 0:
+                break
+            grasp_candidate = grasps[i].grasp_aligned_with_stable_pose(stable_pose)
+
+            # check wrist rotation
+            psi = grasp_candidate.angle_with_table(stable_pose)
+            rotated_from_table = (psi > rotate_threshold)
+
+            # check distances
+            min_dist = np.inf
+            for g in grasp_set:
+                dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+                if dist < min_dist:
+                    min_dist = dist
+
+        # add to sequence
+        if i >= 0:
+            grasp_set.append(grasp_candidate)
+            grasp_set_ids.append(grasp_candidate.grasp_id)
+            grasp_set_metrics.append(all_grasp_metrics[grasp_candidate.grasp_id])
+
+    # sample the remaining grasps uniformly at random
+    i = 0
+    random.shuffle(grasps)
+    while len(grasp_set) < num_grasps and i < len(grasps):
+        # random grasp candidate
+        logging.info('Adding grasp %d' %(len(grasp_set)))
+        grasp_candidate = grasps[i].grasp_aligned_with_stable_pose(stable_pose)
+
+        # check wrist rotation
+        psi = grasp_candidate.angle_with_table(stable_pose)
+        rotated_from_table = (psi > rotate_threshold)
+
+        # check distances
+        min_dist = np.inf
+        for g in grasp_set:
+            dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+            if dist < min_dist:
+                min_dist = dist
+
+        # check collisions
+        while gripper.collides_with_table(grasp_candidate, stable_pose) \
+                or collides_along_approach(grasp_candidate, gripper, collision_checker, approach_dist, delta_approach) \
+                or rotated_from_table or grasp_candidate.grasp_id in grasp_set_ids \
+                or min_dist < dist_thresh:
+            # get the next grasp
+            i += 1
+            if i >= len(grasps):
+                break
+            grasp_candidate = grasps[i].grasp_aligned_with_stable_pose(stable_pose)
+
+            # check wrist rotation
+            psi = grasp_candidate.angle_with_table(stable_pose)
+            rotated_from_table = (psi > rotate_threshold)
+
+            # check distances
+            min_dist = np.inf
+            for g in grasp_set:
+                dist = grasp_module.ParallelJawPtGrasp3D.distance(g, grasp_candidate)
+                if dist < min_dist:
+                    min_dist = dist
+
+        # add to sequence
+        if i < len(grasps):
+            grasp_set.append(grasp_candidate)
+            grasp_set_ids.append(grasp_candidate.grasp_id)
+            grasp_set_metrics.append(all_grasp_metrics[grasp_candidate.grasp_id])
+
+    return grasp_set, grasp_set_ids, grasp_set_metrics
 
 if __name__ == '__main__':
-    np.random.seed(100)
-    random.seed(100)
+    # read in config
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
-    parser.add_argument('object_key')
-    parser.add_argument('stp_id')
+    parser.add_argument('gripper')
     args = parser.parse_args()
-
     logging.getLogger().setLevel(logging.INFO)
 
     # read config file
     config = ec.ExperimentConfig(args.config)
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_ONLY_ACCESS)
-    object_key = args.object_key
-    stp_id = args.stp_id
 
+    gripper = gr.RobotGripper.load(args.gripper)
+
+    # generate candidate grasps for each dataset
     for dataset_name in config['datasets'].keys():
         dataset = database.dataset(dataset_name)
-        # check each object in the dataset with grasps
-        obj = dataset[object_key]
-        obj.set_model_name(dataset.obj_mesh_filename(object_key))
-        stable_pose = dataset.stable_pose(object_key, stp_id)
-        logging.info('Displaying grasps for object {}'.format(obj.key))
-        generate_candidate_grasps_quantile_random(obj, stable_pose, dataset, config)
 
+        # make output dir
+        candidate_output_dir = os.path.join(config['grasp_candidate_dir'],
+                                            dataset_name)
+        if not os.path.exists(candidate_output_dir):
+            os.mkdir(candidate_output_dir)
+
+        # generate grasps for each object in the dataset
+        for obj in dataset:
+            # read in object params
+            object_key = obj.key
+            if config['ppc_stp_ids']:
+                stp_id = config['ppc_stp_ids'][object_key]
+                stable_pose = dataset.stable_pose(object_key, stp_id)
+            else:
+                stable_poses = dataset.stable_poses(object_key)
+                stable_pose = stable_poses[0]
+                stp_id = stable_pose.id
+
+            # check for existing candidates
+            grasp_ids_filename = os.path.join(candidate_output_dir,
+                '%s_%s_%s_grasp_ids.npy' %(object_key, stp_id, gripper.name))                                              
+            if os.path.exists(grasp_ids_filename):
+                logging.warning('Candidate grasps already exist for object %s in stable pose %s for gripper %s. Skipping...' %(object_key, stp_id, gripper.name))
+                continue
+
+            # generate candidate grasps
+            logging.info('Computing candidate grasps for object {}'.format(object_key))
+            candidate_grasp_set, candidate_grasp_ids, candidate_grasp_metrics = \
+                generate_candidate_grasps(object_key, dataset, stable_pose,
+                                          config['num_grasp_candidates'],
+                                          gripper, config)
+
+            # visualize grasp candidates
+            T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
+            T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
+            object_mesh = obj.mesh
+            object_mesh_tf = object_mesh.transform(T_obj_stp)
+            for i, grasp in enumerate(candidate_grasp_set):
+                logging.info('')
+                logging.info('Grasp %d (%d of %d)' %(grasp.grasp_id, i, len(candidate_grasp_set)))
+
+                metrics = config['candidate_grasp_metrics']
+                for metric in metrics:
+                    if metric == 'efc':
+                        metric = db.generate_metric_tag('efcny_L1', config)
+                    elif metric == 'pfc':
+                        metric = db.generate_metric_tag('pfc', config)
+                    elif metric == 'ppc':
+                        metric = db.generate_metric_tag('ppc_%s' %(stable_pose.id), config)
+                    logging.info('Quality according to %s: %f' %(metric, candidate_grasp_metrics[i][metric]))
+
+                mv.clf()
+                T_obj_world = mvis.MayaviVisualizer.plot_stable_pose(object_mesh, stable_pose, T_table_world, d=0.1,
+                                                                     style='surface', color=(1,0,0))
+                mvis.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper)
+
+                num_grasp_views = 8
+                delta_view = 360.0 / num_grasp_views
+                for j in range(num_grasp_views):
+                    az = j * delta_view
+                    mv.view(az)
+                    time.sleep(0.5)
+
+            # save candidate grasp ids
+            np.save(grasp_ids_filename, candidate_grasp_ids)
+            
     database.close()

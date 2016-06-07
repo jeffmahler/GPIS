@@ -55,6 +55,14 @@ class RgbdSensor(object):
         if auto_start:
             self.start()
 
+    @property
+    def height(self):
+        return self.height_
+
+    @property
+    def width(self):
+        return self.width_
+
     def _configure(self):
         pass
         #self.dev_.set_image_registration_mode(openni2.IMAGE_REGISTRATION_DEPTH_TO_COLOR)
@@ -71,6 +79,7 @@ class RgbdSensor(object):
         self.color_stream_.start()
 
         self.dev_.set_image_registration_mode(openni2.IMAGE_REGISTRATION_DEPTH_TO_COLOR)
+        self.dev_.set_depth_color_sync_enabled(True)
 
     def stop(self):
         if self.depth_stream_:

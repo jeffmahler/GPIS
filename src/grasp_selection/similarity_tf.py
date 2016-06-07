@@ -122,6 +122,14 @@ class SimilarityTransform3D:
         return np.array(self.pose_.rotation.matrix)
 
     @property
+    def quaternion(self):
+        return self.pose_.rotation.quaternion
+
+    @property
+    def matrix(self):
+        return self.pose_.matrix
+
+    @property
     def pose(self):
         return self.pose_
 

@@ -14,7 +14,6 @@ import feature_file
 import obj_file
 import stp_file
 import sdf_file
-
 import xml.etree.cElementTree as et
 
 OBJ_EXT = '.obj'
@@ -22,34 +21,114 @@ SDF_EXT = '.sdf'
 STP_EXT = '.stp'
 FTR_EXT = '.ftr'
 DEC_TAG = '_dec'
+PROC_TAG = '_proc'
 
 class MeshProcessor:
     RescalingTypeMin = 0
     RescalingTypeMed = 1
     RescalingTypeMax = 2
-    RescalingTypeAbsolute = 3
+    RescalingTypeRelative = 3
     RescalingTypeDiag = 4
     
-    def __init__(self, mesh, filename):
-        self.mesh_ = mesh
-        file_root, file_ext = os.path.splitext(filename)
-        self.filename_ = file_root
-        
+    def __init__(self, filename):
+        file_path, file_root = os.path.split(filename)
+        file_root, file_ext = os.path.splitext(file_root)
+        self.file_path_ = file_path
+        self.file_root_ = file_root
+        self.file_ext_ = file_ext
+
+    @property
+    def file_path(self):
+        return self.file_path_
+
+    @property
+    def file_root(self):
+        return self.file_root_
+
+    @property
+    def file_ext(self):
+        return self.file_ext_
+    
+    @property
+    def filename(self):
+        return os.path.join(self.file_path, self.file_root + self.file_ext)
+
     @property
     def mesh(self):
         return self.mesh_
 
     @property
-    def filename(self):
-        return self.filename_
+    def sdf(self):
+        return self.sdf_
 
-    def clean(self):
+    @property
+    def stable_poses(self):
+        return self.stable_poses_
+
+    @property
+    def shot_features(self):
+        return self.shot_features_
+
+    @property
+    def orig_filename(self):
+        return os.path.join(self.file_path_, self.file_root_ + self.file_ext_)
+
+    @property
+    def obj_filename(self):
+        return os.path.join(self.file_path_, self.file_root_ + PROC_TAG + OBJ_EXT)
+
+    @property
+    def off_filename(self):
+        return os.path.join(self.file_path_, self.file_root_ + PROC_TAG + OFF_EXT)
+
+    @property
+    def sdf_filename(self):
+        return os.path.join(self.file_path_, self.file_root_ + PROC_TAG + SDF_EXT)
+
+    @property
+    def stp_filename(self):
+        return os.path.join(self.file_path_, self.file_root_ + PROC_TAG + STP_EXT)
+
+    @property
+    def shot_filename(self):
+        return os.path.join(self.file_path_, self.file_root_ + PROC_TAG + FTR_EXT)
+
+    def generate_graspable(self, config):
+        """ Generates a graspable object """
+        self.load_mesh(config['preproc_script'])
+        self.mesh_.set_density(config['obj_density'])
+        self.clean_mesh(config['obj_scale'], config['obj_rescaling_type'])
+        self.generate_sdf(config['sdf_dim'], config['sdf_padding'])
+        self.generate_stable_poses(config['stp_min_prob'])
+        self.generate_shot_features()
+        return self.mesh, self.sdf, self.stable_poses, self.shot_features
+        
+    def load_mesh(self, script_to_apply=None):
+        """ Loads the mesh from the file by first converting to an obj and then loading """        
+        # convert to an obj file using meshlab
+        if script_to_apply is None:
+            meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(self.filename, self.obj_filename)
+        else:
+            meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\" -s \"%s\"' %(self.filename, self.obj_filename, script_to_apply) 
+        os.system(meshlabserver_cmd)
+        logging.info('MeshlabServer Command: %s' %(meshlabserver_cmd))
+
+        if not os.path.exists(self.obj_filename):
+            raise ValueError('Meshlab conversion failed for %s' %(self.obj_filename))
+        
+        # read mesh from obj file
+        of = obj_file.ObjFile(self.obj_filename)
+        self.mesh_ = of.read()
+        return self.mesh_ 
+
+    def clean_mesh(self, scale, rescaling_type):
         """ Runs all cleaning ops at once """
-        self.remove_bad_tris()
-        self.remove_unreferenced_vertices()
-        self.standardize_pose()
+        self._remove_bad_tris()
+        self._remove_unreferenced_vertices()
+        self._standardize_pose()
+        self._rescale_vertices(scale, rescaling_type)
 
-    def remove_bad_tris(self):
+    def _remove_bad_tris(self):
         """ Remove triangles with illegal out-of-bounds references """
         new_tris = []
         num_v = len(self.mesh_.vertices())
@@ -57,12 +136,12 @@ class MeshProcessor:
             if (t[0] >= 0 and t[0] < num_v and t[1] >= 0 and t[1] < num_v and t[2] >= 0 and t[2] < num_v and
                 t[0] != t[1] and t[0] != t[2] and t[1] != t[2]):
                 new_tris.append(t)
-
         self.mesh_.set_triangles(new_tris)
         return self.mesh_
 
-    def remove_unreferenced_vertices(self):
+    def _remove_unreferenced_vertices(self):
         """ Clean out vertices (and normals) not referenced by any triangles. """
+        # convert vertices to an array
         vertex_array = np.array(self.mesh_.vertices())
         num_v = vertex_array.shape[0]
 
@@ -94,7 +173,7 @@ class MeshProcessor:
         self.mesh_.set_triangles(new_triangles)
         return True
 
-    def standardize_pose(self):
+    def _standardize_pose(self):
         """
         Transforms the vertices and normals of the mesh such that the origin of the resulting mesh's coordinate frame is at the
         centroid and the principal axes are aligned with the vertical Z, Y, and X axes.
@@ -102,7 +181,7 @@ class MeshProcessor:
         Returns:
         Nothing. Modified the mesh in place (for now)
         """
-        self.mesh_.center_vertices_avg()
+        self.mesh_.center_vertices_bb()
         vertex_array_cent = np.array(self.mesh_.vertices())
 
         # find principal axes
@@ -134,12 +213,12 @@ class MeshProcessor:
             normals_array_rot = R.dot(normals_array.T)
             self.mesh_.set_normals(normals_array_rot.tolist())
 
-    def rescale_vertices(self, scale, rescaling_type=RescalingTypeMin):
+    def _rescale_vertices(self, scale, rescaling_type=RescalingTypeMin):
         """
         Rescales the vertex coordinates so that the minimum dimension (X, Y, Z) is exactly min_scale
         
         Params:
-        scale: (float) scale of the ,esj
+        scale: (float) scale of the mesh
         rescaling_type: (int) which dimension to scale along; if not absolute then the min,med,max dim is scaled to be exactly scale
         Returns:
         Nothing. Modified the mesh in place (for now)
@@ -159,7 +238,7 @@ class MeshProcessor:
         elif rescaling_type == MeshProcessor.RescalingTypeMax:
             dim = np.where(vertex_extent == np.max(vertex_extent))[0][0]
             relative_scale = vertex_extent[dim]
-        elif rescaling_type == MeshProcessor.RescalingTypeAbsolute:
+        elif rescaling_type == MeshProcessor.RescalingTypeRelative:
             relative_scale = 1.0
         elif rescaling_type == MeshProcessor.RescalingTypeDiag:
             diag = np.linalg.norm(vertex_extent)
@@ -173,75 +252,66 @@ class MeshProcessor:
         self.mesh_._compute_centroid()
         self.mesh_.set_center_of_mass(self.mesh_.bb_center_)
         
-    def convert_sdf(self, dim, padding):
+    def generate_sdf(self, dim, padding):
         """ Converts mesh to an sdf object """
-        # first create the SDF using binary tools
-        obj_filename = self.filename_ + DEC_TAG + OBJ_EXT
-        sdf_filename = self.filename_ + DEC_TAG + SDF_EXT
-        of = obj_file.ObjFile(obj_filename)
+        # write the mesh to file
+        of = obj_file.ObjFile(self.obj_filename)
         of.write(self.mesh_)
 
-        sdfgen_cmd = '/home/jmahler/Libraries/SDFGen/bin/SDFGen \"%s\" %d %d' %(obj_filename, dim, padding)
+        # create the SDF using binary tools
+        sdfgen_cmd = '/home/jmahler/Libraries/SDFGen/bin/SDFGen \"%s\" %d %d' %(self.obj_filename, dim, padding)
         os.system(sdfgen_cmd)
         logging.info('SDF Command: %s' %(sdfgen_cmd))
 
-        if not os.path.exists(sdf_filename):
-            logging.warning('SDF computation failed for %s' %(sdf_filename))
+        if not os.path.exists(self.sdf_filename):
+            logging.warning('SDF computation failed for %s' %(self.sdf_filename))
             return None
-        os.system('chmod a+rwx \"%s\"' %(sdf_filename) )
+        os.system('chmod a+rwx \"%s\"' %(self.sdf_filename) )
 
-        # load in the sdf
-        sf = sdf_file.SdfFile(sdf_filename)
-        sdf = sf.read()
-        return sdf
+        # read the generated sdf
+        sf = sdf_file.SdfFile(self.sdf_filename)
+        self.sdf_ = sf.read()
+        return self.sdf_
 
-    def stable_poses(self, min_prob = 0.05):
+    def generate_stable_poses(self, min_prob = 0.05):
         """ Computes mesh stable poses """
         # hacky as hell but I'm tired of redoing this
-        stp_filename = self.filename_ + STP_EXT
         stpf = stp_file.StablePoseFile()
-        stpf.write_mesh_stable_poses(self.mesh_, stp_filename, min_prob=min_prob)
-        stable_poses = stpf.read(stp_filename)
-        return stable_poses
+        stpf.write_mesh_stable_poses(self.mesh_, self.stp_filename, min_prob=min_prob)
+        self.stable_poses_ = stpf.read(self.stp_filename)
+        return self.stable_poses_
 
-    def extract_shot(self):
+    def generate_shot_features(self):
         """ Extracts SHOT features """
         # extract shot features to the filesystem
-        obj_filename = self.filename_ + DEC_TAG + OBJ_EXT
-        shot_filename = self.filename_ + FTR_EXT
-        of = obj_file.ObjFile(obj_filename)
-        of.write(self.mesh_)
-
-        shot_os_call = 'bin/shot_extractor %s %s' %(obj_filename, shot_filename)
+        shot_os_call = 'bin/shot_extractor %s %s' %(self.obj_filename, self.shot_filename)
         os.system(shot_os_call)
 
         # read the features back in
-        lff = feature_file.LocalFeatureFile(shot_filename)
-        shot_features = lff.read()
-        return shot_features
+        self.shot_features_ = None
+        try:
+            lff = feature_file.LocalFeatureFile(self.shot_filename)
+            self.shot_features_ = lff.read()
+        except Exception as e:
+            logging.warning('Failed to load SHOT features')
+        return self.shot_features_
 
     def convex_pieces(self, config):
         """ Generate a list of meshes consitituting the convex pieces of the mesh """
-        # generate filenames and write new mesh
-        obj_filename = self.filename_ + '_dec.obj'
-        off_filename = self.filename_ + '_dec.off'
-        of_out = obj_file.ObjFile(obj_filename)
-        of_out.write(self.mesh_)
-        
         # get volume
         orig_volume = self.mesh_.get_total_volume()
         
         # convert to off
-        meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(obj_filename, off_filename) 
+        meshlabserver_cmd = 'meshlabserver -i \"%s\" -o \"%s\"' %(self.obj_filename, self.off_filename) 
         os.system(meshlabserver_cmd)
-        print 'MeshlabServer Command:', meshlabserver_cmd
+        logging.info('MeshlabServer OFF Conversion Command: %s' %(meshlabserver_cmd))
 
         if not os.path.exists(off_filename):
-            print 'Meshlab conversion failed for', off_filename
+            logging.warning('Meshlab conversion failed for %s' %(off_filename))
             return
         
         # create convex pieces
-        cvx_decomp_command = config['hacd_cmd_template'] %(off_filename,
+        cvx_decomp_command = config['hacd_cmd_template'] %(self.off_filename,
                                                            config['min_num_clusters'],
                                                            config['max_concavity'],
                                                            config['invert_input_faces'],
@@ -249,11 +319,11 @@ class MeshProcessor:
                                                            config['add_faces_points'],
                                                            config['connected_components_dist'],
                                                            config['target_num_triangles'])
-        print 'CV Decomp Command:', cvx_decomp_command
+        logging.info('CV Decomp Command: %s' %(cvx_decomp_command))
         os.system(cvx_decomp_command)        
 
-        # convert each wrl to an obj
-        convex_piece_files = glob.glob('%s_dec_hacd_*.wrl' %(self.filename_))
+        # convert each wrl to an obj and an stl
+        convex_piece_files = glob.glob('%s_dec_hacd_*.wrl' %(os.path.join(self.file_path_, self.file_root_)))
         convex_piece_meshes = []
         total_volume = 0.0
 

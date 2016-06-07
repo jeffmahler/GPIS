@@ -6,6 +6,8 @@ from TurntableState import TurntableState
 from IzzyState import IzzyState
 from DexSensorReadings import DexSensorReadings
 
+import sys
+
 class DexStateViewer:
 
     def __init__(self, State, comm, baudrate=115200, timeout=.01, print_sensors=DexConstants.READ_FORCE_SENSORS):
@@ -72,5 +74,11 @@ class DexStateViewer:
         viewer.monitor(period)
 
 if __name__ == '__main__':
-    DexStateViewer.viewZeke()
-    #DexStateViewer.viewTable()
+    robot = 'zeke'
+    if len(sys.argv) > 1:
+        robot = sys.argv[1]
+
+    if robot == 'zeke':
+        DexStateViewer.viewZeke()
+    elif robot == 'table':
+        DexStateViewer.viewTable()

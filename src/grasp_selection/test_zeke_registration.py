@@ -60,6 +60,7 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     lift_height = config['lift_height']
     num_grasp_views = config['num_grasp_views']
     cam_dist = config['cam_dist']
+    num_avg_images = config['num_avg_images']
 
     logging_dir = config['experiment_dir']        
     if not os.path.exists(logging_dir):
@@ -68,21 +69,22 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
 
     # retrieve object pose from camera
     logging.info('Registering object')
-    depth_im = camera.get_depth_image()
-    color_im = camera.get_color_image()
-                
+    depth_im = np.zeros([camera.height, camera.width])
+    counts = np.zeros([camera.height, camera.width])
+    for i in range(num_avg_images):
+        new_depth_im = camera.get_depth_image()
+        color_im = camera.get_color_image()
+
+        depth_im = depth_im + new_depth_im
+        counts = counts + np.array(new_depth_im > 0.0)
+
+    depth_im[depth_im > 0] = depth_im[depth_im > 0] / counts[depth_im > 0]
+
     # get point cloud (for debugging only)
     camera_params = cp.CameraParams(depth_im.shape[0], depth_im.shape[1], fx=config['registration']['focal_length'])
     points_3d = camera_params.deproject(depth_im)
     subsample_inds = np.arange(points_3d.shape[1])[::10]
     points_3d = points_3d[:,subsample_inds]
-
-    # register
-    reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), debug=debug)
-    T_camera_obj = reg_result.tf_camera_obj
-    T_camera_obj.from_frame = 'obj'
-    T_camera_obj.to_frame = 'camera'
-    T_obj_camera = T_camera_obj.inverse()    
 
     # save depth and color images
     min_d = np.min(depth_im)
@@ -91,9 +93,17 @@ def test_registration(graspable, stable_pose, dataset, registration_solver, came
     depth_im2 = Image.fromarray(depth_im2.astype(np.uint8))
     filename = 'depth.png'
     depth_im2.save(os.path.join(logging_dir, filename))
+
     color_im2 = Image.fromarray(color_im)
     filename = 'color.png'
     color_im2.save(os.path.join(logging_dir, filename))
+
+    # register
+    reg_result = registration_solver.register(copy.copy(color_im), copy.copy(depth_im), debug=debug)
+    T_camera_obj = reg_result.tf_camera_obj
+    T_camera_obj.from_frame = 'obj'
+    T_camera_obj.to_frame = 'camera'
+    T_obj_camera = T_camera_obj.inverse()    
 
     # transform the mesh to the stable pose to get a z offset from the table
     T_obj_stp = stf.SimilarityTransform3D(pose=tfx.pose(stable_pose.r)) 
@@ -187,15 +197,15 @@ if __name__ == '__main__':
     database.close()
     exit(0)
     """
-
+    """
     T_table_world = stf.SimilarityTransform3D(from_frame='world', to_frame='table')
     for stable_pose in stable_poses:
         print 'Stable pose', stable_pose.id
         mv.figure()
-        mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world)
+        mvis.MayaviVisualizer.plot_stable_pose(graspable.mesh, stable_pose, T_table_world, d=0.15)
         mv.show()
     exit(0)
-
+    """
     stable_pose = stable_poses[config['stable_pose_index']]
     
     # HACK to fix a y-axis orientation bug in the stable pose code

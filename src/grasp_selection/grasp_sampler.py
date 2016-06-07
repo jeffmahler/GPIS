@@ -39,12 +39,12 @@ class GraspSampler:
         pass
 
 class ExactGraspSampler(GraspSampler):
-    def __init__(self, config):
+    def __init__(self, gripper, config):
+        self.gripper = gripper
         self._configure(config)
 
     def _configure(self, config):
         """Configures the grasp generator."""
-        self.gripper = gr.RobotGripper.load(config['gripper'])
         self.friction_coef = config['friction_coef']
         self.num_cone_faces = config['num_cone_faces']
         self.num_samples = config['grasp_samples_per_surface_point']
@@ -99,7 +99,7 @@ class ExactGraspSampler(GraspSampler):
             # prune grasps in collision
             coll_free_grasps = []
             if check_collisions:
-                logging.info('Checking collisions')
+                logging.info('Checking collisions for %d candidates' %(len(new_grasps)))
                 for grasp in new_grasps:
                     # construct a set of rotated grasps
                     for i in range(self.num_grasp_rots):

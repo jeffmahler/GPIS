@@ -7,6 +7,10 @@ import copy
 import itertools as it
 import logging
 import matplotlib.pyplot as plt
+try:
+    import mayavi.mlab as mlab
+except:
+    logging.warning('Failed to import mayavi')
 import numpy as np
 import time
 
@@ -109,6 +113,11 @@ class GraspableObjectPoseGaussianRV(RandomVariable):
         self.sigma_trans_ = config['sigma_trans_obj']
         self.sigma_scale_ = config['sigma_scale_obj']
 
+        # rotation from the basis in which uncertainty is applied to the sample basis
+        self.R_sample_sigma_ = np.eye(3)
+        if config['R_sample_sigma'] is not None:
+            self.R_sample_sigma_ = config['R_sample_sigma']
+
     @property
     def obj(self):
         return self.obj_
@@ -187,13 +196,25 @@ class GraspableObjectPoseGaussianRV(RandomVariable):
             # sample random pose
             xi = self.r_xi_rv_.rvs(size=1)
             S_xi = skew(xi)
-            R = scipy.linalg.expm(S_xi).dot(self.obj_.tf.rotation)
+            R = self.R_sample_sigma_.dot(scipy.linalg.expm(S_xi).dot(self.obj_.tf.rotation)).dot(self.R_sample_sigma_.T)
             s = self.s_rv_.rvs(size=1)[0]
-            t = self.t_rv_.rvs(size=1)
+            t = self.R_sample_sigma_.dot(self.t_rv_.rvs(size=1).T).T
             sample_tf = stf.SimilarityTransform3D(tfx.transform(R.T, t), s)
 
             # transform object by pose
             obj_sample = self.obj_.transform(sample_tf)
+
+            """
+            mlab.figure()
+            self.obj_.mesh.visualize(color=(1,0,0))
+            mlab.axes()
+            obj_sample.mesh.visualize(color=(0,1,0))
+            mlab.show()
+
+            if i > 5:
+                exit(0)
+            """
+            
             samples.append(obj_sample)
 
         # not a list if only 1 sample
@@ -215,6 +236,11 @@ class ParallelJawGraspPoseGaussianRV(RandomVariable):
         # NOTE: scale sigma only for now
         self.sigma_rot_ = config['sigma_rot_grasp']
         self.sigma_trans_ = config['sigma_trans_grasp']
+
+        # rotation from the basis in which uncertainty is applied to the sample basis
+        self.R_sample_sigma_ = np.eye(3)
+        if config['R_sample_sigma'] is not None:
+            self.R_sample_sigma_ = config['R_sample_sigma']
 
     @property
     def grasp(self):
@@ -273,8 +299,8 @@ class ParallelJawGraspPoseGaussianRV(RandomVariable):
             xi = self.r_xi_rv_.rvs(size=1)
             S_xi = skew(xi)
             
-            v = scipy.linalg.expm(S_xi).dot(self.grasp_.axis)
-            t = self.t_rv_.rvs(size=1)
+            v = self.R_sample_sigma_.dot(scipy.linalg.expm(S_xi).dot(self.grasp_.axis)).dot(self.R_sample_sigma_.T)
+            t = self.R_sample_sigma_.dot(self.t_rv_.rvs(size=1).T).T
 
             # transform object by pose
             grasp_sample = gr.ParallelJawPtGrasp3D(gr.ParallelJawPtGrasp3D.configuration_from_params(t, v, self.grasp_.grasp_width))

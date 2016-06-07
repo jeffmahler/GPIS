@@ -15,6 +15,7 @@ import IPython
 import matplotlib.pyplot as plt
 import mayavi.mlab as mlab
 import numpy as np
+import openravepy as rave
 import scipy.stats
 
 import antipodal_grasp_sampler as ags
@@ -24,6 +25,7 @@ import experiment_config as ec
 import feature_functions as ff
 import gripper as gr
 import grasp_sampler as gs
+import grasp_collision_checker as gcc
 import json_serialization as jsons
 import kernels
 import mayavi_visualizer as mv
@@ -52,7 +54,7 @@ def generate_candidate_grasps(grasps, grasp_metrics, num_candidates=10):
     grasps = grasps[:num_candidates]
     return grasps
 
-def show_stable_poses(obj, dataset, config, delay=0.5, num_views=16):
+def show_stable_poses(obj, dataset, config, delay=0.1, num_views=16):
     # load grasps and stable poses
     stable_poses = dataset.stable_poses(obj.key)
     grasps = dataset.grasps(obj.key, gripper=config['gripper'])
@@ -66,7 +68,7 @@ def show_stable_poses(obj, dataset, config, delay=0.5, num_views=16):
         mlab.clf()
         mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface')
 
-        mlab.title('%s' %(stable_pose.id), color=(0,0,0))
+        #mlab.title('%s' %(stable_pose.id), color=(0,0,0))
         for j in range(num_views):
             az = j * delta_view
             mlab.view(az)
@@ -91,31 +93,42 @@ def show_grasps(obj, dataset, config):
         #time.sleep(1)
         mlab.show()
 
-def show_grasps_on_stable_pose(obj, dataset, config, stable_pose_id='pose_0', delay=0.5,
+def show_grasps_on_stable_pose(obj, dataset, config, stable_pose_id='pose_0', delay=0.1,
                                num_grasp_views=8):
     # load grasps and stable poses
     stable_pose = dataset.stable_pose(obj.key, stable_pose_id)
     grasps = dataset.grasps(obj.key, gripper=config['gripper'])
-
+    grasp_metrics = dataset.grasp_metrics(obj.key, grasps, gripper=config['gripper'])
+    
     # plot grasps on stable poses 
     T_table_world = stf.SimilarityTransform3D(tfx.pose(np.eye(4)), from_frame='world', to_frame='table')
     gripper = gr.RobotGripper.load(config['gripper'])
+
+    # collision checking
+    rave.raveSetDebugLevel(rave.DebugLevel.Error)
+    collision_checker = gcc.OpenRaveGraspChecker(gripper, view=False)
+    collision_checker.set_object(obj)
 
     # plot each grasp
     mlab.figure(bgcolor=(0.5,0.5,0.5), size=(1000,1000))
     random.shuffle(grasps)
     delta_view = 360.0 / num_grasp_views
     for i, grasp in enumerate(grasps):
-        logging.info('Displaying grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps)))
-
-        if i >= 10:
-            return
-
         # check collisions and plot if none
-        if not gripper.collides_with_table(grasp, stable_pose):
+        grasp = grasp.grasp_aligned_with_stable_pose(stable_pose)
+        if not gripper.collides_with_table(grasp, stable_pose) and not collision_checker.in_collision(grasp):
+            # show metrics
+            logging.info('Displaying grasp %d (%d of %d)' %(grasp.grasp_id, i, len(grasps)))
+            metrics = grasp_metrics[grasp.grasp_id]
+            for metric_name, val in metrics.iteritems():
+                logging.info('Metric %s = %f' %(metric_name, val))
+
+
+            # plot
             mlab.clf()
-            T_obj_world = mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface')
-            mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(1,1,1))
+            T_obj_world = mv.MayaviVisualizer.plot_stable_pose(obj.mesh, stable_pose, T_table_world, d=0.1, style='surface',
+                                                               color=(0.4,0.4,0.4))
+            mv.MayaviVisualizer.plot_gripper(grasp, T_obj_world, gripper=gripper, color=(0.65,0.65,0.65))
 
             for j in range(num_grasp_views):
                 az = j * delta_view
@@ -203,16 +216,14 @@ if __name__ == '__main__':
         dataset = database.dataset(dataset_name)
 
         # check each object in the dataset with grasps
-        obj = dataset['endstop_holder']
+        obj = dataset['mount1']
         if True:
         #for obj in dataset:
             logging.info('Displaying grasps for object {}'.format(obj.key))
-            
-            IPython.embed()
-            exit(0)
+            obj.model_name_ = dataset.obj_mesh_filename(obj.key)
 
             show_stable_poses(obj, dataset, config)
-            #show_grasps_on_stable_pose(obj, dataset, config, 'pose_0')
+            #show_grasps_on_stable_pose(obj, dataset, config, config['ppc_stp_ids'][obj.key])
 
     database.close()
 

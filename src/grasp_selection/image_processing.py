@@ -56,9 +56,15 @@ class DepthImageProcessing:
         mean_px = np.mean(nonzero_px, axis=0)
         center_px = np.array(depth_im.shape) / 2.0
         diff_px = center_px - mean_px
+        height = depth_im.shape[0]
+        width = depth_im.shape[1]
 
         # transform image
         nonzero_px_tf = nonzero_px + diff_px
+        nonzero_px_tf[:,0] = np.max(np.c_[np.zeros(nonzero_px_tf[:,0].shape), nonzero_px_tf[:,0]], axis=1)
+        nonzero_px_tf[:,0] = np.min(np.c_[(height-1)*np.ones(nonzero_px_tf[:,0].shape), nonzero_px_tf[:,0]], axis=1)
+        nonzero_px_tf[:,1] = np.max(np.c_[np.zeros(nonzero_px_tf[:,1].shape), nonzero_px_tf[:,1]], axis=1)
+        nonzero_px_tf[:,1] = np.min(np.c_[(width-1)*np.ones(nonzero_px_tf[:,1].shape), nonzero_px_tf[:,1]], axis=1)
         nonzero_px = nonzero_px.astype(np.uint16)
         nonzero_px_tf = nonzero_px_tf.astype(np.uint16)
         depth_im_tf = np.zeros(depth_im.shape)
@@ -102,6 +108,9 @@ class DepthImageProcessing:
     def image_shift_to_transform(source_depth_im, target_depth_im, camera_params, diff_px):
         """ Converts 2D pixel shift transformation between two depth images into a 3D transformation """
         nonzero_source_depth_px = np.where(source_depth_im > 0)
+        if nonzero_source_depth_px[0].shape[0] == 0:
+            return stf.SimilarityTransform3D(pose=tfx.pose(np.eye(4)), from_frame='camera', to_frame='camera')
+
         source_px = np.array([nonzero_source_depth_px[0][0], nonzero_source_depth_px[1][0]])
         source_depth = source_depth_im[source_px[0], source_px[1]]
         target_px = source_px + diff_px
