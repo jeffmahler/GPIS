@@ -23,6 +23,7 @@ import obj_file
 import sdf_file
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 try:
     import mayavi.mlab as mv
 except:
@@ -192,6 +193,7 @@ class PointGraspMetrics3D:
         force_limit = params['force_limits']
         target_wrench = params['target_wrench']
 
+        # reorganize the grasp matrix for easier constraint enforcement in optimization
         num_fingers = normals.shape[1]
         num_wrenches_per_finger = forces.shape[1] / num_fingers
         G = np.zeros([6,0])
@@ -202,16 +204,35 @@ class PointGraspMetrics3D:
                                                    soft_fingers, params=params)
             G = np.c_[G, G_i]
 
-        """
-        force_limits = np.linspace(1.0, 300.0, num=1000)
-        dists = np.zeros(force_limits.shape)
-        for i in range(force_limits.shape[0]):
-            dists[i] = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limits[i], num_fingers)
-        plt.plot(force_limits, dists, linewidth=2.0, c='g')
-        plt.ylim([0,0.1])
-        plt.show()
-        """
-        return 1 * (PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers))
+        wrench_resisted, _ = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers)
+        return 1 * wrench_resisted
+
+    @staticmethod
+    def wrench_resist_ratio(forces, torques, normals, soft_fingers=False, params=None):
+        """ Partial closure: whether or not the forces and torques can resist a specific wrench givien in the params"""
+        force_limit = None
+        if params is None:
+            return 0
+        force_limit = params['force_limits']
+        target_wrench = params['target_wrench']
+
+        # reorganize the grasp matrix for easier constraint enforcement in optimization
+        num_fingers = normals.shape[1]
+        num_wrenches_per_finger = forces.shape[1] / num_fingers
+        G = np.zeros([6,0])
+        for i in range(num_fingers):
+            start_i = num_wrenches_per_finger * i
+            end_i = num_wrenches_per_finger * (i + 1)
+            G_i = PointGraspMetrics3D.grasp_matrix(forces[:,start_i:end_i], torques[:,start_i:end_i], normals[:,i:i+1],
+                                                   soft_fingers, params=params)
+            G = np.c_[G, G_i]
+
+        # compute metric from finger force norm
+        Q = 0
+        wrench_resisted, finger_force_norm = PointGraspMetrics3D.wrench_in_span(G, target_wrench, force_limit, num_fingers)
+        if wrench_resisted:
+            Q = 1.0 / finger_force_norm - 1.0 / (2 * force_limit)
+        return Q
 
     @staticmethod
     def min_singular(forces, torques, normals, soft_fingers=False, params=None):
@@ -254,8 +275,24 @@ class PointGraspMetrics3D:
         # create grasp matrix
         G = PointGraspMetrics3D.grasp_matrix(forces, torques, normals, soft_fingers, params=params)
         s = time.clock()
-        hull = cvh.ConvexHull(G.T, joggle=True)
+        hull = cvh.ConvexHull(G.T)
+        # TODO: suppress ridiculous amount of output for perfectly valid input to qhull
         e = time.clock()
+        
+        debug = False
+        if debug:
+            fig = plt.figure()
+            torques = G[3:,:].T
+            ax = Axes3D(fig)
+            ax.scatter(torques[:,0], torques[:,1], torques[:,2], c='b', s=50)
+            ax.scatter(0, 0, 0, c='k', s=80)
+            ax.set_xlim3d(-1.5, 1.5)
+            ax.set_ylim3d(-1.5, 1.5)
+            ax.set_zlim3d(-1.5, 1.5)
+            ax.set_xlabel('tx')
+            ax.set_ylabel('ty')
+            ax.set_zlabel('tz')
+            plt.show()
 
         if len(hull.vertices) == 0:
             logging.warning('Convex hull could not be computed')
@@ -287,7 +324,7 @@ class PointGraspMetrics3D:
         return min_dist
 
     @staticmethod
-    def wrench_in_span(W, target_wrench, f, num_fingers=1, eps = 0.05, alpha = 1e-8):
+    def wrench_in_span(W, target_wrench, f, num_fingers=1, eps = 1e-4, alpha = 1e-8):
         """ Check whether wrench W can be exerted by forces and torques in G with limit force f """
         num_wrenches = W.shape[1]
 
@@ -317,12 +354,11 @@ class PointGraspMetrics3D:
         h = cvx.matrix(h)
         sol = cvx.solvers.qp(P, q, G, h)
         v = np.array(sol['x'])
-        print 'NORM', np.linalg.norm(v)
 
         min_dist = np.linalg.norm(W.dot(v).ravel() - target_wrench)**2
 
         # add back in the target wrench
-        return min_dist < eps
+        return min_dist < eps, np.linalg.norm(v)
 
     @staticmethod
     def min_norm_vector_in_facet(facet, eps=1e-10):

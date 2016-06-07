@@ -288,8 +288,12 @@ class MeshProcessor:
         os.system(shot_os_call)
 
         # read the features back in
-        lff = feature_file.LocalFeatureFile(self.shot_filename)
-        self.shot_features_ = lff.read()
+        self.shot_features_ = None
+        try:
+            lff = feature_file.LocalFeatureFile(self.shot_filename)
+            self.shot_features_ = lff.read()
+        except Exception as e:
+            logging.warning('Failed to load SHOT features')
         return self.shot_features_
 
     def convex_pieces(self, config):

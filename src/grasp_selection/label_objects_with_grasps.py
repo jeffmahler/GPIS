@@ -13,12 +13,14 @@ import time
 
 import IPython
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 try:
     import mayavi.mlab as mlab
 except:
     logging.warning('Failed to import mayavi')
 import numpy as np
 import scipy.stats
+import scipy.linalg
 
 import antipodal_grasp_sampler as ags
 import database as db
@@ -175,7 +177,30 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
             stable_pose_wrenches.append(-wrench)
         
         grasp_force_limit = config['grasp_force_limit']
-        
+
+        # create configs for different levels of uncertainty
+        uncertainty_configs = []
+
+        # create an uncertainty config for each stable pose
+        physical_u_config = config['physical_uncertainty']
+        Sigma_g_t = np.diag([physical_u_config['sigma_gripper_x'], physical_u_config['sigma_gripper_y'], physical_u_config['sigma_gripper_z']])
+        Sigma_g_r = physical_u_config['sigma_gripper_rot'] * np.eye(3)
+        Sigma_o_t = np.diag([physical_u_config['sigma_obj_x'], physical_u_config['sigma_obj_y'], physical_u_config['sigma_obj_z']])
+        Sigma_o_r = np.diag([physical_u_config['sigma_obj_rot_x'], physical_u_config['sigma_obj_rot_y'], physical_u_config['sigma_obj_rot_z']])
+        Sigma_o_s = physical_u_config['sigma_scale']
+        for stable_pose in stable_poses:
+            zeke_u_config = copy.deepcopy(config)
+            zeke_u_config['sigma_rot_grasp'] = Sigma_g_r
+            zeke_u_config['sigma_trans_grasp'] = Sigma_g_t
+            zeke_u_config['sigma_rot_obj'] = Sigma_o_r
+            zeke_u_config['sigma_trans_obj'] = Sigma_o_t
+            zeke_u_config['sigma_scale_obj'] = Sigma_o_s
+
+            R_obj_stp = stable_pose.r.T
+            zeke_u_config['R_sample_sigma'] = R_obj_stp
+            
+            uncertainty_configs.append(zeke_u_config)
+
         # create alternate configs for double and half the uncertainty
         low_u_mult = config['low_u_mult']
         high_u_mult = config['high_u_mult']
@@ -229,10 +254,19 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                         quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'partial_closure', friction_coef=config['friction_coef'],
                                                                   num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
 
-                    logging.info('Partial closure: %d' %(grasp_metrics[grasp.grasp_id][pc_tag]))
+            # compute wrench resist ratio for each stable pose
+            if 'wrench_resist_ratio' in config['deterministic_metrics']:
+                for stable_pose, stable_pose_wrench in zip(stable_poses, stable_pose_wrenches):
+                    pc_tag = 'wrench_resist_ratio_%s' %(stable_pose.id)
+                    params = {}
+                    params['force_limits'] = grasp_force_limit
+                    params['target_wrench'] = stable_pose_wrench
+                    grasp_metrics[grasp.grasp_id][pc_tag] = \
+                        quality.PointGraspMetrics3D.grasp_quality(grasp, obj, 'wrench_resist_ratio', friction_coef=config['friction_coef'],
+                                                                  num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
            
         # compute robust quality metrics
-        uncertainty_configs = [low_u_config, med_u_config, high_u_config]
+        uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
         logging.info('Computing robust quality')
 
         # iterate through levels of uncertainty
@@ -273,6 +307,18 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                                                                       
                         grasp_metrics[grasp.grasp_id][ppc_tag] = ppc
                         grasp_metrics[grasp.grasp_id][vpc_tag] = vpc
+
+                # expected wrench resist ratio
+                logging.info("Computing expected wrench resist ratio")
+                if 'wrench_resist_ratio' in config['robust_metrics']:
+                    for stable_pose, wrench in zip(stable_poses, stable_pose_wrenches):
+                        params = {"force_limits": grasp_force_limit, "target_wrench": wrench}
+                        params_rv = rvs.ArtificialSingleRV(params)
+                        eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, config, quality_metric='wrench_resist_ratio',
+                                                                           params_rv=params_rv, num_samples=config['eq_num_samples'])
+                    
+                        ewrr_tag = db.generate_metric_tag('ewrr_%s' %(stable_pose.id), config)
+                        grasp_metrics[grasp.grasp_id][ewrr_tag] = eq
                 
                 # expected ferrari canny
                 logging.info('Computing expected ferrari canny')
@@ -281,11 +327,12 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                                                                  num_samples=config['eq_num_samples'])
                     grasp_metrics[grasp.grasp_id][efcny_tag] = eq
 
+
         quality_stop_time = time.time()
         logging.info('Quality computation for %d grasps took %f sec.' %(len(grasps), quality_stop_time - quality_start_time))
 
         # store grasp metrics
-        #output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
+        output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
 
     # report total time
     stop_time = time.time()
@@ -327,9 +374,7 @@ if __name__ == '__main__':
             output_ds = output_db.create_dataset(dataset_name)
 
         # label each object in the dataset with grasps
-        obj = dataset['pipe_connector']
-        if True:
-        #for obj in dataset:
+        for obj in dataset:
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
 

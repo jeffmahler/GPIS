@@ -51,8 +51,26 @@ CREATION_KEY = 'time_created'
 DATASETS_KEY = 'datasets'
 
 def generate_metric_tag(root, config):
-    tag = '%s_f_%f_tg_%f_rg_%f_to_%f_ro_%f' %(root, config['sigma_mu'], config['sigma_trans_grasp'], config['sigma_rot_grasp'],
-                                              config['sigma_trans_obj'], config['sigma_rot_obj'])
+    sig_mu = config['sigma_mu']
+    sig_t_g = config['sigma_trans_grasp']
+    sig_r_g = config['sigma_rot_grasp']
+    sig_t_o = config['sigma_trans_obj']
+    sig_r_o = config['sigma_rot_obj']
+
+    if isinstance(sig_t_g, np.ndarray):
+        sig_t_g = sig_t_g[0,0]
+
+    if isinstance(sig_r_g, np.ndarray):
+        sig_r_g = sig_r_g[0,0]
+
+    if isinstance(sig_t_o, np.ndarray):
+        sig_t_o = sig_t_o[0,0]
+
+    if isinstance(sig_r_o, np.ndarray):
+        sig_r_o = sig_r_o[0,0]
+
+    tag = '%s_f_%f_tg_%f_rg_%f_to_%f_ro_%f' %(root, sig_mu, sig_t_g, sig_r_g,
+                                              sig_t_o, sig_r_o)
     return tag
 
 class Database(object):
@@ -291,7 +309,9 @@ class Hdf5Dataset(Dataset):
         # read in data (need new interfaces for this....
         sdf = hfact.Hdf5ObjectFactory.sdf_3d(self.sdf_data(key))
         mesh = hfact.Hdf5ObjectFactory.mesh_3d(self.mesh_data(key))
-        features = hfact.Hdf5ObjectFactory.local_features(self.shot_feature_data(key))
+        features = None
+        if SHOT_FEATURES_KEY in self.local_feature_data(key).keys():
+            features = hfact.Hdf5ObjectFactory.local_features(self.shot_feature_data(key))
         return go.GraspableObject3D(sdf, mesh=mesh, features=features, key=key, model_name='', category=self.category(key))
 
     def create_graspable(self, key, mesh=None, sdf=None, shot_features=None, stable_poses=None, category='', mass=1.0):
@@ -425,6 +445,17 @@ class Hdf5Dataset(Dataset):
         if stable_pose_id not in self.stable_pose_data(key).keys():
             raise ValueError('Stable pose id %s unknown' %(stable_pose_id))
         return hfact.Hdf5ObjectFactory.stable_pose(self.stable_pose_data(key), stable_pose_id)
+
+    def store_stable_poses(self, key, stable_poses):
+        """ Store stable pose data """
+        if STP_KEY not in self.object(key).keys():
+            self.object(key).create_group(STP_KEY)
+        hfact.Hdf5ObjectFactory.write_stable_poses(stable_poses, self.stable_pose_data(key))
+
+    def delete_stable_poses(self, key):
+        """ Delete stable pose data for object """
+        if STP_KEY in self.object(key).keys():
+            del self.object(key)[STP_KEY]
 
     # rendered image data
     def rendered_images(self, key, stable_pose_id=None, image_type="depth"):

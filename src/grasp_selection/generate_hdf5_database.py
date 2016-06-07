@@ -50,6 +50,7 @@ class DatasetConfigFactory:
     @staticmethod
     def available_datasets():
         return ['amazon_picking_challenge', 'aselab', 'autodesk', 'BigBIRD', 'Cat50_ModelDatabase',
+                'dexnet_physical_experiments',
                 'google', 'inventor_small', 'KIT', 'MeshSegBenchmark', 'ModelNet40', 'NTU3D',
                 'PrincetonShapeBenchmark', 'SHREC14LSGTB', 'siemens', 'segments_small',
                 'surgical', 'YCB']
@@ -69,6 +70,8 @@ class DatasetConfigFactory:
             return DatasetConfig(name=name, extension='.obj', name_filter='poisson_texture_mapped', fix_names=True, synthetic=False, cat_db=catmap.BerkeleyCategoryMap())
         elif name == 'Cat50_ModelDatabase':
             return DatasetConfig(name=name, extension='.obj', cat_db=catmap.Cat50CategoryMap('/mnt/terastation/shape_data/Cat50_ModelDatabase'))
+        elif name == 'dexnet_physical_experiments':
+            return DatasetConfig(name=name, extension='.obj', synthetic=False)
         elif name == 'google':
             return DatasetConfig(name=name, extension='.obj', synthetic=True)
         elif name == 'inventor_small':
@@ -195,7 +198,6 @@ if __name__ == '__main__':
                                                         mesh_processor.shot_features,
                                                         mesh_processor.stable_poses,
                                                         category=category, mass=mass)
-
                     except Exception as e:
                         exceptions.append('Dataset: %s,  Model: %s, Exception: %s' % (dataset.name, filename, str(e))) 
                 

@@ -1,6 +1,12 @@
 import copy
 import itertools as it
 import logging
+import matplotlib.pyplot as plt
+try:
+    import mayavi.mlab as mlab
+except:
+    logging.warning('Failed to import mayavi')
+
 import numpy as np
 import os
 import sys
@@ -8,8 +14,10 @@ import time
 
 import scipy.stats
 
+import gripper as gp
 import grasp as gr
 import graspable_object as go
+import mayavi_visualizer as mv
 import obj_file
 import quality as pgq
 import random_variables as rvs
@@ -245,6 +253,7 @@ class RobustGraspQuality:
 
         # convert to estimated prob success
         final_model = ua_result.models[-1]
+
         estimated_ps = models.BetaBernoulliModel.beta_mean(final_model.alphas, final_model.betas)
         if not compute_variance:
             return estimated_ps[0]

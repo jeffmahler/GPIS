@@ -198,17 +198,26 @@ class Hdf5ObjectFactory(object):
         return stpc.StablePose(p, r, x0, stp_id=stable_pose_id)
 
     @staticmethod
-    def write_stable_poses(stable_poses, data):
+    def write_stable_poses(stable_poses, data, force_overwrite=False):
         """ Writes shot features to HDF5 data provided in |data| """
         num_stable_poses = len(stable_poses)
         data.attrs.create(NUM_STP_KEY, num_stable_poses)
         for i, stable_pose in enumerate(stable_poses):
             stp_key = POSE_KEY + '_' + str(i)
-            data.create_group(stp_key)
-            data[stp_key].attrs.create(STABLE_POSE_PROB_KEY, stable_pose.p)
-            data[stp_key].attrs.create(STABLE_POSE_ROT_KEY, stable_pose.r)
-            data[stp_key].attrs.create(STABLE_POSE_PT_KEY, stable_pose.x0)
-            data[stp_key].create_group(db.RENDERED_IMAGES_KEY)
+            if stp_key not in data.keys():
+                data.create_group(stp_key)
+                data[stp_key].attrs.create(STABLE_POSE_PROB_KEY, stable_pose.p)
+                data[stp_key].attrs.create(STABLE_POSE_ROT_KEY, stable_pose.r)
+                data[stp_key].attrs.create(STABLE_POSE_PT_KEY, stable_pose.x0)
+                data[stp_key].create_group(db.RENDERED_IMAGES_KEY)
+            elif force_overwrite:
+                data[stp_key].attrs[STABLE_POSE_PROB_KEY] = stable_pose.p
+                data[stp_key].attrs[STABLE_POSE_ROT_KEY] = stable_pose.r
+                data[stp_key].attrs[STABLE_POSE_PT_KEY] = stable_pose.x0
+            else:
+                logging.warning('Stable pose %s already exists and overwrite was not requested. Aborting write request' %(stable_pose.id))
+                return None                
+        return True
 
     @staticmethod
     def grasps(data, num_grasps_sample=10):

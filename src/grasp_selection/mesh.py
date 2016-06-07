@@ -294,7 +294,8 @@ class Mesh3D(object):
             v1 = vertex_array[tri[1],:]
             v2 = vertex_array[tri[2],:]
             n = np.cross(v1 - v0, v2 - v0)
-            n = n / np.linalg.norm(n)
+            if np.linalg.norm(n) > 0:
+                n = n / np.linalg.norm(n)
             normals.append(n.tolist())
 
         # reverse normal based on alignment with convex hull

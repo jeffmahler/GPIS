@@ -402,7 +402,7 @@ class Sdf3D(Sdf):
         curvature = curvature + curvature.T
         return curvature
 
-    def surface_normal(self, coords, delta=1.0):
+    def surface_normal(self, coords, delta=1.5):
         """
         Returns the sdf surface normal at the given coordinates by
         computing the tangent plane using SDF interpolation
@@ -454,7 +454,7 @@ class Sdf3D(Sdf):
         # fit a plane to the surface points
         X.sort(key = lambda x: x[3])
         X = np.array(X)[:,:3]
-        X = X[:3,:] # take only the 9 'best' surface points for tangent plane calculation
+        #X = X[:9,:] # take only the 9 'best' surface points for tangent plane calculation
         A = X - np.mean(X, axis=0)
         try:
             U, S, V = np.linalg.svd(A.T)
