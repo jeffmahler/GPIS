@@ -104,17 +104,20 @@ class Contact3D(Contact):
         if z_hat.dot(direction) < 0:
             y = -y
 
-        # redefine tangent x axis to maximally align with the object y axis
+        # redefine tangent x axis to automatically align with the object y axis
         max_ip = 0
-        max_a = 0
+        max_theta = 0
         obj_y = np.array([0,1,0])
-        for i in range(max_samples+1):
-            a = -1 + i * (2.0 / max_samples)
-            v = a * x + np.sqrt(1 - a**2) * y
+        theta = 0
+        d_theta = 2 * np.pi / float(max_samples)
+        for i in range(max_samples):
+            v = np.cos(theta) * x + np.sin(theta) * y
             if v.dot(obj_y) > max_ip:
                 max_ip = v.dot(obj_y)
-                max_a = a
-        v = max_a * x + np.sqrt(1 - max_a**2) * y
+                max_theta = theta
+            theta = theta + d_theta
+
+        v = np.cos(theta) * x + np.sin(theta) * y
         w = np.cross(direction.ravel(), v)
 
         return np.squeeze(direction), v, w
