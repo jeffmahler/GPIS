@@ -218,7 +218,7 @@ class GraspableObject3D(GraspableObject):
 
         return found, projection_contact
 
-    def surface_information(self, grasp, width, num_steps, plot=False, direction1=None, direction2=None):
+    def surface_information(self, grasp, width, num_steps, sigma=1.5, plot=False, direction1=None, direction2=None):
         """
         Returns the local surface window, gradient, and curvature for the two
         point contacts of a grasp.
@@ -238,8 +238,8 @@ class GraspableObject3D(GraspableObject):
             ax.set_ylim3d(0, self.sdf.dims_[1])
             ax.set_zlim3d(0, self.sdf.dims_[2])
 
-        window1 = contact1.surface_information(width, num_steps, direction=direction1)
-        window2 = contact2.surface_information(width, num_steps, direction=direction2)
+        window1 = contact1.surface_information(width, num_steps, sigma=sigma, direction=direction1)
+        window2 = contact2.surface_information(width, num_steps, sigma=sigma, direction=direction2)
         return window1, window2, contact1, contact2
 
 def test_windows(width, num_steps, plot=None):
