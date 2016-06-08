@@ -4,6 +4,7 @@ import logging
 import numpy as np
 try:
     import mayavi.mlab as mv
+    import mayavi.mlab as mlab
 except:
     logging.info('Failed to import mayavi')
 import matplotlib.pyplot as plt
@@ -120,6 +121,62 @@ class MayaviVisualizer:
         vals = vals[:,np.newaxis]
         image = np.tile(vals, [1, width])
         mv.imshow(image, colormap='hsv')
+
+    @staticmethod
+    def plot_patches_contacts(obj, grasp, width, num_steps, w1, w2, c1, c2):
+        # contact reference frames
+        alpha = 0.025
+        tube_radius = 0.001
+        scale = 0.0025
+        T_c1_obj = c1.reference_frame()
+        T_c2_obj = c2.reference_frame()
+        T_obj_world = stf.SimilarityTransform3D(from_frame='world', to_frame='obj')
+        T_c1_world = T_c1_obj.dot(T_obj_world)
+        T_c2_world = T_c2_obj.dot(T_obj_world)
+        mlab.figure()
+        MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world)
+        MayaviVisualizer.plot_grasp(grasp, T_obj_world, alpha=alpha)
+        MayaviVisualizer.plot_pose(T_c1_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
+        MayaviVisualizer.plot_pose(T_c2_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
+        MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
+
+        res = float(width) / float(num_steps)
+        height, width = w1.proj_win_2d.shape
+        for i in range(height):
+            for j in range(width):
+                x_contact = (j - width/2) * res
+                y_contact = (i - height/2) * res
+                pt_contact = np.array([x_contact, y_contact, 0])
+                pt_world = T_c1_world.inverse().apply(pt_contact)
+                #mlab.points3d(pt_world[0], pt_world[1], pt_world[2], color=(1,1,0), scale_factor=scale)
+
+                int_contact = pt_contact = np.array([x_contact, y_contact, w1.proj_win_2d[i,j]])
+                int_world = T_c1_world.inverse().apply(int_contact)
+                mlab.points3d(int_world[0], int_world[1], int_world[2], color=(1,0,1), scale_factor=scale)
+
+                """
+                proj_line = np.array([pt_world, int_world])
+                mlab.plot3d(proj_line[:,0], proj_line[:,1], proj_line[:,2], tube_radius=0.0001, color=(1,1,1))
+                """
+
+        height, width = w2.proj_win_2d.shape
+        for i in range(height):
+            for j in range(width):
+                x_contact = (j - width/2) * res
+                y_contact = (i - height/2) * res
+                pt_contact = np.array([x_contact, y_contact, 0])
+                pt_world = T_c2_world.inverse().apply(pt_contact)
+                #mlab.points3d(pt_world[0], pt_world[1], pt_world[2], color=(1,1,0), scale_factor=scale)
+
+                int_contact = pt_contact = np.array([x_contact, y_contact, w2.proj_win_2d[i,j]])
+                int_world = T_c2_world.inverse().apply(int_contact)
+                mlab.points3d(int_world[0], int_world[1], int_world[2], color=(1,0,1), scale_factor=scale)
+
+                #proj_line = np.array([pt_world, int_world])
+                #mlab.plot3d(proj_line[:,0], proj_line[:,1], proj_line[:,2], tube_radius=tube_radius, color=(1,1,1))
+
+        mlab.show()
+
 
 def test_zeke_gripper():
     mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/zeke_new/gripper.obj'
