@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import obj_file as objf
 import similarity_tf as stf
 import tfx
-
 import gripper as gr
 ZEKE_GRIPPER = gr.RobotGripper.load('zeke')
 FANUC_GRIPPER = gr.RobotGripper.load('fanuc_lehf')
@@ -123,6 +122,25 @@ class MayaviVisualizer:
         mv.imshow(image, colormap='hsv')
 
     @staticmethod
+    def _get_contact_points(T_c_world, w, res):
+        height, width = w.proj_win_2d.shape
+        xs, ys, zs = [], [], []
+        for i in range(height):
+            for j in range(width):
+                x_contact = (j - width/2) * res
+                y_contact = (i - height/2) * res
+                pt_contact = np.array([x_contact, y_contact, 0])
+                pt_world = T_c_world.inverse().apply(pt_contact)
+
+                int_contact = pt_contact = np.array([x_contact, y_contact, w.proj_win_2d[i,j]])
+                int_world = T_c_world.inverse().apply(int_contact)
+                
+                xs.append(int_world[0])
+                ys.append(int_world[1])
+                zs.append(int_world[2])
+        return xs, ys, zs
+
+    @staticmethod
     def plot_patches_contacts(obj, grasp, width, num_steps, w1, w2, c1, c2):
         # contact reference frames
         alpha = 0.025
@@ -141,46 +159,12 @@ class MayaviVisualizer:
         MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
 
         res = float(width) / float(num_steps)
-        height, width = w1.proj_win_2d.shape
-        xs, ys, zs = [], [], []
-        for i in range(height):
-            for j in range(width):
-                x_contact = (j - width/2) * res
-                y_contact = (i - height/2) * res
-                pt_contact = np.array([x_contact, y_contact, 0])
-                pt_world = T_c1_world.inverse().apply(pt_contact)
-                #mlab.points3d(pt_world[0], pt_world[1], pt_world[2], color=(1,1,0), scale_factor=scale)
-
-                int_contact = pt_contact = np.array([x_contact, y_contact, w1.proj_win_2d[i,j]])
-                int_world = T_c1_world.inverse().apply(int_contact)
-                
-                xs.append(int_world[0])
-                ys.append(int_world[1])
-                zs.append(int_world[2])
-
-                """
-                proj_line = np.array([pt_world, int_world])
-                mlab.plot3d(proj_line[:,0], proj_line[:,1], proj_line[:,2], tube_radius=0.0001, color=(1,1,1))
-                """
-        mlab.points3d(xs, ys, zs, color=(1,0,1), scale_factor=scale)
-        height, width = w2.proj_win_2d.shape
-        for i in range(height):
-            for j in range(width):
-                x_contact = (j - width/2) * res
-                y_contact = (i - height/2) * res
-                pt_contact = np.array([x_contact, y_contact, 0])
-                pt_world = T_c2_world.inverse().apply(pt_contact)
-                #mlab.points3d(pt_world[0], pt_world[1], pt_world[2], color=(1,1,0), scale_factor=scale)
-
-                int_contact = pt_contact = np.array([x_contact, y_contact, w2.proj_win_2d[i,j]])
-                int_world = T_c2_world.inverse().apply(int_contact)
-                mlab.points3d(int_world[0], int_world[1], int_world[2], color=(1,0,1), scale_factor=scale)
-
-                #proj_line = np.array([pt_world, int_world])
-                #mlab.plot3d(proj_line[:,0], proj_line[:,1], proj_line[:,2], tube_radius=tube_radius, color=(1,1,1))
-
+        xs1, ys1, zs1 = MayaviVisualizer._get_contact_points(T_c1_world, w1, res)
+        xs2, ys2, zs2 = MayaviVisualizer._get_contact_points(T_c2_world, w2, res)
+       
+        mlab.points3d(xs1, ys1, zs1, color=(1,0,1), scale_factor=scale)
+        mlab.points3d(xs2, ys2, zs2, color=(0,1,1), scale_factor=scale)
         mlab.show()
-
 
 def test_zeke_gripper():
     mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/zeke_new/gripper.obj'
