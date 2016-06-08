@@ -8,6 +8,8 @@ import itertools as it
 import logging
 import numpy as np
 from skimage.restoration import denoise_bilateral
+import similarity_tf as stf
+import tfx
 
 import IPython
 import matplotlib.pyplot as plt
@@ -107,20 +109,29 @@ class Contact3D(Contact):
         # redefine tangent x axis to automatically align with the object y axis
         max_ip = 0
         max_theta = 0
-        obj_y = np.array([0,1,0])
+        target = np.array([0,0,1])
         theta = 0
         d_theta = 2 * np.pi / float(max_samples)
         for i in range(max_samples):
             v = np.cos(theta) * x + np.sin(theta) * y
-            if v.dot(obj_y) > max_ip:
-                max_ip = v.dot(obj_y)
+            if v.dot(target) > max_ip:
+                max_ip = v.dot(target)
                 max_theta = theta
             theta = theta + d_theta
 
-        v = np.cos(theta) * x + np.sin(theta) * y
+        v = np.cos(max_theta) * x + np.sin(max_theta) * y
         w = np.cross(direction.ravel(), v)
 
         return np.squeeze(direction), v, w
+
+    def reference_frame(self):
+        """ Returns the local reference frame of the contact """
+        t_obj_contact = self.point
+        rz, rx, ry = self.tangents(self.in_direction_)
+        R_obj_contact = np.array([rx, ry, rz]).T
+        T_obj_contact = stf.SimilarityTransform3D(pose=tfx.pose(R_obj_contact, t_obj_contact),
+                                                  from_frame='contact', to_frame='obj')
+        return T_obj_contact.inverse()
 
     def normal_force_magnitude(self):
         """ Returns the magnitude of the force that the contact would apply along the normal direction"""
