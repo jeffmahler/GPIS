@@ -124,7 +124,7 @@ class MayaviVisualizer:
 
     @staticmethod
     def plot_patch(window, contact, window_dim_obj=(1.0,1.0), T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'),
-                   patch_color=(1,1,0) contact_color=(1,0,0), axis_color=(0,1,0), contact_scale=0.005,
+                   patch_color=(1,1,0), contact_color=(1,0,0), axis_color=(0,1,0), contact_scale=0.005,
                    axis_radius=0.0005, dist_thresh=0.04, grad_thresh=0.01):
         """ Plot a patch defined by a window and a contact """
         # extract dimensions
