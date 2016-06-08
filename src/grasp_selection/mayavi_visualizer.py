@@ -12,6 +12,7 @@ import obj_file as objf
 import similarity_tf as stf
 import tfx
 import gripper as gr
+import os
 ZEKE_GRIPPER = gr.RobotGripper.load('zeke')
 FANUC_GRIPPER = gr.RobotGripper.load('fanuc_lehf')
 
@@ -141,31 +142,15 @@ class MayaviVisualizer:
         return xs, ys, zs
 
     @staticmethod
-    def plot_patches_contacts(obj, grasp, width, num_steps, w1, w2, c1, c2):
-        # contact reference frames
-        alpha = 0.025
-        tube_radius = 0.001
-        scale = 0.0025
-        T_c1_obj = c1.reference_frame()
-        T_c2_obj = c2.reference_frame()
-        T_obj_world = stf.SimilarityTransform3D(from_frame='world', to_frame='obj')
-        T_c1_world = T_c1_obj.dot(T_obj_world)
-        T_c2_world = T_c2_obj.dot(T_obj_world)
-        mlab.figure()
-        MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world)
-        MayaviVisualizer.plot_grasp(grasp, T_obj_world, alpha=alpha)
-        MayaviVisualizer.plot_pose(T_c1_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
-        MayaviVisualizer.plot_pose(T_c2_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
-        MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
-
-        res = float(width) / float(num_steps)
+    def plot_patches_contacts(T_c1_world, T_c2_world, w1, w2, res, scale):
         xs1, ys1, zs1 = MayaviVisualizer._get_contact_points(T_c1_world, w1, res)
         xs2, ys2, zs2 = MayaviVisualizer._get_contact_points(T_c2_world, w2, res)
        
-        mlab.points3d(xs1, ys1, zs1, color=(1,0,1), scale_factor=scale)
-        mlab.points3d(xs2, ys2, zs2, color=(0,1,1), scale_factor=scale)
-        mlab.show()
-
+        points1 = mlab.points3d(xs1, ys1, zs1, color=(1,0,1), scale_factor=scale)
+        points2 = mlab.points3d(xs2, ys2, zs2, color=(0,1,1), scale_factor=scale)
+        
+        return points1, points2
+        
 def test_zeke_gripper():
     mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/zeke_new/gripper.obj'
     of = objf.ObjFile(mesh_filename)
