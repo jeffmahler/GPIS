@@ -5,12 +5,14 @@ Author: Jacky Liang
 import random
 import os
 import argparse
+import mayavi.mlab as mlab
 import numpy as np
 import logging
 import experiment_config as ec
 import database as db
 import matplotlib.pyplot as plt
-
+import mayavi_visualizer as mv
+import similarity_tf as stf
 import IPython
 
 def ensure_dir_exists(dir):
@@ -37,8 +39,9 @@ def visualize_imshow(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None)
     
     ax = plt.subplot("224")
     plt.imshow(w2.proj_win_2d, cmap=plt.cm.binary, interpolation='none', clim=clim)
-    ax.set_title("W1 Filtered")
-    
+    ax.set_title("W2 Filtered")
+
+    plt.colorbar()    
     if output is None:
         plt.show()
     else:
@@ -48,8 +51,9 @@ def test_view_all_patches(dataset, config, args):
     gripper_name = config['grippers'][0]
     width = 5e-2
     num_steps = 15
-    sigma_range = 0.1
+    sigma_range = 0.01
     sigma_spatial = 1
+    back_up = 0.025
     settings = "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
     objs = ['pipe_connector']
     
@@ -80,11 +84,64 @@ def test_view_all_patches(dataset, config, args):
                 logging.info(settings)
                 
                 pre_blur = []
-                w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, sigma_range=sigma_range, 
-                                            sigma_spatial=sigma_spatial, debug_objs=pre_blur)
-                
+                w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps,
+                                                         back_up=back_up, sigma_range=sigma_range, 
+                                                         sigma_spatial=sigma_spatial, debug_objs=pre_blur)
                 logging.info("Visualizing patches")
                 visualize_imshow(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
+
+                # contact reference frames
+                alpha = 0.025
+                tube_radius = 0.001
+                scale = 0.0025
+                T_c1_obj = c1.reference_frame()
+                T_c2_obj = c2.reference_frame()
+                T_obj_world = stf.SimilarityTransform3D(from_frame='world', to_frame='obj')
+                T_c1_world = T_c1_obj.dot(T_obj_world)
+                T_c2_world = T_c2_obj.dot(T_obj_world)
+                mlab.figure()
+                mv.MayaviVisualizer.plot_mesh(obj.mesh, T_obj_world)
+                mv.MayaviVisualizer.plot_grasp(grasp, T_obj_world, alpha=alpha)
+                mv.MayaviVisualizer.plot_pose(T_c1_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
+                mv.MayaviVisualizer.plot_pose(T_c2_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
+                mv.MayaviVisualizer.plot_pose(T_obj_world, alpha=alpha, tube_radius=tube_radius, center_scale=scale)
+
+                res = float(width) / float(num_steps)
+                height, width = w1.proj_win_2d.shape
+                for i in range(height):
+                    for j in range(width):
+                        x_contact = (j - width/2) * res
+                        y_contact = (i - height/2) * res
+                        pt_contact = np.array([x_contact, y_contact, 0])
+                        pt_world = T_c1_world.inverse().apply(pt_contact)
+                        #mlab.points3d(pt_world[0], pt_world[1], pt_world[2], color=(1,1,0), scale_factor=scale)
+
+                        int_contact = pt_contact = np.array([x_contact, y_contact, w1.proj_win_2d[i,j]])
+                        int_world = T_c1_world.inverse().apply(int_contact)
+                        mlab.points3d(int_world[0], int_world[1], int_world[2], color=(1,0,1), scale_factor=scale)
+
+                        """
+                        proj_line = np.array([pt_world, int_world])
+                        mlab.plot3d(proj_line[:,0], proj_line[:,1], proj_line[:,2], tube_radius=0.0001, color=(1,1,1))
+                        """
+
+                height, width = w2.proj_win_2d.shape
+                for i in range(height):
+                    for j in range(width):
+                        x_contact = (j - width/2) * res
+                        y_contact = (i - height/2) * res
+                        pt_contact = np.array([x_contact, y_contact, 0])
+                        pt_world = T_c2_world.inverse().apply(pt_contact)
+                        #mlab.points3d(pt_world[0], pt_world[1], pt_world[2], color=(1,1,0), scale_factor=scale)
+
+                        int_contact = pt_contact = np.array([x_contact, y_contact, w2.proj_win_2d[i,j]])
+                        int_world = T_c2_world.inverse().apply(int_contact)
+                        mlab.points3d(int_world[0], int_world[1], int_world[2], color=(1,0,1), scale_factor=scale)
+
+                        #proj_line = np.array([pt_world, int_world])
+                        #mlab.plot3d(proj_line[:,0], proj_line[:,1], proj_line[:,2], tube_radius=tube_radius, color=(1,1,1))
+
+                mlab.show()
                 
                 to_exit = raw_input("Do you wish to exit? [Y/N=default]: ")
                 if to_exit.lower() == 'y':
