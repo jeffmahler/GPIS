@@ -229,7 +229,8 @@ class Contact3D(Contact):
 
     def _compute_surface_window_projection(self, u1=None, u2=None, width=1e-2,
         num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, vis=False, compute_weighted_covariance=False, disc=False, num_radial_steps=5):
+        sigma_range=0.1, sigma_spatial=1, direction=None, vis=False, compute_weighted_covariance=False, 
+        disc=False, num_radial_steps=5, debug_objs=None):
         """Compute the projection window onto the basis defined by u1 and u2.
         Params:
             u1, u2 - orthogonal numpy 3 arrays
@@ -313,12 +314,13 @@ class Contact3D(Contact):
 
         if not disc:
             window = window.reshape((num_steps, num_steps))
-
+            if debug_objs is not None:
+                debug_objs.append(window)
             # apply bilateral filter
-            if sigma > 0.0:
+            if sigma_range > 0.0 and sigma_spatial > 0.0:
                 window_min_val = np.min(window)
                 window_pos = window - window_min_val
-                window_pos_blur = denoise_bilateral(window_pos, sigma_spatial=sigma)
+                window_pos_blur = denoise_bilateral(window_pos, sigma_range=sigma_range, sigma_spatial=sigma_spatial, mode='nearest')
                 window = window_pos_blur + window_min_val
             if compute_weighted_covariance:
                 if cov_weight > 0:
@@ -351,7 +353,7 @@ class Contact3D(Contact):
 
     def surface_window_projection(self, width=1e-2, num_steps=21, 
         max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, compute_pca=False, vis=False):
+        sigma_range=0.1, sigma_spatial=1, direction=None, compute_pca=False, vis=False, debug_objs=None):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             width - float width of the window in obj frame
@@ -372,7 +374,8 @@ class Contact3D(Contact):
         window, cov = self._compute_surface_window_projection(t1, t2,
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
-            sigma=sigma, direction=direction, vis=False, compute_weighted_covariance=True)
+            sigma_range=sigma_range, sigma_spatial=sigma_spatial, direction=direction, 
+            vis=False, compute_weighted_covariance=True, debug_objs=debug_objs)
 
         if not compute_pca:
             return window
@@ -435,7 +438,7 @@ class Contact3D(Contact):
 
         return window
 
-    def surface_information(self, width, num_steps, sigma=1.5, back_up_units=3.0, direction=None):
+    def surface_information(self, width, num_steps, sigma_range=0.1, sigma_spatial=1, back_up_units=3.0, direction=None, debug_objs=None):
         """
         Returns the local surface window, gradient, and curvature for a single contact.
         """
@@ -443,7 +446,7 @@ class Contact3D(Contact):
             return self.surface_info_
 
         proj_window = self.surface_window_projection(width, num_steps,
-            sigma=sigma, back_up_units=back_up_units, direction=direction, vis=False)
+            sigma_range=sigma_range, sigma_spatial=sigma_spatial, back_up_units=back_up_units, direction=direction, vis=False, debug_objs=debug_objs)
 
         if proj_window is None:
             raise ValueError('Surface window could not be computed')
