@@ -7,6 +7,7 @@ try:
 except:
     logging.info('Failed to import mayavi')
 import matplotlib.pyplot as plt
+import matplotlib.tri as mtri
 import obj_file as objf
 import similarity_tf as stf
 import tfx
@@ -120,6 +121,71 @@ class MayaviVisualizer:
         vals = vals[:,np.newaxis]
         image = np.tile(vals, [1, width])
         mv.imshow(image, colormap='hsv')
+
+    @staticmethod
+    def plot_patch(window, contact, window_dim_obj=(1.0,1.0), T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'),
+                   patch_color=(1,1,0) contact_color=(1,0,0), axis_color=(0,1,0), contact_scale=0.005,
+                   axis_radius=0.0005, dist_thresh=0.04, grad_thresh=0.01):
+        """ Plot a patch defined by a window and a contact """
+        # extract dimensions
+        proj_window = window.proj_win_2d
+        grad_x_window = window.grad_x_2d
+        grad_y_window = window.grad_y_2d
+        win_height, win_width = proj_window.shape
+        res_x = win_width / window_dim_obj[1]
+        res_y = win_height / window_dim_obj[0]
+        
+        # form patch reference frame
+        rz, rx, ry = contact.tangents()
+        R_obj_patch = np.array([rx, ry, rz]).T
+        t_obj_patch = contact
+        T_obj_patch = stf.SimilarityTransform3D(pose=tfx.pose(R_obj_patch, t_obj_patch),
+                                               from_frame='patch', to_frame='obj')
+
+        # x,y lists for triangulation
+        x_list = []
+        y_list = []
+
+        # convert patch into 3d points
+        points_3d = np.zeros([0,3])    
+        for y in range(win_height):
+            for x in range(win_width):
+                # convert to 3d points
+                x_3d = (x -  win_width/2) * res_x
+                y_3d = (y - win_height/2) * res_y
+
+                # add the point if the distance and gradients are appropriate
+                if np.abs(proj_window[y, x]-offset) < dist_thresh and \
+                        np.abs(grad_x_window1[y, x]) < grad_thresh and \
+                        np.abs(grad_y_window1[y, x]) < grad_thresh:
+                    x_list.append(x)
+                    y_list.append(y)
+                    points_3d = np.r_[points_3d,
+                                      np.array([[x_3d, y_3d, proj_window[y, x] - offset]])]
+            
+        # abort if too few points
+        if len(x_list) <= 3 and len(y_list) <= 3:
+            logging.warning('Too few points for triangulation')
+
+        # triangulate
+        tri = mtri.Triangulation(x_list, y_list)
+        
+        # transform into world reference frame
+        points_3d_obj = T_obj_patch.apply(points_3d)
+        axis_obj = np.array([contact1, contact2])
+        
+        points_3d_world = T_obj_world.inverse().apply(point_3d_obj).T
+        axis_world = T_obj_world.inverse().apply(axis_obj.T).T
+
+        # plot
+        mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], tri.triangles,
+                             representation='surface', color=patch_color)
+        mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], tri.triangles,
+                             representation='wireframe', color=patch_color)
+        mlab.points3d(contact_world[0], contact_world[1], contact_world[2],
+                      color=contact_color, scale_factor=contact_scale)
+        mlab.plot3d(axis_world[:,0], axis_world[:,1], axis_world[:,2],
+                    tube_radius=axis_radius, color=axis_color)
 
 def test_zeke_gripper():
     mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/zeke_new/gripper.obj'

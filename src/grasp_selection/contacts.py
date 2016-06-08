@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 import itertools as it
 import logging
 import numpy as np
-import scipy.ndimage.filters as spfilt
+from skimage.restoration import denoise_bilateral
 
 import IPython
 import matplotlib.pyplot as plt
@@ -314,9 +314,12 @@ class Contact3D(Contact):
         if not disc:
             window = window.reshape((num_steps, num_steps))
 
-            # apply gaussian filter to window (should be narrow bandwidth)
+            # apply bilateral filter
             if sigma > 0.0:
-                window = spfilt.gaussian_filter(window, sigma)
+                window_min_val = np.min(window)
+                window_pos = window - window_min_val
+                window_pos_blur = denoise_bilateral(window_pos, sigma_spatial=sigma)
+                window = window_pos_blur + window_min_val
             if compute_weighted_covariance:
                 if cov_weight > 0:
                     return window, cov / cov_weight
@@ -346,9 +349,9 @@ class Contact3D(Contact):
             back_up_units=back_up_units, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
 
-    def surface_window_projection(self, width=1e-2, num_steps=21,
+    def surface_window_projection(self, width=1e-2, num_steps=21, 
         max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma_mult=0.07, direction=None, compute_pca=False, vis=False):
+        sigma=1.5, direction=None, compute_pca=False, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             width - float width of the window in obj frame
@@ -364,9 +367,6 @@ class Contact3D(Contact):
             window - numpy NUM_STEPSxNUM_STEPS array of distances from tangent
                 plane to obj, False if surface window can't be computed
         """
-        # normalize sigma by num steps
-        sigma = sigma_mult * num_steps
-
         # get initial projection
         direction, t1, t2 = self.tangents(direction)
         window, cov = self._compute_surface_window_projection(t1, t2,
@@ -435,7 +435,7 @@ class Contact3D(Contact):
 
         return window
 
-    def surface_information(self, width, num_steps, back_up_units=3.0, direction=None):
+    def surface_information(self, width, num_steps, sigma=1.5, back_up_units=3.0, direction=None):
         """
         Returns the local surface window, gradient, and curvature for a single contact.
         """
@@ -443,7 +443,7 @@ class Contact3D(Contact):
             return self.surface_info_
 
         proj_window = self.surface_window_projection(width, num_steps,
-            back_up_units=back_up_units, direction=direction, vis=False)
+            sigma=sigma, back_up_units=back_up_units, direction=direction, vis=False)
 
         if proj_window is None:
             raise ValueError('Surface window could not be computed')
@@ -498,6 +498,14 @@ class SurfaceWindow:
     @property
     def proj_win(self):
         return self.proj_win_.flatten()
+
+    @property
+    def grad_x_2d(self):
+        return self.grad_[0]
+
+    @property
+    def grad_y_2d(self):
+        return self.grad_[1]
 
     @property
     def grad_x(self):
