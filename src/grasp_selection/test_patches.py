@@ -9,6 +9,9 @@ import numpy as np
 import logging
 import experiment_config as ec
 import database as db
+import similarity_tf as stf
+from mayavi_visualizer import MayaviVisualizer as mvis
+import mayavi.mlab as mv
 import matplotlib.pyplot as plt
 
 import IPython
@@ -17,7 +20,7 @@ def ensure_dir_exists(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-def visualize_imshow(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None):
+def visualize_patches(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None):
     fig = plt.figure(figsize=(15,15))
     clim = (-1e-2, 1e-2)
     
@@ -43,6 +46,19 @@ def visualize_imshow(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None)
         plt.show()
     else:
         plt.savefig(os.path.join(output, "{0}_{1}.png".format(name, grasp)), format='png')
+   
+def visualize_contacts(grasp, num_contact_views=10, output=None):
+    mvis.plot_grasp(grasp, stf.SimilarityTransform3D(from_frame='world', to_frame='obj'))
+    mv.show()
+
+    '''
+    delta_view = 360.0 / num_contact_views
+    for j in range(num_contact_views):
+        az = j * delta_view
+        mv.view(azimuth=az, focalpoint=(0,0,0), distance=cam_dist)
+        figname = 'estimated_scene_view_%d.png' %(j)                
+        mv.savefig(os.path.join(logging_dir, figname))
+    '''
    
 def test_view_all_patches(dataset, config, args):
     gripper_name = config['grippers'][0]
@@ -84,7 +100,8 @@ def test_view_all_patches(dataset, config, args):
                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
                 
                 logging.info("Visualizing patches")
-                visualize_imshow(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
+                #visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
+                visualize_contacts(grasp)
                 
                 to_exit = raw_input("Do you wish to exit? [Y/N=default]: ")
                 if to_exit.lower() == 'y':
@@ -130,7 +147,7 @@ def test_view_all_patches(dataset, config, args):
                 logging.info("Saving patches for grasp {0}/{1}".format(i+1, n_grasps))
                 w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, sigma_range=sigma_range, 
                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
-                visualize_imshow(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
+                visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
                 
                 n_figs_saved += 1
         if done:
