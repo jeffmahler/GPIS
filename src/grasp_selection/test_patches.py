@@ -13,6 +13,10 @@ import matplotlib.pyplot as plt
 
 import IPython
 
+def ensure_dir_exists(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+
 def visualize_imshow(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None):
     fig = plt.figure(figsize=(15,15))
     clim = (-1e-2, 1e-2)
@@ -113,7 +117,11 @@ def test_view_all_patches(dataset, config, args):
                 i += 1
             
         else:
+            obj_output_path = os.path.join(args.output, obj_key)
             for i, grasp in enumerate(grasps):
+                grasp_output_path = os.path.join(obj_output_path, "grasp_{0}".format(i))
+                ensure_dir_exists(grasp_output_path)
+                
                 if n_figs_to_save != -1 and n_figs_saved >= n_figs_to_save:
                     done = True
                     break
@@ -122,7 +130,7 @@ def test_view_all_patches(dataset, config, args):
                 logging.info("Saving patches for grasp {0}/{1}".format(i+1, n_grasps))
                 w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, sigma_range=sigma_range, 
                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
-                visualize_imshow(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, args.output)
+                visualize_imshow(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
                 
                 n_figs_saved += 1
         if done:
