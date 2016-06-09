@@ -454,7 +454,7 @@ class Contact3D(Contact):
         return window
 
     def surface_information(self, width, num_steps, sigma_range=0.1, sigma_spatial=1,
-                            back_up=0.0, direction=None, debug_objs=None):
+                            back_up=0.0, direction=None, debug_objs=None, samples_per_grid=2):
         """
         Returns the local surface window, gradient, and curvature for a single contact.
         """
@@ -466,7 +466,7 @@ class Contact3D(Contact):
 
         proj_window = self.surface_window_projection(width, num_steps,
                                                      sigma_range=sigma_range, sigma_spatial=sigma_spatial,
-                                                     back_up=back_up, samples_per_grid=5,
+                                                     back_up=back_up, samples_per_grid=samples_per_grid,
                                                      direction=direction, vis=False, debug_objs=debug_objs)
 
         if proj_window is None:

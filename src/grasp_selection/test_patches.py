@@ -94,6 +94,7 @@ def test_view_all_patches(dataset, config, args):
     num_steps = 15
     sigma_range = 0.01
     sigma_spatial = 1
+    samples_per_grid = 4
     back_up = 0.05
     settings = "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
     objs = ['pipe_connector']
@@ -127,7 +128,7 @@ def test_view_all_patches(dataset, config, args):
                 logging.info(settings)
 
                 pre_blur = []
-                w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps,
+                w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, samples_per_grid=samples_per_grid,
                                                          back_up=back_up, sigma_range=sigma_range, 
                                                          sigma_spatial=sigma_spatial, debug_objs=pre_blur)
                 logging.info("Visualizing patches")
@@ -180,6 +181,7 @@ def test_view_all_patches(dataset, config, args):
                 pre_blur = []
                 logging.info("Saving patches for grasp {0}/{1}".format(i+1, n_grasps))
                 w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, sigma_range=sigma_range, 
+                                            back_up=back_up, samples_per_grid=samples_per_grid,
                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
                 mv.clf()
                 T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
