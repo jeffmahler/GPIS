@@ -92,10 +92,11 @@ def test_view_all_patches(dataset, config, args):
     gripper_name = config['grippers'][0]
     width = 5e-2
     num_steps = 15
-    sigma_range = 0.01
+    sigma_range = 0.0025
     sigma_spatial = 1
     samples_per_grid = 4
-    back_up = 0.05
+    back_up = 0.025
+
     settings = "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
     objs = ['pipe_connector']
     
@@ -127,18 +128,22 @@ def test_view_all_patches(dataset, config, args):
                 settings = "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
                 logging.info(settings)
 
-                pre_blur = []
-                w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, samples_per_grid=samples_per_grid,
-                                                         back_up=back_up, sigma_range=sigma_range, 
-                                                         sigma_spatial=sigma_spatial, debug_objs=pre_blur)
-                logging.info("Visualizing patches")
-                mv.clf()
-                T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
+                try:
+                    pre_blur = []
+                    w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, samples_per_grid=samples_per_grid,
+                                                             back_up=back_up, sigma_range=sigma_range, 
+                                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
+                    logging.info("Visualizing patches")
+                    mv.clf()
+                    T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
 
-                visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
-                points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2)
-                points1.remove()
-                points2.remove()
+                    visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
+                    points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2)
+                    points1.remove()
+                    points2.remove()
+                except:
+                    logging.info('Failed to extract surface for grasp %d' %(grasp.grasp_id))
+
                 to_exit = raw_input("Do you wish to exit? [Y/N=default]: ")
                 if to_exit.lower() == 'y':
                     done = True
@@ -178,18 +183,20 @@ def test_view_all_patches(dataset, config, args):
                 grasp_output_path = os.path.join(obj_output_path, "grasp_{0}".format(i))
                 ensure_dir_exists(grasp_output_path)
 
-                pre_blur = []
-                logging.info("Saving patches for grasp {0}/{1}".format(i+1, n_grasps))
-                w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, sigma_range=sigma_range, 
-                                            back_up=back_up, samples_per_grid=samples_per_grid,
-                                            sigma_spatial=sigma_spatial, debug_objs=pre_blur)
-                mv.clf()
-                T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
-                visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
-                points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2, grasp_output_path)
-                points1.remove()
-                points2.remove()
-
+                try:
+                    pre_blur = []
+                    logging.info("Saving patches for grasp {0}/{1}".format(i+1, n_grasps))
+                    w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, sigma_range=sigma_range, 
+                                                             back_up=back_up, samples_per_grid=samples_per_grid,
+                                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
+                    mv.clf()
+                    T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
+                    visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
+                    points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2, grasp_output_path)
+                    points1.remove()
+                    points2.remove()
+                except:
+                    logging.info('Failed to extract surface for grasp %d' %(grasp.grasp_id))
                 n_grasps_saved += 1
         if done:
             break
