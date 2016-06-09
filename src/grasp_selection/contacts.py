@@ -466,7 +466,7 @@ class Contact3D(Contact):
 
         proj_window = self.surface_window_projection(width, num_steps,
                                                      sigma_range=sigma_range, sigma_spatial=sigma_spatial,
-                                                     back_up=back_up, samples_per_grid=4,
+                                                     back_up=back_up, samples_per_grid=5,
                                                      direction=direction, vis=False, debug_objs=debug_objs)
 
         if proj_window is None:

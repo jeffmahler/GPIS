@@ -112,6 +112,7 @@ def test_view_all_patches(dataset, config, args):
     for obj_key in objs:
         logging.info("Loading object " + obj_key)
         grasps = dataset.grasps(obj_key, gripper=gripper_name)
+        #grasps = [grasps[10]]
         obj = dataset.graspable(obj_key)
         n_grasps = len(grasps)
         
