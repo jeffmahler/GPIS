@@ -37,8 +37,10 @@ class Cat50CategoryMap(CategoryMap):
 
     def create_categories(self, path_to_root):
         for category in os.listdir(path_to_root):
-            for key in os.listdir(os.path.join(path_to_root, category)):
-                self.object_dict_[key] = category
+            path = os.path.join(path_to_root, category)
+            if os.path.isdir(path):
+                for key in os.listdir(path):
+                    self.object_dict_[key] = category
 
 class SHRECCategoryMap(CategoryMap):
     def __init__(self, path_to_index):

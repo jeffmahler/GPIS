@@ -1,11 +1,12 @@
 # Core parameters ####################################################
-root_dir:     /home/jmahler/jeff_working/GPIS
-cache_dir:    /home/jmahler/jeff_working/GPIS/data/gcs
+root_dir:     /home/jmahler/jacky_working/GPIS
+cache_dir:    /home/jmahler/jacky_working/GPIS/data/gcs
 
 # DB generation params
 gen_datasets:
   - Cat50_ModelDatabase
   - dexnet_physical_experiments
+  - KIT
 gen_dataset_start: 0
 
 shape_data_dir: /mnt/terastation/shape_data
