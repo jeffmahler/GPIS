@@ -94,7 +94,7 @@ def test_view_all_patches(dataset, config, args):
     num_steps = 15
     sigma_range = 0.01
     sigma_spatial = 1
-    back_up = 0.025
+    back_up = 0.05
     settings = "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
     objs = ['pipe_connector']
     
@@ -137,7 +137,6 @@ def test_view_all_patches(dataset, config, args):
                 points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2)
                 points1.remove()
                 points2.remove()
-
                 to_exit = raw_input("Do you wish to exit? [Y/N=default]: ")
                 if to_exit.lower() == 'y':
                     done = True
