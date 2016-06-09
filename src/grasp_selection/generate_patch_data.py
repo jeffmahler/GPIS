@@ -31,7 +31,8 @@ import random_variables as rvs
 import robust_grasp_quality as rgq
 import termination_conditions as tc
 
-def load_patches(obj_key, obj_id, dataset, all_features, all_metrics, all_obj_ids, config):
+def load_patches(obj_key, obj_id, dataset, all_features, all_metrics,
+                 all_obj_ids, all_names, config):
     normal_feature_name = 'surface_normals'
     grasp_id_feature_name = 'grasp_id'
     feature_names = [u'center',
@@ -80,6 +81,7 @@ def load_patches(obj_key, obj_id, dataset, all_features, all_metrics, all_obj_id
 
         # parse metrics
         all_obj_ids.append(obj_id)
+        all_names.append('D-%s_O-%s' %(dataset.name, obj_key))
 
         for m, val in metrics.iteritems():
             if m not in all_metrics.keys():
@@ -95,19 +97,6 @@ def load_patches(obj_key, obj_id, dataset, all_features, all_metrics, all_obj_id
                 data_valid = False
 
         # hack to get the surface normals
-        """
-        grasp = grasp_map[grasp_id]
-        success, contacts = grasp.close_fingers(obj)
-        normals_descriptor = np.zeros(6)
-        if success and contacts[0].normal is not None and contacts[1].normal is not None: 
-            normals_descriptor = np.r_[contacts[0].normal, contacts[1].normal]
-        else:
-            data_valid = False
-    
-        if normal_feature_name not in all_features.keys():
-            all_features[normal_feature_name] = []
-        all_features[normal_feature_name].append(normals_descriptor)
-        """
         if grasp_id_feature_name not in all_features.keys():
             all_features[grasp_id_feature_name] = []
         all_features[grasp_id_feature_name].append(grasp.grasp_id)
@@ -115,6 +104,7 @@ def load_patches(obj_key, obj_id, dataset, all_features, all_metrics, all_obj_id
         # remove if data invalid
         if not data_valid:
             all_obj_ids.pop()
+            all_names.pop()
             for feature_name in all_features.keys():
                 all_features[feature_name].pop()
             for metric in all_metrics.keys():
@@ -152,6 +142,7 @@ if __name__ == '__main__':
     all_features = {}
     all_metrics = {}
     all_obj_ids = []
+    all_names = []
     data_id = 0
     obj_id = 0
     start_obj_id = 10201
@@ -170,30 +161,37 @@ if __name__ == '__main__':
                 database.close()
                 exit(0)
 
-            if True:#try:
+            try:
                 load_start = time.time()
                 if obj_id >= start_obj_id:
-                    load_patches(obj_key, obj_id, dataset, all_features, all_metrics, all_obj_ids, config)
+                    load_patches(obj_key, obj_id, dataset, all_features, all_metrics,
+                                 all_obj_ids, all_names, config)
                 load_stop = time.time()
                 logging.info('Patch loading took %f sec' %(load_stop - load_start))
                 obj_id = obj_id+1
-            #except Exception as e:
-            #    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-            #    logging.warning(str(e))
+            except Exception as e:
+                logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                logging.warning(str(e))
 
             if obj_id > threshold_obj_id:
                 if obj_id >= start_obj_id:
                     logging.info('Saving object ids')
                     obj_id_array = np.array(all_obj_ids)
-                    filename = os.path.join(dest, 'obj_ids_%02d.npz' %(data_id))
+                    filename = os.path.join(dest, 'obj_ids_%03d.npz' %(data_id))
                     f = open(filename, 'w')
                     np.savez_compressed(f, obj_id_array)
+
+                    logging.info('Saving object names')
+                    obj_name_array = np.array(all_names)
+                    filename = os.path.join(dest, 'obj_names_%03d.npz' %(data_id))
+                    f = open(filename, 'w')
+                    np.savez_compressed(f, obj_name_array)
 
                     for feature_name, feature_descriptors in all_features.iteritems():
                         logging.info('Saving features %s' %(feature_name))
 
                         descriptor_array = np.array(feature_descriptors)
-                        filename = os.path.join(dest, '%s_%02d.npz' %(feature_name, data_id))
+                        filename = os.path.join(dest, '%s_%03d.npz' %(feature_name, data_id))
                         f = open(filename, 'w')
                         np.savez_compressed(f, descriptor_array)
         
@@ -201,7 +199,7 @@ if __name__ == '__main__':
                         logging.info('Saving metrics %s' %(metric_name))
                     
                         metric_array = np.array(metric_values)
-                        filename = os.path.join(dest, '%s_%02d.npz' %(metric_name, data_id))
+                        filename = os.path.join(dest, '%s_%03d.npz' %(metric_name, data_id))
                         f = open(filename, 'w')
                         np.savez_compressed(f, metric_array)
 
@@ -209,9 +207,11 @@ if __name__ == '__main__':
                 del all_features
                 del all_metrics
                 del all_obj_ids
+                del all_names
                 all_features = {}
                 all_metrics = {}
                 all_obj_ids = []
+                all_names = []
                 threshold_obj_id = obj_id + datapoints_per_file
 
     database.close()
