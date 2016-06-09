@@ -23,9 +23,10 @@ def ensure_dir_exists(dir):
 
 def visualize_patches(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None):
     fig = plt.figure(figsize=(15,15))
-    clim = (-1e-2, 1e-2)
+    clim = (-2.5e-2, 2.5e-2)
     
-    fig.suptitle("Patch Visualizations for {0} grasp {1}\n{2}".format(name, grasp, settings))
+    fig.suptitle("Patch Visualizations for {0} grasp {1}\n{2}".format(name, grasp, settings),
+                 fontsize=20)
     
     ax = plt.subplot("221")
     plt.imshow(w1_raw, cmap=plt.cm.binary, interpolation='none', clim=clim)
@@ -43,7 +44,8 @@ def visualize_patches(w1, w2, w1_raw, w2_raw, name, grasp, settings, output=None
     plt.imshow(w2.proj_win_2d, cmap=plt.cm.binary, interpolation='none', clim=clim)
     ax.set_title("W2 Filtered")
 
-    plt.colorbar()    
+    ax_cb = fig.add_axes([0.92, 0.15, 0.03, 0.7])
+    plt.colorbar(cax=ax_cb)
     if output is None:
         plt.show()
     else:
@@ -131,8 +133,8 @@ def test_view_all_patches(dataset, config, args):
                 mv.clf()
                 T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
 
-                #visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
-                points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2, c1, c2)
+                visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings)
+                points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2)
                 points1.remove()
                 points2.remove()
 
@@ -181,7 +183,7 @@ def test_view_all_patches(dataset, config, args):
                                             sigma_spatial=sigma_spatial, debug_objs=pre_blur)
                 mv.clf()
                 T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
-                #visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
+                visualize_patches(w1, w2, pre_blur[0], pre_blur[1], obj_key, i, settings, grasp_output_path)
                 points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, i, width, num_steps, w1, w2, grasp_output_path)
                 points1.remove()
                 points2.remove()
