@@ -111,17 +111,17 @@ if __name__ == '__main__':
     config = ec.ExperimentConfig(args.config)
 
     # filesystem params
-    dataset = config['gen_dataset']
+    datasets = config['gen_datasets']
     shape_db_root_folder = config['shape_data_dir']
     dest_root_folder = config['database_dir']
 
     # get indices of dataset configurations
     dataset_start = 0
-    if dataset != 'all':
-        dataset_configs = [DatasetConfigFactory.config(dataset)]
+    if datasets[0] != 'all':
+        dataset_configs = [DatasetConfigFactory.config(dataset) for dataset in datasets]
     else:
         dataset_configs = [DatasetConfigFactory.config(name) for name in DatasetConfigFactory.available_datasets()]
-    if dataset_configs[0] is None:
+    if None in dataset_configs:
         raise Exception('Invalid dataset!')
 
     # create dest folder if doesn't exist
@@ -133,7 +133,6 @@ if __name__ == '__main__':
 
     # open up the database
     config['datasets'] = {}
-    #[config['datasets'].update({c.name: []}) for c in dataset_configs]
     database_filename = os.path.join(config['database_dir'], config['database_name'])
     database = db.Hdf5Database(database_filename, config, access_level=db.READ_WRITE_ACCESS)
 
