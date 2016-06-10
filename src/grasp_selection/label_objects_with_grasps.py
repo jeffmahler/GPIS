@@ -303,7 +303,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
             efcny_tag = db.generate_metric_tag('efcny_L1', config)
 
             # iterate through grasps
-            for i, grasp in enumerate(grasps[:50]):
+            for i, grasp in enumerate(grasps):
                 logging.info('Evaluating robustness for grasp %d of %d using config %d' %(grasp.grasp_id, len(grasps), j))
                 grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, config)
                 if grasp.grasp_id not in grasp_metrics.keys():
@@ -355,10 +355,8 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         quality_stop_time = time.time()
         logging.info('Quality computation for %d grasps took %f sec.' %(len(grasps), quality_stop_time - quality_start_time))
 
-        IPython.embed()
-
         # store grasp metrics
-        #output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
+        output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
 
     # report total time
     stop_time = time.time()
