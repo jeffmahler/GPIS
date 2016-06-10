@@ -101,11 +101,22 @@ class GraspableObjectPoseGaussianRV(RandomVariable):
         self.obj_ = obj
         self._parse_config(config)
 
+        translation_sigma = self.R_sample_sigma_.T.dot(obj.tf.translation)
         self.s_rv_ = scipy.stats.norm(obj.tf.scale, self.sigma_scale_**2)
-        self.t_rv_ = scipy.stats.multivariate_normal(obj.tf.translation, self.sigma_trans_**2)
+        self.t_rv_ = scipy.stats.multivariate_normal(translation_sigma, self.sigma_trans_**2)
         self.r_xi_rv_ = scipy.stats.multivariate_normal(np.zeros(3), self.sigma_rot_**2)
 
         RandomVariable.__init__(self, config['num_prealloc_obj_samples'])
+
+        """
+        mlab.figure()
+        self.obj_.mesh.visualize(color=(1,0,0))
+        for sample in self.prealloc_samples_:
+            sample.mesh.visualize(color=(0,1,0), style='wireframe')
+        mlab.show()
+        IPython.embed()
+        exit(0)
+        """
 
     def _parse_config(self, config):
         # NOTE: scale sigma only for now
@@ -196,25 +207,13 @@ class GraspableObjectPoseGaussianRV(RandomVariable):
             # sample random pose
             xi = self.r_xi_rv_.rvs(size=1)
             S_xi = skew(xi)
-            R = self.R_sample_sigma_.dot(scipy.linalg.expm(S_xi).dot(self.obj_.tf.rotation)).dot(self.R_sample_sigma_.T)
+            R = self.R_sample_sigma_.dot(scipy.linalg.expm(S_xi).dot(self.R_sample_sigma_.T.dot(self.obj_.tf.rotation)))
             s = self.s_rv_.rvs(size=1)[0]
             t = self.R_sample_sigma_.dot(self.t_rv_.rvs(size=1).T).T
             sample_tf = stf.SimilarityTransform3D(tfx.transform(R.T, t), s)
 
             # transform object by pose
             obj_sample = self.obj_.transform(sample_tf)
-
-            """
-            mlab.figure()
-            self.obj_.mesh.visualize(color=(1,0,0))
-            mlab.axes()
-            obj_sample.mesh.visualize(color=(0,1,0))
-            mlab.show()
-
-            if i > 5:
-                exit(0)
-            """
-            
             samples.append(obj_sample)
 
         # not a list if only 1 sample
@@ -227,7 +226,8 @@ class ParallelJawGraspPoseGaussianRV(RandomVariable):
         self.grasp_ = grasp
         self._parse_config(config)
 
-        self.t_rv_ = scipy.stats.multivariate_normal(grasp.center, self.sigma_trans_**2)
+        center_sigma = self.R_sample_sigma_.T.dot(grasp.center)
+        self.t_rv_ = scipy.stats.multivariate_normal(center_sigma, self.sigma_trans_**2)
         self.r_xi_rv_ = scipy.stats.multivariate_normal(np.zeros(3), self.sigma_rot_**2)
 
         RandomVariable.__init__(self, config['num_prealloc_grasp_samples'])
@@ -298,8 +298,9 @@ class ParallelJawGraspPoseGaussianRV(RandomVariable):
             # sample random pose
             xi = self.r_xi_rv_.rvs(size=1)
             S_xi = skew(xi)
-            
-            v = self.R_sample_sigma_.dot(scipy.linalg.expm(S_xi).dot(self.grasp_.axis)).dot(self.R_sample_sigma_.T)
+
+            axis_sigma = self.R_sample_sigma_.T.dot(self.grasp_.axis)
+            v = self.R_sample_sigma_.dot(scipy.linalg.expm(S_xi).dot(axis_sigma))
             t = self.R_sample_sigma_.dot(self.t_rv_.rvs(size=1).T).T
 
             # transform object by pose

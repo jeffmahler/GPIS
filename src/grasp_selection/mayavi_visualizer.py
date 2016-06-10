@@ -82,7 +82,8 @@ class MayaviVisualizer:
         mv.points3d(point_cloud_tf[:,0], point_cloud_tf[:,1], point_cloud_tf[:,2], color=color, scale_factor=scale)
 
     @staticmethod
-    def plot_grasp(grasp, T_obj_world, plot_approach=False, alpha=0.5, tube_radius=0.002, endpoint_color=(0,1,0), endpoint_scale=0.004, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1),
+    def plot_grasp(grasp, T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'), plot_approach=False, alpha=0.5, tube_radius=0.002, endpoint_color=(0,1,0),
+                   endpoint_scale=0.004, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1),
                    stp=None):
         g1, g2 = grasp.endpoints()
         center = grasp.center

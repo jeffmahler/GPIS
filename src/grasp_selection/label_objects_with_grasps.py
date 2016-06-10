@@ -179,12 +179,14 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         grasp_force_limit = config['grasp_force_limit']
 
         # create configs for different levels of uncertainty
+        low_u_mult = config['low_u_mult']
+        high_u_mult = config['high_u_mult']
         uncertainty_configs = []
 
         # create an uncertainty config for each stable pose
         physical_u_config = config['physical_uncertainty']
         Sigma_g_t = np.diag([physical_u_config['sigma_gripper_x'], physical_u_config['sigma_gripper_y'], physical_u_config['sigma_gripper_z']])
-        Sigma_g_r = physical_u_config['sigma_gripper_rot'] * np.eye(3)
+        Sigma_g_r = np.diag([physical_u_config['sigma_gripper_rot_x'], physical_u_config['sigma_gripper_rot_y'], physical_u_config['sigma_gripper_rot_z']])
         Sigma_o_t = np.diag([physical_u_config['sigma_obj_x'], physical_u_config['sigma_obj_y'], physical_u_config['sigma_obj_z']])
         Sigma_o_r = np.diag([physical_u_config['sigma_obj_rot_x'], physical_u_config['sigma_obj_rot_y'], physical_u_config['sigma_obj_rot_z']])
         Sigma_o_s = physical_u_config['sigma_scale']
@@ -198,12 +200,34 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
 
             R_obj_stp = stable_pose.r.T
             zeke_u_config['R_sample_sigma'] = R_obj_stp
-            
             uncertainty_configs.append(zeke_u_config)
 
+            low_u_config = copy.deepcopy(zeke_u_config)
+            low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
+            low_u_config['sigma_rot_grasp'] = low_u_mult * low_u_config['sigma_rot_grasp'] 
+            low_u_config['sigma_trans_grasp'] = low_u_mult * low_u_config['sigma_trans_grasp'] 
+            low_u_config['sigma_rot_obj'] = low_u_mult * low_u_config['sigma_rot_obj'] 
+            low_u_config['sigma_trans_obj'] = low_u_mult * low_u_config['sigma_trans_obj'] 
+            low_u_config['sigma_scale_obj'] = low_u_mult * low_u_config['sigma_scale_obj']             
+            uncertainty_configs.append(low_u_config)
+
+            low_u_config = copy.deepcopy(zeke_u_config)
+            low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
+            low_u_config['sigma_rot_obj'] = low_u_mult * low_u_config['sigma_rot_obj'] 
+            low_u_config['sigma_trans_obj'] = low_u_mult * low_u_config['sigma_trans_obj'] 
+            low_u_config['sigma_scale_obj'] = low_u_mult * low_u_config['sigma_scale_obj']             
+            uncertainty_configs.append(low_u_config)
+
+            high_u_config = copy.deepcopy(zeke_u_config)
+            high_u_config['sigma_mu'] = high_u_mult * high_u_config['sigma_mu'] 
+            high_u_config['sigma_rot_grasp'] = high_u_mult * high_u_config['sigma_rot_grasp'] 
+            high_u_config['sigma_trans_grasp'] = high_u_mult * high_u_config['sigma_trans_grasp'] 
+            high_u_config['sigma_rot_obj'] = high_u_mult * high_u_config['sigma_rot_obj'] 
+            high_u_config['sigma_trans_obj'] = high_u_mult * high_u_config['sigma_trans_obj'] 
+            high_u_config['sigma_scale_obj'] = high_u_mult * high_u_config['sigma_scale_obj'] 
+            #uncertainty_configs.append(high_u_config)
+
         # create alternate configs for double and half the uncertainty
-        low_u_mult = config['low_u_mult']
-        high_u_mult = config['high_u_mult']
         low_u_config = copy.deepcopy(config)
 
         low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
@@ -266,7 +290,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                                                                   num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
            
         # compute robust quality metrics
-        uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
+        #uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
         logging.info('Computing robust quality')
 
         # iterate through levels of uncertainty
@@ -279,7 +303,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
             efcny_tag = db.generate_metric_tag('efcny_L1', config)
 
             # iterate through grasps
-            for i, grasp in enumerate(grasps):
+            for i, grasp in enumerate(grasps[:50]):
                 logging.info('Evaluating robustness for grasp %d of %d using config %d' %(grasp.grasp_id, len(grasps), j))
                 grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, config)
                 if grasp.grasp_id not in grasp_metrics.keys():
@@ -331,8 +355,10 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         quality_stop_time = time.time()
         logging.info('Quality computation for %d grasps took %f sec.' %(len(grasps), quality_stop_time - quality_start_time))
 
+        IPython.embed()
+
         # store grasp metrics
-        output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
+        #output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
 
     # report total time
     stop_time = time.time()

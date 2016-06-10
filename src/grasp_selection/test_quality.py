@@ -334,10 +334,12 @@ def test_robust_wrr(dataset, config):
 
     stp_norm_line = np.array([np.zeros(3), 0.1*stable_pose_normal])
 
-    # setup uncertainty config
+    # setup uncertainty configs
+
+    # zeke uncertainty
     physical_u_config = config['physical_uncertainty']
     Sigma_g_t = np.diag([physical_u_config['sigma_gripper_x'], physical_u_config['sigma_gripper_y'], physical_u_config['sigma_gripper_z']])
-    Sigma_g_r = physical_u_config['sigma_gripper_rot'] * np.eye(3)
+    Sigma_g_r = np.diag([physical_u_config['sigma_gripper_rot_x'], physical_u_config['sigma_gripper_rot_y'], physical_u_config['sigma_gripper_rot_z']])
     Sigma_o_t = np.diag([physical_u_config['sigma_obj_x'], physical_u_config['sigma_obj_y'], physical_u_config['sigma_obj_z']])
     Sigma_o_r = np.diag([physical_u_config['sigma_obj_rot_x'], physical_u_config['sigma_obj_rot_y'], physical_u_config['sigma_obj_rot_z']])
     Sigma_o_s = physical_u_config['sigma_scale']
@@ -351,69 +353,83 @@ def test_robust_wrr(dataset, config):
 
     R_obj_stp = stable_pose.r.T
     zeke_u_config['R_sample_sigma'] = R_obj_stp
+    zeke_u_config['u_name'] = 'zeke'
+
+    # isotropic uncertainty
+    iso_u_config = copy.deepcopy(config)
+    iso_u_config['u_name'] = 'isotropic'
+
+    u_configs = [zeke_u_config, iso_u_config]
 
     # setup params
     params = {}
     params['force_limits'] = grasp_force_limit
     params['target_wrench'] = gravity_resist_wrench
-    
-    # setup random variables
-    graspable_rv = rvs.GraspableObjectPoseGaussianRV(obj, zeke_u_config)
-    f_rv = scipy.stats.norm(zeke_u_config['friction_coef'], zeke_u_config['sigma_mu'])
-    params_rv = rvs.ArtificialSingleRV(params)
 
     # visualize finger close on everythang
     vis_indices = []#58]
-    ews = []
-    for i, grasp in enumerate(grasps):
-        # Setup grasp rv
-        grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, zeke_u_config)
+    ews = {}
 
-        # Compute quality
-        logging.debug('Expected wrench resist ratio for soft fingers')
-        eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, zeke_u_config, quality_metric='wrench_resist_ratio',
-                                                     params_rv=params_rv, num_samples=zeke_u_config['eq_num_samples'])
+    # compute metrics for each u config
+    for u_config in u_configs:
+        ews[u_config['u_name']] = []
+
+        # setup random variables
+        graspable_rv = rvs.GraspableObjectPoseGaussianRV(obj, u_config)
+        f_rv = scipy.stats.norm(u_config['friction_coef'], u_config['sigma_mu'])
+        params_rv = rvs.ArtificialSingleRV(params)
+
+        for i, grasp in enumerate(grasps):
+            # Setup grasp rv
+            grasp_rv = rvs.ParallelJawGraspPoseGaussianRV(grasp, u_config)
+
+            # Compute quality
+            logging.debug('Expected wrench resist ratio for soft fingers using %s uncertainty' %(u_config['u_name']))
+            eq = rgq.RobustGraspQuality.expected_quality(graspable_rv, grasp_rv, f_rv, u_config, quality_metric='wrench_resist_ratio',
+                                                         params_rv=params_rv, num_samples=u_config['eq_num_samples'])
 
 
-        ews.append(eq)
-        logging.info('Grasp %d expected wrr = %.3f' %(grasp.grasp_id, eq))
+            ews[u_config['u_name']].append(eq)
+            logging.info('Grasp %d expected wrr = %.3f' %(grasp.grasp_id, eq))
 
-        # Visualize
-        if grasp.grasp_id in vis_indices:
-            contacts_found, contacts = grasp.close_fingers(obj, vis=True)
-            if not contacts_found:
-                logging.info('Contacts not found')
+            # Visualize
+            if grasp.grasp_id in vis_indices:
+                contacts_found, contacts = grasp.close_fingers(obj, vis=True)
+                if not contacts_found:
+                    logging.info('Contacts not found')
 
-            contacts[0].plot_friction_cone(color='y')
-            contacts[1].plot_friction_cone(color='c')
+                contacts[0].plot_friction_cone(color='y')
+                contacts[1].plot_friction_cone(color='c')
         
-            ax = plt.gca()
-            ax.set_xlim3d(0, obj.sdf.dims_[0])
-            ax.set_ylim3d(0, obj.sdf.dims_[1])
-            ax.set_zlim3d(0, obj.sdf.dims_[2])
-            plt.show()
+                ax = plt.gca()
+                ax.set_xlim3d(0, obj.sdf.dims_[0])
+                ax.set_ylim3d(0, obj.sdf.dims_[1])
+                ax.set_zlim3d(0, obj.sdf.dims_[2])
+                plt.show()
 
-    # display top grasps
-    gripper = gr.RobotGripper.load(gripper_name)
-    grasps_and_qualities = zip(grasps, ews)
-    grasps_and_qualities.sort(key = lambda x: x[1], reverse=True)
-    for grasp, f in grasps_and_qualities[:5]:
-        logging.info('Grasp %d quality %f' %(grasp.grasp_id, f))
-        mlab.figure()
-        mv.MayaviVisualizer.plot_mesh(obj.mesh)
-        mv.MayaviVisualizer.plot_gripper(grasp, gripper=gripper)
-        mlab.show()
+        # display top grasps
+        gripper = gr.RobotGripper.load(gripper_name)
+        grasps_and_qualities = zip(grasps, ews[u_config['u_name']])
+        grasps_and_qualities.sort(key = lambda x: x[1], reverse=True)
+        for grasp, f in grasps_and_qualities[:5]:
+            logging.info('Grasp %d quality %f under u %s' %(grasp.grasp_id, f, u_config['u_name']))
+            mlab.figure()
+            mv.MayaviVisualizer.plot_mesh(obj.mesh)
+            mv.MayaviVisualizer.plot_gripper(grasp, gripper=gripper)
+            mlab.show()
 
-    # histogram
-    grasp_success_hist, grasp_success_bins = np.histogram(ews, bins=num_bins, range=(0,np.max(ews)))
-    width = (grasp_success_bins[1] - grasp_success_bins[0])
+        # histogram
+        grasp_success_hist, grasp_success_bins = np.histogram(ews[u_config['u_name']], bins=num_bins, range=(0, np.max(ews[u_config['u_name']])))
+        width = (grasp_success_bins[1] - grasp_success_bins[0])
     
-    plt.figure()
-    plt.bar(grasp_success_bins[:-1], grasp_success_hist, width=width, color='b')
-    plt.title('Histogram', fontsize=font_size)
-    plt.xlabel('Expected Wrench Resist Ratio', fontsize=font_size)
-    plt.ylabel('Num Grasps', fontsize=font_size)
-    plt.show()
+        plt.figure()
+        plt.bar(grasp_success_bins[:-1], grasp_success_hist, width=width, color='b')
+        plt.title('Histogram', fontsize=font_size)
+        plt.xlabel('Expected Wrench Resist Ratio under U %s' %(u_config['u_name']), fontsize=font_size)
+        plt.ylabel('Num Grasps', fontsize=font_size)
+        plt.show()
+
+    IPython.embed()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
@@ -431,6 +447,6 @@ if __name__ == '__main__':
     
     # run tests
     #test_ferrari_canny_L1(dataset, config)
-    test_partial_closure_forces(dataset, config)
+    #test_partial_closure_forces(dataset, config)
     #test_robust_partial_closure(dataset, config)
-    #test_robust_wrr(dataset, config)
+    test_robust_wrr(dataset, config)
