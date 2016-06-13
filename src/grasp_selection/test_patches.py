@@ -203,6 +203,28 @@ def test_view_all_patches(dataset, config, args):
 
         mv.clf()
 
+def test_plot_patches(dataset, config, args):
+    gripper_name = config['grippers'][0]
+    width = 5e-2
+    num_steps = 15
+    sigma_range = 0.0025
+    sigma_spatial = 1
+    samples_per_grid = 4
+    back_up = 0.025
+    
+    obj_name = 'pipe_connector'
+    obj = dataset.graspable(obj_name)
+    grasps = dataset.grasps(obj_name, gripper=gripper_name)
+    grasp = grasps[0]
+    
+    w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, samples_per_grid=samples_per_grid,
+                                         back_up=back_up, sigma_range=sigma_range, 
+                                         sigma_spatial=sigma_spatial)
+    mv.figure()
+    mvis.plot_patch(w1, c1)
+    mlab.show()
+    
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(100)
@@ -223,4 +245,5 @@ if __name__ == '__main__':
     dataset = database.dataset('dexnet_physical_experiments')
     
     # run tests
-    test_view_all_patches(dataset, config, args)
+    #test_view_all_patches(dataset, config, args)
+    test_plot_patches(dataset, config, args)

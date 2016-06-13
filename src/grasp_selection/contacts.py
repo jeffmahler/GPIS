@@ -532,6 +532,14 @@ class SurfaceWindow:
         return self.grad_[1].flatten()
 
     @property
+    def grad_x_2d(self):
+        return self.grad_[0]
+
+    @property
+    def grad_y_2d(self):
+        return self.grad_[1]
+
+    @property
     def curvature(self):
         return self.gauss_curvature_.flatten()
 

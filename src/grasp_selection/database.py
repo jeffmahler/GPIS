@@ -290,12 +290,12 @@ class Hdf5Dataset(Dataset):
             raise StopIteration
         else:
             logging.info('Returning datum %s' %(self.object_keys[self.iter_count_]))
-            try:
+            if True:#try:
                  obj = self.graspable(self.object_keys[self.iter_count_])    
-            except:
-                logging.warning('Error reading %s. Skipping' %(self.object_keys[self.iter_count_]))
-                self.iter_count_ = self.iter_count_ + 1
-                return self.next()
+            #except:
+            #    logging.warning('Error reading %s. Skipping' %(self.object_keys[self.iter_count_]))
+            #    self.iter_count_ = self.iter_count_ + 1
+            #    return self.next()
 
             self.iter_count_ = self.iter_count_ + 1
             return obj
@@ -312,7 +312,7 @@ class Hdf5Dataset(Dataset):
         features = None
         if SHOT_FEATURES_KEY in self.local_feature_data(key).keys():
             features = hfact.Hdf5ObjectFactory.local_features(self.shot_feature_data(key))
-        return go.GraspableObject3D(sdf, mesh=mesh, features=features, key=key, model_name='', category=self.category(key))
+        return go.GraspableObject3D(sdf, mesh=mesh, features=features, key=key, model_name='')
 
     def create_graspable(self, key, mesh=None, sdf=None, shot_features=None, stable_poses=None, category='', mass=1.0):
         """ Creates a graspable object """

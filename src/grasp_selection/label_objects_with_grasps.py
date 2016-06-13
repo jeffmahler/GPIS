@@ -146,7 +146,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         if s is not None:
             raw_feature_dict[g.grasp_id] = [ff.GraspFeature('sampling_method', 'sampling_method', s)]
         if f is not None:
-            raw_feature_dict[g.grasp_id].append(f.features())
+            raw_feature_dict[g.grasp_id].extend(f.features())
                 
     # store features
     output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
@@ -184,7 +184,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         # create an uncertainty config for each stable pose
         physical_u_config = config['physical_uncertainty']
         Sigma_g_t = np.diag([physical_u_config['sigma_gripper_x'], physical_u_config['sigma_gripper_y'], physical_u_config['sigma_gripper_z']])
-        Sigma_g_r = physical_u_config['sigma_gripper_rot'] * np.eye(3)
+        Sigma_g_r = np.diag([physical_u_config['sigma_gripper_rot_x'], physical_u_config['sigma_gripper_rot_y'], physical_u_config['sigma_gripper_rot_z']])
         Sigma_o_t = np.diag([physical_u_config['sigma_obj_x'], physical_u_config['sigma_obj_y'], physical_u_config['sigma_obj_z']])
         Sigma_o_r = np.diag([physical_u_config['sigma_obj_rot_x'], physical_u_config['sigma_obj_rot_y'], physical_u_config['sigma_obj_rot_z']])
         Sigma_o_s = physical_u_config['sigma_scale']
@@ -374,12 +374,14 @@ if __name__ == '__main__':
             output_ds = output_db.create_dataset(dataset_name)
 
         # label each object in the dataset with grasps
-        for obj in dataset:
+        num_objects = len(dataset.object_keys)
+        for i, obj in enumerate(dataset):
             if not config['write_in_place']:            
                 output_ds.create_graspable(obj.key)
 
             for gripper_name in config['grippers']:
                 logging.info('Labelling object {} with grasps for gripper {}'.format(obj.key, gripper_name))
+                logging.info('Object %d of %d' %(i+1, num_objects))
                 grasps = dataset.grasps(obj.key, gripper=gripper_name)
 
                 # create the graspable if necessary
@@ -390,11 +392,11 @@ if __name__ == '__main__':
                     logging.info('Object %s already has grasps. Skipping...' %(obj.key)) 
                     continue
 
-                try:
+                if True:#try:
                     label_grasps(obj, dataset, output_ds, gripper_name, config)
-                except Exception as e:
-                    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-                    logging.warning(str(e))
+                #except Exception as e:
+                #    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                #    logging.warning(str(e))
 
     database.close()
 

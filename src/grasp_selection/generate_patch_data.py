@@ -139,23 +139,28 @@ if __name__ == '__main__':
     except os.error:
         pass
 
+    num_datasets = len(config['datasets'].keys())
     all_features = {}
     all_metrics = {}
     all_obj_ids = []
     all_names = []
     data_id = 0
     obj_id = 0
-    start_obj_id = 10201
-    end_obj_id = 12000
+    start_obj_id = 0
+    end_obj_id = 10000000
     datapoints_per_file = 100
     threshold_obj_id = obj_id + datapoints_per_file
 
-    for dataset_name in config['datasets'].keys():
+    for i, dataset_name in enumerate(config['datasets'].keys()):
         dataset = database.dataset(dataset_name)
         logging.info('Loading dataset %s' %(dataset.name))
 
+        num_objects_remaining = len(dataset.object_keys)
+        if i == num_datasets - 1 and (obj_id + num_objects_remaining) < threshold_obj_id:
+            threshold_obj_id = obj_id + num_objects_remaining
+        
         # label each object in the dataset with grasps
-        for obj_key in dataset.object_keys:
+        for j, obj_key in enumerate(dataset.object_keys):
             logging.info('Loading patches for object {} with id {}'.format(obj_key, obj_id))
             if obj_id >= end_obj_id:
                 database.close()
@@ -170,10 +175,10 @@ if __name__ == '__main__':
                 logging.info('Patch loading took %f sec' %(load_stop - load_start))
                 obj_id = obj_id+1
             except Exception as e:
-                logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                logging.warning('Failed to complete grasp labelling for object {}'.format(obj_key))
                 logging.warning(str(e))
-
-            if obj_id > threshold_obj_id:
+                
+            if obj_id >= threshold_obj_id:
                 if obj_id >= start_obj_id:
                     logging.info('Saving object ids')
                     obj_id_array = np.array(all_obj_ids)
@@ -212,6 +217,10 @@ if __name__ == '__main__':
                 all_metrics = {}
                 all_obj_ids = []
                 all_names = []
+
                 threshold_obj_id = obj_id + datapoints_per_file
+                num_objects_remaining = len(dataset.object_keys) - j
+                if i == num_datasets - 1:
+                    threshold_obj_id = obj_id + num_objects_remaining
 
     database.close()

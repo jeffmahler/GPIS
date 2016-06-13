@@ -164,11 +164,12 @@ class MayaviVisualizer:
         win_height, win_width = proj_window.shape
         res_x = win_width / window_dim_obj[1]
         res_y = win_height / window_dim_obj[0]
+        offset = 0
         
         # form patch reference frame
         rz, rx, ry = contact.tangents()
         R_obj_patch = np.array([rx, ry, rz]).T
-        t_obj_patch = contact
+        t_obj_patch = contact.point
         T_obj_patch = stf.SimilarityTransform3D(pose=tfx.pose(R_obj_patch, t_obj_patch),
                                                from_frame='patch', to_frame='obj')
 
@@ -186,8 +187,8 @@ class MayaviVisualizer:
 
                 # add the point if the distance and gradients are appropriate
                 if np.abs(proj_window[y, x]-offset) < dist_thresh and \
-                        np.abs(grad_x_window1[y, x]) < grad_thresh and \
-                        np.abs(grad_y_window1[y, x]) < grad_thresh:
+                        np.abs(grad_x_window[y, x]) < grad_thresh and \
+                        np.abs(grad_y_window[y, x]) < grad_thresh:
                     x_list.append(x)
                     y_list.append(y)
                     points_3d = np.r_[points_3d,
@@ -201,19 +202,20 @@ class MayaviVisualizer:
         tri = mtri.Triangulation(x_list, y_list)
         
         # transform into world reference frame
-        points_3d_obj = T_obj_patch.apply(points_3d)
-        axis_obj = np.array([contact1, contact2])
+        points_3d_obj = T_obj_patch.matrix.dot(np.c_[points_3d, np.ones(points_3d.shape[0])].T).T[:,:3]
+        #axis_obj = np.array([contact1, contact2])
+        axis_obj = contact.point.reshape(-1, 3)
         
-        points_3d_world = T_obj_world.inverse().apply(point_3d_obj).T
-        axis_world = T_obj_world.inverse().apply(axis_obj.T).T
+        points_3d_world = T_obj_world.matrix.dot(np.c_[points_3d_obj, np.ones(points_3d_obj.shape[0])].T).T[:,:3]
+        axis_world = T_obj_world.inverse().apply(axis_obj.T).reshape(-1,3)
 
         # plot
         mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], tri.triangles,
                              representation='surface', color=patch_color)
         mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], tri.triangles,
                              representation='wireframe', color=patch_color)
-        mlab.points3d(contact_world[0], contact_world[1], contact_world[2],
-                      color=contact_color, scale_factor=contact_scale)
+#        mlab.points3d(contact_world[0], contact_world[1], contact_world[2],
+ #                     color=contact_color, scale_factor=contact_scale)      
         mlab.plot3d(axis_world[:,0], axis_world[:,1], axis_world[:,2],
                     tube_radius=axis_radius, color=axis_color)
 

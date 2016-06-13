@@ -216,14 +216,12 @@ if __name__ == '__main__':
         dataset = database.dataset(dataset_name)
 
         # check each object in the dataset with grasps
-        obj = dataset['mount1']
-        if True:
-        #for obj in dataset:
+        for obj in dataset:
             logging.info('Displaying grasps for object {}'.format(obj.key))
             obj.model_name_ = dataset.obj_mesh_filename(obj.key)
 
-            show_stable_poses(obj, dataset, config)
-            #show_grasps_on_stable_pose(obj, dataset, config, config['ppc_stp_ids'][obj.key])
+            #show_stable_poses(obj, dataset, config)
+            show_grasps_on_stable_pose(obj, dataset, config, config['ppc_stp_ids'][obj.key])
 
     database.close()
 

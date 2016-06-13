@@ -143,12 +143,21 @@ class AntipodalGraspSampler(gs.ExactGraspSampler):
                         continue
 
                     # make sure grasp is wide enough
+                    contacts_found, c = grasp.close_fingers(graspable, vis=vis)
+                    if not contacts_found:
+                        logging.debug('Contacts not found after grasp construction. Skipping.')
+                        continue
+                    c1, c2 = c
+                    x1 = c1.point
                     x2 = c2.point
                     if np.linalg.norm(x1 - x2) < self.min_contact_dist:
                         continue
 
                     v_true = grasp.axis
                     # compute friction cone for contact 2
+                    cone_succeeded, cone1, n1 = c1.friction_cone(self.num_cone_faces, self.friction_coef)
+                    if not cone_succeeded:
+                        continue
                     cone_succeeded, cone2, n2 = c2.friction_cone(self.num_cone_faces, self.friction_coef)
                     if not cone_succeeded:
                         continue
