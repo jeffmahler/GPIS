@@ -4,14 +4,7 @@ import numpy as np
 from sklearn.preprocessing import normalize
 import logging
 import IPython
-
-TO_FEATURIZE = {
-    "planarity": False,
-    "in_out_cone_5": False,
-    "approx_normals": False,
-    "crop_3": False,
-    "crop_5": False,
-}
+import yaml
 
 def get_patch_files_and_nums(input_path, prefixes):
     file_num_pairs = []
@@ -60,8 +53,13 @@ def _in_out_cones(args, params):
             logging.debug("No matching surface normal file found for num {0}".format(surface_normals_num))
             continue
             
-        surface_normal_data = np.load(os.path.join(args.input_path, surface_normals_file_num_pairs[i][0]))['arr_0']
-        contacts_data = np.load(os.path.join(args.input_path, moment_arms_file_num_pairs[i][0]))['arr_0']
+        surface_normal_file = surface_normals_file_num_pairs[i][0]
+        moment_arms_file = moment_arms_file_num_pairs[i][0]
+        
+        logging.info("Processing {0} and {1} for in out cones".format(surface_normal_file, moment_arms_file))
+            
+        surface_normal_data = np.load(os.path.join(args.input_path, surface_normal_file))['arr_0']
+        contacts_data = np.load(os.path.join(args.input_path, moment_arms_file))['arr_0']
 
         # check lines within friction cone
         contact_lines = contacts_data[:,3:] - contacts_data[:,:3]
@@ -165,12 +163,16 @@ FEATURIZER_MAP = {
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('config')
     parser.add_argument('input_path')
     parser.add_argument('output_path')
     args = parser.parse_args()
     
     logging.getLogger().setLevel(logging.INFO)
     
-    for feature_name, to_featurize in TO_FEATURIZE.items():
+    with open(args.config) as config_file:
+        to_featurize_config = yaml.safe_load(config_file)
+        
+    for feature_name, to_featurize in to_featurize_config.items():
         if to_featurize:
             FEATURIZER_MAP[feature_name](args)
