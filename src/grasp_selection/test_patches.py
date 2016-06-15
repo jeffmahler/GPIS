@@ -88,21 +88,23 @@ def visualize_contacts(T_c1_world, T_c2_world, obj_key, grasp_num,
 
     return points1, points2
 
+def _settings(width, num_steps, sigma_range, sigma_spatial):
+    return "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
+    
 def test_view_all_patches(dataset, config, args):
-    gripper_name = config['grippers'][0]
-    width = 5e-2
-    num_steps = 15
-    sigma_range = 0.0025
-    sigma_spatial = 1
-    samples_per_grid = 4
-    back_up = 0.025
+    gripper_name = config['gripper']
+    width = float(config['width'])
+    num_steps = int(config['num_steps'])
+    sigma_range = float(config['sigma_range'])
+    sigma_spatial = float(config['sigma_spatial'])
+    samples_per_grid = int(config['samples_per_grid'])
+    back_up = float(config['back_up'])
 
-    settings = "Patch Settings: Width {0}, n steps {1}, sigma range {2}, sigma spatial {3}".format(width, num_steps, sigma_range, sigma_spatial)
-    objs = ['pipe_connector']
+    settings = _settings(width, num_steps, sigma_range, sigma_spatial)
     
     done = False
     n_grasps_saved = 0
-    n_grasps_to_save = int(args.num_grasps)
+    n_grasps_to_save = int(args.num_outputs)
 
     mv.figure(size=(1000, 1000))
     
@@ -111,10 +113,9 @@ def test_view_all_patches(dataset, config, args):
     if not interactive:
         logging.info("Interactive mode disabled. Visualizations will be saved directly to " + args.output)
 
-    for obj_key in objs:
+    for obj_key in config['test_objects']:
         logging.info("Loading object " + obj_key)
         grasps = dataset.grasps(obj_key, gripper=gripper_name)
-        #grasps = [grasps[10]]
         obj = dataset.graspable(obj_key)
         n_grasps = len(grasps)
         
@@ -204,7 +205,7 @@ def test_view_all_patches(dataset, config, args):
         mv.clf()
 
 def test_plot_patches(dataset, config, args):
-    gripper_name = config['grippers'][0]
+    gripper_name = config['gripper']
     width = 5e-2
     num_steps = 15
     sigma_range = 0.0025
@@ -224,7 +225,142 @@ def test_plot_patches(dataset, config, args):
     mvis.plot_patch(w1, c1)
     mlab.show()
     
+def visualize_compare_patches(w1, w2, w1_gen, w2_gen, name, grasp, settings, output):
+    fig = plt.figure(figsize=(15,15))
+    clim = (-2.5e-2, 2.5e-2)
+    
+    fig.suptitle("Patch Comparisons for {0} grasp {1}\n{2}".format(name, grasp, settings),
+                 fontsize=20)
+    
+    ax = plt.subplot("221")
+    plt.imshow(w1, cmap=plt.cm.binary, interpolation='none', clim=clim)
+    ax.set_title("W1 Saved")
+    
+    ax = plt.subplot("222")
+    plt.imshow(w1_gen.proj_win_2d, cmap=plt.cm.binary, interpolation='none', clim=clim)
+    ax.set_title("W1")
+    
+    ax = plt.subplot("223")
+    plt.imshow(w2, cmap=plt.cm.binary, interpolation='none', clim=clim)
+    ax.set_title("W2 Saved")
+    
+    ax = plt.subplot("224")
+    plt.imshow(w2_gen.proj_win_2d, cmap=plt.cm.binary, interpolation='none', clim=clim)
+    ax.set_title("W2")
 
+    ax_cb = fig.add_axes([0.92, 0.15, 0.03, 0.7])
+    plt.colorbar(cax=ax_cb)
+    plt.savefig(os.path.join(output, "patches_compare_{0}_{1}.png".format(name, grasp)), format='png')
+    
+def test_compare_patches(dataset, config, args):
+    if args.output is None:
+        logging.error("Compare mode must need an output directory!")
+        return
+
+    ensure_dir_exists(args.output)
+        
+    gripper_name = config['gripper']
+    width = float(config['width'])
+    num_steps = int(config['num_steps'])
+    sigma_range = float(config['sigma_range'])
+    sigma_spatial = float(config['sigma_spatial'])
+    samples_per_grid = int(config['samples_per_grid'])
+    back_up = float(config['back_up'])
+        
+    settings = _settings(width, num_steps, sigma_range, sigma_spatial)
+        
+    logging.info("Loading saved patches data")
+    w1s = np.load(config['generated_w1'])['arr_0']
+    w2s = np.load(config['generated_w2'])['arr_0']
+    obj_names = np.load(config['generated_obj_names'])['arr_0']
+    
+    saved_count = 1
+    total_outputs = int(args.num_outputs)
+    for obj_name in config['test_objects']:
+        if saved_count >= total_outputs:
+            return
+            
+        #get indices of objs with name
+        indices = [i for i in range(len(obj_names)) if obj_name in obj_names[i]]
+        
+        logging.info("Loading {0}".format(obj_name))
+        grasps = dataset.grasps(obj_name, gripper=gripper_name)
+        obj = dataset.graspable(obj_name)
+        
+        #loop through each index
+        for grasp_i, index in enumerate(indices):
+            if saved_count >= total_outputs:
+                return
+
+            logging.info("Computing and visualizing patches for grasp {0}/{1}".format(grasp_i, len(indices)))
+            #get surface information
+            w1_gen, w2_gen, _, _ = obj.surface_information(grasps[grasp_i], width, num_steps, samples_per_grid=samples_per_grid,
+                                         back_up=back_up, sigma_range=sigma_range, sigma_spatial=sigma_spatial)
+            #save visualization
+            dim = int(np.sqrt(w1s[index].shape[0]))
+            w1 = w1s[index].reshape(dim, dim)
+            w2 = w2s[index].reshape(dim, dim)
+            visualize_compare_patches(w1, w2, w1_gen, w2_gen, obj_name, grasp_i, settings, args.output)
+            saved_count += 1
+    
+def test_mayavi_interactive(dataset, config, args):
+    obj_key = None
+    grasp_i = None
+    gripper_name = config['gripper']
+    width = float(config['width'])
+    num_steps = int(config['num_steps'])
+    sigma_range = float(config['sigma_range'])
+    sigma_spatial = float(config['sigma_spatial'])
+    samples_per_grid = int(config['samples_per_grid'])
+    back_up = float(config['back_up'])
+    
+    done = False
+    switch_obj = 'y'
+    mv.figure(size=(1000, 1000))
+    while not done:
+        if switch_obj.lower() == 'y':
+            new_obj_key = raw_input("Which object would you like to visualize? ")
+            while True:
+                try:
+                    obj = dataset.graspable(new_obj_key)
+                    grasps = dataset.grasps(new_obj_key, gripper=gripper_name)
+                    break
+                except Exception:
+                    IPython.embed()
+                    exit(0)
+                    new_obj_key = raw_input("Object key not found. Please enter a valid one: ")
+                obj_key = new_obj_key
+        logging.info("Current object: {0}".format(obj_key))
+        new_grasp_i = raw_input("Which grasp would you like to visualize? ")
+        while True:
+            try:
+                new_grasp_i = int(new_grasp_i)
+                if new_grasp_i >= len(grasps):
+                    raise Exception("Given grasp index exceeds number of grasps " + len(grasps))
+                break
+            except Exception:
+                new_grasp_i = raw_input("Please enter a valid grasp index: ")
+        grasp_i = new_grasp_i
+        
+        grasp = grasps[grasp_i]
+        w1, w2, c1, c2 = obj.surface_information(grasp, width, num_steps, samples_per_grid=samples_per_grid,
+                                                 back_up=back_up, sigma_range=sigma_range, sigma_spatial=sigma_spatial)
+
+        mv.clf()
+        T_c1_world, T_c2_world = set_mayavi_scene_for_contacts(obj, grasp, c1, c2)
+        points1, points2 = visualize_contacts(T_c1_world, T_c2_world, obj_key, grasp_i, width, num_steps, w1, w2)
+        points1.remove()
+        points2.remove()
+
+        logging.info("TEMP: visuzlied grasp")
+        
+        to_exit = raw_input("Do you wish to exit? [Y/N=default]: ")
+        if to_exit.lower() == 'y':
+            done = True
+            break
+            
+        switch_obj = raw_input("Do you wish to change object? [Y/N=default]: ")
+    
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(100)
@@ -232,8 +368,9 @@ if __name__ == '__main__':
     config_filename = 'cfg/test/test_patches.yaml'
     
     parser = argparse.ArgumentParser()
+    parser.add_argument('mode')
     parser.add_argument('--output', default=None)
-    parser.add_argument('--num_grasps', default=0)
+    parser.add_argument('--num_outputs', default=0)
     args = parser.parse_args()
     
     # read config file
@@ -245,5 +382,11 @@ if __name__ == '__main__':
     dataset = database.dataset('dexnet_physical_experiments')
     
     # run tests
-    #test_view_all_patches(dataset, config, args)
-    test_plot_patches(dataset, config, args)
+    if args.mode == 'all':
+        test_view_all_patches(dataset, config, args)
+    elif args.mode == 'compare_saved':
+        test_compare_patches(dataset, config, args)
+    elif args.mode =='mayavi_interact':
+        test_mayavi_interactive(dataset, config, args)
+    else:
+        logging.error("Unknown mode argument: {0} Only accepts 'all' or 'compare'".format(args.mode))

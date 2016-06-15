@@ -557,7 +557,10 @@ class GraspableFeatureExtractor:
         # featurization
         self.window_width_ = config['window_width']
         self.window_steps_ = config['window_steps']
-        self.window_sigma_ = config['window_sigma']
+        self.window_sigma_range_ = config['window_sigma_range']
+        self.window_sigma_spatial_ = config['window_sigma_spatial']
+        self.samples_per_grid_ = config['samples_per_grid']
+        self.back_up_ = config['back_up']        
 
         # feature weights
         self.proj_win_weight_ = Weight(config['weight_proj_win'])
@@ -570,7 +573,7 @@ class GraspableFeatureExtractor:
         self.grasp_angle_weight_ = Weight(config['weight_grasp_angle'])
 
         self.gravity_weight_ = Weight(config['weight_gravity'])
-
+        
         # for convenience
         self.weights_ = [
             self.proj_win_weight_, self.grad_x_weight_,
@@ -593,8 +596,13 @@ class GraspableFeatureExtractor:
 
         # get grasp windows
         try:
-            s1, s2, c1, c2 = grasp.surface_information(self.graspable_,
-                                                       self.window_width_, self.window_steps_)
+            s1, s2, c1, c2 = self.graspable_.surface_information(grasp,
+                                                                 self.window_width_,
+                                                                 self.window_steps_,
+                                                                 samples_per_grid=self.samples_per_grid_,
+                                                                 back_up=self.back_up_,
+                                                                 sigma_range=self.window_sigma_range_,
+                                                                 sigma_spatial=self.window_sigma_spatial_)
         except ValueError as e:
             logging.warning('Failed to extract surface info with error');
             logging.warning(str(e))

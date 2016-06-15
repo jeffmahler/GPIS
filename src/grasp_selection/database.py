@@ -290,12 +290,12 @@ class Hdf5Dataset(Dataset):
             raise StopIteration
         else:
             logging.info('Returning datum %s' %(self.object_keys[self.iter_count_]))
-            if True:#try:
+            try:
                  obj = self.graspable(self.object_keys[self.iter_count_])    
-            #except:
-            #    logging.warning('Error reading %s. Skipping' %(self.object_keys[self.iter_count_]))
-            #    self.iter_count_ = self.iter_count_ + 1
-            #    return self.next()
+            except:
+                logging.warning('Error reading %s. Skipping' %(self.object_keys[self.iter_count_]))
+                self.iter_count_ = self.iter_count_ + 1
+                return self.next()
 
             self.iter_count_ = self.iter_count_ + 1
             return obj

@@ -4,15 +4,15 @@ cache_dir:    /home/jmahler/jacky_working/GPIS/data/gcs
 
 # DB generation params
 gen_datasets:
-  - Cat50_ModelDatabase
+#  - Cat50_ModelDatabase
   - dexnet_physical_experiments
-  - KIT
+#  - KIT
 gen_dataset_start: 0
 
 shape_data_dir: /mnt/terastation/shape_data
 database_dir: &id_database_dir /mnt/wd_ssd/dexnet/db/
 database_cache_dir: *id_database_dir
-database_name: patches_db.hdf5
+database_name: patches_db2.hdf5
 results_database_name: results.hdf5
 
 # Object gen params
