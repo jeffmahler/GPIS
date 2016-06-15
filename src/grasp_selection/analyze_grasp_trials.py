@@ -6,6 +6,7 @@ import os
 import sys
 import time
 
+import confusion_matrix as cf
 import database as db
 import experiment_config as ec
 
@@ -21,6 +22,13 @@ LIFTED_COLOR_TAG = 'lifted_color'
 HUMAN_LABEL_TAG = 'human_success'
 HUMAN_PCT_TAG = 'human_robustness'
 
+class ClassificationResult:
+    def __init__(self, corr_metric_name, target_metric_name, thresh, confusion):
+        self.corr_metric_name = corr_metric_name
+        self.target_metric_name = target_metric_name
+        self.thresh = thresh
+        self.confusion = confusion
+
 def repair_metrics(old_metrics):
     metrics = {}
     for metric_name, metric_val in old_metrics.iteritems():
@@ -31,8 +39,12 @@ def repair_metrics(old_metrics):
             continue
         if metric_name.find('ppc') != -1:
             metric_key = metric_name[:4] + metric_name[11:]
+        if metric_name.find('ewrr') != -1:
+            metric_key = metric_name[:5] + metric_name[12:]
         if metric_name.find('lift_closure') != -1:
             metric_key = 'lift_closure'
+        if metric_name.find('wrench_resist_ratio') != -1:
+            metric_key = 'wrench_resist_ratio'
         metrics[metric_key] = metric_val
     return metrics
 
@@ -46,7 +58,7 @@ if __name__ == '__main__':
     num_bins = 10
     font_size = 15
     dpi = 100
-    max_len = 15
+    max_len = 100
 
     # open csv file
     f = open(grasp_trial_csv_filename, 'r')
@@ -72,7 +84,7 @@ if __name__ == '__main__':
         logging.warning('Output csv file already exists')
 
     human_label_headers = [HUMAN_PCT_TAG]
-    human_label_headers.extend(headers)
+    human_label_headers.extend(metrics.keys())
     out_f = open(human_label_csv_filename, 'w')
     csv_writer = csv.DictWriter(out_f, human_label_headers)
     csv_writer.writeheader()
@@ -137,7 +149,6 @@ if __name__ == '__main__':
             # write to an output dictionary
             output_dict = {}
             output_dict.update(metrics)
-            [output_dict.update({k:v}) for k, v in zip(headers, row)]
             csv_writer.writerow(output_dict)
             out_f.flush()
 
@@ -223,6 +234,52 @@ if __name__ == '__main__':
             false_positive_grasp_id = grasp_ids[physical_failure_ind][false_positive_ind]
             false_positive_metric = corr_metric_failures[false_positive_ind]
             false_positive_examples[metric_name].append((false_positive_obj, false_positive_grasp_id, false_positive_metric))
+
+    # compute simple classification 
+    class_performances = []
+    for metric_name, corr_metric_vals in corr_metrics.iteritems():
+        corr_metric_arr = np.array(corr_metric_vals)
+        max_v = np.max(corr_metric_arr)
+        delta_t = max_v / 10.0
+        thresh = 0
+
+        while thresh < max_v:
+            binary_metrics = 1 * (corr_metric_arr >= thresh)
+
+            for target_metric_name, target_metric_vals in target_metrics.iteritems():
+                if target_metric_name.find('thresh') != -1:
+                    logging.info('Computing performance for metric %s with threshold %.3f in predicting %s' %(metric_name, thresh, target_metric_name))
+
+                    target_metric_arr = np.array(target_metric_vals)
+                    confusion = cf.BinaryConfusionMatrix(target_metric_arr, binary_metrics)
+
+                    class_performances.append(ClassificationResult(metric_name, target_metric_name, thresh, confusion))
+            thresh += delta_t
+
+    class_performance_filename = os.path.join(output_dir, 'class_performances.csv')
+    f = open(class_performance_filename, 'w')
+    headers = {'corr_metric_name', 'target_metric_name', 'thresh', 'tp', 'fp', 'tn', 'fn',
+               'precision', 'recall', 'accuracy'}
+    csv_writer = csv.DictWriter(f, headers)
+    csv_writer.writeheader()
+    for class_performance in class_performances:
+        confusion_mat = class_performance.confusion.matrix()
+        out_dict = {}
+        out_dict['corr_metric_name'] = class_performance.corr_metric_name
+        out_dict['target_metric_name'] = class_performance.target_metric_name
+        out_dict['thresh'] = class_performance.thresh
+        out_dict['tp'] = confusion_mat[2,2]
+        out_dict['fp'] = confusion_mat[0,2]
+        out_dict['tn'] = confusion_mat[0,0]
+        out_dict['fn'] = confusion_mat[2,0]
+
+        _, performance = class_performance.confusion.compute_performance()
+        out_dict['precision'] = performance['precision'][2]
+        out_dict['recall'] = performance['recall'][2]
+        out_dict['accuracy'] = performance['accuracy'][2]    
+
+        csv_writer.writerow(out_dict)
+        f.flush()
 
     # plot histogram of grasp robustnesses
     logging.info('Saving grasp histogram')

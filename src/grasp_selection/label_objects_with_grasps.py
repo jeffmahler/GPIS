@@ -179,6 +179,8 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         grasp_force_limit = config['grasp_force_limit']
 
         # create configs for different levels of uncertainty
+        low_u_mult = config['low_u_mult']
+        high_u_mult = config['high_u_mult']
         uncertainty_configs = []
 
         # create an uncertainty config for each stable pose
@@ -198,12 +200,34 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
 
             R_obj_stp = stable_pose.r.T
             zeke_u_config['R_sample_sigma'] = R_obj_stp
-            
             uncertainty_configs.append(zeke_u_config)
 
+            low_u_config = copy.deepcopy(zeke_u_config)
+            low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
+            low_u_config['sigma_rot_grasp'] = low_u_mult * low_u_config['sigma_rot_grasp'] 
+            low_u_config['sigma_trans_grasp'] = low_u_mult * low_u_config['sigma_trans_grasp'] 
+            low_u_config['sigma_rot_obj'] = low_u_mult * low_u_config['sigma_rot_obj'] 
+            low_u_config['sigma_trans_obj'] = low_u_mult * low_u_config['sigma_trans_obj'] 
+            low_u_config['sigma_scale_obj'] = low_u_mult * low_u_config['sigma_scale_obj']             
+            uncertainty_configs.append(low_u_config)
+
+            low_u_config = copy.deepcopy(zeke_u_config)
+            low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
+            low_u_config['sigma_rot_obj'] = low_u_mult * low_u_config['sigma_rot_obj'] 
+            low_u_config['sigma_trans_obj'] = low_u_mult * low_u_config['sigma_trans_obj'] 
+            low_u_config['sigma_scale_obj'] = low_u_mult * low_u_config['sigma_scale_obj']             
+            uncertainty_configs.append(low_u_config)
+
+            high_u_config = copy.deepcopy(zeke_u_config)
+            high_u_config['sigma_mu'] = high_u_mult * high_u_config['sigma_mu'] 
+            high_u_config['sigma_rot_grasp'] = high_u_mult * high_u_config['sigma_rot_grasp'] 
+            high_u_config['sigma_trans_grasp'] = high_u_mult * high_u_config['sigma_trans_grasp'] 
+            high_u_config['sigma_rot_obj'] = high_u_mult * high_u_config['sigma_rot_obj'] 
+            high_u_config['sigma_trans_obj'] = high_u_mult * high_u_config['sigma_trans_obj'] 
+            high_u_config['sigma_scale_obj'] = high_u_mult * high_u_config['sigma_scale_obj'] 
+            #uncertainty_configs.append(high_u_config)
+
         # create alternate configs for double and half the uncertainty
-        low_u_mult = config['low_u_mult']
-        high_u_mult = config['high_u_mult']
         low_u_config = copy.deepcopy(config)
 
         low_u_config['sigma_mu'] = low_u_mult * low_u_config['sigma_mu'] 
@@ -266,7 +290,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                                                                   num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
            
         # compute robust quality metrics
-        uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
+        #uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
         logging.info('Computing robust quality')
 
         # iterate through levels of uncertainty
