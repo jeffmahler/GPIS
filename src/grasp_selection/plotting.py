@@ -45,11 +45,27 @@ def plot_grasp_histogram(quality, num_bins=100, font_size=10, min_q=0, max_q=1):
     plt.ylabel('Num Grasps', fontsize=font_size)
     plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
 
-def plot_histogram(values, num_bins=100):
+def plot_histogram(values, min_range=None, max_range=None, num_bins=100,
+                   normalize=False, color='b'):
     """
     Generates a plot of the histograms of grasps by probability of force closure
+    Params:
+       values - numpy array of values to plot
+       min_range - minimum range of data
+       max_range - maximum range of data
+       num_bins  - the number of histogram_bins
+       normalize - (bool) whether or not to normalize the histogram by the sum of counts
+       color     - (char) color of the histogram
     """
-    bin_edges = np.linspace(np.min(values), np.max(values), num_bins+1)
-    plt.figure()
-    n, bins, patches = plt.hist(values, bin_edges)
+    if min_range is None:
+        min_range = np.min(values)
+    if max_range is None:
+        max_range = np.max(values)
+    hist, bins = np.histogram(values, bins=num_bins, range=(min_range,max_range))
 
+    if normalize and np.sum(hist) > 0:
+        hist = hist / np.sum(hist)
+
+    width = (bins[1] - bins[0])
+    plt.bar(bins[:-1], hist, width=width, color=color)
+        

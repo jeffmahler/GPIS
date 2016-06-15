@@ -10,7 +10,6 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-import database as db
 import plotting
 
 class ContinuousErrorStats:
