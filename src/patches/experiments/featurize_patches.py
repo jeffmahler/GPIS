@@ -6,9 +6,10 @@ import logging
 import IPython
 
 TO_FEATURIZE = {
-    "planarity": False,
+    "planarity": True,
     "in_out_cone": False,
-    "approx_normals": True
+    "approx_normals": False,
+    "crop_windows":False
 }
 
 def get_patch_files_and_nums(input_path, prefixes):
@@ -16,11 +17,12 @@ def get_patch_files_and_nums(input_path, prefixes):
     
     for filename in os.listdir(input_path):
         contains_prefix = [filename.startswith(prefix) for prefix in prefixes]
-                
-        _, ext = os.path.splitext(filename)
-        num = filename[len(prefix):-len(ext)]
         
-        file_num_pairs.append((filename, num))
+        if True in contains_prefix:
+            _, ext = os.path.splitext(filename)
+            num = filename[len(prefix):-len(ext)]
+            
+            file_num_pairs.append((filename, num))
         
     return file_num_pairs
             
@@ -36,29 +38,54 @@ def featurize_approx_normals(args):
     ws = ("w1", "w2")
     prefixes = [w + '_projection_window_' for w in ws]
     for filename, num in get_patch_files_and_nums(args.input_path, prefixes):
-            logging.info("Processing " + filename)
+        logging.info("Approx Normals Processing " + filename)
+        
+        data = np.load(os.path.join(args.input_path, filename))['arr_0']
+        
+        normals = []
+        for img in data:
+            normals.append(get_approx_normal(img))
             
-            data = np.load(os.path.join(args.input_path, filename))['arr_0']
-            
-            normals = []
-            for img in data:
-                normals.append(get_approx_normal(img))
-                
-            normals = np.array(normals)
-            wi = filename[:2]
-            output_filename = wi + '_approx_normals_' + num
-            logging.info("Saving " + output_filename)
-            np.savez(os.path.join(args.output_path, output_filename), normals)
+        normals = np.array(normals)
+        wi = filename[:2]
+        output_filename = wi + '_approx_normals_' + num
+        logging.info("Saving " + output_filename)
+        np.savez(os.path.join(args.output_path, output_filename), normals)
 
-def featurize_planarities():
+def featurize_planarities(args):
+    ws = ("w1", "w2")
+    prefixes = [w + '_projection_window_' for w in ws]
+    for filename, num in get_patch_files_and_nums(args.input_path, prefixes):
+        logging.info("Planarities Processing " + filename)
+        
+        data = np.load(os.path.join(args.input_path, filename))['arr_0']
+        
+        dim = int(np.sqrt(data.shape[1]))
+        x_ind, y_ind = np.meshgrid(np.arange(dim), np.arange(dim))
+        A = np.c_[np.ravel(x_ind), np.ravel(y_ind), np.ones(dim**2)]
+        b = data.T
+
+        w, _, _, _ = np.linalg.lstsq(A, b)
+        pred_w = A.dot(w)
+
+        pred_w_error = pred_w - b
+        mean_sq_dev_planarity_w = np.mean(pred_w_error**2, axis=0)
+        
+        wi = filename[:2]
+        output_filename = wi + '_sq_planarities_' + num
+        logging.info("Saving " + output_filename)
+        np.savez(os.path.join(args.output_path, output_filename), mean_sq_dev_planarity_w)
+
+def featurize_in_out_cones(args):
     return
 
-def featurize_in_out_cones():
+def featurize_crop_windows(args):
     return
-
+    
 FEATURIZER_MAP = {
     "planarity" : featurize_planarities,
     "in_out_cone" : featurize_in_out_cones,
+    "crop_windows" : featurize_crop_windows,
     "approx_normals": featurize_approx_normals
 }
 
