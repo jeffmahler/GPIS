@@ -1,6 +1,10 @@
+'''
+Helper to forecast remaining time in loops
+Author: Jacky Liang
+'''
 import time
 
-class LoopTimingForecaster:
+class LoopTimeForecaster:
     
     def __init__(self, n):
         self._n = n

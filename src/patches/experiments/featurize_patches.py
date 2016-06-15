@@ -1,3 +1,9 @@
+'''
+Generate new features of patches data. 
+Code partially borrowed from original analyze_patch_planirity.py
+Author: Jacky Liang
+'''
+
 import os
 import argparse
 import numpy as np

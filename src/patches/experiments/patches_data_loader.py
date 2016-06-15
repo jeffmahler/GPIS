@@ -1,3 +1,8 @@
+'''
+Helper to handle loading and partitioning patches data
+Author: Jacky Liang
+'''
+
 import os
 import numpy as np
 
