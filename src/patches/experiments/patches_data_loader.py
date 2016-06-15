@@ -1,7 +1,5 @@
 import os
 import numpy as np
-from sklearn.metrics import mean_squared_error
-import IPython
 
 IDS = (
     ('ids','obj_ids'),
@@ -120,32 +118,3 @@ class PatchesDataLoader:
                 }
                 
         return np.take(X, indices['tr'], axis=0), np.take(X, indices['t'], axis=0), indices
-
-class PatchesSKLearner:
-
-    @staticmethod
-    def print_mse(predictor, tr_data, tr_labels, t_data, t_labels, title):
-        tr_pred = predictor.predict(tr_data)
-        t_pred = predictor.predict(t_data)
-        
-        tr_mse = mean_squared_error(tr_pred, tr_labels)
-        t_mse = mean_squared_error(t_pred, t_labels)
-        
-        print "{0} train mse {1}, test mse {2}".format(title, tr_mse, t_mse)
-        
-    @staticmethod
-    def print_accuracy(predictor, tr_data, tr_labels, t_data, t_labels, title):
-        tr_accu = predictor.score(tr_data, tr_labels)
-        t_accu = predictor.score(t_data, t_labels)
-        
-        print "{0} train accuracy {1}, test accuracy {2}".format(title, tr_accu, t_accu)
-        
-    @staticmethod
-    def train(PREDICTOR, tr_data, tr_labels, t_data, t_labels, title, print_mse = False):
-        predictor = PREDICTOR()
-        predictor.fit(tr_data, tr_labels)
-        PatchesSKLearner.print_accuracy(predictor, tr_data, tr_labels, t_data, t_labels, title)
-        if print_mse:
-            PatchesSKLearner.print_mse(predictor, tr_data, tr_labels, t_data, t_labels, title)
-            
-        return predictor
