@@ -679,11 +679,11 @@ class Mesh3D(object):
         oof = obj_file.ObjFile(filename)
         oof.write(self)
 
-    def visualize(self, color=(0.5, 0.5, 0.5), style='surface'):
+    def visualize(self, color=(0.5, 0.5, 0.5), style='surface', opacity=1.0):
         """ Plots visualization """
         vertex_array = np.array(self.vertices_)
         surface = mv.triangular_mesh(vertex_array[:,0], vertex_array[:,1], vertex_array[:,2], self.triangles_, representation=style,
-                                     color=color)
+                                     color=color, opacity=opacity)
         return surface
 
     def visualize_segments(self, tri_labels, style='surface'):

@@ -4,6 +4,7 @@ import logging
 import numpy as np
 try:
     import mayavi.mlab as mv
+    import mayavi.mlab as mlab
 except:
     logging.info('Failed to import mayavi')
 import matplotlib.pyplot as plt
@@ -11,8 +12,9 @@ import matplotlib.tri as mtri
 import obj_file as objf
 import similarity_tf as stf
 import tfx
-
 import gripper as gr
+import os
+import scipy.spatial.distance as ssd
 ZEKE_GRIPPER = gr.RobotGripper.load('zeke')
 FANUC_GRIPPER = gr.RobotGripper.load('fanuc_lehf')
 
@@ -49,9 +51,10 @@ class MayaviVisualizer:
         mv.text3d(t[0], t[1], t[2], ' %s' %T_frame_world.to_frame.upper(), scale=0.01)
 
     @staticmethod
-    def plot_mesh(mesh, T_mesh_world=stf.SimilarityTransform3D(from_frame='world', to_frame='mesh'), style='wireframe', color=(0.5,0.5,0.5)):
+    def plot_mesh(mesh, T_mesh_world=stf.SimilarityTransform3D(from_frame='world', to_frame='mesh'),
+                  style='wireframe', color=(0.5,0.5,0.5), opacity=1.0):
         mesh_tf = mesh.transform(T_mesh_world.inverse())
-        mesh_tf.visualize(style=style, color=color)
+        mesh_tf.visualize(style=style, color=color, opacity=opacity)
 
     @staticmethod
     def plot_mesh_sdf(graspable):
@@ -82,7 +85,8 @@ class MayaviVisualizer:
         mv.points3d(point_cloud_tf[:,0], point_cloud_tf[:,1], point_cloud_tf[:,2], color=color, scale_factor=scale)
 
     @staticmethod
-    def plot_grasp(grasp, T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'), plot_approach=False, alpha=0.5, tube_radius=0.002, endpoint_color=(0,1,0),
+    def plot_grasp(grasp, T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'),
+                   plot_approach=False, alpha=0.5, tube_radius=0.002, endpoint_color=(0,1,0),
                    endpoint_scale=0.004, grasp_axis_color=(0,1,0), palm_axis_color=(0,0,1),
                    stp=None):
         g1, g2 = grasp.endpoints()
@@ -124,24 +128,53 @@ class MayaviVisualizer:
         mv.imshow(image, colormap='hsv')
 
     @staticmethod
-    def plot_patch(window, contact, window_dim_obj=(1.0,1.0), T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'),
-                   patch_color=(1,1,0), contact_color=(1,0,0), axis_color=(0,1,0), contact_scale=0.005,
-                   axis_radius=0.0005, dist_thresh=0.04, grad_thresh=0.01):
+    def _get_contact_points(T_c_world, w, res):
+        height, width = w.proj_win_2d.shape
+        xs, ys, zs = [], [], []
+        for i in range(height):
+            for j in range(width):
+                x_contact = (j - width/2) * res
+                y_contact = (i - height/2) * res
+                pt_contact = np.array([x_contact, y_contact, 0])
+                pt_world = T_c_world.inverse().apply(pt_contact)
+
+                int_contact = pt_contact = np.array([x_contact, y_contact, w.proj_win_2d[i,j]])
+                int_world = T_c_world.inverse().apply(int_contact)
+                
+                xs.append(int_world[0])
+                ys.append(int_world[1])
+                zs.append(int_world[2])
+        return xs, ys, zs
+
+    @staticmethod
+    def plot_patches_contacts(T_c1_world, T_c2_world, w1, w2, res, scale):
+        xs1, ys1, zs1 = MayaviVisualizer._get_contact_points(T_c1_world, w1, res)
+        xs2, ys2, zs2 = MayaviVisualizer._get_contact_points(T_c2_world, w2, res)
+       
+        points1 = mlab.points3d(xs1, ys1, zs1, color=(1,0,1), scale_factor=scale)
+        points2 = mlab.points3d(xs2, ys2, zs2, color=(0,1,1), scale_factor=scale)
+        
+        return points1, points2
+        
+    @staticmethod
+    def plot_patch(window, T_patch_obj, window_dim_obj=(1.0,1.0), T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'),
+                   patch_color=(1,1,1), contact_color=(1,1,0), axis_color=(0,1,0), contact_scale=0.005,
+                   axis_radius=0.0005, delta_z=0.001, edge_len_thresh=3.0,
+                   dist_thresh=0.05, grad_thresh=0.025):
         """ Plot a patch defined by a window and a contact """
         # extract dimensions
         proj_window = window.proj_win_2d
         grad_x_window = window.grad_x_2d
         grad_y_window = window.grad_y_2d
         win_height, win_width = proj_window.shape
-        res_x = win_width / window_dim_obj[1]
-        res_y = win_height / window_dim_obj[0]
-        
-        # form patch reference frame
-        rz, rx, ry = contact.tangents()
-        R_obj_patch = np.array([rx, ry, rz]).T
-        t_obj_patch = contact
-        T_obj_patch = stf.SimilarityTransform3D(pose=tfx.pose(R_obj_patch, t_obj_patch),
-                                               from_frame='patch', to_frame='obj')
+        res_x = window_dim_obj[1] / win_width
+        res_y = window_dim_obj[0] / win_height
+        offset = 0
+
+        t_patch_render = np.array([0, 0, -delta_z])
+        T_patch_render = stf.SimilarityTransform3D(pose=tfx.pose(np.eye(3), t_patch_render),
+                                                   from_frame='render',
+                                                   to_frame='contact')
 
         # x,y lists for triangulation
         x_list = []
@@ -157,8 +190,8 @@ class MayaviVisualizer:
 
                 # add the point if the distance and gradients are appropriate
                 if np.abs(proj_window[y, x]-offset) < dist_thresh and \
-                        np.abs(grad_x_window1[y, x]) < grad_thresh and \
-                        np.abs(grad_y_window1[y, x]) < grad_thresh:
+                        np.abs(grad_x_window[y, x]) < grad_thresh and \
+                        np.abs(grad_y_window[y, x]) < grad_thresh:
                     x_list.append(x)
                     y_list.append(y)
                     points_3d = np.r_[points_3d,
@@ -168,25 +201,30 @@ class MayaviVisualizer:
         if len(x_list) <= 3 and len(y_list) <= 3:
             logging.warning('Too few points for triangulation')
 
-        # triangulate
+        # triangulate and prune large tris
         tri = mtri.Triangulation(x_list, y_list)
-        
+        points_2d = np.array([x_list, y_list]).T
+        triangles = []
+        for t in tri.triangles.tolist():
+            v = points_2d[t,:]
+            largest_dist = np.max(ssd.pdist(v))
+            if largest_dist < edge_len_thresh:
+                triangles.append(t)
+
         # transform into world reference frame
-        points_3d_obj = T_obj_patch.apply(points_3d)
-        axis_obj = np.array([contact1, contact2])
-        
-        points_3d_world = T_obj_world.inverse().apply(point_3d_obj).T
-        axis_world = T_obj_world.inverse().apply(axis_obj.T).T
+        contact_point = T_patch_obj.inverse().translation
+        points_3d_obj = T_patch_obj.inverse().dot(T_patch_render).apply(points_3d.T)
+        points_3d_world = T_obj_world.inverse().apply(points_3d_obj).T
+        contact_world = T_obj_world.inverse().apply(contact_point)
 
         # plot
-        mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], tri.triangles,
-                             representation='surface', color=patch_color)
-        mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], tri.triangles,
-                             representation='wireframe', color=patch_color)
-        mlab.points3d(contact_world[0], contact_world[1], contact_world[2],
-                      color=contact_color, scale_factor=contact_scale)
-        mlab.plot3d(axis_world[:,0], axis_world[:,1], axis_world[:,2],
-                    tube_radius=axis_radius, color=axis_color)
+        mesh_background = mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], triangles,
+                                               representation='surface', color=patch_color)
+        mesh_tris = mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], triangles,
+                                         representation='wireframe', color=patch_color)
+        points = mlab.points3d(contact_world[0], contact_world[1], contact_world[2],
+                               color=contact_color, scale_factor=contact_scale)      
+        return mesh_background, mesh_tris, points
 
 def test_zeke_gripper():
     mesh_filename = '/home/jmahler/jeff_working/GPIS/data/grippers/zeke_new/gripper.obj'

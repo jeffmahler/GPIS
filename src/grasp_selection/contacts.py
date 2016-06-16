@@ -8,6 +8,8 @@ import itertools as it
 import logging
 import numpy as np
 from skimage.restoration import denoise_bilateral
+import similarity_tf as stf
+import tfx
 
 import IPython
 import matplotlib.pyplot as plt
@@ -107,20 +109,29 @@ class Contact3D(Contact):
         # redefine tangent x axis to automatically align with the object y axis
         max_ip = 0
         max_theta = 0
-        obj_y = np.array([0,1,0])
+        target = np.array([0,0,1])
         theta = 0
         d_theta = 2 * np.pi / float(max_samples)
         for i in range(max_samples):
             v = np.cos(theta) * x + np.sin(theta) * y
-            if v.dot(obj_y) > max_ip:
-                max_ip = v.dot(obj_y)
+            if v.dot(target) > max_ip:
+                max_ip = v.dot(target)
                 max_theta = theta
             theta = theta + d_theta
 
-        v = np.cos(theta) * x + np.sin(theta) * y
+        v = np.cos(max_theta) * x + np.sin(max_theta) * y
         w = np.cross(direction.ravel(), v)
 
         return np.squeeze(direction), v, w
+
+    def reference_frame(self):
+        """ Returns the local reference frame of the contact """
+        t_obj_contact = self.point
+        rz, rx, ry = self.tangents(self.in_direction_)
+        R_obj_contact = np.array([rx, ry, rz]).T
+        T_obj_contact = stf.SimilarityTransform3D(pose=tfx.pose(R_obj_contact, t_obj_contact),
+                                                  from_frame='contact', to_frame='obj')
+        return T_obj_contact.inverse()
 
     def normal_force_magnitude(self):
         """ Returns the magnitude of the force that the contact would apply along the normal direction"""
@@ -228,8 +239,9 @@ class Contact3D(Contact):
         return window.reshape((num_steps, num_steps))
 
     def _compute_surface_window_projection(self, u1=None, u2=None, width=1e-2,
-        num_steps=21, max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, vis=False, compute_weighted_covariance=False, disc=False, num_radial_steps=5):
+        num_steps=21, max_projection=0.1, back_up=0, samples_per_grid=2.0,
+        sigma_range=0.1, sigma_spatial=1, direction=None, vis=False, compute_weighted_covariance=False, 
+        disc=False, num_radial_steps=5, debug_objs=None):
         """Compute the projection window onto the basis defined by u1 and u2.
         Params:
             u1, u2 - orthogonal numpy 3 arrays
@@ -239,7 +251,7 @@ class Contact3D(Contact):
             max_projection - float maximum amount to search forward for a
                 contact (meters)
 
-            back_up_units - float amount to back up before finding a contact (grid coords)
+            back_up - amount in meters to back up before projecting
             samples_per_grid - float number of samples per grid when finding contacts
             sigma - bandwidth of gaussian filter on window
             direction - dir to do the projection along
@@ -257,11 +269,11 @@ class Contact3D(Contact):
 
         # number of samples used when looking for contacts
         no_contact = NO_CONTACT_DIST
-        back_up = back_up_units * self.graspable.sdf.resolution
         num_samples = int(samples_per_grid * (max_projection + back_up) / self.graspable.sdf.resolution)
         window = np.zeros(num_steps**2)
 
-        scales = np.linspace(-width / 2.0, width / 2.0, num_steps)
+        res = width / num_steps
+        scales = np.linspace(-width / 2.0 + res / 2.0, width / 2.0 - res / 2.0, num_steps)
         scales_it = it.product(scales, repeat=2)
         if disc:
             scales_it = []
@@ -285,7 +297,7 @@ class Contact3D(Contact):
             curr_loc = self.point + c1 * t1 + c2 * t2
             curr_loc_grid = self.graspable.sdf.transform_pt_obj_to_grid(curr_loc)
             if self.graspable.sdf.is_out_of_bounds(curr_loc_grid):
-                window[i] = 0.0
+                window[i] = no_contact
                 continue
 
             if vis:
@@ -299,6 +311,7 @@ class Contact3D(Contact):
                 sign = direction.dot(projection_contact.point - curr_loc)
                 projection = (sign / abs(sign)) * np.linalg.norm(projection_contact.point - curr_loc)
                 projection = min(projection, max_projection)
+
                 if compute_weighted_covariance:
                     # weight according to SHOT: R - d_i
                     weight = width / np.sqrt(2) - np.sqrt(c1**2 + c2**2)
@@ -311,14 +324,18 @@ class Contact3D(Contact):
 
             window[i] = projection
 
-        if not disc:
-            window = window.reshape((num_steps, num_steps))
+        if vis:
+            plt.show()
 
+        if not disc:
+            window = window.reshape((num_steps, num_steps)).T # transpose to make x-axis along columns
+            if debug_objs is not None:
+                debug_objs.append(window)
             # apply bilateral filter
-            if sigma > 0.0:
+            if sigma_range > 0.0 and sigma_spatial > 0.0:
                 window_min_val = np.min(window)
                 window_pos = window - window_min_val
-                window_pos_blur = denoise_bilateral(window_pos, sigma_spatial=sigma)
+                window_pos_blur = denoise_bilateral(window_pos, sigma_range=sigma_range, sigma_spatial=sigma_spatial, mode='nearest')
                 window = window_pos_blur + window_min_val
             if compute_weighted_covariance:
                 if cov_weight > 0:
@@ -327,7 +344,7 @@ class Contact3D(Contact):
         return window
 
     def surface_window_projection_unaligned(self, width=1e-2, num_steps=21,
-        max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
+        max_projection=0.1, back_up=0.0, samples_per_grid=2.0,
         sigma=1.5, direction=None, vis=False):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
@@ -336,7 +353,7 @@ class Contact3D(Contact):
 
             max_projection - float maximum amount to search forward for a contact (meters)
 
-            back_up_units - float amount to back up before finding a contact (grid coords)
+            back_up - amount to back up before finding a contact in meters
             samples_per_grid - float number of samples per grid when finding contacts
             sigma - bandwidth of gaussian filter on window
             direction - dir to do the projection along
@@ -346,12 +363,12 @@ class Contact3D(Contact):
         """
         return self._compute_surface_window_projection(width=width,
             num_steps=num_steps, max_projection=max_projection,
-            back_up_units=back_up_units, samples_per_grid=samples_per_grid,
+            back_up=back_up, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=vis)
 
     def surface_window_projection(self, width=1e-2, num_steps=21, 
-        max_projection=0.1, back_up_units=3.0, samples_per_grid=2.0,
-        sigma=1.5, direction=None, compute_pca=False, vis=False):
+        max_projection=0.1, back_up=0.0, samples_per_grid=2.0,
+        sigma_range=0.1, sigma_spatial=1, direction=None, compute_pca=False, vis=False, debug_objs=None):
         """Projects the local surface onto the tangent plane at a contact point.
         Params:
             width - float width of the window in obj frame
@@ -359,7 +376,7 @@ class Contact3D(Contact):
 
             max_projection - float maximum amount to search forward for a contact (meters)
 
-            back_up_units - float amount to back up before finding a contact (grid coords)
+            back_up - float amount to back up before finding a contact in meters
             samples_per_grid - float number of samples per grid when finding contacts
             sigma - bandwidth of gaussian filter on window
             direction - dir to do the projection along
@@ -371,8 +388,9 @@ class Contact3D(Contact):
         direction, t1, t2 = self.tangents(direction)
         window, cov = self._compute_surface_window_projection(t1, t2,
             width=width, num_steps=num_steps, max_projection=max_projection,
-            back_up_units=back_up_units, samples_per_grid=samples_per_grid,
-            sigma=sigma, direction=direction, vis=False, compute_weighted_covariance=True)
+            back_up=back_up, samples_per_grid=samples_per_grid,
+            sigma_range=sigma_range, sigma_spatial=sigma_spatial, direction=direction, 
+            vis=False, compute_weighted_covariance=True, debug_objs=debug_objs)
 
         if not compute_pca:
             return window
@@ -412,7 +430,7 @@ class Contact3D(Contact):
 
         window = self._compute_surface_window_projection(u1, u2,
             width=width, num_steps=num_steps, max_projection=max_projection,
-            back_up_units=back_up_units, samples_per_grid=samples_per_grid,
+            back_up=back_up, samples_per_grid=samples_per_grid,
             sigma=sigma, direction=direction, vis=False)
 
         # arbitrarily require that right_avg > left_avg (inspired by SHOT)
@@ -435,15 +453,21 @@ class Contact3D(Contact):
 
         return window
 
-    def surface_information(self, width, num_steps, sigma=1.5, back_up_units=3.0, direction=None):
+    def surface_information(self, width, num_steps, sigma_range=0.1, sigma_spatial=1,
+                            back_up=0.0, max_projection=0.1, direction=None, debug_objs=None, samples_per_grid=2):
         """
         Returns the local surface window, gradient, and curvature for a single contact.
         """
         if self.surface_info_ is not None:
             return self.surface_info_
 
+        if direction is None:
+            direction = self.in_direction_
+
         proj_window = self.surface_window_projection(width, num_steps,
-            sigma=sigma, back_up_units=back_up_units, direction=direction, vis=False)
+                                                     sigma_range=sigma_range, sigma_spatial=sigma_spatial,
+                                                     back_up=back_up, max_projection=max_projection, samples_per_grid=samples_per_grid,
+                                                     direction=direction, vis=False, debug_objs=debug_objs)
 
         if proj_window is None:
             raise ValueError('Surface window could not be computed')
@@ -500,20 +524,20 @@ class SurfaceWindow:
         return self.proj_win_.flatten()
 
     @property
-    def grad_x_2d(self):
-        return self.grad_[0]
-
-    @property
-    def grad_y_2d(self):
-        return self.grad_[1]
-
-    @property
     def grad_x(self):
         return self.grad_[0].flatten()
 
     @property
     def grad_y(self):
         return self.grad_[1].flatten()
+
+    @property
+    def grad_x_2d(self):
+        return self.grad_[0]
+
+    @property
+    def grad_y_2d(self):
+        return self.grad_[1]
 
     @property
     def curvature(self):

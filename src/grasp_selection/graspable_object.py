@@ -111,6 +111,9 @@ class GraspableObject:
     def category(self):
         return self.category_
 
+    def set_model_name(self, model_name):
+        self.model_name_ = model_name
+
 class GraspableObject2D(GraspableObject):
     # TODO: fix 2d with similiarity tfs
     def __init__(self, sdf, tf = stf.SimilarityTransform3D(tfx.identity_tf(), 1.0)):
@@ -215,7 +218,9 @@ class GraspableObject3D(GraspableObject):
 
         return found, projection_contact
 
-    def surface_information(self, grasp, width, num_steps, plot=False, direction1=None, direction2=None):
+    def surface_information(self, grasp, width, num_steps, sigma_range=0.1, sigma_spatial=1,
+                            plot=False, back_up=0.0, max_projection=0.1, direction1=None, samples_per_grid=2,
+                            direction2=None, debug_objs=None):
         """
         Returns the local surface window, gradient, and curvature for the two
         point contacts of a grasp.
@@ -235,8 +240,15 @@ class GraspableObject3D(GraspableObject):
             ax.set_ylim3d(0, self.sdf.dims_[1])
             ax.set_zlim3d(0, self.sdf.dims_[2])
 
-        window1 = contact1.surface_information(width, num_steps, direction=direction1)
-        window2 = contact2.surface_information(width, num_steps, direction=direction2)
+        window1 = contact1.surface_information(width, num_steps, samples_per_grid=samples_per_grid,
+                                               sigma_range=sigma_range, sigma_spatial=sigma_spatial,
+                                               max_projection=max_projection,
+                                               direction=direction1, back_up=back_up, debug_objs=debug_objs)
+        window2 = contact2.surface_information(width, num_steps, samples_per_grid=samples_per_grid,
+                                               sigma_range=sigma_range, sigma_spatial=sigma_spatial,
+                                               max_projection=max_projection,
+                                               direction=direction2, back_up=back_up, debug_objs=debug_objs)
+
         return window1, window2, contact1, contact2
 
 def test_windows(width, num_steps, plot=None):

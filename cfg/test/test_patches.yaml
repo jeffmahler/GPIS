@@ -1,0 +1,34 @@
+# Core parameters ####################################################
+# !include partials/paths_rll4_jeff.yaml
+root_dir:     /home/jmahler/jacky_working/GPIS/
+cache_dir:    /home/jmahler/jacky_working/GPIS/data/gcs
+
+# DB generation params
+database_dir: &id_database_dir /mnt/wd_ssd/dexnet/db
+database_cache_dir: *id_database_dir
+database_name: patches_db2.hdf5
+#physical_experiment_test_db3.hdf5
+
+gripper: zeke
+
+datasets:
+  dexnet_physical_experiments:
+    start_index: 0
+    end_index: 10000
+
+#test patches specific
+test_objects:
+    - turbine_housing
+
+generated_w1: /mnt/wd_ssd/projects/deep_patches/data/patches_06_11_16/w1_projection_window_000.npz
+generated_w2: /mnt/wd_ssd/projects/deep_patches/data/patches_06_11_16/w2_projection_window_000.npz
+generated_obj_names: /mnt/wd_ssd/projects/deep_patches/data/patches_06_11_16/obj_names_000.npz
+
+#surface information params
+width: 0.05
+num_steps: 15
+sigma_range: 0.0025
+sigma_spatial: 1
+samples_per_grid: 4
+back_up: 0.025 
+max_projection: 0.05
