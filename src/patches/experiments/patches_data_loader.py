@@ -4,47 +4,42 @@ Author: Jacky Liang
 '''
 
 import os
+import IPython
 import numpy as np
-
-IDS = (
-    ('ids','obj_ids'),
-)
-
-FEATURES = (
-    ('moment_arms', 'moment_arms'),
-    ('patch_ori', 'patch_orientation'),
-    ('w1_proj', 'w1_projection_window'),
-    ('w2_proj', 'w2_projection_window'),
-    ('w1_normal', 'w1_approx_normals'),
-    ('w2_normal', 'w2_approx_normals')
-)
-
-LABELS = (
-#    ('pfc_20', 'pfc_f_0.200000_tg_0.010000_rg_0.200000_to_0.010000_ro_0.200000'),
-#    ('pfc_10', 'pfc_f_0.100000_tg_0.005000_rg_0.100000_to_0.005000_ro_0.100000'),
-#    ('pfc_5', 'pfc_f_0.050000_tg_0.002500_rg_0.050000_to_0.002500_ro_0.050000'),
-    ('ferrari', 'ferrari_canny_L1'),
-    ('fc', 'force_closure')
-)
 
 class PatchesDataLoader:
 
-    def __init__(self, p_test, data_path, file_nums=[0], by_objs=True):
-        self._file_nums = file_nums
-        self._data_path = data_path
+    def __init__(self, p_test, data_path, file_nums, features_set, metadata_set, labels_set, split_by_objs=True):
         self._p_test = p_test
-        self._by_objs = by_objs
+        self._data_path = data_path
+        self._file_nums = file_nums
+        self._features_set = features_set
+        self._metadata_set = metadata_set
+        self._labels_set = labels_set
         
+        has_obj_ids = 'obj_ids_' in metadata_set
+        if split_by_objs and not has_obj_ids:
+                logging.warning("Set to split train/test data by objs but obj_ids files are not given. Will not be splitting by objs.")
+        self._split_by_objs = split_by_objs and has_obj_ids
+        
+        self._raw_data = {}
         self.partial_data = {}
+        self.all_tr_data = None
+        self.all_meta_data = None
         
+        #loads all files
         self.load()
+        
+        #concat relevant matrices (for features and metas) into single matrices
         self.concat()
+        
+        #split train test on both features and labels
         self.tr, self.t, self.indices = self.split_train_test(self.all_tr_data, self._p_test)
         self.labels = {}
-        for label in LABELS:
-            label_type = label[0]
-            self.labels[label_type] = {}
-            self.labels[label_type]['tr'], self.labels[label_type]['t'], _ = self.split_train_test(self._raw_data[label_type], self._p_test, self.indices)
+        for label_name in self._labels_set:
+            self.labels[label_name] = {}
+            self.labels[label_name]['tr'], self.labels[label_name]['t'], _ = self.split_train_test(self._raw_data[label_name], 
+                                                                                                                                    self._p_test, self.indices)
     
     def get_partial_train_data(self, feature_set):
         if feature_set not in self.partial_data:
@@ -59,39 +54,46 @@ class PatchesDataLoader:
         
         return self.partial_data[feature_set]
 
+    def get_all_meta(self, type, post_indices):
+        if len(post_indices) == 0:
+            return np.array([])
+        else:
+            return np.take(self.all_meta_data, self.indices[type][post_indices])
+        
     def load(self):
-        file_num = self._file_nums[0]
-        self._raw_data = {}
+        all_files_prefixes = self._features_set.union(self._metadata_set.union(self._labels_set))
+        all_files_num_pairs = PatchesDataLoader.get_patch_files_and_nums(self._data_path, all_files_prefixes, include_prefix=True)
         
-        all_files = [file for file in os.listdir(self._data_path) if file.endswith('.npz')]
-        
-        def find_name(file):
-            for names in IDS + FEATURES + LABELS:
-                if file.startswith(names[1]):
-                    return names[0]
-            return None
-        
-        for file in all_files:
-            name = find_name(file)
-            loaded = np.load(os.path.join(self._data_path, file))['arr_0']
-            if name is not None:
-                if name in self._raw_data:
-                    self._raw_data[name] = np.r_[self._raw_data[name], loaded]
+        for filename, num, prefix in all_files_num_pairs:
+            if int(num) in self._file_nums:
+                loaded = np.load(os.path.join(self._data_path, filename))['arr_0']
+                if prefix in self._raw_data:
+                    self._raw_data[prefix] = np.r_[self._raw_data[name], loaded]
                 else:   
-                    self._raw_data[name] = loaded
+                    self._raw_data[prefix] = loaded
                     
     def concat(self):
-        first_data = self._raw_data[FEATURES[0][0]]
-        self.all_tr_data = first_data.reshape(first_data.shape[0], -1)
-        for feature in FEATURES[1:]:
-            data = self._raw_data[feature[0]]
-            self.all_tr_data = np.c_[self.all_tr_data, data.reshape(data.shape[0], -1)]
+        def _concat_prefixes(prefixes):
+            prefixes = list(prefixes)
+            first_data = self._raw_data[prefixes[0]]
+            all_data = first_data.reshape(first_data.shape[0], -1)
+            for prefix in prefixes[1:]:
+                try:
+                    data = self._raw_data[prefix]
+                except Exception:
+                    IPython.embed()
+                    exit(0)
+                all_data = np.c_[all_data, data.reshape(data.shape[0], -1)]
+            return all_data
+                
+        self.all_tr_data = _concat_prefixes(self._features_set)
+        self.all_meta_data = _concat_prefixes(self._metadata_set)
         
     def split_train_test(self ,X, p_test, indices=None):
         n = X.shape[0]
-        if indices is None:
-            if self._by_objs:
-                obj_ids = np.unique(self._raw_data['ids'])
+        if indices is None:                
+            if self._split_by_objs:
+                obj_ids = np.unique(self._raw_data['obj_ids_'])
                 np.random.shuffle(obj_ids)
                 obj_split = int(len(obj_ids) * p_test)
                 t_ids = set(obj_ids[:obj_split])
@@ -99,8 +101,8 @@ class PatchesDataLoader:
                 tr_ind = []
                 t_ind = []
                 
-                for i in range(len(self._raw_data['ids'])):
-                    if self._raw_data['ids'][i] in t_ids:
+                for i in range(len(self._raw_data['obj_ids_'])):
+                    if self._raw_data['obj_ids_'][i] in t_ids:
                         t_ind.append(i)
                     else:
                         tr_ind.append(i)
@@ -109,17 +111,38 @@ class PatchesDataLoader:
                 np.random.shuffle(t_ind)
                 
                 indices = {
-                    'tr': tr_ind, 
-                    't': t_ind
+                    'tr': np.array(tr_ind), 
+                    't': np.array(t_ind)
                 }
-                
             else:
                 indices = [i for i in range(n)]
                 np.random.shuffle(indices)
                 split = int(n*p_test)
                 indices = {
-                    'tr': indices[split:],
-                    't': indices[:split]
+                    'tr': np.aray(indices[split:]),
+                    't': np.array(indices[:split])
                 }
                 
         return np.take(X, indices['tr'], axis=0), np.take(X, indices['t'], axis=0), indices
+        
+    @staticmethod
+    def get_patch_files_and_nums(input_path, prefixes, include_prefix=False):
+        file_num_pairs = []
+        
+        for filename in os.listdir(input_path):
+            found_prefix = None
+            for prefix in prefixes:
+                if filename.startswith(prefix):
+                    found_prefix = prefix
+                    break
+                    
+            if found_prefix is not None:
+                _, ext = os.path.splitext(filename)
+                num = filename[len(prefix):-len(ext)]
+                
+                if include_prefix:
+                    file_num_pairs.append((filename, num, found_prefix))
+                else:
+                    file_num_pairs.append((filename, num))
+                    
+        return file_num_pairs

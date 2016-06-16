@@ -7,31 +7,19 @@ Author: Jacky Liang
 import os
 import argparse
 import numpy as np
-from sklearn.preprocessing import normalize
 import logging
 import IPython
 import yaml
 
-def get_patch_files_and_nums(input_path, prefixes):
-    file_num_pairs = []
-    
-    for filename in os.listdir(input_path):
-        contains_prefix = [filename.startswith(prefix) for prefix in prefixes]
-        
-        if True in contains_prefix:
-            _, ext = os.path.splitext(filename)
-            num = filename[len(prefix):-len(ext)]
-            
-            file_num_pairs.append((filename, num))
-        
-    return file_num_pairs
+from sklearn.preprocessing import normalize
+from patches_data_loader import PatchesDataLoader
     
 def _in_out_cones(args, params):
     surface_normal_prefix = ["surface_normals_"]
     moment_arms_prefix = ["moment_arms_"]
     
-    surface_normals_file_num_pairs = get_patch_files_and_nums(args.input_path, surface_normal_prefix)
-    moment_arms_file_num_pairs = get_patch_files_and_nums(args.input_path, moment_arms_prefix)
+    surface_normals_file_num_pairs = PatchesDataLoader.get_patch_files_and_nums(args.input_path, surface_normal_prefix)
+    moment_arms_file_num_pairs = PatchesDataLoader.get_patch_files_and_nums(args.input_path, moment_arms_prefix)
     
     n_surface_normals_files = len(surface_normals_file_num_pairs)
     n_moment_arms_files = len(moment_arms_file_num_pairs)
@@ -147,7 +135,7 @@ def featurize_projections_gen(featurize, params=None):
     def featurize_projections(args):
         ws = ("w1", "w2")
         prefixes = [w + '_projection_window_' for w in ws]
-        for filename, num in get_patch_files_and_nums(args.input_path, prefixes):
+        for filename, num in PatchesDataLoader.get_patch_files_and_nums(args.input_path, prefixes):
             logging.info("Processing " + filename)
             
             wi = filename[:2]
