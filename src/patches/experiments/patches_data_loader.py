@@ -5,6 +5,7 @@ Author: Jacky Liang
 
 import os
 import IPython
+import logging
 import numpy as np
 
 class PatchesDataLoader:
@@ -74,6 +75,8 @@ class PatchesDataLoader:
                     
     def concat(self):
         def _concat_prefixes(prefixes):
+            if len(prefixes) == 0:
+                return np.array([])
             prefixes = list(prefixes)
             first_data = self._raw_data[prefixes[0]]
             all_data = first_data.reshape(first_data.shape[0], -1)
@@ -119,7 +122,7 @@ class PatchesDataLoader:
                 np.random.shuffle(indices)
                 split = int(n*p_test)
                 indices = {
-                    'tr': np.aray(indices[split:]),
+                    'tr': np.array(indices[split:]),
                     't': np.array(indices[:split])
                 }
                 
@@ -146,3 +149,11 @@ class PatchesDataLoader:
                     file_num_pairs.append((filename, num))
                     
         return file_num_pairs
+        
+    @staticmethod
+    def get_include_set_from_dict(dct):
+        target_set = set()
+        for name, use in dct.items():
+            if use:
+                target_set.add(name)
+        return target_set

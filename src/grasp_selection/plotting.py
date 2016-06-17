@@ -1,7 +1,7 @@
 import IPython
 import colorsys as clr
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')#prevents using X server backend for matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -66,8 +66,8 @@ def plot_histogram(values, min_range=None, max_range=None, num_bins=100,
     hist, bins = np.histogram(values, bins=num_bins, range=(min_range,max_range))
 
     if normalize and np.sum(hist) > 0:
-        hist = hist / np.sum(hist)
+        hist = hist /1./ np.sum(hist)
 
     width = (bins[1] - bins[0])
     plt.bar(bins[:-1], hist, width=width, color=color)
-        
+    plt.xlim([min_range, max_range])

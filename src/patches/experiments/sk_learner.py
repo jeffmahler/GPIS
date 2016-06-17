@@ -29,8 +29,8 @@ class SKLearner:
         if params is not None:
             estimator.set_params(**params)
             
-            
         estimator.fit(tr_data, tr_labels)
+        
         preds = {}
         preds['tr'] = estimator.predict(tr_data)
         preds['t'] = estimator.predict(t_data)

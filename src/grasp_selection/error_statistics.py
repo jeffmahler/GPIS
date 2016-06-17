@@ -9,7 +9,7 @@ import numpy as np
 import os
 import sys
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')#prevents using X server backend for matplotlib
 import matplotlib.pyplot as plt
 
 import plotting

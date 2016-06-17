@@ -14,6 +14,7 @@ import joblib
 import csv
 
 #learners
+from sklearn.svm import SVC
 from sklearn.qda import QDA
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, AdaBoostClassifier, AdaBoostRegressor
@@ -25,7 +26,7 @@ from sklearn.metrics import zero_one_loss, log_loss, r2_score
 #misc
 from sklearn.preprocessing import normalize
 from sklearn.externals import joblib
-from patches_data_loader import PatchesDataLoader
+from patches_data_loader import PatchesDataLoader as PDL
 from sk_learner import SKLearner
 
 import sys
@@ -36,6 +37,7 @@ from confusion_matrix import BinaryConfusionMatrix
 
 LEARNERS_MAP = {
     "classifiers":{#preferrably classifiers that implement predict_proba
+        "SVC": SVC,
         "QDA": QDA,
         "LogisticRegression": LogisticRegression,
         "RandomForestClassifier": RandomForestClassifier,
@@ -170,29 +172,19 @@ def _eval_dict(dct):
         
 def eval_learn(config, input_path, output_path):
     #read config about which files to include
-    features_set = set()
-    metadata_set = set()
-    regression_labels_set = set()
-    classification_labels_set = set()
+    features_set = PDL.get_include_set_from_dict(config["feature_prefixes"])
+    metadata_set = PDL.get_include_set_from_dict(config["metadata_prefixes"])
+    regression_labels_set = PDL.get_include_set_from_dict(config["regression_label_prefixes"])
+    classification_labels_set = PDL.get_include_set_from_dict(config["classification_label_prefixes"])
     
     labels_set_map = {
         'classifiers':classification_labels_set,
         'regressors':regression_labels_set
     }
-    
-    def build_include_set(tag, target):
-        for name, use in config[tag].items():
-            if use:
-                target.add(name)
-
-    build_include_set("feature_prefixes", features_set)
-    build_include_set("metadata_prefixes", metadata_set)
-    build_include_set("classification_label_prefixes", classification_labels_set)
-    build_include_set("regression_label_prefixes", regression_labels_set)
                     
     #load data
-    pdl = PatchesDataLoader(config['test_ratio'], input_path, eval(config['file_nums']), features_set,
-                                         metadata_set, classification_labels_set.union(regression_labels_set), config['split_by_objs'])
+    pdl = PDL(config['test_ratio'], input_path, eval(config['file_nums']), features_set, metadata_set,
+                   classification_labels_set.union(regression_labels_set), config['split_by_objs'])
                                         
     #make folder of saved learners if needed
     learners_output_path = os.path.join(output_path, "learners")
