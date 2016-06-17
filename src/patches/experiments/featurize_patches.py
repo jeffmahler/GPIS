@@ -14,7 +14,7 @@ import yaml
 from sklearn.preprocessing import normalize
 from patches_data_loader import PatchesDataLoader
     
-def _in_out_cones(args, params):
+def _friction_cones(args, params):
     surface_normal_prefix = ["surface_normals_"]
     moment_arms_prefix = ["moment_arms_"]
     
@@ -64,22 +64,26 @@ def _in_out_cones(args, params):
         # Dan: need this little hack, otherwise file 83 messes up for pfc 0.05.
         alphas_1 = np.arccos(np.clip(ip_1 / cl_norms, float('-inf'), 1-1e-9))
         alphas_2 = np.arccos(np.clip(ip_2 / cl_norms, float('-inf'), 1-1e-9))
-
-        in_cone_inds = np.where((alphas_1 <= beta) & (alphas_2 <= beta)  & (np.isfinite(alphas_1)) & (np.isfinite(alphas_2)))[0]
-        in_out_cones = np.array([1 if k in in_cone_inds else 0 for k in range(len(contacts_data))])
-    
-        output_filename = "in_out_cones_{0}_{1}".format(params['suffix'], moment_arms_num)
-        np.savez(os.path.join(args.output_path, output_filename), in_out_cones)
+        
+        if params['type'] == "in_out":
+            in_cone_inds = np.where((alphas_1 <= beta) & (alphas_2 <= beta)  & (np.isfinite(alphas_1)) & (np.isfinite(alphas_2)))[0]
+            output_data = np.array([1 if k in in_cone_inds else 0 for k in range(len(contacts_data))])
+        elif params["type"] == "angle":
+            output_data = np.max(np.array([alphas_1, alphas_2]), axis=0)
+        
+        output_filename = "{0}_cones_{1}_{2}".format(params['type'], params['suffix'], moment_arms_num)
+        logging.info("Saving {0}".format(output_filename))
+        np.savez(os.path.join(args.output_path, output_filename), output_data)
         
         i += 1
         j += 1
 
-def featurize_in_out_cones_gen(params):
+def featurize_friction_cones_gen(params):
     
-    def featurize_in_out_cones(args):
-        return _in_out_cones(args, params)
+    def featurize_friction_cones(args):
+        return _friction_cones(args, params)
         
-    return featurize_in_out_cones
+    return featurize_friction_cones
         
 def _approx_normals(wi, num, data, params=None):
     def get_approx_normal(img):
@@ -149,7 +153,8 @@ def featurize_projections_gen(featurize, params=None):
     
 FEATURIZER_MAP = {
     "planarity" : featurize_projections_gen(_planarities),
-    "in_out_cone_5" : featurize_in_out_cones_gen({'friction_coef':0.5, 'suffix':'5'}),
+    "in_out_cone_5" : featurize_friction_cones_gen({'type':'in_out','friction_coef':0.5, 'suffix':'5'}),
+    "angle_cone_5" : featurize_friction_cones_gen({'type':'angle','friction_coef':0.5, 'suffix':'5'}),
     "crop_3" : featurize_projections_gen(_crop_windows, {'crop_dim':3}),
     "crop_5" : featurize_projections_gen(_crop_windows, {'crop_dim':5}),
     "approx_normals": featurize_projections_gen(_approx_normals)
