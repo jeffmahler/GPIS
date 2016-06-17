@@ -24,10 +24,11 @@ class PatchesDataLoader:
         self._split_by_objs = split_by_objs and has_obj_ids
         
         self._raw_data = {}
-        self.partial_data = {}
+        self._partial_train_data = {}
+        self._partial_raw_data = {}
         self.all_tr_data = None
         self.all_meta_data = None
-        
+
         #loads all files
         self.load()
         
@@ -42,15 +43,23 @@ class PatchesDataLoader:
             self.labels[label_name]['tr'], self.labels[label_name]['t'], _ = self.split_train_test(self._raw_data[label_name], 
                                                                                                                                     self._p_test, self.indices)
     
-    def get_partial_train_data(self, feature_set):
-        if feature_set not in self.partial_data:
+    def get_partial_raw_data(self, feature_set):
+        if feature_set not in self._partial_raw_data:
             data = self._raw_data[feature_set[0]]
-            tr_data = data.reshape(data.shape[0], -1)
-            for feature in feature_set[1:]:
-                data = self._raw_data[feature]
-                tr_data = np.c_[tr_data, data.reshape(data.shape[0], -1)]
+            data = data.reshape(data.shape[0], -1)
             
-            tr, t, _ = self.split_train_test(tr_data, self._p_test, self.indices)
+            for feature in feature_set[1:]:
+                a_data = self._raw_data[feature]
+                data = np.c_[data, a_data.reshape(a_data.shape[0], -1)]
+            
+            self._partial_raw_data[feature_set] = self._concat_raw_data(feature_set)
+        
+        return self._partial_raw_data[feature_set]
+    
+    def get_partial_train_data(self, feature_set):
+        if feature_set not in self._partial_train_data:
+            partial_raw_data = self.get_partial_raw_data(feature_set)            
+            tr, t, _ = self.split_train_test(partial_raw_data, self._p_test, self.indices)
             self.partial_data[feature_set] = {"tr":tr, "t":t}
         
         return self.partial_data[feature_set]
@@ -73,24 +82,20 @@ class PatchesDataLoader:
                 else:   
                     self._raw_data[prefix] = loaded
                     
+    def _concat_raw_data(self, prefixes):
+        if len(prefixes) == 0:
+            return np.array([])
+        prefixes = list(prefixes)
+        first_data = self._raw_data[prefixes[0]]
+        all_data = first_data.reshape(first_data.shape[0], -1)
+        for prefix in prefixes[1:]:
+            data = self._raw_data[prefix]
+            all_data = np.c_[all_data, data.reshape(data.shape[0], -1)]
+        return all_data
+    
     def concat(self):
-        def _concat_prefixes(prefixes):
-            if len(prefixes) == 0:
-                return np.array([])
-            prefixes = list(prefixes)
-            first_data = self._raw_data[prefixes[0]]
-            all_data = first_data.reshape(first_data.shape[0], -1)
-            for prefix in prefixes[1:]:
-                try:
-                    data = self._raw_data[prefix]
-                except Exception:
-                    IPython.embed()
-                    exit(0)
-                all_data = np.c_[all_data, data.reshape(data.shape[0], -1)]
-            return all_data
-                
-        self.all_tr_data = _concat_prefixes(self._features_set)
-        self.all_meta_data = _concat_prefixes(self._metadata_set)
+        self.all_tr_data = self._concat_raw_data(self._features_set)
+        self.all_meta_data = self._concat_raw_data(self._metadata_set)
         
     def split_train_test(self ,X, p_test, indices=None):
         n = X.shape[0]
