@@ -113,21 +113,67 @@ def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, out
     plt.plot(x_vals, y_vals, c='r', linewidth=line_width)
     plt.xlim(min(np.percentile(p1_sub, 1), np.percentile(p2_sub, 1)), max(np.percentile(p1_sub, 99), np.percentile(p2_sub, 99)))
     plt.ylim(min(labels_sub) - eps, max(labels_sub) + eps)
-    plt.title('Metric {0} vs\nProjection Window Planarity'.format(label_name), fontsize=font_size)
-    plt.xlabel('Deviation from Planarity', fontsize=font_size)
-    plt.ylabel('Robustness', fontsize=font_size)
+    plt.title('Metric {0} vs\n{1} and {2}'.format(label_name, features_pair[0], features_pair[1]), fontsize=font_size)
+    plt.xlabel("{0} {1}".format(features_pair[0], features_pair[1]), fontsize=font_size)
+    plt.ylabel(label_name, fontsize=font_size)
     leg = plt.legend(('Best Fit Line (rho={:.3g})'.format(rho[2,0]), features_pair[0], features_pair[1]), loc='best', fontsize=12)
     leg.get_frame().set_alpha(0.7)
-    figname = 'metric_{0}{1}{2}scatter.pdf'.format(label_name, features_pair[0], features_pair[1])
     
+    figname = 'metric_{0}{1}{2}scatter.pdf'.format(label_name, features_pair[0], features_pair[1])
     logging.info("Saving {0}".format(figname))
     plt.savefig(os.path.join(output_path, figname), dpi=dpi)
     plt.close()
     
+def _plot_save_scatter(config, data, labels, feature_name, label_name, output_path):
+    if data.reshape(data.shape[0], -1).shape[1] != 1:
+        logging.warn("Scatter plot can only accept one-dimensional data. Skipping {0}".format(feature_name))
+        return
+        
+    scatter_subsamples = config['plotting']['scatter_subsamples']
+    line_width = config['plotting']['line_width']
+    eps = config['plotting']['eps']
+    font_size = config['plotting']['font_size']
+    dpi = config['plotting']['dpi']
+    
+    #subsample data if needed
+    sub_inds = np.arange(data.shape[0])
+    if data.shape[0] > scatter_subsamples:
+        sub_inds = np.choose(scatter_subsamples, np.arange(data.shape[0]))
+    data_sub = data[sub_inds]
+    labels_sub = labels[sub_inds]
+    
+    #compute best fit line
+    A = np.c_[data, np.ones(data.shape[0])]
+    b = labels
+    w, _, _, _ = np.linalg.lstsq(A, b)
+    rho = np.corrcoef(np.c_[data, labels].T)[1,0]
+        
+    #scatter the PFC vs friction cone angle
+    min_alpha = np.min(data)
+    max_alpha = np.max(data)
+    x_vals = [min_alpha, max_alpha]
+    y_vals = [w[1] + w[0] * min_alpha, w[1] + w[0] * max_alpha]
+
+    #plot
+    plt.figure()
+    plt.scatter(data_sub, labels_sub, c='b', s=50)
+    plt.plot(x_vals, y_vals, c='r', linewidth=line_width)
+    plt.xlim(x_vals[0]  - eps, x_vals[1] + eps)
+    plt.ylim(min(labels) - eps, max(labels) + eps)
+    plt.title('Metric {0} vs\n{1}'.format(label_name, feature_name), fontsize=font_size)
+    plt.xlabel(feature_name, fontsize=font_size)
+    plt.ylabel(label_name, fontsize=font_size)
+    plt.legend(('Best Fit Line (rho={:.2g})'.format(rho), 'Datapoints'), loc='best')
+    
+    figname = 'metric_{0}{1}scatter.pdf'.format(label_name, feature_name)
+    logging.info("Saving {0}".format(figname))
+    plt.savefig(os.path.join(output_path, figname), dpi=dpi)
+    plt.close()
     
 def analyze_patch_features(config, input_path, output_path):
     #load data
     features_set_hist_bin = PDL.get_include_set_from_dict(config['feature_prefixes_hist_bin'])
+    features_set_scatter = PDL.get_include_set_from_dict(config['feature_prefixes_scatter'])
     
     features_set_scatter_pair = []
     pair_configs = config['feature_prefixes_scatter_pair']
@@ -137,7 +183,7 @@ def analyze_patch_features(config, input_path, output_path):
 
     labels_set = PDL.get_include_set_from_dict(config['label_prefixes'])
     
-    features_set = [features_set_hist_bin]
+    features_set = [features_set_hist_bin, features_set_scatter]
     features_set.extend(features_set_scatter_pair)
     features_set = set.union(*features_set)
     
@@ -149,11 +195,14 @@ def analyze_patch_features(config, input_path, output_path):
         for feature_name in features_set_hist_bin:
             _plot_save_hist_bin(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path)
         
+        for feature_name in features_set_scatter:
+            _plot_save_scatter(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path)
+        
         for features_pair in features_set_scatter_pair:
             features_pair = list(features_pair)
             features_pair.sort()
             _plot_save_scatter_pair(config, pdl.get_partial_raw_data(tuple(features_pair)), labels, features_pair, label_name, output_path)
-    
+            
 if __name__ == '__main__':
     #read args
     parser = argparse.ArgumentParser()
