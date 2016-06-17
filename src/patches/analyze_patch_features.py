@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from patches_data_loader import PatchesDataLoader as PDL
 import logging
 import sys
-_grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', '..', 'grasp_selection')
+_grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
 sys.path.append(_grasp_selection_path)
 import plotting
 import IPython
@@ -186,7 +186,7 @@ def analyze_patch_features(config, input_path, output_path):
     features_set = [features_set_hist_bin, features_set_scatter]
     features_set.extend(features_set_scatter_pair)
     features_set = set.union(*features_set)
-    
+
     pdl = PDL(0.25, input_path, eval(config['file_nums']), features_set, set(), labels_set, split_by_objs=False)
     
     for label_name in labels_set:

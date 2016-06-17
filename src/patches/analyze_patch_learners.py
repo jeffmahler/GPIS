@@ -30,7 +30,7 @@ from patches_data_loader import PatchesDataLoader as PDL
 from sk_learner import SKLearner
 
 import sys
-_grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', '..', 'grasp_selection')
+_grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
 sys.path.append(_grasp_selection_path)
 from error_statistics import ContinuousErrorStats
 from confusion_matrix import BinaryConfusionMatrix
