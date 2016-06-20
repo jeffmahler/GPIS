@@ -219,7 +219,7 @@ class GraspableObject3D(GraspableObject):
         return found, projection_contact
 
     def surface_information(self, grasp, width, num_steps, sigma_range=0.1, sigma_spatial=1,
-                            plot=False, back_up=0.0, direction1=None, samples_per_grid=2,
+                            plot=False, back_up=0.0, max_projection=0.1, direction1=None, samples_per_grid=2,
                             direction2=None, debug_objs=None):
         """
         Returns the local surface window, gradient, and curvature for the two
@@ -242,9 +242,11 @@ class GraspableObject3D(GraspableObject):
 
         window1 = contact1.surface_information(width, num_steps, samples_per_grid=samples_per_grid,
                                                sigma_range=sigma_range, sigma_spatial=sigma_spatial,
+                                               max_projection=max_projection,
                                                direction=direction1, back_up=back_up, debug_objs=debug_objs)
         window2 = contact2.surface_information(width, num_steps, samples_per_grid=samples_per_grid,
                                                sigma_range=sigma_range, sigma_spatial=sigma_spatial,
+                                               max_projection=max_projection,
                                                direction=direction2, back_up=back_up, debug_objs=debug_objs)
 
         return window1, window2, contact1, contact2

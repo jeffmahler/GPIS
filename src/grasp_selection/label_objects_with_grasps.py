@@ -49,6 +49,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
     start_time = time.time()
     gripper = gr.RobotGripper.load(gripper_name)
     grasp_sms = None
+    grasps = []
     
     # sample grasps
     if config['sample_grasps']:
@@ -140,6 +141,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
         logging.info('Extracting features')
         feature_extractor = ff.GraspableFeatureExtractor(obj, config)
         all_features = feature_extractor.compute_all_features(grasps)
+        del feature_extractor
 
     raw_feature_dict = {}
     for g, f, s in zip(grasps, all_features, grasp_sms):
@@ -151,6 +153,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
     # store features
     output_ds.store_grasp_features(obj.key, raw_feature_dict, gripper=gripper_name, force_overwrite=True)
 
+    del all_features
     feature_stop_time = time.time()
     logging.info('Feature extraction for %d grasps took %f sec.' %(len(grasps), feature_stop_time - feature_start_time))
 
@@ -290,7 +293,7 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
                                                                   num_cone_faces=config['num_cone_faces'], soft_fingers=True, params=params)
            
         # compute robust quality metrics
-        #uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
+        uncertainty_configs.extend([low_u_config])#, med_u_config, high_u_config])
         logging.info('Computing robust quality')
 
         # iterate through levels of uncertainty
@@ -357,10 +360,12 @@ def label_grasps(obj, dataset, output_ds, gripper_name, config):
 
         # store grasp metrics
         output_ds.store_grasp_metrics(obj.key, grasp_metrics, gripper=gripper_name, force_overwrite=True)
+        del grasp_metrics
 
     # report total time
     stop_time = time.time()
     logging.info('Labelling for %d grasps took %f sec in total.' %(len(grasps), stop_time - start_time))
+    del grasps
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -416,11 +421,15 @@ if __name__ == '__main__':
                     logging.info('Object %s already has grasps. Skipping...' %(obj.key)) 
                     continue
 
-                if True:#try:
+                try:
                     label_grasps(obj, dataset, output_ds, gripper_name, config)
-                #except Exception as e:
-                #    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
-                #    logging.warning(str(e))
+
+                    # clean up memory
+                    del obj
+                    del grasps
+                except Exception as e:
+                    logging.warning('Failed to complete grasp labelling for object {}'.format(obj.key))
+                    logging.warning(str(e))
 
     database.close()
 

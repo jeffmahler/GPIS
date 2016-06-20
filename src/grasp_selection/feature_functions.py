@@ -561,6 +561,7 @@ class GraspableFeatureExtractor:
         self.window_sigma_spatial_ = config['window_sigma_spatial']
         self.samples_per_grid_ = config['samples_per_grid']
         self.back_up_ = config['back_up']        
+        self.max_projection_ = config['max_projection']
 
         # feature weights
         self.proj_win_weight_ = Weight(config['weight_proj_win'])
@@ -602,7 +603,8 @@ class GraspableFeatureExtractor:
                                                                  samples_per_grid=self.samples_per_grid_,
                                                                  back_up=self.back_up_,
                                                                  sigma_range=self.window_sigma_range_,
-                                                                 sigma_spatial=self.window_sigma_spatial_)
+                                                                 sigma_spatial=self.window_sigma_spatial_,
+                                                                 max_projection=self.max_projection_)
         except ValueError as e:
             logging.warning('Failed to extract surface info with error');
             logging.warning(str(e))

@@ -99,7 +99,7 @@ def load_patches(obj_key, obj_id, dataset, all_features, all_metrics,
         # hack to get the surface normals
         if grasp_id_feature_name not in all_features.keys():
             all_features[grasp_id_feature_name] = []
-        all_features[grasp_id_feature_name].append(grasp.grasp_id)
+        all_features[grasp_id_feature_name].append(grasp_id)
 
         # remove if data invalid
         if not data_valid:

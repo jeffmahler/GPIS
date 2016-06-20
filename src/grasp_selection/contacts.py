@@ -341,7 +341,7 @@ class Contact3D(Contact):
                 if cov_weight > 0:
                     return window, cov / cov_weight
                 return window, cov
-        return window
+        return window, None
 
     def surface_window_projection_unaligned(self, width=1e-2, num_steps=21,
         max_projection=0.1, back_up=0.0, samples_per_grid=2.0,
@@ -390,7 +390,7 @@ class Contact3D(Contact):
             width=width, num_steps=num_steps, max_projection=max_projection,
             back_up=back_up, samples_per_grid=samples_per_grid,
             sigma_range=sigma_range, sigma_spatial=sigma_spatial, direction=direction, 
-            vis=False, compute_weighted_covariance=True, debug_objs=debug_objs)
+            vis=False, compute_weighted_covariance=compute_pca, debug_objs=debug_objs)
 
         if not compute_pca:
             return window
@@ -454,7 +454,7 @@ class Contact3D(Contact):
         return window
 
     def surface_information(self, width, num_steps, sigma_range=0.1, sigma_spatial=1,
-                            back_up=0.0, direction=None, debug_objs=None, samples_per_grid=2):
+                            back_up=0.0, max_projection=0.1, direction=None, debug_objs=None, samples_per_grid=2):
         """
         Returns the local surface window, gradient, and curvature for a single contact.
         """
@@ -467,6 +467,7 @@ class Contact3D(Contact):
         proj_window = self.surface_window_projection(width, num_steps,
                                                      sigma_range=sigma_range, sigma_spatial=sigma_spatial,
                                                      back_up=back_up, samples_per_grid=samples_per_grid,
+                                                     max_projection=max_projection,
                                                      direction=direction, vis=False, debug_objs=debug_objs)
 
         if proj_window is None:
