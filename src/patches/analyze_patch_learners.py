@@ -164,12 +164,6 @@ def _regression_post_process(pdl, estimator, preds, learner_name, label_name, ou
     error_stats_tr.plot_error_histograms(output_dir=output_path)
     error_stats_t.plot_error_histograms(output_dir=output_path)
         
-def _eval_dict(dct):
-    dct = dct.copy()
-    for key, val in dct.items():
-        dct[key] = eval(str(val))
-    return dct
-        
 def eval_learn(config, input_path, output_path):
     #read config about which files to include
     features_set = PDL.get_include_set_from_dict(config["feature_prefixes"])
@@ -194,7 +188,7 @@ def eval_learn(config, input_path, output_path):
     def do_learn(learner_type, post_process):
         #records of all training and test results for all learners
         all_results = _Results(output_path)
-        metrics = _eval_dict(config['metrics'])
+        metrics = config['metrics']
         
         for learner_name, learner in LEARNERS_MAP[learner_type].items():
             if learner_name not in config['learners']:
@@ -205,7 +199,7 @@ def eval_learn(config, input_path, output_path):
                 #check for params for given learner
                 params = None
                 if 'params' in config['learners'][learner_name]:
-                    params = _eval_dict(config['learners'][learner_name]['params'])
+                    params = config['learners'][learner_name]['params']
 
                 for label_name in labels_set_map[learner_type]:
                     #training and score evaluations
@@ -244,7 +238,7 @@ if __name__ == '__main__':
     
     with open(args.config) as config_file:
         config = yaml.safe_load(config_file)
-
+        
     _ensure_dir_exists(args.output_path)
         
     #save config
