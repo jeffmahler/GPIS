@@ -2,15 +2,20 @@ import numpy as np
 import argparse
 import yaml
 import os
+import logging
 import matplotlib
 matplotlib.use('Agg')#prevents using X server backend for matplotlib
 import matplotlib.pyplot as plt
-from patches_data_loader import PatchesDataLoader as PDL
-import logging
+
 import sys
 _grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
 sys.path.append(_grasp_selection_path)
 import plotting
+
+import wrap_text
+
+from patches_data_loader import PatchesDataLoader as PDL
+
 import IPython
 
 def _ensure_dir_exists(dir):
@@ -42,7 +47,7 @@ def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_p
     neg_median = np.median(negative_metrics)
     neg_std = np.std(negative_metrics)
 
-    msg_template = "mean:{:.3g}\nmedian:{:.3g}\nstd:{:.3g}"
+    msg_template = '\n'.join(['mean:{:.3g}','median:{:.3g}','std:{:.3g}'])
     pos_msg = msg_template.format(pos_mean, pos_median, pos_std)
     neg_msg = msg_template.format(neg_mean, neg_median, neg_std)
     
@@ -55,7 +60,7 @@ def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_p
     ax = plt.subplot("121")
     ax.set_title("{0}=1".format(feature_name), fontsize=font_size)
     plt.ylabel('Normalized Density', fontsize=font_size)
-    plt.xlabel(label_name, fontsize=font_size)
+    plt.xlabel(wrap_text.wrap(label_name), fontsize=font_size)
     plotting.plot_histogram(positive_metrics, min_range=min_range, max_range=max_range, 
                                         num_bins=num_bins, normalize=True)
     ax.text(0.05, 0.95, pos_msg, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.7)
@@ -63,11 +68,12 @@ def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_p
     ax = plt.subplot("122")
     ax.set_title("{0}=0".format(feature_name), fontsize=font_size)
     plt.ylabel('Normalized Density', fontsize=font_size)
-    plt.xlabel(label_name, fontsize=font_size)
+    plt.xlabel(wrap_text.wrap(label_name), fontsize=font_size)
     plotting.plot_histogram(negative_metrics, min_range=min_range, max_range=max_range, 
                                         num_bins=num_bins, normalize=True)
     ax.text(0.05, 0.95, neg_msg, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.7)
     
+    plt.tight_layout()
     plt.subplots_adjust(top=0.8)
     
     figname = 'metric_{0}{1}histogram.pdf'.format(label_name, feature_name)
@@ -107,17 +113,18 @@ def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, out
     y_vals = [w[2] + w[0] * min_p1 + w[1] * min_p2, w[2] + w[0] * max_p1 + w[1] * max_p2]
     
     #plot
-    plt.figure()
+    fig = plt.figure()
     plt.scatter(p1_sub, labels_sub, c='b', s=50)
     plt.scatter(p2_sub, labels_sub, c='g', s=50)
     plt.plot(x_vals, y_vals, c='r', linewidth=line_width)
     plt.xlim(min(np.percentile(p1_sub, 1), np.percentile(p2_sub, 1)), max(np.percentile(p1_sub, 99), np.percentile(p2_sub, 99)))
     plt.ylim(min(labels_sub) - eps, max(labels_sub) + eps)
-    plt.title('Metric {0} vs\n{1} and {2}'.format(label_name, features_pair[0], features_pair[1]), fontsize=font_size)
+    plt.title('Metric {0}\nvs {1} and {2}'.format(wrap_text.wrap(label_name), features_pair[0], features_pair[1]), fontsize=font_size)
     plt.xlabel("{0} {1}".format(features_pair[0], features_pair[1]), fontsize=font_size)
-    plt.ylabel(label_name, fontsize=font_size)
+    plt.ylabel(wrap_text.wrap(label_name), fontsize=font_size)
     leg = plt.legend(('Best Fit Line (rho={:.3g})'.format(rho[2,0]), features_pair[0], features_pair[1]), loc='best', fontsize=12)
     leg.get_frame().set_alpha(0.7)
+    plt.tight_layout()
     
     figname = 'metric_{0}{1}{2}scatter.pdf'.format(label_name, features_pair[0], features_pair[1])
     logging.info("Saving {0}".format(figname))
@@ -143,7 +150,7 @@ def _plot_save_scatter(config, data, labels, feature_name, label_name, output_pa
     labels_sub = labels[sub_inds]
     
     #compute best fit line
-    A = np.c_[data, np.ones(data.shape[0])]
+    A = np.c_[data, np.ones(data.shape[0])] 
     b = labels
     w, _, _, _ = np.linalg.lstsq(A, b)
     rho = np.corrcoef(np.c_[data, labels].T)[1,0]
@@ -155,15 +162,16 @@ def _plot_save_scatter(config, data, labels, feature_name, label_name, output_pa
     y_vals = [w[1] + w[0] * min_alpha, w[1] + w[0] * max_alpha]
 
     #plot
-    plt.figure()
+    fig = plt.figure()
     plt.scatter(data_sub, labels_sub, c='b', s=50)
     plt.plot(x_vals, y_vals, c='r', linewidth=line_width)
     plt.xlim(x_vals[0]  - eps, x_vals[1] + eps)
     plt.ylim(min(labels) - eps, max(labels) + eps)
-    plt.title('Metric {0} vs\n{1}'.format(label_name, feature_name), fontsize=font_size)
+    plt.title('Metric {0}\n{1}'.format(wrap_text.wrap(label_name), feature_name), fontsize=font_size)
     plt.xlabel(feature_name, fontsize=font_size)
-    plt.ylabel(label_name, fontsize=font_size)
+    plt.ylabel(wrap_text.wrap(label_name), fontsize=font_size)
     plt.legend(('Best Fit Line (rho={:.2g})'.format(rho), 'Datapoints'), loc='best')
+    plt.tight_layout()
     
     figname = 'metric_{0}{1}scatter.pdf'.format(label_name, feature_name)
     logging.info("Saving {0}".format(figname))
