@@ -9,9 +9,11 @@ import matplotlib.pyplot as plt
 
 import sys
 _grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
+_data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
 sys.path.append(_grasp_selection_path)
+sys.path.append(_data_analysis_path)
 import plotting
-
+from csv_statistics import CSVStatistics
 import wrap_text
 
 from patches_data_loader import PatchesDataLoader as PDL
@@ -22,7 +24,7 @@ def _ensure_dir_exists(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_path):
+def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_path, hs):
     if len(np.unique(data)) != 2:
         logging.warn("Plotting histograms for binary data can only take in data with values 1 and 0. Skipping {0}".format(feature_name))
         return
@@ -76,12 +78,20 @@ def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_p
     plt.tight_layout()
     plt.subplots_adjust(top=0.8)
     
-    figname = 'metric_{0}{1}histogram.pdf'.format(label_name, feature_name)
+    name = 'metric_{0}{1}'.format(label_name, feature_name)
+    figname = '{0}histogram.pdf'.format(name)
     logging.info("Saving {0}".format(figname))
     plt.savefig(os.path.join(output_path, figname), dpi=dpi)
     plt.close()
+    
+    #save stats in csv
+    pos_name = '{0}=1'.format(name)
+    neg_name = '{0}=0'.format(name)
+    
+    hs.append_data(pos_name, positive_metrics)
+    hs.append_data(neg_name, negative_metrics)
 
-def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, output_path):
+def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, output_path, ss):
     if data.shape[1] != 2:
         logging.warn("Scatter plot pair can only accept two-dimensional data. Skipping {0}".format(features_pair))
         return
@@ -105,7 +115,8 @@ def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, out
     A = np.c_[data, np.ones(data.shape[0])]
     b = labels
     w, _, _, _ = np.linalg.lstsq(A, b)
-    rho = np.corrcoef(np.c_[data, labels].T)        
+    to_corr = np.c_[data, labels]
+    rho = np.corrcoef(to_corr, rowvar=0) 
         
     min_p1, max_p1 = np.min(p1), np.max(p1)
     min_p2, max_p2 = np.min(p2), np.max(p2)
@@ -126,12 +137,18 @@ def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, out
     leg.get_frame().set_alpha(0.7)
     plt.tight_layout()
     
-    figname = 'metric_{0}{1}{2}scatter.pdf'.format(label_name, features_pair[0], features_pair[1])
+    name = 'metric_{0}{1}{2}'.format(label_name, features_pair[0], features_pair[1])
+    figname = '{0}scatter.pdf'.format(name)
     logging.info("Saving {0}".format(figname))
     plt.savefig(os.path.join(output_path, figname), dpi=dpi)
     plt.close()
     
-def _plot_save_scatter(config, data, labels, feature_name, label_name, output_path):
+    name1  = 'metric_{0}{1}'.format(label_name, features_pair[0])
+    name2  = 'metric_{0}{1}'.format(label_name, features_pair[1])
+    ss.append_data(name1, to_corr[:,[0,2]])
+    ss.append_data(name2, to_corr[:,[1,2]])
+    
+def _plot_save_scatter(config, data, labels, feature_name, label_name, output_path, ss):
     if data.reshape(data.shape[0], -1).shape[1] != 1:
         logging.warn("Scatter plot can only accept one-dimensional data. Skipping {0}".format(feature_name))
         return
@@ -153,7 +170,8 @@ def _plot_save_scatter(config, data, labels, feature_name, label_name, output_pa
     A = np.c_[data, np.ones(data.shape[0])] 
     b = labels
     w, _, _, _ = np.linalg.lstsq(A, b)
-    rho = np.corrcoef(np.c_[data, labels].T)[1,0]
+    to_corr = np.c_[data, labels]
+    rho = np.corrcoef(to_corr, rowvar=0)[1,0]
         
     #scatter the PFC vs friction cone angle
     min_alpha = np.min(data)
@@ -173,10 +191,13 @@ def _plot_save_scatter(config, data, labels, feature_name, label_name, output_pa
     plt.legend(('Best Fit Line (rho={:.2g})'.format(rho), 'Datapoints'), loc='best')
     plt.tight_layout()
     
-    figname = 'metric_{0}{1}scatter.pdf'.format(label_name, feature_name)
+    name = 'metric_{0}{1}'.format(label_name, feature_name)
+    figname = '{0}scatter.pdf'.format(name)
     logging.info("Saving {0}".format(figname))
     plt.savefig(os.path.join(output_path, figname), dpi=dpi)
     plt.close()
+    
+    ss.append_data(name, to_corr)
     
 def analyze_patch_features(config, input_path, output_path):
     #load data
@@ -197,19 +218,30 @@ def analyze_patch_features(config, input_path, output_path):
 
     pdl = PDL(0.25, input_path, eval(config['file_nums']), features_set, set(), labels_set, split_by_objs=False)
     
+    csv_hist_filename = 'histograms_statistics.csv'
+    hs = CSVStatistics(os.path.join(output_path, csv_hist_filename), CSVStatistics.HIST_STATS)
+    
+    csv_scatter_filename = 'scatter_statistics.csv'
+    ss = CSVStatistics(os.path.join(output_path, csv_scatter_filename), CSVStatistics.SCATTER_STATS)
+    
     for label_name in labels_set:
         labels = pdl._raw_data[label_name]
         
         for feature_name in features_set_hist_bin:
-            _plot_save_hist_bin(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path)
+            _plot_save_hist_bin(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path, hs)
         
         for feature_name in features_set_scatter:
-            _plot_save_scatter(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path)
+            _plot_save_scatter(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path, ss)
         
         for features_pair in features_set_scatter_pair:
             features_pair = list(features_pair)
             features_pair.sort()
-            _plot_save_scatter_pair(config, pdl.get_partial_raw_data(tuple(features_pair)), labels, features_pair, label_name, output_path)
+            _plot_save_scatter_pair(config, pdl.get_partial_raw_data(tuple(features_pair)), labels, features_pair, label_name, output_path, ss)
+            
+    logging.info("Saving {0}".format(csv_hist_filename))
+    hs.save()
+    logging.info("Saving {0}".format(csv_scatter_filename))
+    ss.save()
             
 if __name__ == '__main__':
     #read args
