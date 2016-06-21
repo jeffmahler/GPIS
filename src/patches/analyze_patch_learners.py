@@ -214,29 +214,36 @@ def eval_learn(config, input_path, output_path):
             
             if config['learners'][learner_name]['use']:
                 #check for params for given learner
-                params = None
+                all_params = {'':None}
                 if 'params' in config['learners'][learner_name]:
-                    params = config['learners'][learner_name]['params']
+                    all_params = config['learners'][learner_name]['params']
 
+                    #if only one set of params is provided
+                    if not config['learners'][learner_name]['multi_params']:
+                        all_params = {'': all_params}
+                    
                 for label_name in labels_set_map[learner_type]:
-                    #training and score evaluations
-                    estimator, preds, results = SKLearner.train(learner, pdl.tr, pdl.labels[label_name]['tr'], 
-                                                                                    pdl.t, pdl.labels[label_name]['t'], learner_name,
-                                                                                    metrics=metrics[learner_type], params=params)
-                    #save learner if needed
-                    if config['save_learners']:
-                        output_filename = "{0}{1}".format(label_name, learner_name)
-                        output_full_path = os.path.join(learners_output_path, output_filename)
-                        if hasattr(estimator, "save"):
-                            estimator.save(output_full_path)
-                        else:
-                            joblib.dump(estimator, output_full_path+".jbb", compress=3)
-                    
-                    all_results.append_result(learner_name, label_name, results)
-                    
-                    post_process(pdl, estimator, preds, learner_name, label_name, output_path, config)
-                    
-                    del estimator
+                    for suffix, params in all_params.items():
+                        full_learner_name = "{0}_{1}".format(learner_name, suffix)
+                        
+                        #training and score evaluations
+                        estimator, preds, results = SKLearner.train(learner, pdl.tr, pdl.labels[label_name]['tr'], 
+                                                                                        pdl.t, pdl.labels[label_name]['t'], full_learner_name,
+                                                                                        metrics=metrics[learner_type], params=params)
+                        #save learner if needed
+                        if config['save_learners']:
+                            output_filename = "{0}{1}".format(label_name, full_learner_name)
+                            output_full_path = os.path.join(learners_output_path, output_filename)
+                            if hasattr(estimator, "save"):
+                                estimator.save(output_full_path)
+                            else:
+                                joblib.dump(estimator, output_full_path+".jbb", compress=3)
+                        
+                        all_results.append_result(full_learner_name, label_name, results)
+                        
+                        post_process(pdl, estimator, preds, full_learner_name, label_name, output_path, config)
+                        
+                        del estimator
         
         all_results.save("{0}_results".format(learner_type))
         
@@ -261,7 +268,7 @@ if __name__ == '__main__':
     
     with open(args.config) as config_file:
         config = yaml.safe_load(config_file)
-        
+            
     _ensure_dir_exists(args.output_path)
         
     #save config
