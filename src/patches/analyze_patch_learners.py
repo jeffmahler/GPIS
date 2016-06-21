@@ -31,7 +31,11 @@ from sk_learner import SKLearner
 
 import sys
 _grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
+_data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
 sys.path.append(_grasp_selection_path)
+sys.path.append(_data_analysis_path)
+import wrap_text
+from csv_statistics import CSVStatistics
 from error_statistics import ContinuousErrorStats
 from confusion_matrix import BinaryConfusionMatrix
 
@@ -89,7 +93,7 @@ class _Results:
                         row.append('')
                 csvwriter.writerow(row)
         
-def _classification_post_process(pdl, estimator, preds, learner_name, label_name, output_path):
+def _classification_post_process(pdl, estimator, preds, learner_name, label_name, output_path, config):
     def filter_measure(type, pred_val, true_val):
         return lambda i: preds[type][i] == pred_val and pdl.labels[label_name][type][i] == true_val
     
@@ -151,7 +155,7 @@ def _classification_post_process(pdl, estimator, preds, learner_name, label_name
     #TODO Visualize patches
     #TODO use confusion matrix to generate and save confusion matrix stats, as well as visualization
 
-def _regression_post_process(pdl, estimator, preds, learner_name, label_name, output_path):
+def _regression_post_process(pdl, estimator, preds, learner_name, label_name, output_path, config):
     #generate and save histograms of errors of all metrics
     title = "{0}_{1}".format(learner_name, label_name)
     
@@ -161,8 +165,8 @@ def _regression_post_process(pdl, estimator, preds, learner_name, label_name, ou
     output_path = os.path.join(output_path, 'regression_error_histograms')
     _ensure_dir_exists(output_path)
     
-    error_stats_tr.plot_error_histograms(output_dir=output_path)
-    error_stats_t.plot_error_histograms(output_dir=output_path)
+    error_stats_tr.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True)
+    error_stats_t.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True)
         
 def eval_learn(config, input_path, output_path):
     #read config about which files to include
@@ -217,7 +221,7 @@ def eval_learn(config, input_path, output_path):
                     
                     all_results.append_result(learner_name, label_name, results)
                     
-                    post_process(pdl, estimator, preds, learner_name, label_name, output_path)
+                    post_process(pdl, estimator, preds, learner_name, label_name, output_path, config)
                     
                     del estimator
         

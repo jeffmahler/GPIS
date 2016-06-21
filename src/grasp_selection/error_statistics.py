@@ -11,7 +11,10 @@ import sys
 import matplotlib
 matplotlib.use('Agg')#prevents using X server backend for matplotlib
 import matplotlib.pyplot as plt
-
+import sys
+_data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
+sys.path.append(_data_analysis_path)
+import wrap_text
 import plotting
 
 class ContinuousErrorStats:
@@ -75,7 +78,7 @@ class ContinuousErrorStats:
                 cur_pct += d_pct
 
     def plot_error_histograms(self, num_bins=100, min_range=None, max_range=None,
-                              normalize=False, color='b', 
+                              normalize=False, color='b', show_stats=False,
                               font_size=15, dpi=100, output_dir=None):
         """ Plots histograms of the errors. Auto-saves figures to output directory if specified """
         for err_tag, err in self.error_types.iteritems():
@@ -91,12 +94,21 @@ class ContinuousErrorStats:
 
             # create figure of histogram
             plt.figure()
+            ax = plt.gca()
             plotting.plot_histogram(err, min_range=min_range, max_range=max_range,
                                     num_bins=num_bins, normalize=normalize, color=color)
             
-            plt.xlabel(x_label, fontsize=font_size)
-            plt.ylabel(y_label, fontsize=font_size)
-            plt.title(title, fontsize=font_size)
+            plt.xlabel(wrap_text.wrap(x_label), fontsize=font_size)
+            plt.ylabel(wrap_text.wrap(y_label), fontsize=font_size)
+            plt.title(wrap_text.wrap(title), fontsize=font_size)
+            
+            if show_stats:
+                stats = '\n'.join(['mean:{:.3g}','median:{:.3g}','std:{:.3g}']).format(
+                                        np.mean(err), np.median(err), np.std(err))
+                textbox_props = {'boxstyle':'square', 'facecolor':'white'}
+                ax.text(0.77, 0.97, stats, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.6)
+            
+            plt.tight_layout()
 
             if output_dir is not None:
                 figname = '%s_%s_histogram.pdf' %(self.tag, err_tag)
