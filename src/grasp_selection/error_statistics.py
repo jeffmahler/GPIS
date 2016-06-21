@@ -78,7 +78,7 @@ class ContinuousErrorStats:
                 cur_pct += d_pct
 
     def plot_error_histograms(self, num_bins=100, min_range=None, max_range=None,
-                              normalize=False, color='b', show_stats=False,
+                              normalize=False, color='b', show_stats=False, csvstats=None,
                               font_size=15, dpi=100, output_dir=None):
         """ Plots histograms of the errors. Auto-saves figures to output directory if specified """
         for err_tag, err in self.error_types.iteritems():
@@ -110,10 +110,14 @@ class ContinuousErrorStats:
             
             plt.tight_layout()
 
+            name = '{0}_{1}'.format(self.tag, err_tag)
             if output_dir is not None:
-                figname = '%s_%s_histogram.pdf' %(self.tag, err_tag)
+                figname = '{0}_histogram.pdf'.format(name)
                 plt.savefig(os.path.join(output_dir, figname), dpi=dpi)
                 plt.close()
+                
+            if csvstats is not None:
+                csvstats.append_data(name, err)
             
     @staticmethod
     def stats_to_csv(stats_list, filename):

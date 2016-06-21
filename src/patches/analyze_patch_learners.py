@@ -155,18 +155,22 @@ def _classification_post_process(pdl, estimator, preds, learner_name, label_name
     #TODO Visualize patches
     #TODO use confusion matrix to generate and save confusion matrix stats, as well as visualization
 
-def _regression_post_process(pdl, estimator, preds, learner_name, label_name, output_path, config):
-    #generate and save histograms of errors of all metrics
-    title = "{0}_{1}".format(learner_name, label_name)
+def _regression_post_process_gen(hs):
     
-    error_stats_tr = ContinuousErrorStats(pdl.labels[label_name]['tr'], preds['tr'], title)
-    error_stats_t = ContinuousErrorStats(pdl.labels[label_name]['t'], preds['t'], title)
-    
-    output_path = os.path.join(output_path, 'regression_error_histograms')
-    _ensure_dir_exists(output_path)
-    
-    error_stats_tr.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True)
-    error_stats_t.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True)
+    def _regression_post_process(pdl, estimator, preds, learner_name, label_name, output_path, config):
+        #generate and save histograms of errors of all metrics
+        title = "{0}_{1}".format(learner_name, label_name)
+        
+        error_stats_tr = ContinuousErrorStats(pdl.labels[label_name]['tr'], preds['tr'], title)
+        error_stats_t = ContinuousErrorStats(pdl.labels[label_name]['t'], preds['t'], title)
+        
+        output_path = os.path.join(output_path, 'regression_error_histograms')
+        _ensure_dir_exists(output_path)
+        
+        error_stats_tr.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True, csvstats=hs)
+        error_stats_t.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True, csvstats=hs)
+        
+    return _regression_post_process
         
 def eval_learn(config, input_path, output_path):
     #read config about which files to include
@@ -228,7 +232,13 @@ def eval_learn(config, input_path, output_path):
         all_results.save("{0}_results".format(learner_type))
         
     do_learn("classifiers", _classification_post_process)
-    do_learn("regressors", _regression_post_process)
+    
+    regression_csv_filename = 'regression_stats.csv'
+    hs = CSVStatistics(os.path.join(output_path, regression_csv_filename), CSVStatistics.HIST_STATS)
+    do_learn("regressors", _regression_post_process_gen(hs))
+    
+    logging.info('Saving {0}'.format(regression_csv_filename))
+    hs.save()
 
 if __name__ == '__main__':
     #read args

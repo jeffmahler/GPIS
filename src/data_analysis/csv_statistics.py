@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.stats import spearmanr
 import csv
+import os
+
 class CSVStatistics:
 
     HIST_STATS = {
@@ -44,6 +46,10 @@ class CSVStatistics:
     def save(self, output_file=None):
         if output_file is None:
             output_file = self._output_file
+
+        output_dir = os.path.dirname(output_file)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
             
         with open(output_file, 'wb') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=['title'] + self._stats_map.keys())
