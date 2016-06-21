@@ -48,7 +48,7 @@ def plot_grasp_histogram(quality, num_bins=100, font_size=10, min_q=0, max_q=1):
     plt.title('Histogram of Grasps by Probability of Success', fontsize=font_size)
 
 def plot_histogram(values, min_range=None, max_range=None, num_bins=100,
-                   normalize=False, color='b'):
+                   normalize=False, color='b', show_stats=False):
     """
     Generates a plot of the histograms of grasps by probability of force closure
     Params:
@@ -71,3 +71,10 @@ def plot_histogram(values, min_range=None, max_range=None, num_bins=100,
     width = (bins[1] - bins[0])
     plt.bar(bins[:-1], hist, width=width, color=color)
     plt.xlim([min_range, max_range])
+    
+    if show_stats:
+        ax = plt.gca()
+        stats = '\n'.join(['mean:{:.3g}','median:{:.3g}','std:{:.3g}']).format(
+                                np.mean(values), np.median(values), np.std(values))
+        textbox_props = {'boxstyle':'square', 'facecolor':'white'}
+        ax.text(0.77, 0.97, stats, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.6)

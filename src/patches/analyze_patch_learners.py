@@ -29,12 +29,17 @@ from sklearn.externals import joblib
 from patches_data_loader import PatchesDataLoader as PDL
 from sk_learner import SKLearner
 
+import matplotlib
+matplotlib.use('Agg')#prevents using X server backend for matplotlib
+import matplotlib.pyplot as plt
+
 import sys
 _grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
 _data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
 sys.path.append(_grasp_selection_path)
 sys.path.append(_data_analysis_path)
 import wrap_text
+import plotting
 from csv_statistics import CSVStatistics
 from error_statistics import ContinuousErrorStats
 from confusion_matrix import BinaryConfusionMatrix
@@ -182,6 +187,11 @@ def _regression_post_process_gen(hs):
     return _regression_post_process
         
 def eval_learn(config, input_path, output_path):
+    #plotting params
+    font_size = config['plotting']['font_size']
+    num_bins = config['plotting']['num_bins']
+    dpi = config['plotting']['dpi']
+
     #read config about which files to include
     features_set = PDL.get_include_set_from_dict(config["feature_prefixes"])
     metadata_set = PDL.get_include_set_from_dict(config["metadata_prefixes"])
@@ -202,6 +212,27 @@ def eval_learn(config, input_path, output_path):
     if config['save_learners']:
         _ensure_dir_exists(learners_output_path)
 
+    #save histograms of regressor labels
+    regression_labels_filename = 'regression_label_stats.csv'
+    label_stats_output_path = os.path.join(output_path, 'label_stats') 
+    _ensure_dir_exists(label_stats_output_path)
+    labels_hs = CSVStatistics(os.path.join(label_stats_output_path, regression_labels_filename), CSVStatistics.HIST_STATS)
+    for label_name in labels_set_map['regressors']:
+        data = pdl._raw_data[label_name]
+        plt.figure()
+        plotting.plot_histogram(data, num_bins=num_bins, normalize=True, show_stats=True)
+        plt.ylabel('Normalized Density', fontsize=font_size)
+        plt.xlabel(wrap_text.wrap(label_name), fontsize=font_size)
+
+        figname = 'metric_{0}_histogram.pdf'.format(label_name)
+        logging.info("Saving {0}".format(figname))
+        plt.savefig(os.path.join(output_path, figname), dpi=dpi)
+        plt.close()
+        
+        labels_hs.append_data(label_name, data)
+    logging.info("Saving {0}".format(regression_labels_filename))
+    labels_hs.save()
+        
     def do_learn(learner_type, post_process):
         #records of all training and test results for all learners
         all_results = _Results(output_path)
@@ -249,11 +280,10 @@ def eval_learn(config, input_path, output_path):
         
     do_learn("classifiers", _classification_post_process)
     
-    regression_csv_filename = 'regression_stats.csv'
-    hs = CSVStatistics(os.path.join(output_path, regression_csv_filename), CSVStatistics.HIST_STATS)
+    regression_err_csv_filename = 'regression_err_stats.csv'
+    hs = CSVStatistics(os.path.join(output_path, regression_err_csv_filename), CSVStatistics.HIST_STATS)
     do_learn("regressors", _regression_post_process_gen(hs))
-    
-    logging.info('Saving {0}'.format(regression_csv_filename))
+    logging.info('Saving {0}'.format(regression_err_csv_filename))
     hs.save()
 
 if __name__ == '__main__':

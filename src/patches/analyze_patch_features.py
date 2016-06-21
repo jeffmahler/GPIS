@@ -38,21 +38,6 @@ def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_p
     positive_metrics = np.take(labels, np.argwhere(data == 1).flatten())
     negative_metrics = np.take(labels, np.argwhere(data == 0).flatten()) 
     
-    min_range = min(np.min(positive_metrics), np.min(negative_metrics))
-    max_range = max(np.max(positive_metrics), np.max(negative_metrics))
-    
-    pos_mean = np.mean(positive_metrics)
-    pos_median = np.median(positive_metrics)
-    pos_std = np.std(positive_metrics)
-
-    neg_mean = np.mean(negative_metrics)
-    neg_median = np.median(negative_metrics)
-    neg_std = np.std(negative_metrics)
-
-    msg_template = '\n'.join(['mean:{:.3g}','median:{:.3g}','std:{:.3g}'])
-    pos_msg = msg_template.format(pos_mean, pos_median, pos_std)
-    neg_msg = msg_template.format(neg_mean, neg_median, neg_std)
-    
     #plotting
     textbox_props = {'boxstyle':'square', 'facecolor':'white'}
     
@@ -63,17 +48,13 @@ def _plot_save_hist_bin(config, data, labels, feature_name, label_name, output_p
     ax.set_title("{0}=1".format(feature_name), fontsize=font_size)
     plt.ylabel('Normalized Density', fontsize=font_size)
     plt.xlabel(wrap_text.wrap(label_name), fontsize=font_size)
-    plotting.plot_histogram(positive_metrics, min_range=min_range, max_range=max_range, 
-                                        num_bins=num_bins, normalize=True)
-    ax.text(0.05, 0.95, pos_msg, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.7)
+    plotting.plot_histogram(positive_metrics, num_bins=num_bins, normalize=True, show_stats=True)
     
     ax = plt.subplot("122")
     ax.set_title("{0}=0".format(feature_name), fontsize=font_size)
     plt.ylabel('Normalized Density', fontsize=font_size)
     plt.xlabel(wrap_text.wrap(label_name), fontsize=font_size)
-    plotting.plot_histogram(negative_metrics, min_range=min_range, max_range=max_range, 
-                                        num_bins=num_bins, normalize=True)
-    ax.text(0.05, 0.95, neg_msg, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.7)
+    plotting.plot_histogram(negative_metrics, num_bins=num_bins, normalize=True, show_stats=True)
     
     plt.tight_layout()
     plt.subplots_adjust(top=0.8)
