@@ -158,8 +158,8 @@ class MayaviVisualizer:
         
     @staticmethod
     def plot_patch(window, T_patch_obj, window_dim_obj=(1.0,1.0), T_obj_world=stf.SimilarityTransform3D(from_frame='world', to_frame='obj'),
-                   patch_color=(1,1,1), contact_color=(1,1,0), axis_color=(0,1,0), contact_scale=0.005,
-                   axis_radius=0.0005, delta_z=0.001, edge_len_thresh=3.0,
+                   patch_color=(1,1,1), contact_color=(1,1,0), contact_scale=0.005,
+                   delta_z=0.001, edge_len_thresh=3.0,
                    dist_thresh=0.05, grad_thresh=0.025):
         """ Plot a patch defined by a window and a contact """
         # extract dimensions
@@ -212,16 +212,15 @@ class MayaviVisualizer:
                 triangles.append(t)
 
         # transform into world reference frame
-        contact_point = T_patch_obj.inverse().translation
         points_3d_obj = T_patch_obj.inverse().dot(T_patch_render).apply(points_3d.T)
         points_3d_world = T_obj_world.inverse().apply(points_3d_obj).T
-        contact_world = T_obj_world.inverse().apply(contact_point)
+        contact_world = T_obj_world.inverse().dot(T_patch_obj.inverse()).dot(T_patch_render).apply(np.zeros(3))
 
         # plot
         mesh_background = mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], triangles,
                                                representation='surface', color=patch_color)
         mesh_tris = mlab.triangular_mesh(points_3d_world[:,0], points_3d_world[:,1], points_3d_world[:,2], triangles,
-                                         representation='wireframe', color=patch_color)
+                                         representation='wireframe', color=(0,0,0))
         points = mlab.points3d(contact_world[0], contact_world[1], contact_world[2],
                                color=contact_color, scale_factor=contact_scale)      
         return mesh_background, mesh_tris, points

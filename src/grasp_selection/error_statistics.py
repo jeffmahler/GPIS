@@ -24,6 +24,7 @@ class ContinuousErrorStats:
             raise ValueError('Must provide numpy ndarrays to compute statistics')
 
         self.tag = tag # the name of the errors
+        self.predictions = predictions
         self.pred_error = truth - predictions
         self._compile_stats()
 
@@ -71,6 +72,40 @@ class ContinuousErrorStats:
                         '%s_%dth_pctle' %(tag, cur_pct): np.percentile(err, cur_pct)
                         })
                 cur_pct += d_pct
+    
+    def top_k_underpredictions(self, k):
+        """ Find the indices of the K most underpredicted values """
+        num_preds = self.pred_errors.shape[0]
+        if k >= num_preds:
+            logging.warning('K greater than the number of predictions. Truncating')
+            k = num_preds - 1
+
+        # sort by error
+        errors_and_indices = zip(self.pred_errors, np.arange(num_preds))
+        sorted_errors = sorted(errors_and_indices, key = lambda x: x[0])
+
+        # get lowest errors
+        underpred_indices = np.array([x[1] for x in sorted_errors[-k:]])
+        underpred_predictions = self.predictions[underpred_indices]
+        underpred_truth = self.pred_error[underpred_indices] + underpred_predictions
+        return underpred_indices, underpred_truth, underpred_predictions
+
+    def top_k_overpredictions(self, k):
+        """ Find the indices of the K most overpredicted values """
+        num_preds = self.pred_errors.shape[0]
+        if k >= num_preds:
+            logging.warning('K greater than the number of predictions. Truncating')
+            k = num_preds - 1
+
+        # sort by error
+        errors_and_indices = zip(self.pred_errors, np.arange(num_preds))
+        sorted_errors = sorted(errors_and_indices, key = lambda x: x[0])
+
+        # get lowest errors
+        overpred_indices = np.array([x[1] for x in sorted_errors[:k]])
+        overpred_predictions = self.predictions[overpred_indices]
+        overpred_truth = self.pred_error[overpred_indices] + overpred_predictions
+        return overpred_indices, overpred_truth, overpred_predictions
 
     def plot_error_histograms(self, num_bins=100, min_range=None, max_range=None,
                               normalize=False, color='b', 

@@ -70,7 +70,7 @@ class Contact3D(Contact):
         normal = self.graspable.sdf.transform_pt_grid_to_obj(normal, direction=True)
         self.normal_ = normal
 
-    def tangents(self, direction=None, max_samples=1000):
+    def tangents(self, direction=None, align_axes=True, max_samples=1000):
         """Returns the direction vector and tangent vectors at a contact point.
         The direction vector defaults to the *inward-facing* normal vector at
         this contact.
@@ -105,29 +105,48 @@ class Contact3D(Contact):
         z_hat = np.cross(x, y)
         if z_hat.dot(direction) < 0:
             y = -y
+        v = x
+        w = y
 
         # redefine tangent x axis to automatically align with the object y axis
-        max_ip = 0
-        max_theta = 0
-        target = np.array([0,0,1])
-        theta = 0
-        d_theta = 2 * np.pi / float(max_samples)
-        for i in range(max_samples):
-            v = np.cos(theta) * x + np.sin(theta) * y
-            if v.dot(target) > max_ip:
-                max_ip = v.dot(target)
-                max_theta = theta
-            theta = theta + d_theta
+        if align_axes:
+            max_ip = 0
+            max_theta = 0
+            target = np.array([0,0,1])
+            theta = 0
+            d_theta = 2 * np.pi / float(max_samples)
+            for i in range(max_samples):
+                v = np.cos(theta) * x + np.sin(theta) * y
+                if v.dot(target) > max_ip:
+                    max_ip = v.dot(target)
+                    max_theta = theta
+                theta = theta + d_theta
 
-        v = np.cos(max_theta) * x + np.sin(max_theta) * y
-        w = np.cross(direction.ravel(), v)
+            v = np.cos(max_theta) * x + np.sin(max_theta) * y
+            w = np.cross(direction.ravel(), v)
+        else:
+            max_ip = 0
+            max_a = 0
+            obj_y = np.array([0,1,0])
+            for i in range(max_samples+1):
+                a = -1 + i * (2.0 / max_samples)
+                v = a * x + np.sqrt(1 - a**2) * y
+                if v.dot(obj_y) > max_ip:
+                    max_ip = v.dot(obj_y)
+                    max_a = a
+            v = max_a * x + np.sqrt(1 - max_a**2) * y
+            w = np.cross(direction.ravel(), v)            
 
         return np.squeeze(direction), v, w
 
-    def reference_frame(self):
-        """ Returns the local reference frame of the contact """
+    def reference_frame(self, align_axes=True):
+        """
+        Returns the local reference frame of the contact
+        Params:
+           align_axes: (bool) whether or not to align to the object axes
+        """
         t_obj_contact = self.point
-        rz, rx, ry = self.tangents(self.in_direction_)
+        rz, rx, ry = self.tangents(self.in_direction_, align_axes=align_axes)
         R_obj_contact = np.array([rx, ry, rz]).T
         T_obj_contact = stf.SimilarityTransform3D(pose=tfx.pose(R_obj_contact, t_obj_contact),
                                                   from_frame='contact', to_frame='obj')
