@@ -68,7 +68,7 @@ class PatchesDataLoader:
         if len(post_indices) == 0:
             return np.array([])
         else:
-            return np.take(self.all_meta_data, self.indices[type][post_indices])
+            return np.take(self.all_meta_data, self.indices[type][post_indices], axis=0)
         
     def load(self):
         all_files_prefixes = self._features_set.union(self._metadata_set.union(self._labels_set))

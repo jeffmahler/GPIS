@@ -147,10 +147,19 @@ def _classification_post_process(pdl, estimator, preds, learner_name, label_name
     #save fn/fp to a file
     output_path = os.path.join(output_path, 'false_positives_negatives')
     _ensure_dir_exists(output_path)
-    output_filename = "fnp_{0}_{1}.jbb".format(learner_name, label_name)
+    output_filename_template = "fnp_{0}_{1}_{2}.csv".format(learner_name, label_name, '{0}')
     
-    logging.info("Saving {0}".format(output_filename))
-    joblib.dump(metas, os.path.join(output_path, output_filename), compress=3)
+    for name, data in metas.items():
+        output_filename = output_filename_template.format(name)
+        logging.info("Saving {0}".format(output_filename))
+        
+        with open(os.path.join(output_path, output_filename), 'wb') as csvfile:
+            writer = csv.writer(csvfile)
+            header = list(pdl._metadata_set)
+            
+            writer.writerow(header)
+            for i in range(data.shape[0]):
+                writer.writerow(data[i,:].tolist())
     
     #TODO Visualize patches
     #TODO use confusion matrix to generate and save confusion matrix stats, as well as visualization
