@@ -169,20 +169,58 @@ def _classification_post_process(pdl, estimator, preds, learner_name, label_name
     #TODO Visualize patches
     #TODO use confusion matrix to generate and save confusion matrix stats, as well as visualization
 
-def _regression_post_process_gen(hs):
+def _regression_post_process_gen(err_stats, tr_stats, t_stats):
+    #plotting params
+    font_size = config['plotting']['font_size']
+    num_bins = config['plotting']['num_bins']
+    dpi = config['plotting']['dpi']   
     
     def _regression_post_process(pdl, estimator, preds, learner_name, label_name, output_path, config):
         #generate and save histograms of errors of all metrics
         title = "{0}_{1}".format(learner_name, label_name)
         
+        #plot errors
         error_stats_tr = ContinuousErrorStats(pdl.labels[label_name]['tr'], preds['tr'], title)
         error_stats_t = ContinuousErrorStats(pdl.labels[label_name]['t'], preds['t'], title)
         
-        output_path = os.path.join(output_path, 'regression_error_histograms')
-        _ensure_dir_exists(output_path)
+        output_path_err = os.path.join(output_path, 'regression_error_histograms')
+        _ensure_dir_exists(output_path_err)
         
-        error_stats_tr.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True, csvstats=hs)
-        error_stats_t.plot_error_histograms(output_dir=output_path, normalize=config['normalize'], show_stats=True, csvstats=hs)
+        error_stats_tr.plot_error_histograms(output_dir=output_path_err, normalize=config['normalize'], show_stats=True, csvstats=err_stats)
+        error_stats_t.plot_error_histograms(output_dir=output_path_err, normalize=config['normalize'], show_stats=True, csvstats=err_stats)
+        
+        #plot predictions
+        title_tr = "{0}train".format(title)
+        title_t = "{0}test".format(title)
+        
+        output_path_preds = os.path.join(output_path, 'regression_preds_histograms')
+        _ensure_dir_exists(output_path_preds)
+        
+        plt.figure()
+        plotting.plot_histogram(preds['tr'], num_bins=num_bins, normalize=True, show_stats=True)
+        plt.title(wrap_text.wrap(title_tr) + '\nHistogram')
+        plt.ylabel('Normalized Density', fontsize=font_size)
+        plt.xlabel(wrap_text.wrap(title_tr), fontsize=font_size)
+        plt.tight_layout()
+        figname = 'preds_{0}_histogram.pdf'.format(title_tr)
+        logging.info("Saving {0}".format(figname))
+        plt.savefig(os.path.join(output_path_preds, figname), dpi=dpi)
+        plt.close()
+        
+        plt.figure()
+        plotting.plot_histogram(preds['t'], num_bins=num_bins, normalize=True, show_stats=True)
+        plt.title(wrap_text.wrap(title_t) + '\nHistogram')
+        plt.ylabel('Normalized Density', fontsize=font_size)
+        plt.xlabel(wrap_text.wrap(title_t), fontsize=font_size)
+        plt.tight_layout()
+        figname = 'preds_{0}_histogram.pdf'.format(title_t)
+        logging.info("Saving {0}".format(figname))
+        plt.savefig(os.path.join(output_path_preds, figname), dpi=dpi)
+        plt.close()
+        
+        #saving stats to csv
+        tr_stats.append_data(title_tr, preds['tr'])
+        t_stats.append_data(title_t, preds['t'])
         
     return _regression_post_process
         
@@ -280,11 +318,21 @@ def eval_learn(config, input_path, output_path):
         
     do_learn("classifiers", _classification_post_process)
     
+    #saving stats about regression results
+    regression_results_stats_output_path = os.path.join(output_path, 'regression_results_stats')
     regression_err_csv_filename = 'regression_err_stats.csv'
-    hs = CSVStatistics(os.path.join(output_path, regression_err_csv_filename), CSVStatistics.HIST_STATS)
-    do_learn("regressors", _regression_post_process_gen(hs))
+    regression_tr_csv_filename = 'regression_train_stats.csv'
+    regression_t_csv_filename = 'regression_test_stats.csv'
+    err_stats = CSVStatistics(os.path.join(regression_results_stats_output_path, regression_err_csv_filename), CSVStatistics.HIST_STATS)
+    tr_stats = CSVStatistics(os.path.join(regression_results_stats_output_path, regression_tr_csv_filename), CSVStatistics.HIST_STATS)
+    t_stats = CSVStatistics(os.path.join(regression_results_stats_output_path, regression_t_csv_filename), CSVStatistics.HIST_STATS)
+    do_learn("regressors", _regression_post_process_gen(err_stats, tr_stats, t_stats))
     logging.info('Saving {0}'.format(regression_err_csv_filename))
-    hs.save()
+    err_stats.save()
+    logging.info('Saving {0}'.format(regression_tr_csv_filename))
+    tr_stats.save()
+    logging.info('Saving {0}'.format(regression_t_csv_filename))
+    t_stats.save()
 
 if __name__ == '__main__':
     #read args

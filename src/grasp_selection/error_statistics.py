@@ -94,19 +94,12 @@ class ContinuousErrorStats:
 
             # create figure of histogram
             plt.figure()
-            ax = plt.gca()
             plotting.plot_histogram(err, min_range=min_range, max_range=max_range,
-                                    num_bins=num_bins, normalize=normalize, color=color)
+                                    num_bins=num_bins, normalize=normalize, color=color, show_stats=show_stats)
             
             plt.xlabel(wrap_text.wrap(x_label), fontsize=font_size)
             plt.ylabel(wrap_text.wrap(y_label), fontsize=font_size)
             plt.title(wrap_text.wrap(title), fontsize=font_size)
-            
-            if show_stats:
-                stats = '\n'.join(['mean:{:.3g}','median:{:.3g}','std:{:.3g}']).format(
-                                        np.mean(err), np.median(err), np.std(err))
-                textbox_props = {'boxstyle':'square', 'facecolor':'white'}
-                ax.text(0.77, 0.97, stats, transform=ax.transAxes, fontsize=14, verticalalignment='top', bbox=textbox_props, alpha=0.6)
             
             plt.tight_layout()
 
