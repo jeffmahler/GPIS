@@ -251,23 +251,25 @@ def eval_learn(config, input_path, output_path):
         _ensure_dir_exists(learners_output_path)
 
     #save histograms of regressor labels
-    regression_labels_filename = 'regression_label_stats.csv'
-    label_stats_output_path = os.path.join(output_path, 'label_stats') 
-    _ensure_dir_exists(label_stats_output_path)
-    labels_hs = CSVStatistics(os.path.join(label_stats_output_path, regression_labels_filename), CSVStatistics.HIST_STATS)
+    regression_labels_filename = 'regression_labels_stats.csv'
+    regression_labels_hists_path = os.path.join(output_path, 'regression_labels_histograms')
+    _ensure_dir_exists(regression_labels_hists_path)
+    labels_hs = CSVStatistics(os.path.join(output_path, regression_labels_filename), CSVStatistics.HIST_STATS)
     for label_name in labels_set_map['regressors']:
         data = pdl._raw_data[label_name]
         plt.figure()
         plotting.plot_histogram(data, num_bins=num_bins, normalize=True, show_stats=True)
         plt.ylabel('Normalized Density', fontsize=font_size)
         plt.xlabel(wrap_text.wrap(label_name), fontsize=font_size)
-
+        plt.title(wrap_text.wrap(label_name) + '\n Histogram')
+        plt.tight_layout()        
         figname = 'metric_{0}_histogram.pdf'.format(label_name)
         logging.info("Saving {0}".format(figname))
-        plt.savefig(os.path.join(output_path, figname), dpi=dpi)
+        plt.savefig(os.path.join(regression_labels_hists_path, figname), dpi=dpi)
         plt.close()
         
         labels_hs.append_data(label_name, data)
+        
     logging.info("Saving {0}".format(regression_labels_filename))
     labels_hs.save()
         
