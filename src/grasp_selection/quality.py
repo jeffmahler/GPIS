@@ -34,6 +34,7 @@ import IPython
 cvx.solvers.options['show_progress'] = False
 
 FRICTION_COEF = 0.5
+GRAVITY_ACCEL = 9.81
 
 class PointGraspMetrics3D:
 
@@ -50,7 +51,7 @@ class PointGraspMetrics3D:
         contacts_found, contacts = grasp.close_fingers(obj, vis=vis)
         if not contacts_found:
             logging.debug('Contacts not found')
-            return 0#-np.inf
+            return 0
 
         if method == 'force_closure':
             # Use fast force closure test (Nguyen 1988) if possible.
@@ -96,18 +97,20 @@ class PointGraspMetrics3D:
 
         if normals.shape[1] == 0:
             logging.debug('No normals')
-            return 0#-np.inf
-
-        # normalize torques
-        rho = 1.0
-        if method == 'ferrari_canny_L1':
-            mn, mx = obj.mesh.bounding_box()
-            rho = np.median(mx)
-            torques = torques / rho
+            return 0
 
         if params is None:
             params = {}
-        params['rho'] = rho
+
+        # normalize torques
+        if 'rho' not in params.keys():
+            rho = 1.0
+            if method == 'ferrari_canny_L1':
+                mn, mx = obj.mesh.bounding_box()
+                rho = np.median(mx)
+                torques = torques / rho
+            params['rho'] = rho 
+
         params['friction_coef'] = friction_coef 
 
         if vis:
@@ -125,7 +128,10 @@ class PointGraspMetrics3D:
         return quality
 
     @staticmethod
-    def grasp_matrix(forces, torques, normals, soft_fingers=False, finger_radius=0.005, params=None):
+    def grasp_matrix(forces, torques, normals, soft_fingers=False, params=None):
+        finger_radius = 0.005
+        if params is not None and 'finger_radius' in params.keys():
+            finger_radius = params['finger_radius']
         num_forces = forces.shape[1]
         num_torques = torques.shape[1]
         if num_forces != num_torques:
@@ -319,7 +325,7 @@ class PointGraspMetrics3D:
                 dist, _ = PointGraspMetrics3D.min_norm_vector_in_facet(facet)
                 if dist < min_dist:
                     min_dist = dist
-                    closest_facet = facet
+                    closest_facet = v
 
         return min_dist
 

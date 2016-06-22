@@ -54,8 +54,8 @@ class GraspQualityRV(rvs.RandomVariable):
     def _parse_config(self, config):
         """ Grab config data from the config file """
         self.num_cone_faces_ = config['num_cone_faces']
-        if config['use_soft_fingers']:
-            self.soft_fingers_ = config['use_soft_fingers']
+        if config['soft_fingers']:
+            self.soft_fingers_ = config['soft_fingers']
 
     @property
     def grasp(self):
