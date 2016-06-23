@@ -6,19 +6,22 @@ import logging
 import matplotlib
 matplotlib.use('Agg')#prevents using X server backend for matplotlib
 import matplotlib.pyplot as plt
+from patches_data_loader import PatchesDataLoader as PDL
+import IPython
 
 import sys
 _grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
 _data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
+_util_path = os.path.join(os.path.dirname(__file__), '..', 'util')
+
 sys.path.append(_grasp_selection_path)
-sys.path.append(_data_analysis_path)
 import plotting
+
+sys.path.append(_data_analysis_path)
 from csv_statistics import CSVStatistics
+
+sys.path.append(_util_path)
 import wrap_text
-
-from patches_data_loader import PatchesDataLoader as PDL
-
-import IPython
 
 def _ensure_dir_exists(dir):
     if not os.path.exists(dir):

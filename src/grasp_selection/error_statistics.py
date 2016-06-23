@@ -11,11 +11,13 @@ import sys
 import matplotlib
 matplotlib.use('Agg')#prevents using X server backend for matplotlib
 import matplotlib.pyplot as plt
-import sys
-_data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
-sys.path.append(_data_analysis_path)
-import wrap_text
 import plotting
+
+import sys
+_util_path = os.path.join(os.path.dirname(__file__), '..', 'util')
+
+sys.path.append(_util_path)
+import wrap_text
 
 class ContinuousErrorStats:
     TAG='tag'

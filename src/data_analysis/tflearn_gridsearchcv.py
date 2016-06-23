@@ -4,9 +4,14 @@ Author: Jacky
 '''
 
 from sklearn.cross_validation import train_test_split
-from loop_time_forecaster import LoopTimeForecaster
 from collections import namedtuple
 import itertools
+
+import sys
+_util_path = os.path.join(os.path.dirname(__file__), '..', 'util')
+
+sys.path.append(_util_path)
+from loop_time_forecaster import LoopTimeForecaster
 
 class TFLearnGridSearchCV:
 

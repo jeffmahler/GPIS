@@ -36,13 +36,18 @@ import matplotlib.pyplot as plt
 import sys
 _grasp_selection_path = os.path.join(os.path.dirname(__file__), '..', 'grasp_selection')
 _data_analysis_path = os.path.join(os.path.dirname(__file__), '..', 'data_analysis')
+_util_path = os.path.join(os.path.dirname(__file__), '..', 'util')
+
 sys.path.append(_grasp_selection_path)
-sys.path.append(_data_analysis_path)
-import wrap_text
 import plotting
-from csv_statistics import CSVStatistics
 from error_statistics import ContinuousErrorStats
 from confusion_matrix import BinaryConfusionMatrix
+
+sys.path.append(_data_analysis_path)
+from csv_statistics import CSVStatistics
+
+sys.path.append(_util_path)
+import wrap_text
 
 LEARNERS_MAP = {
     "classifiers":{#preferrably classifiers that implement predict_proba
