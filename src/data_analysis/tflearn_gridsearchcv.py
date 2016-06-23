@@ -6,6 +6,7 @@ Author: Jacky
 from sklearn.cross_validation import train_test_split
 from loop_time_forecaster import LoopTimeForecaster
 from collections import namedtuple
+import itertools
 
 class TFLearnGridSearchCV:
 
@@ -43,7 +44,8 @@ class TFLearnGridSearchCV:
         self._best_estimator = None
         
         X_tr, X_v, y_tr, y_v = train_test_split(X, y, test_size=self._cv)
-        ltf = LoopTimeForecaster(len(self._params_grid), 100)
+        
+        ltf = LoopTimeForecaster(len(self._params_grid), period=100)
         for params in self._params_grid:
             ltf.record_loop_start()
             estimator = self._estimator_instantiator().set_params(**params)
@@ -60,6 +62,14 @@ class TFLearnGridSearchCV:
             ltf.record_loop_end()
             ltf.report_forecast()
                 
+    @staticmethod
+    def get_hidden_units_params(layer_nums, layer_sizes):
+        all_hidden_unit_combos = []
+        for layer_num in layer_nums:
+            hidden_unit_combos = [combo for combo in itertools.permutations(layer_sizes, layer_num)]
+            all_hidden_unit_combos.extend(hidden_unit_combos)
+        return all_hidden_unit_combos
+                
     @property
     def best_params_(self):
         return self._best_params
@@ -69,7 +79,7 @@ class TFLearnGridSearchCV:
         return self._best_score
     
     @property
-    def grid_grid_scores_(self):
+    def grid_scores_(self):
         return self._grid_scores
     
     @property

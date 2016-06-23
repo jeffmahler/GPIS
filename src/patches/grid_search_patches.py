@@ -74,6 +74,9 @@ def grid_search(config, input_path, output_path):
         #perform grid search. either use tf learn or sk learn
         learner_instantiator = LEARNERS_MAP[name]
         if 'TensorFlow' in name:
+            params['hidden_units'] = TFLearnGridSearchCV.get_hidden_units_params(params['layer_nums'], params['layer_sizes'])
+            params.pop('layer_nums', None)
+            params.pop('layer_sizes', None)
             cv = TFLearnGridSearchCV(learner_instantiator, params)
         else:
             cv = GridSearchCV(learner_instantiator(), [params], cv=3)

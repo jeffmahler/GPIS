@@ -3,6 +3,7 @@ Helper to forecast remaining time in loops
 Author: Jacky Liang
 '''
 import time
+import logging
 
 class LoopTimeForecaster:
     
