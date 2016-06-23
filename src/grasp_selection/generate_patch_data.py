@@ -31,6 +31,25 @@ import random_variables as rvs
 import robust_grasp_quality as rgq
 import termination_conditions as tc
 
+def repair_metrics(old_metrics):
+    metrics = {}
+    for metric_name, metric_val in old_metrics.iteritems():
+        metric_key = metric_name
+        if metric_name.find('vpc') != -1:
+            continue
+        if metric_name.find('vfc') != -1:
+            continue
+        if metric_name.find('ppc') != -1:
+            metric_key = metric_name[:4] + metric_name[11:]
+        if metric_name.find('ewrr') != -1:
+            metric_key = metric_name[:5] + metric_name[12:]
+        if metric_name.find('lift_closure') != -1:
+            metric_key = 'lift_closure'
+        if metric_name.find('wrench_resist_ratio') != -1:
+            metric_key = 'wrench_resist_ratio'
+        metrics[metric_key] = metric_val
+    return metrics
+
 def load_patches(obj_key, obj_id, dataset, all_features, all_metrics,
                  all_obj_ids, all_names, config):
     normal_feature_name = 'surface_normals'
@@ -75,7 +94,7 @@ def load_patches(obj_key, obj_id, dataset, all_features, all_metrics,
         data_valid = True
 
         # validate feature lengths
-        metrics = gm[grasp_id]
+        metrics = repair_metrics(gm[grasp_id])
         if len(features) == 0 or len(metrics.keys()) == 0:
             continue
 
