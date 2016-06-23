@@ -8,6 +8,11 @@ import IPython
 import logging
 import numpy as np
 
+import sys
+_util_path = os.path.join(os.path.dirname(__file__), '..', 'util')
+sys.path.append(_util_path)
+from data_processing import DataProcessing
+
 class PatchesDataLoader:
 
     def __init__(self, p_test, data_path, file_nums, features_set, metadata_set, labels_set, split_by_objs=True):
@@ -20,12 +25,13 @@ class PatchesDataLoader:
         
         has_obj_ids = 'obj_ids_' in metadata_set
         if split_by_objs and not has_obj_ids:
-                logging.warning("Set to split train/test data by objs but obj_ids files are not given. Will not be splitting by objs.")
+            logging.warning("Set to split train/test data by objs but obj_ids files are not given. Will not be splitting by objs.")
         self._split_by_objs = split_by_objs and has_obj_ids
         
         self._raw_data = {}
         self._partial_train_data = {}
         self._partial_raw_data = {}
+        self._labels_variants = {}
         self.all_tr_data = None
         self.all_meta_data = None
 
@@ -63,7 +69,22 @@ class PatchesDataLoader:
             self.partial_data[feature_set] = {"tr":tr, "t":t}
         
         return self.partial_data[feature_set]
-
+        
+    def get_labels_variants(self, label_name, variant_name):
+        original = self.labels[label_name]
+        
+        if variant_name == '':
+            return original
+        
+        key = (label_name, variant_name)
+        if key not in self._labels_variants:
+            self._labels_variants[key] = {
+                'tr': getattr(DataProcessing, variant_name)(original['tr']),
+                't': getattr(DataProcessing, variant_name)(original['t'])
+            }
+        
+        return self._labels_variants[key]
+        
     def get_all_meta(self, type, post_indices):
         if len(post_indices) == 0:
             return np.array([])

@@ -129,8 +129,8 @@ def _plot_save_scatter_pair(config, data, labels, features_pair, label_name, out
     ss.append_data(name1, to_corr[:,[0,2]])
     ss.append_data(name2, to_corr[:,[1,2]])
     
-def _plot_save_scatter(config, data, labels, feature_name, label_name, output_path, ss):
-    if data.reshape(data.shape[0], -1).shape[1] != 1:
+def _plot_save_scatter(config, feature_data, split_by, all_labels, feature_name, label_name, output_path, ss):
+    if feature_data.reshape(feature_data.shape[0], -1).shape[1] != 1:
         logging.warn("Scatter plot can only accept one-dimensional data. Skipping {0}".format(feature_name))
         return
         
@@ -140,60 +140,89 @@ def _plot_save_scatter(config, data, labels, feature_name, label_name, output_pa
     font_size = config['plotting']['font_size']
     dpi = config['plotting']['dpi']
     
-    #subsample data if needed
-    sub_inds = np.arange(data.shape[0])
-    if data.shape[0] > scatter_subsamples:
-        sub_inds = np.choose(scatter_subsamples, np.arange(data.shape[0]))
-    data_sub = data[sub_inds]
-    labels_sub = labels[sub_inds]
-    
-    #compute best fit line
-    A = np.c_[data, np.ones(data.shape[0])] 
-    b = labels
-    w, _, _, _ = np.linalg.lstsq(A, b)
-    to_corr = np.c_[data, labels]
-    rho = np.corrcoef(to_corr, rowvar=0)[1,0]
-        
-    #scatter the PFC vs friction cone angle
-    min_alpha = np.min(data)
-    max_alpha = np.max(data)
-    x_vals = [min_alpha, max_alpha]
-    y_vals = [w[1] + w[0] * min_alpha, w[1] + w[0] * max_alpha]
+    splitted_data = {} #maps split name to splitted data
+    for split_by_name, split_by_data in split_by.items():
+        if split_by_data is None:
+            splitted_data['']  = (feature_data, all_labels)
+        else:
+            split_data_ind_0 = np.where(split_by_data == 0)[0]
+            split_data_ind_1 = np.where(split_by_data == 1)[0]
+            
+            splitted_data['{0}1_'.format(split_by_name)] = (feature_data[split_data_ind_1], all_labels[split_data_ind_1])
+            splitted_data['{0}0_'.format(split_by_name)] = (feature_data[split_data_ind_0], all_labels[split_data_ind_0])
 
-    #plot
-    fig = plt.figure()
-    plt.scatter(data_sub, labels_sub, c='b', s=50)
-    plt.plot(x_vals, y_vals, c='r', linewidth=line_width)
-    plt.xlim(x_vals[0]  - eps, x_vals[1] + eps)
-    plt.ylim(min(labels) - eps, max(labels) + eps)
-    plt.title('Metric {0}\n{1}'.format(wrap_text.wrap(label_name), feature_name), fontsize=font_size)
-    plt.xlabel(feature_name, fontsize=font_size)
-    plt.ylabel(wrap_text.wrap(label_name), fontsize=font_size)
-    plt.legend(('Best Fit Line (rho={:.2g})'.format(rho), 'Datapoints'), loc='best')
-    plt.tight_layout()
-    
-    name = 'metric_{0}{1}'.format(label_name, feature_name)
-    figname = '{0}scatter.pdf'.format(name)
-    logging.info("Saving {0}".format(figname))
-    plt.savefig(os.path.join(output_path, figname), dpi=dpi)
-    plt.close()
-    
-    ss.append_data(name, to_corr)
+    for split_name, data_labels in splitted_data.items():
+        data, labels = data_labels[0], data_labels[1]
+        
+        #subsample data if needed
+        sub_inds = np.arange(data.shape[0])
+        if data.shape[0] > scatter_subsamples:
+            sub_inds = np.choose(scatter_subsamples, np.arange(data.shape[0]))
+        data_sub = data[sub_inds]
+        labels_sub = labels[sub_inds]
+
+        #compute best fit line
+        A = np.c_[data, np.ones(data.shape[0])] 
+        b = labels
+        
+        w, _, _, _ = np.linalg.lstsq(A, b)
+        to_corr = np.c_[data, labels]
+        rho = np.corrcoef(to_corr, rowvar=0)[1,0]
+            
+        #scatter the PFC vs friction cone angle
+        min_alpha = np.min(data)
+        max_alpha = np.max(data)
+        x_vals = [min_alpha, max_alpha]
+        y_vals = [w[1] + w[0] * min_alpha, w[1] + w[0] * max_alpha]
+
+        full_feature_name = feature_name
+        if split_name != '':
+            full_feature_name = '{0}split_{1}'.format(feature_name, split_name)
+        
+        #plot
+        fig = plt.figure()
+        plt.scatter(data_sub, labels_sub, c='b', s=50)
+        plt.plot(x_vals, y_vals, c='r', linewidth=line_width)
+        plt.xlim(x_vals[0]  - eps, x_vals[1] + eps)
+        plt.ylim(min(labels) - eps, max(labels) + eps)
+        plt.title('Metric {0}\n{1}'.format(wrap_text.wrap(label_name), full_feature_name), fontsize=font_size)
+        plt.xlabel(full_feature_name, fontsize=font_size)
+        plt.ylabel(wrap_text.wrap(label_name), fontsize=font_size)
+        plt.legend(('Best Fit Line (rho={:.2g})'.format(rho), 'Datapoints'), loc='best')
+        plt.tight_layout()
+
+        name = 'metric_{0}{1}'.format(label_name, full_feature_name)
+        figname = '{0}scatter.pdf'.format(name)
+        logging.info("Saving {0}".format(figname))
+        plt.savefig(os.path.join(output_path, figname), dpi=dpi)
+        plt.close()
+
+        ss.append_data(name, to_corr)
     
 def analyze_patch_features(config, input_path, output_path):
     #load data
     features_set_hist_bin = PDL.get_include_set_from_dict(config['feature_prefixes_hist_bin'])
-    features_set_scatter = PDL.get_include_set_from_dict(config['feature_prefixes_scatter'])
     
     features_set_scatter_pair = []
     pair_configs = config['feature_prefixes_scatter_pair']
     for pair_config in pair_configs:
         if pair_config['use']:
             features_set_scatter_pair.append(set(pair_config['pair']))
-
-    labels_set = PDL.get_include_set_from_dict(config['label_prefixes'])
+            
+    features_set_scatter = set()
+    features_scatter_splits = {}
+    split_by_set = set()
+    for feature, feature_config in config['feature_prefixes_scatter'].items():
+        if feature_config['use']:
+            features_set_scatter.add(feature)
+            features_scatter_splits[feature] = feature_config['split_by']
+            for split_name in feature_config['split_by']:
+                if split_name != '':
+                    split_by_set.add(split_name)
     
-    features_set = [features_set_hist_bin, features_set_scatter]
+    labels_set = PDL.get_include_set_from_dict(config['label_prefixes'])
+
+    features_set = [features_set_hist_bin, features_set_scatter, split_by_set]
     features_set.extend(features_set_scatter_pair)
     features_set = set.union(*features_set)
 
@@ -212,7 +241,14 @@ def analyze_patch_features(config, input_path, output_path):
             _plot_save_hist_bin(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path, hs)
         
         for feature_name in features_set_scatter:
-            _plot_save_scatter(config, pdl._raw_data[feature_name], labels, feature_name, label_name, output_path, ss)
+            split_by = {}
+            split_by_names = features_scatter_splits[feature_name]
+            for split_by_name in split_by_names:
+                split_by_data = None
+                if split_by_name != '':
+                    split_by_data = pdl._raw_data[split_by_name]
+                split_by[split_by_name] = split_by_data               
+            _plot_save_scatter(config, pdl._raw_data[feature_name], split_by, labels, feature_name, label_name, output_path, ss)
         
         for features_pair in features_set_scatter_pair:
             features_pair = list(features_pair)

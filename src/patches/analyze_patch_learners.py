@@ -61,6 +61,9 @@ LEARNERS_MAP = {
     }
 }
 
+_CLASSIFIER_TYPE = 'classifiers'
+_REGRESSOR_TYPE = 'regressors'
+
 def _ensure_dir_exists(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
@@ -173,25 +176,27 @@ def _regression_post_process_gen(err_stats, tr_stats, t_stats):
     #plotting params
     font_size = config['plotting']['font_size']
     num_bins = config['plotting']['num_bins']
-    dpi = config['plotting']['dpi']   
+    dpi = config['plotting']['dpi']
+    normalize_hist = config['plotting']['normalize_hist']
     
-    def _regression_post_process(pdl, estimator, preds, learner_name, label_name, output_path, config):
-        #generate and save histograms of errors of all metrics
-        title = "{0}_{1}".format(learner_name, label_name)
+    def _regression_post_process(pdl, estimator, preds, learner_name, full_label_name, output_path, config):
+        #generate and save histograms of errors of all metrics        
+        label_name, variant = full_label_name[0], full_label_name[1]
+        title = "{0}_{1}{2}".format(learner_name, label_name, variant)
         
         #plot errors
-        error_stats_tr = ContinuousErrorStats(pdl.labels[label_name]['tr'], preds['tr'], title)
-        error_stats_t = ContinuousErrorStats(pdl.labels[label_name]['t'], preds['t'], title)
+        error_stats_tr = ContinuousErrorStats(pdl.get_labels_variants(label_name, variant)['tr'], preds['tr'], title)
+        error_stats_t = ContinuousErrorStats(pdl.get_labels_variants(label_name, variant)['t'], preds['t'], title)
         
         output_path_err = os.path.join(output_path, 'regression_error_histograms')
         _ensure_dir_exists(output_path_err)
         
-        error_stats_tr.plot_error_histograms(output_dir=output_path_err, normalize=config['normalize'], show_stats=True, csvstats=err_stats)
-        error_stats_t.plot_error_histograms(output_dir=output_path_err, normalize=config['normalize'], show_stats=True, csvstats=err_stats)
+        error_stats_tr.plot_error_histograms(output_dir=output_path_err, normalize=normalize_hist, show_stats=True, csvstats=err_stats)
+        error_stats_t.plot_error_histograms(output_dir=output_path_err, normalize=normalize_hist, show_stats=True, csvstats=err_stats)
         
         #plot predictions
-        title_tr = "{0}train".format(title)
-        title_t = "{0}test".format(title)
+        title_tr = "{0}_train".format(title)
+        title_t = "{0}_test".format(title)
         
         output_path_preds = os.path.join(output_path, 'regression_preds_histograms')
         _ensure_dir_exists(output_path_preds)
@@ -236,9 +241,11 @@ def eval_learn(config, input_path, output_path):
     regression_labels_set = PDL.get_include_set_from_dict(config["regression_label_prefixes"])
     classification_labels_set = PDL.get_include_set_from_dict(config["classification_label_prefixes"])
     
+    regression_label_variants_set = PDL.get_include_set_from_dict(config['regression_label_variants'])
+    
     labels_set_map = {
-        'classifiers':classification_labels_set,
-        'regressors':regression_labels_set
+        _CLASSIFIER_TYPE: classification_labels_set,
+        _REGRESSOR_TYPE: regression_labels_set
     }
                     
     #load data
@@ -297,28 +304,46 @@ def eval_learn(config, input_path, output_path):
                     for suffix, params in all_params.items():
                         full_learner_name = "{0}_{1}".format(learner_name, suffix)
                         
-                        #training and score evaluations
-                        estimator, preds, results = SKLearner.train(learner, pdl.tr, pdl.labels[label_name]['tr'], 
-                                                                                        pdl.t, pdl.labels[label_name]['t'], full_learner_name,
-                                                                                        metrics=metrics[learner_type], params=params)
-                        #save learner if needed
-                        if config['save_learners']:
-                            output_filename = "{0}{1}".format(label_name, full_learner_name)
-                            output_full_path = os.path.join(learners_output_path, output_filename)
-                            if hasattr(estimator, "save"):
-                                estimator.save(output_full_path)
-                            else:
-                                joblib.dump(estimator, output_full_path+".jbb", compress=3)
-                        
-                        all_results.append_result(full_learner_name, label_name, results)
-                        
-                        post_process(pdl, estimator, preds, full_learner_name, label_name, output_path, config)
-                        
-                        del estimator
+                        #get list of label variants
+                        if learner_type == _REGRESSOR_TYPE:
+                            all_labels = []
+                            for variant in regression_label_variants_set:
+                                all_labels.append({
+                                    'name': variant,
+                                    'tr': pdl.get_labels_variants(label_name, variant)['tr'],
+                                    't': pdl.get_labels_variants(label_name, variant)['t']
+                                })
+                        else:
+                            all_labels = [{
+                                            'name': '',
+                                            'tr': pdl.labels[label_name]['tr'],
+                                            't': pdl.labels[label_name]['t']
+                                        }]
+                                        
+                        for label in all_labels:
+                            full_label_name = '{0}{1}'.format(label_name, label['name'])
+                            
+                            #training and score evaluations
+                            estimator, preds, results = SKLearner.train(learner, pdl.tr, label['tr'], pdl.t, label['t'], full_learner_name,
+                                                                                         metrics=metrics[learner_type], params=params)
+                            #save learner if needed
+                            if config['save_learners']:
+                                output_filename = "{0}{1}".format(full_label_name, full_learner_name)
+                                output_full_path = os.path.join(learners_output_path, output_filename)
+                                if hasattr(estimator, "save"):
+                                    estimator.save(output_full_path)
+                                else:
+                                    joblib.dump(estimator, output_full_path+".jbb", compress=3)
+                            
+                            all_results.append_result(full_learner_name, full_label_name, results)
+
+                            post_process(pdl, estimator, preds, full_learner_name, (label_name, label['name']), output_path, config)
+                            
+                            del estimator
         
         all_results.save("{0}_results".format(learner_type))
         
-    do_learn("classifiers", _classification_post_process)
+    do_learn(_CLASSIFIER_TYPE, _classification_post_process)
     
     #saving stats about regression results
     regression_results_stats_output_path = os.path.join(output_path, 'regression_results_stats')
@@ -328,7 +353,7 @@ def eval_learn(config, input_path, output_path):
     err_stats = CSVStatistics(os.path.join(regression_results_stats_output_path, regression_err_csv_filename), CSVStatistics.HIST_STATS)
     tr_stats = CSVStatistics(os.path.join(regression_results_stats_output_path, regression_tr_csv_filename), CSVStatistics.HIST_STATS)
     t_stats = CSVStatistics(os.path.join(regression_results_stats_output_path, regression_t_csv_filename), CSVStatistics.HIST_STATS)
-    do_learn("regressors", _regression_post_process_gen(err_stats, tr_stats, t_stats))
+    do_learn(_REGRESSOR_TYPE, _regression_post_process_gen(err_stats, tr_stats, t_stats))
     logging.info('Saving {0}'.format(regression_err_csv_filename))
     err_stats.save()
     logging.info('Saving {0}'.format(regression_tr_csv_filename))
