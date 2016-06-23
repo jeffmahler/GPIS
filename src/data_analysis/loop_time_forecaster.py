@@ -6,9 +6,10 @@ import time
 
 class LoopTimeForecaster:
     
-    def __init__(self, n):
+    def __init__(self, n, period=1):
         self._n = n
         self._i = 0
+        self._period = period
         self._start = None
         self._temp_start = None
         self._end = None
@@ -30,9 +31,10 @@ class LoopTimeForecaster:
             mean_time = sum(self._times) / len(self._times)
             remaining_time = mean_time * remaining_steps
             
-            msg = "Remaining time: {0}, steps: {1}. Time per step: {2}".format(timedelta(seconds=remaining_time),
-                                                                               remaining_steps, timedelta(seconds=mean_time))
-            logging.info(msg)
+            if self._i % self._period == 0:
+                msg = "Remaining time: {0}, steps: {1}. Time per step: {2}".format(timedelta(seconds=remaining_time),
+                                                                                   remaining_steps, timedelta(seconds=mean_time))
+                logging.info(msg)
             
     def record_loop_start(self):
         cur_time = time.time()
