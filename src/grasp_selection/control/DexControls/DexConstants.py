@@ -10,7 +10,7 @@ class DexConstants:
     LOGGING = True
 
     ZEKE_COMM = "/dev/ttyACM0"
-    TABLE_COMM = "/dev/ttyACM1"
+    TABLE_COMM = "/dev/ttyACM4"
     IZZY_COMM = "/dev/ttyACM2"
     BAUDRATE = 115200
     SER_TIMEOUT = 0.01

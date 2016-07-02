@@ -2,8 +2,9 @@ import numpy as np
 import os
 import sys
 import csv
-sys.path.append("/home/jmahler/sherdil_working/GPIS/src/grasp_selection/control/DexControls")
+from  scipy.stats import multivariate_normal
 
+sys.path.append("/home/jmahler/sherdil_working/GPIS/src/grasp_selection/control/DexControls")
 from DexAngles import DexAngles
 from DexConstants import DexConstants
 from DexController import DexController
@@ -25,7 +26,7 @@ def is_float(string):
     except ValueError:
         return False
 
-def convert_frame(object_x, object_y, object_theta):
+def convert_frame(object_x, object_y, object_theta, use_noise):
     #This t's offset is in meters. Everything is in meters.
     t = np.array([0.0649615, 0.0, 0.0])
     R = np.array([[0, 1, 0],
@@ -43,7 +44,15 @@ def convert_frame(object_x, object_y, object_theta):
     #The other way was easier, but we actually need sim to object...
     sim_to_object = object_to_sim.inverse()
 
-    t = np.array([0.0, 0.0, z_offset])
+    #We can take gausian noise and add it to the x and y position of Zeke
+    if use_noise:
+        var = multivariate_normal(np.zeros(3), 0.0005*np.eye(3));
+	t = var.rvs() 
+	t[0] = 0.0
+	t[2] = z_offset
+	print(t)
+    else:
+        t = np.array([0, 0 , z_offset])
     R = np.eye(3)
     object_to_world = stf.SimilarityTransform3D(pose=tfx.pose(R, t), scale=1.0, from_frame="object", to_frame="world")
 
@@ -77,7 +86,7 @@ if __name__ == '__main__':
 		for row in csv_contents:
 		    #A lot of the rows of the csv are headers that don't have actual data...
 		    if (is_float(row[0])):
-		        target = convert_frame(float(row[1]), float(row[2]), float(row[3]))
+		        target = convert_frame(float(row[1]), float(row[2]), float(row[3]), False)
                         target_poses.append(target)
 
                 
@@ -95,5 +104,7 @@ if __name__ == '__main__':
 		        print("Running Pose " + str(idx + 1) + " of " + str(len(target_poses)))
 
 		        #Actual control code
-		        ctrl.do_grasp(target)
+		        ctrl.do_push(target)
+			#We force rest the rbot here so it doesnt hit the object on the way back:w
+			ctrl._robot.reset()
                 

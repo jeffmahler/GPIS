@@ -196,7 +196,7 @@ class DexRobotZeke:
         
         self.gotoState(target_state, rot_speed, tra_speed, name)
         
-    def transform_aim_extend_grip(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, sleep_val=1.0):
+    def transform_aim_extend_push(self, target_pose, name, angles = None, rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, sleep_val=1.0):
         target_pose = DexRobotZeke.ZEKE_LOCAL_T * target_pose
 
         #ANGLES using roll
@@ -221,10 +221,8 @@ class DexRobotZeke:
         self.gotoState(aim_state, rot_speed, tra_speed, name + "_aim")
 
         logging.info('Moving gripper to goal state: %s' %(str(target_state)))
-        self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
-
-        logging.info('Closing grippers')
-        self.grip()
+        target_state.set_arm_ext(0.3)
+	self.gotoState(target_state, rot_speed, tra_speed, name + "_grasp")
 
         return target_state
         

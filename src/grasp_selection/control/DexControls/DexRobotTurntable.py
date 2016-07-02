@@ -23,7 +23,7 @@ class DexRobotTurntable:
     #only for visualization purposes.
     _RADIUS = 5
     
-    RESET_STATE = TurntableState([pi + TurntableState.THETA])
+    RESET_STATE = TurntableState([TurntableState.THETA])
 
     def __init__(self, comm = DexConstants.TABLE_COMM, baudrate = DexConstants.BAUDRATE, timeout = DexConstants.SER_TIMEOUT):
         self._turntable= DexSerialInterface(TurntableState, comm, baudrate, timeout)      

@@ -44,7 +44,7 @@ class DexController:
     def __del__(self):
         self.stop()
 
-    def do_grasp(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, sleep_val=1.0):
+    def do_push(self, stf, name = "", rot_speed = DexConstants.DEFAULT_ROT_SPEED, tra_speed = DexConstants.DEFAULT_TRA_SPEED, sleep_val=1.0):
      
         logging.info('Computing grasp angles')
         target_pose, angles = DexController._stf_to_graspable_pose_and_angles(stf)
@@ -77,7 +77,8 @@ class DexController:
         #transform target_pose to table
         logging.info('Rotation table to grasp pose')
         target_obj_angle = aligned_obj_angle - original_obj_angle
-        target_turntable_angle = target_obj_angle + turntable_state.table_rot
+        #HACK! For some reason we need to do the extra pi. I think its an issue with the origin set up.
+	target_turntable_angle = target_obj_angle + turntable_state.table_rot + pi
 
         # check valid angles
         if target_turntable_angle <= TurntableState.MIN_STATE().table_rot or \
@@ -87,13 +88,13 @@ class DexController:
             target_turntable_angle = target_turntable_angle + TurntableState.THETA
             
         logging.info('Rotating table to %f' %(target_turntable_angle))
-        target_table_state = TurntableState().set_table_rot(target_turntable_angle)
+	target_table_state = TurntableState().set_table_rot(target_turntable_angle)
         self._table.gotoState(target_table_state, rot_speed, tra_speed, name+"_table")
 
         #wait til completed
         #transform target_pose to izzy 
         logging.info('Moving robot to grasp pose')
-        target_state = self._robot.transform_aim_extend_grip(target_pose, name, angles, rot_speed, tra_speed)
+        target_state = self._robot.transform_aim_extend_push(target_pose, name, angles, rot_speed, tra_speed)
         
         return copy.copy(target_state)
 
