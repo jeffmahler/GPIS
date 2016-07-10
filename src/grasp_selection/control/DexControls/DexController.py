@@ -77,8 +77,7 @@ class DexController:
         #transform target_pose to table
         logging.info('Rotation table to grasp pose')
         target_obj_angle = aligned_obj_angle - original_obj_angle
-        #HACK! For some reason we need to do the extra pi. I think its an issue with the origin set up.
-	target_turntable_angle = target_obj_angle + turntable_state.table_rot + pi
+	target_turntable_angle = target_obj_angle + turntable_state.table_rot
 
         # check valid angles
         if target_turntable_angle <= TurntableState.MIN_STATE().table_rot or \

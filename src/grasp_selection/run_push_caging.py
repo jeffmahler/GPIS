@@ -29,7 +29,7 @@ def is_float(string):
 def convert_frame(object_x, object_y, object_theta, use_noise):
     #This t's offset is in meters. Everything is in meters.
     t = np.array([0.0649615, 0.0, 0.0])
-    R = np.array([[0, 1, 0],
+    R = np.array([[0, -1, 0],
                   [1, 0, 0],
                   [0, 0, 1]])
     grip_to_sim = stf.SimilarityTransform3D(pose=tfx.pose(R, t), scale=1.0, from_frame="gripper", to_frame="sim")
@@ -37,8 +37,8 @@ def convert_frame(object_x, object_y, object_theta, use_noise):
     t = np.array([object_x, object_y, 0.0])
     #We need offsets in meters, not pixels!
     t = t*pixels_to_meters
-    R = np.array([[np.sin(object_theta), np.cos(object_theta), 0],
-                  [np.cos(object_theta), -np.sin(object_theta), 0],
+    R = np.array([[np.cos(object_theta), np.sin(object_theta), 0],
+                  [-np.sin(object_theta), np.cos(object_theta), 0],
                   [0, 0, 1]])
     object_to_sim = stf.SimilarityTransform3D(pose=tfx.pose(R, t), scale=1.0, from_frame="object", to_frame="sim")
     #The other way was easier, but we actually need sim to object...
@@ -53,7 +53,10 @@ def convert_frame(object_x, object_y, object_theta, use_noise):
 	print(t)
     else:
         t = np.array([0, 0 , z_offset])
-    R = np.eye(3)
+    
+    R = np.array([[1, 0, 0],
+                  [0, -1, 0],
+                  [0, 0, -1]])
     object_to_world = stf.SimilarityTransform3D(pose=tfx.pose(R, t), scale=1.0, from_frame="object", to_frame="world")
 
     grip_to_object = sim_to_object.dot(grip_to_sim)
