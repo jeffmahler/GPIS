@@ -27,8 +27,9 @@ def is_float(string):
         return False
 
 def convert_frame(object_x, object_y, object_theta, use_noise):
+    print((object_x, object_y, object_theta))
     #This t's offset is in meters. Everything is in meters.
-    t = np.array([0.0649615, 0.0, 0.0])
+    t = np.array([0.068, 0.0, 0.0])
     R = np.array([[0, -1, 0],
                   [1, 0, 0],
                   [0, 0, 1]])
@@ -61,7 +62,8 @@ def convert_frame(object_x, object_y, object_theta, use_noise):
 
     grip_to_object = sim_to_object.dot(grip_to_sim)
     grip_to_world = object_to_world.dot(grip_to_object)
-    
+     
+    print(grip_to_world.matrix)
     return grip_to_world
 
 
@@ -74,7 +76,7 @@ if __name__ == '__main__':
     z_offset = 0.02755
     #All of the sim stuff is in pixels, which we need to convert to meters.
     #Ratio of meters/pixels
-    pixels_to_meters = float(0.077)/float(65) 
+    pixels_to_meters = float(0.0637)/float(10) 
     ctrl = DexController()
 
     argc = len(sys.argv)
@@ -106,8 +108,12 @@ if __name__ == '__main__':
 		        yesno = raw_input('Place object for this file. Hit [ENTER] when done')
 		        print("Running Pose " + str(idx + 1) + " of " + str(len(target_poses)))
 
+		        print("Using Matrix")
+		        print(target.matrix)
 		        #Actual control code
 		        ctrl.do_push(target)
 			#We force rest the rbot here so it doesnt hit the object on the way back:w
 			ctrl._robot.reset()
+    
+    sys.exit()
                 
