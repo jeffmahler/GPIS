@@ -23,6 +23,7 @@ sys.path.append('/home/jmahler/jeff_working/GPIS/src/grasp_selection')
 import IPython
 import similarity_tf as stf
 import tfx
+import random
 
 # TODO: update with configurable sleep times / actually make the is action complete function work correctly
 
@@ -222,6 +223,33 @@ class DexController:
 
         plt.draw()
         plt.show()
+    
+    def random_push(self):
+        
+        #All of the projected objects are about the same height
+        z_offset = 0.02755
+	
+	self.reset()
+        table_state = self._table.getState()
+	table_rotation = random.uniform(0.0, 2*np.pi)
+	table_state.set_table_rot(table_rotation)
+	print("Table Rotation: " + str(table_rotation))
+	self._table.gotoState(table_state)
+	zeke_state = self._robot.getState()
+	zeke_rotation = zeke_state.arm_rot + random.uniform(-np.pi/16.0, np.pi/16.0)
+	print("Zeke Rotation: " + str(zeke_rotation))
+	zeke_state.set_arm_rot(zeke_rotation)
+        zeke_state.set_arm_elev(z_offset)
+	self._robot.gotoState(zeke_state)
+	base_extension = zeke_state.arm_ext
+	zeke_state.set_arm_ext(0.3)
+	self._robot.gotoState(zeke_state)
+	#Bring the robot back safely without smacking anything...
+	zeke_state.set_arm_ext(base_extension)
+	self._robot.gotoState(zeke_state)
+        
+
+
        
 def test_state():
     target_state = ZekeState()
